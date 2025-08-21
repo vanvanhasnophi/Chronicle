@@ -1,5 +1,5 @@
 .DS_Store
-_MACOSX
-.vscode
-.cursor
-.joycode
+_MACOSX/*
+.vscode/*
+.cursor/*
+.joycode/*
