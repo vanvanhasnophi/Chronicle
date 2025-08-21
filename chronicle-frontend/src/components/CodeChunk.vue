@@ -1,0 +1,762 @@
+<template>
+  <div class="code-chunk-container">
+    <div class="editor-header">
+      <div class="header-left" style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif; font-size: 0.8rem;">
+        <span class="chunk-title">{{ title }}</span>
+      </div>
+      <div class="toolbar">
+        <select v-model="selectedLanguage" @change="updateHighlighting" class="language-selector transparent-select" :title="selectedLanguage">
+          <option value="javascript">JavaScript</option>
+          <option value="typescript">TypeScript</option>
+          <option value="html">HTML</option>
+          <option value="css">CSS</option>
+          <option value="scss">SCSS</option>
+          <option value="less">LESS</option>
+          <option value="vue">Vue</option>
+          <option value="react">React/JSX</option>
+          <option value="markdown">Markdown</option>
+          <option value="sql">SQL</option>
+          <option value="python">Python</option>
+          <option value="java">Java</option>
+          <option value="cpp">C++</option>
+          <option value="c">C</option>
+          <option value="csharp">C#</option>
+          <option value="go">Go</option>
+          <option value="rust">Rust</option>
+          <option value="php">PHP</option>
+          <option value="ruby">Ruby</option>
+          <option value="swift">Swift</option>
+          <option value="kotlin">Kotlin</option>
+          <option value="bash">Bash</option>
+          <option value="powershell">PowerShell</option>
+          <option value="yaml">YAML</option>
+          <option value="json">JSON</option>
+          <option value="xml">XML</option>
+          <option value="dockerfile">Dockerfile</option>
+          <option value="nginx">Nginx</option>
+          <option value="apache">Apache</option>
+          <option value="git">Git</option>
+          <option value="ini">INI/Config</option>
+          <option value="toml">TOML</option>
+          <option value="lua">Lua</option>
+          <option value="r">R</option>
+          <option value="matlab">MATLAB</option>
+          <option value="plain">纯文本</option>
+        </select>
+        <button class="icon-btn format-btn" @click="formatCode" title="格式化">
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M4 17h12M7 13l3-3 3 3M10 10V3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="icon-btn copy-btn" @click="copyCode" title="复制">
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="7" y="7" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="4" y="4" width="9" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+        </button>
+        <button class="icon-btn clear-btn" @click="clearContent" title="清空">
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M6 6l8 8M6 14L14 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </div>
+    
+    <div class="editor-wrapper" :style="{ height: editorHeight }">
+      <div class="editor-content">
+        <!-- 语法高亮层 -->
+        <AsyncHighlight
+          :code="code"
+          :language="selectedLanguage"
+          :style-object="{ minHeight: textareaHeight, maxHeight: textareaHeight, height: textareaHeight, padding: '0.7rem 1.5rem 1.2rem 1.5rem', boxSizing: 'border-box' }"
+        />
+        <!-- 文本输入层 -->
+        <textarea
+          v-model="code"
+          ref="codeInput"
+          class="code-textarea"
+          @input="onInput"
+          @keydown="onKeyDown"
+          @scroll="syncScroll"
+          @click="updateCurrentLine"
+          @keyup="updateCurrentLine"
+          spellcheck="false"
+          :placeholder="placeholder"
+          :readonly="readonly"
+          :style="{ minHeight: textareaHeight, maxHeight: textareaHeight, height: textareaHeight, padding: '0.7rem 1.5rem 1.2rem 1.5rem', color: 'transparent', boxSizing: 'border-box' }"
+        ></textarea>
+      </div>
+    </div>
+    
+    <div class="editor-footer" v-if="showFooter">
+  <span>行: {{ currentLine }} | 列: {{ currentColumn }}</span>
+  <span>字符数: {{ code.length }} | 行数: {{ lineCount }}</span>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+// 让渲染层和输入层高度一致
+// 已有computed引入，无需重复
+const textareaHeight = computed(() => {
+  const lines = code.value.split('\n').length
+  const lineHeight = 20 // px
+  const minHeight = 80 // px
+  const maxHeight = 360 // px
+  const h = Math.max(minHeight, Math.min(maxHeight, lines * lineHeight + 24))
+  return h + 'px'
+})
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
+
+// Props 定义
+interface Props {
+  modelValue?: string
+  language?: string
+  title?: string
+  placeholder?: string
+  readonly?: boolean
+  showHeader?: boolean
+  showToolbar?: boolean
+  // showLineNumbers?: boolean
+  showFooter?: boolean
+  height?: string
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  modelValue: '',
+  language: 'plain',
+  title: '',
+  placeholder: '在此输入代码...',
+  readonly: false,
+  showHeader: true,
+  showToolbar: true,
+  showLineNumbers: true,
+  showFooter: true,
+  height: '400px'
+})
+
+// Emits 定义
+const emit = defineEmits<{
+  'update:modelValue': [value: string]
+  'change': [value: string, language: string]
+  'copy': [value: string]
+}>()
+
+// 响应式数据
+const code = ref(props.modelValue)
+const selectedLanguage = ref(props.language)
+const codeInput = ref<HTMLTextAreaElement>()
+const highlightLayer = ref<HTMLPreElement>()
+// 行号已移除
+const currentLine = ref(1)
+const currentColumn = ref(1)
+
+// 计算属性
+const lineCount = computed(() => {
+  return Math.max(1, code.value.split('\n').length)
+})
+
+// 代码块高度自适应，最大高度 360px，最小 80px
+const editorHeight = computed(() => {
+  const lines = code.value.split('\n').length
+  const lineHeight = 20 // px
+  const minHeight = 80 // px
+  const maxHeight = 360 // px
+  const h = Math.max(minHeight, Math.min(maxHeight, lines * lineHeight + 24))
+  return h + 'px'
+})
+
+import AsyncHighlight from './AsyncHighlight.vue'
+
+// 输入处理
+function onInput() {
+  emit('update:modelValue', code.value)
+  emit('change', code.value, selectedLanguage.value)
+  nextTick(() => {
+    syncScroll()
+    updateCurrentLine()
+    // 末行换行时自动滚动到底部
+    if (codeInput.value && highlightLayer.value) {
+      const textarea = codeInput.value;
+      const value = textarea.value;
+      const cursor = textarea.selectionStart;
+      // 光标在最后且内容以换行结尾
+      if (cursor === value.length && value.endsWith('\n')) {
+        textarea.scrollTop = textarea.scrollHeight;
+        highlightLayer.value.scrollTop = highlightLayer.value.scrollHeight - highlightLayer.value.clientHeight;
+      }
+    }
+  })
+}
+
+// 按键处理 - 智能缩进
+function onKeyDown(event: KeyboardEvent) {
+  if (props.readonly) return
+  
+  const textarea = codeInput.value!
+  const { selectionStart, selectionEnd, value } = textarea
+
+  if (event.key === 'Tab') {
+    event.preventDefault()
+    
+    if (event.shiftKey) {
+      // Shift+Tab: 减少缩进
+      const lines = value.split('\n')
+      const startLineIndex = value.substring(0, selectionStart).split('\n').length - 1
+      const endLineIndex = value.substring(0, selectionEnd).split('\n').length - 1
+      
+      let newValue = ''
+      let offsetStart = 0
+      let offsetEnd = 0
+      
+      lines.forEach((line, index) => {
+        if (index >= startLineIndex && index <= endLineIndex) {
+          if (line.startsWith('  ')) {
+            newValue += line.substring(2)
+            if (index === startLineIndex) offsetStart -= 2
+            if (index <= endLineIndex) offsetEnd -= 2
+          } else if (line.startsWith('\t')) {
+            newValue += line.substring(1)
+            if (index === startLineIndex) offsetStart -= 1
+            if (index <= endLineIndex) offsetEnd -= 1
+          } else {
+            newValue += line
+          }
+        } else {
+          newValue += line
+        }
+        if (index < lines.length - 1) newValue += '\n'
+      })
+      
+      code.value = newValue
+      nextTick(() => {
+        textarea.setSelectionRange(
+          Math.max(0, selectionStart + offsetStart),
+          Math.max(0, selectionEnd + offsetEnd)
+        )
+      })
+    } else {
+      // Tab: 增加缩进
+      if (selectionStart === selectionEnd) {
+        // 单行缩进
+        const before = value.substring(0, selectionStart)
+        const after = value.substring(selectionEnd)
+        code.value = before + '  ' + after
+        nextTick(() => {
+          textarea.setSelectionRange(selectionStart + 2, selectionStart + 2)
+        })
+      } else {
+        // 多行缩进
+        const lines = value.split('\n')
+        const startLineIndex = value.substring(0, selectionStart).split('\n').length - 1
+        const endLineIndex = value.substring(0, selectionEnd).split('\n').length - 1
+        
+        let newValue = ''
+        let offsetEnd = 0
+        
+        lines.forEach((line, index) => {
+          if (index >= startLineIndex && index <= endLineIndex) {
+            newValue += '  ' + line
+            offsetEnd += 2
+          } else {
+            newValue += line
+          }
+          if (index < lines.length - 1) newValue += '\n'
+        })
+        
+        code.value = newValue
+        nextTick(() => {
+          textarea.setSelectionRange(selectionStart + 2, selectionEnd + offsetEnd)
+        })
+      }
+    }
+  } else if (event.key === 'Enter') {
+    event.preventDefault()
+    
+    // 智能缩进：检测当前行的缩进并应用到新行
+    const lines = value.substring(0, selectionStart).split('\n')
+    const currentLineContent = lines[lines.length - 1]
+    const indent = currentLineContent.match(/^(\s*)/)?.[1] || ''
+    
+    // 如果当前行以 { 结尾，增加一层缩进
+    let extraIndent = ''
+    if (currentLineContent.trim().endsWith('{') || 
+        currentLineContent.trim().endsWith('[') || 
+        currentLineContent.trim().endsWith('(') ||
+        currentLineContent.trim().endsWith(':')) {
+      extraIndent = '  '
+    }
+    
+    const before = value.substring(0, selectionStart)
+    const after = value.substring(selectionEnd)
+    const newContent = before + '\n' + indent + extraIndent + after
+    
+    code.value = newContent
+    nextTick(() => {
+      const newCursorPos = selectionStart + 1 + indent.length + extraIndent.length
+      textarea.setSelectionRange(newCursorPos, newCursorPos)
+    })
+  } else if (event.key === 'Backspace') {
+    // 智能删除：如果光标前是空格，尝试删除整个缩进级别
+    if (selectionStart === selectionEnd && selectionStart > 0) {
+      const beforeCursor = value.substring(0, selectionStart)
+      const currentLine = beforeCursor.split('\n').pop() || ''
+      
+      if (currentLine.match(/^\s+$/) && currentLine.length >= 2) {
+        event.preventDefault()
+        const deleteCount = currentLine.length % 2 === 0 ? 2 : 1
+        const before = value.substring(0, selectionStart - deleteCount)
+        const after = value.substring(selectionEnd)
+        code.value = before + after
+        nextTick(() => {
+          textarea.setSelectionRange(selectionStart - deleteCount, selectionStart - deleteCount)
+        })
+      }
+    }
+  }
+  
+  // 自动括号匹配和智能换行
+  const pairs: Record<string, string> = {
+    '(': ')',
+    '[': ']',
+    '{': '}',
+    '"': '"',
+    "'": "'"
+  }
+
+
+  // 只自动补全右括号，不换行
+  if ((event.key === '{' || event.key === '(' || event.key === '[') && selectionStart === selectionEnd) {
+    event.preventDefault()
+    const before = value.substring(0, selectionStart)
+    const after = value.substring(selectionEnd)
+    const closing = pairs[event.key]
+    code.value = before + event.key + closing + after
+    nextTick(() => {
+      textarea.setSelectionRange(selectionStart + 1, selectionStart + 1)
+    })
+    return
+  }
+
+  // 仅输入右括号时，跳过光标
+  if ((event.key === ')' || event.key === ']' || event.key === '}') && selectionStart === selectionEnd) {
+    if (value[selectionStart] === event.key) {
+      event.preventDefault()
+      textarea.setSelectionRange(selectionStart + 1, selectionStart + 1)
+      return
+    }
+  }
+
+  // 在括号内按回车时，智能缩进
+  if (event.key === 'Enter') {
+    // 检查光标前后是否为匹配的括号
+    const before = value.substring(0, selectionStart)
+    const after = value.substring(selectionEnd)
+    const prevChar = before.slice(-1)
+    const nextChar = after[0]
+    // 花括号内换行
+    if (prevChar === '{' && nextChar === '}') {
+      event.preventDefault()
+      const lines = before.split('\n')
+      const currentLine = lines[lines.length - 1]
+      const indent = currentLine.match(/^\s*/)?.[0] || ''
+      code.value = before + '\n' + indent + '  ' + '\n' + indent + after
+      nextTick(() => {
+        textarea.setSelectionRange(selectionStart + 1 + indent.length + 2, selectionStart + 1 + indent.length + 2)
+      })
+      return
+    }
+    // 圆括号或方括号内换行
+    if ((prevChar === '(' && nextChar === ')') || (prevChar === '[' && nextChar === ']')) {
+      event.preventDefault()
+      code.value = before + '\n' + after
+      nextTick(() => {
+        textarea.setSelectionRange(selectionStart + 1, selectionStart + 1)
+      })
+      return
+    }
+  }
+}
+
+// 同步滚动
+function syncScroll() {
+  if (highlightLayer.value && codeInput.value) {
+    // 高亮层和textarea滚动始终完全一致
+    highlightLayer.value.scrollTop = codeInput.value.scrollTop;
+    highlightLayer.value.scrollLeft = codeInput.value.scrollLeft;
+  }
+}
+
+// 更新当前行和列
+function updateCurrentLine() {
+  if (codeInput.value) {
+    const textarea = codeInput.value
+    const { selectionStart, value } = textarea
+    const beforeCursor = value.substring(0, selectionStart)
+    const lines = beforeCursor.split('\n')
+    
+    currentLine.value = lines.length
+    currentColumn.value = lines[lines.length - 1].length + 1
+  }
+}
+
+// 更新语法高亮
+function updateHighlighting() {
+  emit('change', code.value, selectedLanguage.value)
+  nextTick(() => {
+    syncScroll()
+  })
+}
+
+// 格式化代码
+function formatCode() {
+  if (props.readonly) return
+  const lang = selectedLanguage.value
+  const lines = code.value.split('\n')
+  let newLines
+  if (lang === 'python') {
+    // Python 缩进规则
+    let indentLevel = 0
+    const indentSize = 2
+    const dedentKeywords = /^(elif |else:|except |finally:)/
+    const dedentLineKeywords = /^(return|break|continue|pass|raise)\b/
+    const indentKeywords = /(:\s*$)/
+    newLines = lines.map(line => {
+      let trimmed = line.trim()
+      // 先判断dedent（elif/else/except/finally）
+      if (dedentKeywords.test(trimmed)) {
+        indentLevel = Math.max(0, indentLevel - 1)
+      }
+      // 行首dedent（return等）
+      let indented = ' '.repeat(indentLevel * indentSize) + trimmed
+      if (dedentLineKeywords.test(trimmed)) {
+        // 但不减少本行缩进，只影响后续
+        indentLevel = Math.max(0, indentLevel - 1)
+      }
+      // 行尾冒号增加缩进
+      if (indentKeywords.test(trimmed)) {
+        indentLevel++
+      }
+      return indented
+    })
+  } else {
+    // 括号法
+    let indentLevel = 0
+    const indentSize = 2
+    const openBrackets = /[{[(]$/
+    const closeBrackets = /^[})\]]/
+    newLines = lines.map(line => {
+      let trimmed = line.trim()
+      if (closeBrackets.test(trimmed)) {
+        indentLevel = Math.max(0, indentLevel - 1)
+      }
+      const indented = ' '.repeat(indentLevel * indentSize) + trimmed
+      if (openBrackets.test(trimmed)) {
+        indentLevel++
+      }
+      return indented
+    })
+  }
+  code.value = newLines.join('\n')
+  onInput()
+}
+
+// 复制代码
+async function copyCode() {
+  try {
+    await navigator.clipboard.writeText(code.value)
+    emit('copy', code.value)
+    // 这里可以添加一个提示消息
+  } catch (err) {
+    console.error('复制失败:', err)
+    // 备用方案：使用传统的复制方法
+    const textArea = document.createElement('textarea')
+    textArea.value = code.value
+    document.body.appendChild(textArea)
+    textArea.select()
+    try {
+      document.execCommand('copy')
+      emit('copy', code.value)
+    } catch (err) {
+      console.error('复制失败:', err)
+    }
+    document.body.removeChild(textArea)
+  }
+}
+
+// 清空内容
+function clearContent() {
+  if (props.readonly) return
+  
+  if (confirm('确定要清空所有内容吗？')) {
+    code.value = ''
+    currentLine.value = 1
+    currentColumn.value = 1
+    onInput()
+  }
+}
+
+// 监听 props 变化
+watch(() => props.modelValue, (newValue) => {
+  if (newValue !== code.value) {
+    code.value = newValue
+  }
+})
+
+watch(() => props.language, (newLanguage) => {
+  selectedLanguage.value = newLanguage
+})
+
+// 监听代码变化以更新高亮
+watch(code, () => {
+  nextTick(() => {
+    syncScroll()
+  })
+})
+
+onMounted(() => {
+  // 初始化焦点
+  if (!props.readonly) {
+    codeInput.value?.focus()
+  }
+})
+</script>
+
+<style>
+.icon-btn {
+  background: transparent;
+  color: #b8b8b8;
+  border: none;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  transition: background 0.2s, color 0.2s;
+}
+.transparent-select {
+  background: transparent !important;
+  border: none;
+  color: #d4d4d4;
+  font-size: 0.95em;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif;
+  outline: none;
+  box-shadow: none;
+  padding: 0 1.2em 0 0.2em;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  cursor: pointer;
+  min-width: 70px;
+}
+.transparent-select:focus {
+  outline: none;
+  box-shadow: none;
+}
+.transparent-select option {
+  background: #23252b;
+  color: #d4d4d4;
+}
+.toolbar {
+  align-items: center;
+}
+.chunk-title {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #d4d4d4;
+  letter-spacing: 0.01em;
+}
+.editor-header, .editor-footer {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif;
+}
+.syntax-highlight .keyword { color: #569cd6; font-weight: bold; }
+.syntax-highlight .string { color: #ce9178; }
+.syntax-highlight .comment { color: #6a9955; font-style: italic; }
+.syntax-highlight .number { color: #b5cea8; }
+.syntax-highlight .boolean { color: #569cd6; }
+.syntax-highlight .operator { color: #d4d4d4; }
+.syntax-highlight .bracket { color: #ffd700; }
+.syntax-highlight .tag { color: #569cd6; }
+.syntax-highlight .attribute { color: #9cdcfe; }
+.syntax-highlight .property { color: #9cdcfe; }
+.syntax-highlight .selector { color: #d7ba7d; }
+.syntax-highlight .type { color: #4ec9b0; }
+.syntax-highlight .variable { color: #9cdcfe; }
+.syntax-highlight .parameter { color: #9cdcfe; }
+.syntax-highlight .cmdlet { color: #569cd6; font-weight: bold; }
+.syntax-highlight .directive { color: #c586c0; }
+.syntax-highlight .preprocessor { color: #c586c0; }
+.syntax-highlight .color { color: #ce9178; font-weight: bold; }
+.syntax-highlight .section { color: #569cd6; font-weight: bold; }
+.syntax-highlight .date { color: #b5cea8; }
+.syntax-highlight .quote { color: #6a9955; font-style: italic; border-left: 4px solid #6a9955; padding-left: 0.5rem; margin-left: 0.5rem; }
+.syntax-highlight .header { color: #569cd6; font-weight: bold; }
+.syntax-highlight .bold { font-weight: bold; color: #ffffff; }
+.syntax-highlight .italic { font-style: italic; color: #d4d4d4; }
+.syntax-highlight .inline-code { background: #2d2d30; color: #ce9178; padding: 0.2rem 0.4rem; border-radius: 3px; }
+.syntax-highlight .code-block { background: #2d2d30; color: #d4d4d4; padding: 0.5rem; border-radius: 4px; border-left: 4px solid #007acc; }
+.syntax-highlight .link { color: #569cd6; }
+.syntax-highlight .list { color: #ffd700; }
+
+/* 代码块主体统一深灰色 */
+/* 代码块主体统一深灰色，降低饱和度 */
+.code-chunk-container {
+  display: flex;
+  flex-direction: column;
+  background: #23252b;
+  color: #d4d4d4;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* 控件沉浸式透明风格 */
+.editor-header {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 0.3rem 1rem 0.1rem 1rem;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+  font-size: 0.92rem;
+}
+.toolbar {
+  display: flex;
+  flex-direction: row;
+  gap: 0.2rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+.code-textarea {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  background: transparent;
+  caret-color: #ffffff;
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: inherit;
+  font-size: 13.5px;
+  line-height: 1.7em;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  tab-size: 2;
+  vertical-align: top;
+}
+.icon-btn {
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  transition: background 0.2s, color 0.2s;
+}
+.icon-btn:hover {
+  background: #23272e;
+  color: #fff;
+}
+.editor-wrapper {
+  display: flex;
+  overflow: auto;
+  width: 100%;
+}
+.line-numbers {
+  background: transparent;
+  border-right: none;
+  padding: 1rem 0.5rem;
+  min-width: 50px;
+  text-align: right;
+  user-select: none;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.line-number {
+  height: 1.2em;
+  line-height: 1.2em;
+  color: #444a57;
+  font-size: 0.9rem;
+}
+.line-number.active {
+  color: #d4d4d4;
+  font-weight: bold;
+}
+.editor-content {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+.syntax-highlight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 1rem 1rem 1rem 0.5rem;
+  background: transparent;
+  color: #d4d4d4;
+  font-family: inherit;
+  font-size: 13.5px;
+  line-height: 1.3em;
+  overflow: auto;
+  pointer-events: none;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  tab-size: 2;
+  vertical-align: top;
+}
+.code-textarea {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  padding: 1rem 1rem 1rem 0.5rem;
+  background: transparent;
+  color: transparent;
+  caret-color: #ffffff;
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: inherit;
+  font-size: 13.5px;
+  line-height: 1.3em;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  tab-size: 2;
+  vertical-align: top;
+}
+.code-textarea:read-only {
+  cursor: default;
+}
+.editor-footer {
+  color: #b8b8b8;
+  padding: 0.1rem 1rem 0.2rem 1rem;
+  font-size: 0.8rem;
+  display: flex;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+/* 滚动条样式 */
+.syntax-highlight::-webkit-scrollbar,
+.code-textarea::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+.syntax-highlight::-webkit-scrollbar-track,
+.code-textarea::-webkit-scrollbar-track {
+  background: #23272e;
+}
+.syntax-highlight::-webkit-scrollbar-thumb,
+.code-textarea::-webkit-scrollbar-thumb {
+  background: #444a57;
+  border-radius: 6px;
+}
+.syntax-highlight::-webkit-scrollbar-thumb:hover,
+.code-textarea::-webkit-scrollbar-thumb:hover {
+  background: #555555;
+}
+</style>
