@@ -4,44 +4,44 @@
       <h1>Chronicle 文本编辑器</h1>
       <p>简单的 Markdown 编辑器，支持代码块自动识别</p>
     </div>
-    
     <div class="editor-container">
-      <!-- 输入区域 -->
       <div class="input-section">
         <h3>Markdown 输入</h3>
         <textarea
           v-model="markdownContent"
           class="markdown-input"
           placeholder="输入 Markdown 内容，使用 ``` 创建代码块..."
-          @input="parseMarkdown"
+          @input="parseMarkdownContent"
         ></textarea>
       </div>
-      
-      <!-- 预览区域 -->
       <div class="preview-section">
         <h3>实时预览</h3>
-        <div class="preview-content">
-          <div v-for="(block, index) in parsedBlocks" :key="index" class="content-block">
-            <!-- 普通文本 -->
-            <div v-if="block.type === 'text'" v-html="block.content" class="text-block"></div>
-            
-            <!-- 代码块 -->
-            <div v-else-if="block.type === 'code'" class="code-block-container">
-              <CodeChunk
-                v-model="block.content"
-                :language="block.language || 'javascript'"
-                :title="`代码块 ${index + 1}`"
-                height="300px"
-                @change="(code, lang) => updateCodeBlock(index, code, lang)"
-                @copy="onCodeCopy"
-              />
-            </div>
-          </div>
+  <div class="preview-content" :key="parsedBlocks.length" ref="previewContentRef">
+          <template v-for="(block, index) in parsedBlocks" :key="index">
+            <template v-if="block.type === 'table'">
+              <div class="content-block">
+                <MarkdownTable :header="block.header || []" :body="block.body || []" @change="(h,b)=>updateTableBlock(index,h,b)" />
+              </div>
+            </template>
+            <template v-else-if="block.type === 'code'">
+              <div class="content-block">
+                <CodeChunk
+                  v-model="block.content"
+                  :language="block.language || 'javascript'"
+                  :title="`代码块 ${index + 1}`"
+                  height="300px"
+                  @change="(code, lang) => updateCodeBlock(index, code, lang)"
+                  @copy="onCodeCopy"
+                />
+              </div>
+            </template>
+            <template v-else>
+              <div class="content-block text-block" v-html="convertToHtml(block.content)"></div>
+            </template>
+          </template>
         </div>
       </div>
     </div>
-    
-    <!-- 状态信息 -->
     <div class="status-bar">
       <span>代码块数量: {{ codeBlockCount }}</span>
       <span>总字符数: {{ totalCharacters }}</span>
@@ -50,13 +50,31 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import CodeChunk from '../components/CodeChunk.vue'
+import { parseMarkdown, convertToHtml, blocksToMarkdown, parseTableMarkdown } from '../components/MdParser.vue'
+import MarkdownTable from '../components/MarkdownTable.vue'
+type Block = {
+  type: 'text' | 'code' | 'table' | 'heading' | 'list' | 'quote' | 'paraWithBackslash';
+  content: string;
+  language?: string;
+  header?: string[];
+  body?: string[][];
+}
 
-// 数据定义
+// 如果MdParser.vue中有ContentBlock类型导出，则如下导入
+// import type { ContentBlock } from '../components/MdParser.vue'
+// 若没有导出，则在此处定义ContentBlock类型
+
+type ContentBlock = {
+  type: 'text' | 'code',
+  content: string,
+  language?: string
+}
+
 const markdownContent = ref(`# 欢迎使用 Chronicle
 
-这是一个简单的 Markdown 编辑器，支持代码块自动识别。
+这是一个简单的 Markdown 编辑器，支持代码块、表格、段落自动识别。
 
 ## JavaScript 示例
 \`\`\`javascript
@@ -68,24 +86,26 @@ function hello(name) {
 hello("World");
 \`\`\`
 
-## Python 示例  
-\`\`\`python
-def greet(name):
-    return f"Hello, {name}!"
+使用三个反引号 \`\`\` 来创建代码块，支持多种编程语言的语法高亮！
 
-print(greet("Chronicle"))
-\`\`\`
+## 这是一个表格：
+|Row1|Row2|Row3|
+|-|-|-|
+|John Doe|Zhang San|Hu Yanbing|
+|1|2.00|3|
 
-使用三个反引号 \`\`\` 来创建代码块，支持多种编程语言的语法高亮！`)
+## 这是一个长段落
+红军不怕远征难\\
+万水千山只等闲
+五岭逶迤腾细浪\\
+乌蒙磅礴走泥丸\\1
+金沙水拍云崖暖\\
+大渡桥横铁索寒\\\\
+更喜岷山千里雪
+三军过后尽开颜\\`)
 
-// 内容块接口
-interface ContentBlock {
-  type: 'text' | 'code'
-  content: string
-  language?: string
-}
-
-const parsedBlocks = ref<ContentBlock[]>([])
+const parsedBlocks = ref<Block[]>([])
+const previewContentRef = ref<HTMLDivElement | null>(null)
 
 // 计算属性
 const codeBlockCount = computed(() => {
@@ -97,67 +117,21 @@ const totalCharacters = computed(() => {
 })
 
 // 解析 Markdown 内容
-function parseMarkdown() {
-  const content = markdownContent.value
-  const blocks: ContentBlock[] = []
-  // 只识别行首的```为代码块起止
-  const codeBlockPattern = /^```(\w*)\n([\s\S]*?)^```/gm
-  let lastIndex = 0
-  let match
-  // 查找所有代码块
-  while ((match = codeBlockPattern.exec(content)) !== null) {
-    // 添加代码块前的文本内容
-    const textBefore = content.slice(lastIndex, match.index)
-    if (textBefore.trim()) {
-      blocks.push({
-        type: 'text',
-        content: convertToHtml(textBefore.trim())
-      })
+function parseMarkdownContent() {
+  // 记录滚动位置
+  let scrollTop = 0
+  if (previewContentRef.value) {
+    scrollTop = previewContentRef.value.scrollTop
+  }
+  parsedBlocks.value = parseMarkdown(markdownContent.value)
+  nextTick(() => {
+    if (previewContentRef.value) {
+      previewContentRef.value.scrollTop = scrollTop
     }
-    // 添加代码块
-    blocks.push({
-      type: 'code',
-      content: match[2].trim(),
-      language: match[1] || 'plain'
-    })
-    lastIndex = match.index + match[0].length
-  }
-  // 添加最后剩余的文本内容
-  const remainingText = content.slice(lastIndex)
-  if (remainingText.trim()) {
-    blocks.push({
-      type: 'text',
-      content: convertToHtml(remainingText.trim())
-    })
-  }
-  parsedBlocks.value = blocks
+  })
 }
 
-// 简单的 Markdown 转 HTML
-function convertToHtml(text: string): string {
-  return text
-    // 标题转换
-    .replace(/^### (.*$)/gm, '<h3>$1</h3>')
-    .replace(/^## (.*$)/gm, '<h2>$1</h2>')
-    .replace(/^# (.*$)/gm, '<h1>$1</h1>')
-    // 粗体和斜体
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    // 行内代码
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    // 段落处理
-    .replace(/\n\n/g, '</p><p>')
-    // 包装段落
-    .replace(/^(.*)$/gm, (_, content) => {
-      if (content.startsWith('<h') || content.startsWith('</')) {
-        return content
-      }
-      return `<p>${content}</p>`
-    })
-    // 清理空段落
-    .replace(/<p><\/p>/g, '')
-    .replace(/<p>(<h[1-6]>.*?<\/h[1-6]>)<\/p>/g, '$1')
-}
+// convertToHtml 已由 MdParser 导出
 
 // 更新代码块内容
 function updateCodeBlock(index: number, code: string, language: string) {
@@ -170,29 +144,71 @@ function updateCodeBlock(index: number, code: string, language: string) {
   }
 }
 
-// 同步更新 markdown 内容
+// 更新表格块
+function updateTableBlock(index: number, header: string[], body: string[][]) {
+  // 更新block内容并同步markdown
+  const block = parsedBlocks.value[index]
+  if (block && block.type === 'table') {
+    block.header = header
+    block.body = body
+    // 重新生成表格占位符内容
+    block.content = `[[MARKDOWN_TABLE:${JSON.stringify({header,body})}]]`
+    syncMarkdownContent()
+  }
+}
+
+// 转义表格单元格内容，防止破坏markdown结构
+function escapeTableCell(cell: string): string {
+  return cell
+    .replace(/\\/g, '\\\\') // 先转义反斜杠
+    .replace(/\|/g, '\\|')     // 再转义竖线
+    .replace(/\n/g, ' ')         // 换行转空格
+    .replace(/\r/g, '')
+}
+
+// 将[[MARKDOWN_TABLE:...]]格式转为标准markdown表格
+function tableBlockToMarkdown(tableBlock: string): string {
+  // 匹配[[MARKDOWN_TABLE:{...}]]
+  const match = tableBlock.match(/^[\[]\[MARKDOWN_TABLE:(.*)\]\]$/s)
+  if (!match) return tableBlock
+  try {
+    const obj = JSON.parse(match[1])
+    const header = obj.header || []
+    const body = obj.body || []
+    if (!header.length) return ''
+    // 构造表头
+    const headerLine = '| ' + header.map(escapeTableCell).join(' | ') + ' |'
+    const sepLine = '| ' + header.map(() => '---').join(' | ') + ' |'
+    // 构造表体
+    const bodyLines = body.map((row:string[]) => '| ' + row.map(escapeTableCell).join(' | ') + ' |')
+    return [headerLine, sepLine, ...bodyLines].join('\n')
+  } catch {
+    return tableBlock
+  }
+}
+
 function syncMarkdownContent() {
-  let newContent = ''
-  
-  parsedBlocks.value.forEach(block => {
+  // 支持所有类型block的还原
+  const md = parsedBlocks.value.map(block => {
     if (block.type === 'text') {
-      // 简单地移除 HTML 标签并恢复 markdown
-      const plainText = block.content
-        .replace(/<h1>(.*?)<\/h1>/g, '# $1\n\n')
-        .replace(/<h2>(.*?)<\/h2>/g, '## $1\n\n')
-        .replace(/<h3>(.*?)<\/h3>/g, '### $1\n\n')
-        .replace(/<strong>(.*?)<\/strong>/g, '**$1**')
-        .replace(/<em>(.*?)<\/em>/g, '*$1*')
-        .replace(/<code>(.*?)<\/code>/g, '`$1`')
-        .replace(/<p>(.*?)<\/p>/g, '$1\n')
-        .replace(/<[^>]*>/g, '')
-      newContent += plainText + '\n'
+      return block.content
     } else if (block.type === 'code') {
-      newContent += `\`\`\`${block.language || 'javascript'}\n${block.content}\n\`\`\`\n\n`
+      return `\n\n\${block.language || ''}\n${block.content}\n\\n\n`
+    } else if (block.type === 'table') {
+      return tableBlockToMarkdown(block.content)
+    } else if (block.type === 'heading') {
+      return block.content
+    } else if (block.type === 'list') {
+      return block.content
+    } else if (block.type === 'quote') {
+      return block.content
+    } else if (block.type === 'paraWithBackslash') {
+      return block.content
     }
-  })
-  
-  markdownContent.value = newContent.trim()
+    return ''
+  }).join('\n\n')
+  // 不自动赋值markdownContent，避免textarea光标跳动
+  // markdownContent.value = md.trim()
 }
 
 // 代码复制回调
@@ -200,8 +216,23 @@ function onCodeCopy(code: string) {
   console.log('代码已复制:', code.substring(0, 50) + '...')
 }
 
+// 渲染块内容
+function renderBlockContent(block: ContentBlock) {
+  // 检查是否为表格占位符
+  const tableMatch = block.content.match(/^\[\[MARKDOWN_TABLE:(.*)\]\]$/)
+  if (tableMatch) {
+    try {
+      const { header, body } = JSON.parse(tableMatch[1])
+      return { type: 'table', header, body }
+    } catch {
+      return { type: 'text', html: block.content }
+    }
+  }
+  return { type: 'text', html: block.content }
+}
+
 // 初始化解析
-parseMarkdown()
+parseMarkdownContent()
 </script>
 
 <style scoped>
@@ -286,6 +317,33 @@ parseMarkdown()
 .text-block {
   line-height: 1.6;
 }
+.text-block table {
+  border-collapse: collapse;
+  margin: 1em 0;
+  width: 100%;
+  background: #232323;
+  border: 2px solid #888;
+  box-shadow: 0 2px 8px #0002;
+}
+.text-block th, .text-block td {
+  border: 1.5px solid #aaa;
+  padding: 0.5em 1em;
+  text-align: left;
+  background: #232323;
+}
+.text-block th {
+  background: #2d2d30;
+  color: #fff;
+  border-bottom: 2px solid #888;
+}
+.text-block ul, .text-block ol {
+  margin: 1em 0 1em 2em;
+  padding: 0 0 0 1.2em;
+}
+.text-block li {
+  margin: 0.2em 0;
+}
+
 
 .text-block h1,
 .text-block h2,
@@ -310,8 +368,15 @@ parseMarkdown()
   font-size: 1.2rem;
 }
 
+
 .text-block p {
   margin: 0.8rem 0;
+  color: #d4d4d4;
+}
+.text-block .para-backslash {
+  display: block;
+  line-height: 1.2;
+  margin: 0.2em 0;
   color: #d4d4d4;
 }
 

@@ -6,42 +6,42 @@
       </div>
       <div class="toolbar">
         <select v-model="selectedLanguage" @change="updateHighlighting" class="language-selector transparent-select" :title="selectedLanguage">
-          <option value="javascript">JavaScript</option>
-          <option value="typescript">TypeScript</option>
-          <option value="html">HTML</option>
-          <option value="css">CSS</option>
-          <option value="scss">SCSS</option>
-          <option value="less">LESS</option>
-          <option value="vue">Vue</option>
-          <option value="react">React/JSX</option>
-          <option value="markdown">Markdown</option>
-          <option value="sql">SQL</option>
-          <option value="python">Python</option>
-          <option value="java">Java</option>
-          <option value="cpp">C++</option>
-          <option value="c">C</option>
-          <option value="csharp">C#</option>
-          <option value="go">Go</option>
-          <option value="rust">Rust</option>
-          <option value="php">PHP</option>
-          <option value="ruby">Ruby</option>
-          <option value="swift">Swift</option>
-          <option value="kotlin">Kotlin</option>
-          <option value="bash">Bash</option>
-          <option value="powershell">PowerShell</option>
-          <option value="yaml">YAML</option>
-          <option value="json">JSON</option>
-          <option value="xml">XML</option>
-          <option value="dockerfile">Dockerfile</option>
-          <option value="nginx">Nginx</option>
-          <option value="apache">Apache</option>
-          <option value="git">Git</option>
-          <option value="ini">INI/Config</option>
-          <option value="toml">TOML</option>
-          <option value="lua">Lua</option>
-          <option value="r">R</option>
-          <option value="matlab">MATLAB</option>
-          <option value="plain">纯文本</option>
+            <option value="apache">Apache</option>
+            <option value="bash">Bash</option>
+            <option value="c">C</option>
+            <option value="cpp">C++</option>
+            <option value="csharp">C#</option>
+            <option value="css">CSS</option>
+            <option value="dockerfile">Dockerfile</option>
+            <option value="git">Git</option>
+            <option value="go">Go</option>
+            <option value="html">HTML</option>
+            <option value="ini">INI/Config</option>
+            <option value="java">Java</option>
+            <option value="javascript">JavaScript</option>
+            <option value="json">JSON</option>
+            <option value="kotlin">Kotlin</option>
+            <option value="less">LESS</option>
+            <option value="lua">Lua</option>
+            <option value="markdown">Markdown</option>
+            <option value="matlab">MATLAB</option>
+            <option value="nginx">Nginx</option>
+            <option value="php">PHP</option>
+            <option value="powershell">PowerShell</option>
+            <option value="python">Python</option>
+            <option value="r">R</option>
+            <option value="react">React/JSX</option>
+            <option value="ruby">Ruby</option>
+            <option value="rust">Rust</option>
+            <option value="scss">SCSS</option>
+            <option value="sql">SQL</option>
+            <option value="swift">Swift</option>
+            <option value="toml">TOML</option>
+            <option value="typescript">TypeScript</option>
+            <option value="vue">Vue</option>
+            <option value="xml">XML</option>
+            <option value="yaml">YAML</option>
+            <option value="plain">纯文本</option>
         </select>
         <button class="icon-btn format-btn" @click="formatCode" title="格式化">
           <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M4 17h12M7 13l3-3 3 3M10 10V3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -508,10 +508,7 @@ watch(code, () => {
 })
 
 onMounted(() => {
-  // 初始化焦点
-  if (!props.readonly) {
-    codeInput.value?.focus()
-  }
+  // 不自动聚焦，避免markdown编辑时跳焦点
 })
 </script>
 

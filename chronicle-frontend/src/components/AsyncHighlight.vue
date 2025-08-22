@@ -15,25 +15,40 @@ const props = defineProps<{
 const highlightedParts = ref<string[]>([])
 const highlightLayer = ref<HTMLElement>()
 
-// 语法高亮规则（内置，支持多语言）
+// 语法高亮规则（内置，支持多语言，按字母序排列，plain在最后）
 const syntaxRules: Record<string, Array<{ pattern: RegExp; className: string }>> = {
-  javascript: [
+  c: [
     { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
-    { pattern: /(["'`])(?:(?!(\\|\1)).|\\.)*(\\|\1)/g, className: 'string' },
-    { pattern: /\b(const|let|var|function|return|if|else|for|while|do|break|continue|switch|case|default|try|catch|finally|throw|class|extends|import|export|from|as|async|await|yield|typeof|instanceof|new|this|super|static|get|set|constructor)\b/g, className: 'keyword' },
-    { pattern: /\b(true|false|null|undefined|NaN|Infinity)\b/g, className: 'boolean' },
-    { pattern: /\b\d+\.?\d*(e[+-]?\d+)?[lf]?\b/gi, className: 'number' },
+    { pattern: /(["'])(?:(?!(\\|\1)).|\\.)*(\\|\1)/g, className: 'string' },
+    { pattern: /\b(auto|break|case|char|const|continue|default|do|double|else|enum|extern|float|for|goto|if|inline|int|long|register|restrict|return|short|signed|sizeof|static|struct|switch|typedef|union|unsigned|void|volatile|while|_Alignas|_Alignof|_Atomic|_Bool|_Complex|_Generic|_Imaginary|_Noreturn|_Static_assert|_Thread_local)\b/g, className: 'keyword' },
+    { pattern: /\b(true|false|NULL)\b/g, className: 'boolean' },
+    { pattern: /\b\d+\.?\d*(e[+-]?\d+)?[ulULfF]?\b/gi, className: 'number' },
     { pattern: /[{}[\]()]/g, className: 'bracket' },
     { pattern: /[+\-*/%=<>!&|?:.]/g, className: 'operator' }
   ],
-  python: [
-    { pattern: /#.*/g, className: 'comment' },
-    { pattern: /(["']{3}[\s\S]*?["']{3}|(["'])(?:(?!\2).)*\2)/g, className: 'string' },
-    { pattern: /\b(def|class|if|elif|else|for|while|break|continue|return|try|except|finally|with|as|import|from|pass|raise|in|is|not|and|or|lambda|yield|assert|del|global|nonlocal|print)\b/g, className: 'keyword' },
-    { pattern: /\b(True|False|None)\b/g, className: 'boolean' },
-    { pattern: /\b\d+\.?\d*\b/g, className: 'number' },
+  cpp: [
+    { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
+    { pattern: /(["'])(?:(?!(\\|\1)).|\\.)*(\\|\1)/g, className: 'string' },
+    { pattern: /\b(alignas|alignof|and|and_eq|asm|auto|bitand|bitor|bool|break|case|catch|char|char16_t|char32_t|class|compl|const|constexpr|const_cast|continue|decltype|default|delete|do|double|dynamic_cast|else|enum|explicit|export|extern|false|float|for|friend|goto|if|inline|int|long|mutable|namespace|new|noexcept|not|not_eq|nullptr|operator|or|or_eq|private|protected|public|register|reinterpret_cast|return|short|signed|sizeof|static|static_assert|static_cast|struct|switch|template|this|thread_local|throw|true|try|typedef|typeid|typename|union|unsigned|using|virtual|void|volatile|wchar_t|while|xor|xor_eq)\b/g, className: 'keyword' },
+    { pattern: /\b(true|false|nullptr)\b/g, className: 'boolean' },
+    { pattern: /\b\d+\.?\d*(e[+-]?\d+)?[ulULfF]?\b/gi, className: 'number' },
     { pattern: /[{}[\]()]/g, className: 'bracket' },
-    { pattern: /[+\-*/%=<>!&|]/g, className: 'operator' }
+    { pattern: /[+\-*/%=<>!&|?:.]/g, className: 'operator' }
+  ],
+  css: [
+    { pattern: /\/\*([\s\S]*?)\*\//g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b([a-z-]+)(?=\s*:)/gi, className: 'property' },
+    { pattern: /#[0-9a-fA-F]{3,6}\b/g, className: 'color' },
+    { pattern: /\.[a-zA-Z_][\w-]*/g, className: 'selector' },
+    { pattern: /:[a-zA-Z-]+/g, className: 'selector' },
+    { pattern: /\b\d+\.?\d*(px|em|rem|%)?\b/g, className: 'number' }
+  ],
+  html: [
+    { pattern: /<!--([\s\S]*?)-->/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /<\/?[a-zA-Z][^\s>]*\b/g, className: 'tag' },
+    { pattern: /\b(class|id|style|src|href|alt|title|type|value|name|rel|for|onclick|onchange|oninput|onfocus|onblur|checked|disabled|readonly|required|selected|multiple|placeholder|action|method|target|enctype|accept|autocomplete|autofocus|form|list|max|min|pattern|step|size|width|height|rows|cols|wrap|spellcheck|tabindex|accesskey|contenteditable|draggable|hidden|lang|translate|dir|data-[\w-]+)\b/g, className: 'attribute' }
   ],
   java: [
     { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
@@ -44,8 +59,51 @@ const syntaxRules: Record<string, Array<{ pattern: RegExp; className: string }>>
     { pattern: /[{}[\]()]/g, className: 'bracket' },
     { pattern: /[+\-*/%=<>!&|?:.]/g, className: 'operator' }
   ],
+  javascript: [
+    { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
+    { pattern: /(["'`])(?:(?!(\\|\1)).|\\.)*(\\|\1)/g, className: 'string' },
+    { pattern: /\b(const|let|var|function|return|if|else|for|while|do|break|continue|switch|case|default|try|catch|finally|throw|class|extends|import|export|from|as|async|await|yield|typeof|instanceof|new|this|super|static|get|set|constructor)\b/g, className: 'keyword' },
+    { pattern: /\b(true|false|null|undefined|NaN|Infinity)\b/g, className: 'boolean' },
+    { pattern: /\b\d+\.?\d*(e[+-]?\d+)?[lf]?\b/gi, className: 'number' },
+    { pattern: /[{}[\]()]/g, className: 'bracket' },
+    { pattern: /[+\-*/%=<>!&|?:.]/g, className: 'operator' }
+  ],
+  json: [
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(true|false|null)\b/g, className: 'boolean' },
+    { pattern: /\b\d+\.?\d*\b/g, className: 'number' },
+    { pattern: /[{}[\]()]/g, className: 'bracket' },
+    { pattern: /[:,]/g, className: 'operator' }
+  ],
+  markdown: [
+    { pattern: /^\s{0,3}(#{1,6})\s+(.*)$/gm, className: 'header' },
+    { pattern: /\*\*(.*?)\*\*/g, className: 'bold' },
+    { pattern: /\*(.*?)\*/g, className: 'italic' },
+    { pattern: /`([^`]+)`/g, className: 'inline-code' },
+    { pattern: /^>\s+(.*)$/gm, className: 'quote' },
+    { pattern: /^\s*[-*+]\s+/gm, className: 'list' },
+    { pattern: /\[(.*?)\]\((.*?)\)/g, className: 'link' }
+  ],
+  python: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /(["']{3}[\s\S]*?["']{3}|(["'])(?:(?!\2).)*\2)/g, className: 'string' },
+    { pattern: /\b(def|class|if|elif|else|for|while|break|continue|return|try|except|finally|with|as|import|from|pass|raise|in|is|not|and|or|lambda|yield|assert|del|global|nonlocal|print)\b/g, className: 'keyword' },
+    { pattern: /\b(True|False|None)\b/g, className: 'boolean' },
+    { pattern: /\b\d+\.?\d*\b/g, className: 'number' },
+    { pattern: /[{}[\]()]/g, className: 'bracket' },
+    { pattern: /[+\-*/%=<>!&|]/g, className: 'operator' }
+  ],
+  typescript: [
+    { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
+    { pattern: /(["'`])(?:(?!(\\|\1)).|\\.)*(\\|\1)/g, className: 'string' },
+    { pattern: /\b(const|let|var|function|return|if|else|for|while|do|break|continue|switch|case|default|try|catch|finally|throw|class|extends|import|export|from|as|async|await|yield|typeof|instanceof|new|this|super|static|get|set|constructor|interface|type|enum|namespace|module|declare|abstract|implements|private|public|protected|readonly)\b/g, className: 'keyword' },
+    { pattern: /\b(string|number|boolean|object|any|void|never|unknown|Array|Promise|Date|RegExp)\b/g, className: 'type' },
+    { pattern: /\b(true|false|null|undefined|NaN|Infinity)\b/g, className: 'boolean' },
+    { pattern: /\b\d+\.?\d*(e[+-]?\d+)?[lf]?\b/gi, className: 'number' },
+    { pattern: /[{}[\]()]/g, className: 'bracket' },
+    { pattern: /[+\-*/%=<>!&|?:.]/g, className: 'operator' }
+  ],
   plain: []
-  // ...可继续补充其他语言
 }
 
 function escapeHtml(text: string): string {
