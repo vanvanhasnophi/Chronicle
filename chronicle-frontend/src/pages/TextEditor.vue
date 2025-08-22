@@ -12,6 +12,7 @@
           class="markdown-input"
           placeholder="输入 Markdown 内容，使用 ``` 创建代码块..."
           @input="parseMarkdownContent"
+          @keydown="onTextareaKeydown"
         ></textarea>
       </div>
       <div class="preview-section">
@@ -72,11 +73,11 @@ type ContentBlock = {
   language?: string
 }
 
-const markdownContent = ref(`# 欢迎使用 Chronicle
+const markdownContent = ref(`# 欢迎使用 Chronicle Sonetto
 
 这是一个简单的 Markdown 编辑器，支持代码块、表格、段落自动识别。
 
-## JavaScript 示例
+## JavaScript 代码块
 \`\`\`javascript
 function hello(name) {
   console.log("Hello, " + name + "!");
@@ -91,7 +92,7 @@ hello("World");
 ## 这是一个表格：
 |Row1|Row2|Row3|
 |-|-|-|
-|John Doe|Zhang San|Hu Yanbing|
+|John Doe|Zhang San|胡彦斌|
 |1|2.00|3|
 
 ## 这是一个长段落
@@ -102,7 +103,31 @@ hello("World");
 金沙水拍云崖暖\\
 大渡桥横铁索寒\\\\
 更喜岷山千里雪
-三军过后尽开颜\\`)
+三军过后尽开颜\\
+
+## 这是一个引用块
+> 引用内容
+
+这是\*\*粗体\*\*
+这是\*斜体\*
+这是\*\*\*粗斜体\*\*\*
+
+## 这是一个列表
+1. 姓名：kun
+2. 爱好
+    - 唱
+    - 跳
+    - rap
+    - 篮球
+    - music
+25. 所属：美国校队
+#### 这是野兽先辈
+* 114
+    * 514
+        * 1919
+            * 810
+
+`)
 
 const parsedBlocks = ref<Block[]>([])
 const previewContentRef = ref<HTMLDivElement | null>(null)
@@ -162,7 +187,7 @@ function escapeTableCell(cell: string): string {
   return cell
     .replace(/\\/g, '\\\\') // 先转义反斜杠
     .replace(/\|/g, '\\|')     // 再转义竖线
-    .replace(/\n/g, ' ')         // 换行转空格
+    .replace(/\n/g, '\\n')     // 换行转 \\n
     .replace(/\r/g, '')
 }
 
@@ -193,7 +218,10 @@ function syncMarkdownContent() {
     if (block.type === 'text') {
       return block.content
     } else if (block.type === 'code') {
-      return `\n\n\${block.language || ''}\n${block.content}\n\\n\n`
+  // 转义内容中的```，避免破坏markdown结构
+  const codeSep = '```'
+  const safeContent = (block.content || '').replace(/```/g, '`\`\`')
+  return `${codeSep}${block.language || ''}\n${safeContent}\n${codeSep}`
     } else if (block.type === 'table') {
       return tableBlockToMarkdown(block.content)
     } else if (block.type === 'heading') {
@@ -207,8 +235,8 @@ function syncMarkdownContent() {
     }
     return ''
   }).join('\n\n')
-  // 不自动赋值markdownContent，避免textarea光标跳动
-  // markdownContent.value = md.trim()
+  // 自动赋值markdownContent，实现代码块和表格内容同步回输入区
+  markdownContent.value = md.trim()
 }
 
 // 代码复制回调
@@ -233,6 +261,23 @@ function renderBlockContent(block: ContentBlock) {
 
 // 初始化解析
 parseMarkdownContent()
+
+// 阻止Tab切出textarea，支持缩进体验
+function onTextareaKeydown(e: KeyboardEvent) {
+  if (e.key === 'Tab') {
+    e.preventDefault()
+    const textarea = e.target as HTMLTextAreaElement
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const value = textarea.value
+    // 插入4空格
+    textarea.value = value.substring(0, start) + '    ' + value.substring(end)
+    textarea.selectionStart = textarea.selectionEnd = start + 4
+    // 触发v-model更新
+    markdownContent.value = textarea.value
+    parseMarkdownContent()
+  }
+}
 </script>
 
 <style scoped>

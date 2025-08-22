@@ -3,6 +3,22 @@
 </template>
 
 <script lang="ts">
+// 处理粗体、斜体、粗斜体，isHeading为true时只处理斜体
+function processEmphasis(text: string, isHeading = false): string {
+  let processed = text
+  if (!isHeading) {
+    // ***粗斜体***
+    processed = processed.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+    processed = processed.replace(/___(.+?)___/g, '<strong><em>$1</em></strong>')
+    // **粗体**
+    processed = processed.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    processed = processed.replace(/__(.+?)__/g, '<strong>$1</strong>')
+  }
+  // *斜体*
+  processed = processed.replace(/\*(.+?)\*/g, '<em>$1</em>')
+  processed = processed.replace(/_(.+?)_/g, '<em>$1</em>')
+  return processed
+}
 export interface ContentBlock {
   type: 'text' | 'code'
   content: string
@@ -138,11 +154,11 @@ export function parseMarkdown(content: string, cacheKey?: number): Array<{
       i = j
       continue
     }
-    // 列表
-    if (/^\s*([-*]|\d+\.) /.test(line)) {
+    // 列表（支持制表符和空格缩进多级）
+    if (/^([ \t]*)([-*]|\d+\.) /.test(line)) {
       let listLines = [line]
       let j = i+1
-      while (j < lines.length && /^\s*([-*]|\d+\.) /.test(lines[j])) {
+      while (j < lines.length && /^([ \t]*)([-*]|\d+\.) /.test(lines[j])) {
         listLines.push(lines[j])
         j++
       }
@@ -194,16 +210,16 @@ export function parseMarkdown(content: string, cacheKey?: number): Array<{
 
 // 用自定义控件占位符替换表格，后续由TextEditor渲染MarkdownTable组件
 export function convertToHtml(text: string): string {
-  // 处理表格，支持单元格内换行（\\n）
+  // 处理表格，支持单元格内换行（\n），并支持粗体/斜体渲染
   text = text.replace(/((?:^\s*\|.*\|\s*\n)+)\s*([| :]*)\-+([| :\-]*)\n((?:\s*\|.*\|\s*\n?)*)/gm,
     (match: string, headerRows: string, beforeSep: string, afterSep: string, bodyRows: string) => {
       const headerLines = headerRows.trim().split(/\n/).filter(Boolean);
       const header = headerLines[headerLines.length - 1].replace(/^\||\|$/g, '').split('|').map((cell: string) =>
-        cell.replace(/\\\|/g, '|').replace(/\\\\/g, '\\').replace(/\\n/g, '\n').trim()
+        processEmphasis(cell.replace(/\\\|/g, '|').replace(/\\\\/g, '\\').replace(/\\n/g, '\n').trim())
       );
       const body = bodyRows.split(/\n/).filter((row: string) => row.trim()).map((row: string) => {
         return row.trim().replace(/^\||\|$/g, '').split('|').map((cell: string) =>
-          cell.replace(/\\\|/g, '|').replace(/\\\\/g, '\\').replace(/\\n/g, '\n').trim()
+          processEmphasis(cell.replace(/\\\|/g, '|').replace(/\\\\/g, '\\').replace(/\\n/g, '\n').trim())
         );
       });
       // 用特殊标记包裹，后续TextEditor中replace为组件
@@ -337,14 +353,14 @@ export function convertToHtml(text: string): string {
     if (/^\[\[MARKDOWN_TABLE:/.test(block)) {
       return ''
     }
-    // 标题渲染为<h1>-<h6>
+    // 标题渲染为<h1>-<h6>，仅支持斜体
     const headingMatch = block.match(/^\s*(#{1,6}) (.*)$/)
     if (headingMatch) {
       const level = headingMatch[1].length
-      const content = headingMatch[2]
+      const content = processEmphasis(headingMatch[2], true)
       return `<h${level}>${content}</h${level}>`
     }
-    // 纯文本段落反斜杠换行与结束处理
+    // 纯文本段落反斜杠换行与结束处理，并处理粗体/斜体/粗斜体
     const lines = block.split(/\n/)
     let html = ''
     let i = 0
@@ -355,25 +371,74 @@ export function convertToHtml(text: string): string {
       if (match) {
         const bsCount = match[1].length
         if (bsCount === 1) {
-          // 单反斜杠结尾，换行，合并下一行
-          html += line.slice(0, -1) + '<br>'
+          html += processEmphasis(line.slice(0, -1)) + '<br>'
           i++
           continue
         } else {
-          // n>=2反斜杠结尾，显示n-1个斜杠，段落结束
-          html += line.slice(0, -bsCount) + '\\'.repeat(bsCount - 1)
+          html += processEmphasis(line.slice(0, -bsCount)) + '\\'.repeat(bsCount - 1)
           break
         }
       } else {
-        html += line
+        html += processEmphasis(line)
       }
-      // 不是最后一行才加换行（非单反斜杠情况）
       if (i < lines.length - 1) html += '\n'
       i++
     }
     return `<div class=\"para-backslash\">${html}</div>`
   }
-  return blocks.map(renderParaBlock).join('\n')
+  // 支持list/quote类型的block渲染
+  return blocks.map(block => {
+    // 列表
+    // 多级列表渲染，li内容支持粗体/斜体
+    if (/^([ \t]*)([-*]|\d+\.) /.test(block)) {
+      const lines = block.split(/\n/).filter(Boolean)
+      function renderList(lines: string[], level = 0): string {
+        let html = ''
+        let i = 0
+        while (i < lines.length) {
+          const line = lines[i]
+          const match = line.match(/^([ \t]*)([-*]|\d+\.) (.*)$/)
+          if (!match) { i++; continue }
+          const indent = match[1].replace(/\t/g, '    ').length
+          const content = processEmphasis(match[3])
+          let subItems = []
+          let j = i+1
+          while (j < lines.length) {
+            const next = lines[j]
+            const nextMatch = next.match(/^([ \t]*)([-*]|\d+\.) (.*)$/)
+            if (!nextMatch) break
+            const nextIndent = nextMatch[1].replace(/\t/g, '    ').length
+            if (nextIndent > indent) {
+              subItems.push(next)
+              j++
+            } else if (nextIndent === indent) {
+              break
+            } else {
+              break
+            }
+          }
+          let subHtml = ''
+          if (subItems.length) {
+            subHtml = renderList(subItems, level+1)
+          }
+          html += `<li>${content}${subHtml}</li>`
+          i = j
+        }
+        const isOrdered = lines.some(l => /^([ \t]*)\d+\. /.test(l))
+        const tag = isOrdered ? 'ol' : 'ul'
+        return `<${tag}>${html}</${tag}>`
+      }
+      return renderList(lines)
+    }
+    // 引用，内容支持粗体/斜体
+    if (/^\s*> /.test(block)) {
+      const lines = block.split(/\n/).filter(Boolean)
+      const html = lines.map(l => l.replace(/^\s*>\s?/, '')).map(l => `<p>${processEmphasis(l)}</p>`).join('')
+      return `<blockquote>${html}</blockquote>`
+    }
+    // 其他类型走原有逻辑
+    return renderParaBlock(block)
+  }).join('\n')
 }
 
 // 解析markdown表格，返回{header, body}数组，供TextEditor渲染MarkdownTable用

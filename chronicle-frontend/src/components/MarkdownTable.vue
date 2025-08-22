@@ -1,10 +1,25 @@
 <template>
-  <div class="table-outer" :style="{ width: tableWidth + 'px' }">
-    <table class="markdown-table" :style="{ width: tableWidth + 'px' }">
+  <div class="table-outer" :style="{ width: tableWidth + 'px', marginLeft: '10px' }">
+    <!-- 插入/删除列按钮（表头上方） -->
+    <div class="table-insert-row">
+      <span v-for="(cell, idx) in header.length+1" :key="'insert-col-'+idx" class="table-dot insert-col-dot"
+        @click="insertCol(idx)" :style="{ left: (colWidths.slice(0, idx).reduce((a,b)=>a+b,0) - 4) + 'px' }"
+        title="插入列"></span>
+      <span v-for="(cell, idx) in header.length" :key="'delete-col-'+idx" class="table-dot delete-col-dot"
+        @click="deleteCol(idx)" :style="{ left: (colWidths.slice(0, idx).reduce((a,b)=>a+b,0) + colWidths[idx]/2 - 4) + 'px' }"
+        title="删除列"></span>
+    </div>
+  <table class="markdown-table" :style="{ width: tableWidth + 'px', marginTop: '0px' }">
       <thead>
         <tr>
           <th v-for="(cell, idx) in header" :key="'h'+idx" :style="{ width: colWidths[idx] + 'px', height: rowHeights[0] + 'px', position: 'relative' }">
             <div class="cell-wrapper">
+              <span v-if="idx === 0" class="table-dot insert-row-dot" @click="insertRow(0)" title="在首行前插入行"
+  :style="{ left: '-6px', top: (rowHeights[0] - 8) + 'px' }"
+/>
+<span v-if="idx === 0" class="table-dot delete-row-dot" @click="deleteRow(0)" title="删除首行"
+  :style="{ left: '-6px', top: (rowHeights[0]/2 - 4) + 'px' }"
+/>
               <textarea
                 v-model="editHeader[idx]"
                 @input="(e: Event) => { autoResize(e); emitChange(); syncRowHeight(0, idx, true); }"
@@ -26,7 +41,13 @@
         <tr v-for="(row, rIdx) in body" :key="'r'+rIdx">
           <td v-for="(cell, cIdx) in row" :key="'d'+cIdx" :style="{ width: colWidths[cIdx] + 'px', height: rowHeights[rIdx+1] + 'px', position: 'relative' }">
             <div class="cell-wrapper">
-              <textarea
+              <span v-if="cIdx === 0" class="table-dot insert-row-dot" @click="insertRow(rIdx+1)" title="插入行"
+                :style="{ left: '-6px', top: (rowHeights[rIdx+1] - 4) + 'px', position: 'absolute' }"
+              ></span>
+              <span v-if="cIdx === 0 && body.length > 1" class="table-dot delete-row-dot" @click="deleteRow(rIdx)" title="删除行"
+                :style="{ left: '-6px', top: (rowHeights[rIdx+1]/2 ) + 'px', position: 'absolute' }"
+              ></span>
+            <textarea
                 v-model="editBody[rIdx][cIdx]"
                 @input="(e: Event) => { autoResize(e); emitChange(); syncRowHeight(rIdx+1, cIdx, false); }"
                 @keydown="e => handleKeydown(e, rIdx, cIdx, false)"
@@ -45,8 +66,13 @@
         </tr>
       </tbody>
     </table>
-    <div class="table-width-resizer" @mousedown="startTableResize"></div>
+    <div
+  class="table-width-resizer"
+  @mousedown="startTableResize"
+  :style="{ height: (rowHeights.reduce((a,b)=>a+b,0) || 32) + 'px' }"
+/>
   </div>
+
 </template>
 
 <script lang="ts" setup>
@@ -65,6 +91,22 @@ const editBody = ref(props.body.map(row => row.slice()))
 // 列宽、行高状态（初始空，后续在onMounted/watch中同步）
 const colWidths = ref<number[]>([])
 const rowHeights = ref<number[]>([])
+
+// 初始化时补齐列宽和行高，保证初始渲染可拖拽
+if (colWidths.value.length < editHeader.value.length) {
+  for (let i = colWidths.value.length; i < editHeader.value.length; i++) {
+    colWidths.value[i] = 120
+  }
+} else if (colWidths.value.length > editHeader.value.length) {
+  colWidths.value.length = editHeader.value.length
+}
+if (rowHeights.value.length < editBody.value.length + 1) {
+  for (let i = rowHeights.value.length; i < editBody.value.length + 1; i++) {
+    rowHeights.value[i] = 32
+  }
+} else if (rowHeights.value.length > editBody.value.length + 1) {
+  rowHeights.value.length = editBody.value.length + 1
+}
 const tableWidth = ref(400)
 
 // 拖拽表格整体宽度
@@ -166,36 +208,28 @@ function syncRowHeight(rowIdx: number, colIdx: number, isHeader: boolean) {
   }
 }
 
-// 初始化列宽和行高
-onMounted(() => {
-  colWidths.value = editHeader.value.map(() => 120)
-  rowHeights.value = [32, ...editBody.value.map(() => 32)]
-  vueNextTick(() => {
-    // header
-    if (headerRefs.value && Array.isArray(headerRefs.value)) {
-      headerRefs.value.forEach((ta: HTMLTextAreaElement) => {
-        if (ta) {
-          ta.style.height = 'auto'
-          ta.style.height = ta.scrollHeight + 'px'
-        }
-      })
-    }
-    // body
-    if (bodyRefs.value && Array.isArray(bodyRefs.value)) {
-      bodyRefs.value.forEach((row: any[]) => {
-        if (Array.isArray(row)) {
-          row.forEach((ta: HTMLTextAreaElement) => {
-            if (ta) {
-              ta.style.height = 'auto'
-              ta.style.height = ta.scrollHeight + 'px'
-            }
-          })
-        }
-      })
-    }
-  })
-})
-
+const insertCol = (idx: number) => {
+  editHeader.value.splice(idx, 0, '')
+  editBody.value.forEach(row => row.splice(idx, 0, ''))
+  emitChange()
+}
+const deleteCol = (idx: number) => {
+  if (editHeader.value.length <= 1) return
+  editHeader.value.splice(idx, 1)
+  editBody.value.forEach(row => row.splice(idx, 1))
+  emitChange()
+}
+const insertRow = (idx: number) => {
+  const newRow = editHeader.value.map(() => '')
+  editBody.value.splice(idx, 0, newRow)
+  emitChange()
+}
+const deleteRow = (idx: number) => {
+  if (editBody.value.length <= 1) return
+  editBody.value.splice(idx, 1)
+  emitChange()
+}
+            
 // 监听header/body变化，动态同步列宽和行高
 watch(
   () => ({ header: props.header, body: props.body }),
@@ -206,13 +240,30 @@ watch(
     editHeader.value = Array.isArray(header) ? header.slice() : []
     editBody.value = Array.isArray(body) ? body.map(row => Array.isArray(row) ? row.slice() : []) : []
     if (headerChanged || bodyChanged) {
-      // 全部重置
-      colWidths.value = editHeader.value.map(() => 120)
-      rowHeights.value = [32, ...editBody.value.map(() => 32)]
+      // 只补齐缺失的宽高，不重置已有宽高
+      // 列宽
+      if (colWidths.value.length < editHeader.value.length) {
+        for (let i = colWidths.value.length; i < editHeader.value.length; i++) {
+          colWidths.value[i] = 120
+        }
+      } else if (colWidths.value.length > editHeader.value.length) {
+        colWidths.value.length = editHeader.value.length
+      }
+      // 行高
+      if (rowHeights.value.length < editBody.value.length + 1) {
+        for (let i = rowHeights.value.length; i < editBody.value.length + 1; i++) {
+          rowHeights.value[i] = 32
+        }
+      } else if (rowHeights.value.length > editBody.value.length + 1) {
+        rowHeights.value.length = editBody.value.length + 1
+      }
+      // 表宽
+      tableWidth.value = colWidths.value.reduce((a, b) => a + b, 0)
     } else {
       // 局部同步
       colWidths.value = editHeader.value.map((_, i) => colWidths.value[i] || 120)
       rowHeights.value = [32, ...editBody.value.map((_, i) => rowHeights.value[i+1] || 32)]
+      tableWidth.value = colWidths.value.reduce((a, b) => a + b, 0)
     }
   },
   { deep: true }
@@ -297,6 +348,48 @@ function autoResize(e: Event) {
 </script>
 
 <style scoped>
+.table-dot {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(120,120,120,0.18);
+  background: transparent;
+  transition: all 0.18s cubic-bezier(.4,1.3,.6,1);
+  z-index: 10;
+  cursor: pointer;
+  opacity: 0.7;
+  box-sizing: border-box;
+}
+.table-dot:hover {
+  opacity: 1;
+  width: 8px;
+  height: 8px;
+  background: currentColor;
+  border: none;
+}
+.insert-col-dot {
+  top: -6px;
+  color: #1dbf1d;
+  transform: translateY(-50%);
+}
+.delete-col-dot {
+  top: -6px;
+  color: #e74c3c;
+  transform: translateY(-50%);
+}
+.insert-row-dot {
+  left: -6px;
+  top: 50%;
+  color: #1dbf1d;
+  transform: translateY(-50%);
+}
+.delete-row-dot {
+  left: -6px;
+  top: 50%;
+  color: #e74c3c;
+  transform: translateY(-50%);
+}
 .table-outer {
   position: relative;
   display: inline-block;
@@ -315,7 +408,7 @@ function autoResize(e: Event) {
 }
 .markdown-table {
   border-collapse: collapse;
-  margin: 1em 0;
+  margin: 0 0 1em 0;
   width: 900px;
   background: #232323;
   border: 2px solid #888;

@@ -1,19 +1,34 @@
+// 滚动同步辅助：暴露方法，或在高亮内容变化后自动同步滚动
+import { watchEffect } from 'vue'
+
+// 监听 highlightLayer 变化，自动同步 scrollTop/scrollLeft
+watchEffect(() => {
+  if (highlightLayer && highlightLayer.value) {
+    // 触发一次 scrollTop/scrollLeft 同步（父组件会负责）
+    // 这里可选：如需要可暴露方法
+  }
+})
 <template>
-  <pre class="syntax-highlight" :style="styleObject" ref="highlightLayer"><span v-for="(part, idx) in highlightedParts" :key="idx" v-html="part"></span><br /></pre>
+  <pre class="syntax-highlight" :style="styleObject" ref="innerHighlightLayer"><span v-for="(part, idx) in highlightedParts" :key="idx" v-html="part"></span></pre>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, defineExpose } from 'vue'
+
 
 const props = defineProps<{
   code: string
   language: string
   styleObject?: Record<string, any>
   segmentSize?: number // 每段多少行
+  highlightLayer?: any
 }>()
 
 const highlightedParts = ref<string[]>([])
-const highlightLayer = ref<HTMLElement>()
+
+// highlightLayer 兼容父组件传入的 ref 或内部自建
+const innerHighlightLayer = ref<HTMLElement | null>(null)
+defineExpose({ highlightDom: innerHighlightLayer })
 
 // 语法高亮规则（内置，支持多语言，按字母序排列，plain在最后）
 const syntaxRules: Record<string, Array<{ pattern: RegExp; className: string }>> = {
@@ -118,20 +133,20 @@ function escapeHtml(text: string): string {
 
 // 简单高亮规则（可复用原有规则）
 async function asyncHighlight() {
-  const lines = props.code.split('\n')
-  const size = props.segmentSize || 30
-  highlightedParts.value = []
-  for (let i = 0; i < lines.length; i += size) {
-    const segment = lines.slice(i, i + size).join('\n')
-    const part = await highlightSegment(segment, props.language)
-    highlightedParts.value.push(part)
-    await nextTick() // 让 UI 有机会渲染
-  }
+  // 统一换行符，消除异常换行影响
+  const normalizedCode = props.code.replace(/\r\n|\r/g, '\n')
+  const lines = normalizedCode.split('\n')
+  highlightedParts.value = await Promise.all(
+    lines.map(async (line) => {
+      const part = await highlightSegment(line, props.language)
+      return part + '<br>'
+    })
+  )
 }
 
 async function highlightSegment(segment: string, language: string) {
   // 可直接用同步高亮逻辑
-  if (!segment || language === 'plain') return escapeHtml(segment)
+  if (!segment || language === 'plain') return escapeHtml(segment).replace(/\n/g, '<br>')
   const rules = syntaxRules[language] || []
   let highlighted = segment
   const placeholders: string[] = []
@@ -149,6 +164,8 @@ async function highlightSegment(segment: string, language: string) {
     const placeholder = `__HIGHLIGHT_${index}__`
     highlighted = highlighted.replace(escapeHtml(placeholder), replacement)
   })
+  // 将换行符替换为<br>，以便在高亮层中正确显示换行
+  highlighted = highlighted.replace(/\n/g, '<br>')
   return highlighted
 }
 
@@ -172,7 +189,7 @@ watch(() => [props.code, props.language], async () => {
   font-size: 13.5px;
   line-height: 1.3em;
   overflow: auto;
-  pointer-events: none;
+  /* pointer-events: none; 允许高亮层可滚动 */
   white-space: pre-wrap;
   word-wrap: break-word;
   tab-size: 2;

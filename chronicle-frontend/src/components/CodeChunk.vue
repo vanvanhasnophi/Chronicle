@@ -56,12 +56,13 @@
     </div>
     
     <div class="editor-wrapper" :style="{ height: editorHeight }">
-      <div class="editor-content">
+  <div class="editor-content" @sync-scroll="syncScroll">
         <!-- 语法高亮层 -->
         <AsyncHighlight
           :code="code"
           :language="selectedLanguage"
           :style-object="{ minHeight: textareaHeight, maxHeight: textareaHeight, height: textareaHeight, padding: '0.7rem 1.5rem 1.2rem 1.5rem', boxSizing: 'border-box' }"
+          ref="highlightLayer"
         />
         <!-- 文本输入层 -->
         <textarea
@@ -70,7 +71,8 @@
           class="code-textarea"
           @input="onInput"
           @keydown="onKeyDown"
-          @scroll="syncScroll"
+          @scroll="(e) => {const t = e.target as HTMLTextAreaElement;syncScroll();const h = highlightLayer;const hType = h === null ? 'null' : (h === undefined ? 'undefined' : 'object');console.log(`[scroll] textarea: (${t?.scrollTop},${t?.scrollLeft}) | highlight: (${h ? h.scrollTop : 'undefined'},${h ? h.scrollLeft : 'undefined'}) | highlightLayer: ${hType}`);}"
+          @sync-scroll="syncScroll"
           @click="updateCurrentLine"
           @keyup="updateCurrentLine"
           spellcheck="false"
@@ -139,7 +141,15 @@ const emit = defineEmits<{
 const code = ref(props.modelValue)
 const selectedLanguage = ref(props.language)
 const codeInput = ref<HTMLTextAreaElement>()
-const highlightLayer = ref<HTMLPreElement>()
+const highlightLayer = ref<any>(null)
+// textarea 滚动时同步高亮层并输出调试信息
+function onTextareaScroll(e: Event) {
+  const t = e.target as HTMLTextAreaElement;
+  syncScroll();
+  const h = highlightLayer.value;
+  const hType = h === null ? 'null' : (h === undefined ? 'undefined' : 'object');
+  console.log(`[scroll] textarea: (${t?.scrollTop},${t?.scrollLeft}) | highlightLayer: ${hType} | highlight: (${h ? h.scrollTop : 'undefined'},${h ? h.scrollLeft : 'undefined'}) `);
+}
 // 行号已移除
 const currentLine = ref(1)
 const currentColumn = ref(1)
@@ -166,20 +176,40 @@ function onInput() {
   emit('update:modelValue', code.value)
   emit('change', code.value, selectedLanguage.value)
   nextTick(() => {
-    syncScroll()
+          // 同步滚动
+          syncScroll()
     updateCurrentLine()
-    // 末行换行时自动滚动到底部
-    if (codeInput.value && highlightLayer.value) {
-      const textarea = codeInput.value;
-      const value = textarea.value;
-      const cursor = textarea.selectionStart;
-      // 光标在最后且内容以换行结尾
-      if (cursor === value.length && value.endsWith('\n')) {
-        textarea.scrollTop = textarea.scrollHeight;
-        highlightLayer.value.scrollTop = highlightLayer.value.scrollHeight - highlightLayer.value.clientHeight;
-      }
-    }
-  })
+          // 输入后始终同步高亮层scrollTop为textarea的scrollTop
+          if (codeInput.value && highlightLayer.value?.highlightDom) {
+            const textarea = codeInput.value;
+            const value = textarea.value;
+            const cursor = textarea.selectionStart;
+            const dom = highlightLayer.value.highlightDom;
+            if (dom) {
+              dom.scrollTop = textarea.scrollTop;
+              dom.scrollLeft = textarea.scrollLeft;
+              nextTick(() => {
+                dom.scrollTop = textarea.scrollTop;
+              });
+            }
+            // 仅在光标在最后且内容以换行结尾时自动滚动到底部
+            if (cursor === value.length && value.endsWith('\n')) {
+              const style = window.getComputedStyle(textarea);
+              const paddingBottom = parseFloat(style.paddingBottom || '0');
+              const scrollTarget = textarea.scrollHeight - textarea.clientHeight + paddingBottom;
+              textarea.scrollTop = scrollTarget;
+              const setScroll = () => {
+                if (dom) {
+                  const style2 = window.getComputedStyle(dom);
+                  const paddingBottom2 = parseFloat(style2.paddingBottom || '0');
+                  dom.scrollTop = dom.scrollHeight - dom.clientHeight + paddingBottom2;
+                }
+              };
+              setScroll();
+              requestAnimationFrame(setScroll);
+              setTimeout(setScroll, 32);
+            }}
+          });
 }
 
 // 按键处理 - 智能缩进
@@ -373,10 +403,18 @@ function onKeyDown(event: KeyboardEvent) {
 
 // 同步滚动
 function syncScroll() {
-  if (highlightLayer.value && codeInput.value) {
-    // 高亮层和textarea滚动始终完全一致
-    highlightLayer.value.scrollTop = codeInput.value.scrollTop;
-    highlightLayer.value.scrollLeft = codeInput.value.scrollLeft;
+  const highlightDom = highlightLayer.value?.highlightDom;
+  if (highlightDom && codeInput.value) {
+    highlightDom.scrollTop = codeInput.value.scrollTop;
+    highlightDom.scrollLeft = codeInput.value.scrollLeft;
+    console.log('[syncScroll]', {
+      textareaScrollTop: codeInput.value.scrollTop,
+      textareaScrollLeft: codeInput.value.scrollLeft,
+      highlightScrollTop: highlightDom.scrollTop,
+      highlightScrollLeft: highlightDom.scrollLeft
+    });
+  } else {
+    console.log('[syncScroll] highlightDom is', highlightDom);
   }
 }
 
@@ -501,7 +539,9 @@ watch(() => props.language, (newLanguage) => {
 })
 
 // 监听代码变化以更新高亮
-watch(code, () => {
+// 监听代码变化，自动同步到 v-model 和 markdown
+watch(code, (newVal) => {
+  emit('update:modelValue', newVal)
   nextTick(() => {
     syncScroll()
   })
