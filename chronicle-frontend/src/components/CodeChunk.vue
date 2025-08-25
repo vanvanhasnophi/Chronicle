@@ -142,7 +142,9 @@ const code = ref(props.modelValue)
 const selectedLanguage = ref(props.language)
 const codeInput = ref<HTMLTextAreaElement>()
 const highlightLayer = ref<any>(null)
+
 // textarea 滚动时同步高亮层并输出调试信息
+/*
 function onTextareaScroll(e: Event) {
   const t = e.target as HTMLTextAreaElement;
   syncScroll();
@@ -150,7 +152,7 @@ function onTextareaScroll(e: Event) {
   const hType = h === null ? 'null' : (h === undefined ? 'undefined' : 'object');
   console.log(`[scroll] textarea: (${t?.scrollTop},${t?.scrollLeft}) | highlightLayer: ${hType} | highlight: (${h ? h.scrollTop : 'undefined'},${h ? h.scrollLeft : 'undefined'}) `);
 }
-// 行号已移除
+*/
 const currentLine = ref(1)
 const currentColumn = ref(1)
 

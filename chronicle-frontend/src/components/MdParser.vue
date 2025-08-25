@@ -30,7 +30,7 @@ export interface ContentBlock {
 }
 
 // 只识别行首的```为代码块起止
-const codeBlockPattern = /^```(\w*)\n([\s\S]*?)^```/gm;
+// const codeBlockPattern = /^```(\w*)\n([\s\S]*?)^```/gm;
 
 export function parseMarkdown(content: string, cacheKey?: number): Array<{
   type: 'heading' | 'list' | 'quote' | 'table' | 'code' | 'paraWithBackslash' | 'text',
@@ -245,7 +245,7 @@ export function convertToHtml(text: any): string {
   // 处理表格，支持单元格内换行（\n），并支持粗体/斜体渲染
   if (typeof text === 'string') {
     text = text.replace(/((?:^\s*\|.*\|\s*\n)+)\s*([| :]*)\-+([| :\-]*)\n((?:\s*\|.*\|\s*\n?)*)/gm,
-      (match: string, headerRows: string, beforeSep: string, afterSep: string, bodyRows: string) => {
+      (_match: string, headerRows: string, _beforeSep: string, _afterSep: string, bodyRows: string) => {
         const headerLines = headerRows.trim().split(/\n/).filter(Boolean);
         const header = headerLines[headerLines.length - 1].replace(/^\||\|$/g, '').split('|').map((cell: string) =>
           processEmphasis(cell.replace(/\\\|/g, '|').replace(/\\\\/g, '\\').replace(/\\n/g, '\n').trim())
@@ -270,9 +270,9 @@ export function convertToHtml(text: any): string {
   let inCode = false
   let inList = false
   let inQuote = false
-  let inTable = false
+  // let inTable = false
   let inParaWithBackslash = false
-  let inTitle = false
+  // let inTitle = false
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
     // 代码块
@@ -511,7 +511,7 @@ export function parseTableMarkdown(text: string): Array<{header: string[], body:
   const tableRegex = /((?:^\s*\|.*\|\s*\n)+)\s*([| :]*)\-+([| :\-]*)\n((?:\s*\|.*\|\s*\n?)*)/gm;
   let match;
   while ((match = tableRegex.exec(text)) !== null) {
-    const [raw, headerRows, beforeSep, afterSep, bodyRows] = match;
+    const [raw, headerRows, _beforeSep, _afterSep, bodyRows] = match;
     const headerLines = headerRows.trim().split(/\n/).filter(Boolean);
     const header = headerLines[headerLines.length - 1].replace(/^\||\|$/g, '').split('|').map((cell: string) => cell.trim());
     const body = bodyRows.split(/\n/).filter((row: string) => row.trim()).map((row: string) => {

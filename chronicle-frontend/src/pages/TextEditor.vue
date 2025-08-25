@@ -1,8 +1,7 @@
 <template>
   <div class="text-editor-page">
     <div class="page-header">
-      <h1>Chronicle 文本编辑器</h1>
-      <p>简单的 Markdown 编辑器，支持代码块自动识别</p>
+      <h2>Chronicle Sonetto 文本编辑器</h2>
     </div>
     <div class="editor-container">
       <div class="input-section">
@@ -10,7 +9,7 @@
         <textarea
           v-model="markdownContent"
           class="markdown-input"
-          placeholder="输入 Markdown 内容，使用 ``` 创建代码块..."
+          placeholder="输入 Markdown 内容..."
           @input="parseMarkdownContent"
           @keydown="onTextareaKeydown"
         ></textarea>
@@ -56,7 +55,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
 import CodeChunk from '../components/CodeChunk.vue'
-import { parseMarkdown, convertToHtml, blocksToMarkdown, parseTableMarkdown } from '../components/MdParser.vue'
+import { parseMarkdown, convertToHtml, blocksToMarkdown } from '../components/MdParser.vue'
 import MarkdownTable from '../components/MarkdownTable.vue'
 type Block = {
   type: 'text' | 'code' | 'table' | 'heading' | 'list' | 'quote' | 'paraWithBackslash'  | 'softBreakPara';
@@ -70,11 +69,7 @@ type Block = {
 // import type { ContentBlock } from '../components/MdParser.vue'
 // 若没有导出，则在此处定义ContentBlock类型
 
-type ContentBlock = {
-  type: 'text' | 'code',
-  content: string,
-  language?: string
-}
+
 
 const markdownContent = ref(`# 欢迎使用 Chronicle Sonetto
 
@@ -200,35 +195,6 @@ function updateTableBlock(index: number, header: string[], body: string[][]) {
   }
 }
 
-// 转义表格单元格内容，防止破坏markdown结构
-function escapeTableCell(cell: string): string {
-  return cell
-    .replace(/\\/g, '\\\\') // 先转义反斜杠
-    .replace(/\|/g, '\\|')     // 再转义竖线
-    .replace(/\n/g, '\\n')     // 换行转 \\n
-    .replace(/\r/g, '')
-}
-
-// 将[[MARKDOWN_TABLE:...]]格式转为标准markdown表格
-function tableBlockToMarkdown(tableBlock: string): string {
-  // 匹配[[MARKDOWN_TABLE:{...}]]
-  const match = tableBlock.match(/^[\[]\[MARKDOWN_TABLE:(.*)\]\]$/s)
-  if (!match) return tableBlock
-  try {
-    const obj = JSON.parse(match[1])
-    const header = obj.header || []
-    const body = obj.body || []
-    if (!header.length) return ''
-    // 构造表头
-    const headerLine = '| ' + header.map(escapeTableCell).join(' | ') + ' |'
-    const sepLine = '| ' + header.map(() => '---').join(' | ') + ' |'
-    // 构造表体
-    const bodyLines = body.map((row:string[]) => '| ' + row.map(escapeTableCell).join(' | ') + ' |')
-    return [headerLine, sepLine, ...bodyLines].join('\n')
-  } catch {
-    return tableBlock
-  }
-}
 
 function syncMarkdownContent() {
   // 直接用 blocksToMarkdown 进行源码同步，保证 para-backslash 等类型正确还原为 markdown
@@ -238,21 +204,6 @@ function syncMarkdownContent() {
 // 代码复制回调
 function onCodeCopy(code: string) {
   console.log('代码已复制:', code.substring(0, 50) + '...')
-}
-
-// 渲染块内容
-function renderBlockContent(block: ContentBlock) {
-  // 检查是否为表格占位符
-  const tableMatch = block.content.match(/^\[\[MARKDOWN_TABLE:(.*)\]\]$/)
-  if (tableMatch) {
-    try {
-      const { header, body } = JSON.parse(tableMatch[1])
-      return { type: 'table', header, body }
-    } catch {
-      return { type: 'text', html: block.content }
-    }
-  }
-  return { type: 'text', html: block.content }
 }
 
 // 初始化解析

@@ -2,17 +2,17 @@
   <div class="table-outer" :style="{ width: tableWidth + 'px', marginLeft: '10px' }">
     <!-- 插入/删除列按钮（表头上方） -->
     <div class="table-insert-row">
-      <span v-for="(cell, idx) in header.length+1" :key="'insert-col-'+idx" class="table-dot insert-col-dot"
+      <span v-for="(_cell, idx) in header.length+1" :key="'insert-col-'+idx" class="table-dot insert-col-dot"
         @click="insertCol(idx)" :style="{ left: (colWidths.slice(0, idx).reduce((a,b)=>a+b,0) - 4) + 'px' }"
         title="插入列"></span>
-      <span v-for="(cell, idx) in header.length" :key="'delete-col-'+idx" class="table-dot delete-col-dot"
+      <span v-for="(_cell, idx) in header.length" :key="'delete-col-'+idx" class="table-dot delete-col-dot"
         @click="deleteCol(idx)" :style="{ left: (colWidths.slice(0, idx).reduce((a,b)=>a+b,0) + colWidths[idx]/2 - 4) + 'px' }"
         title="删除列"></span>
     </div>
   <table class="markdown-table" :style="{ width: tableWidth + 'px', marginTop: '0px' }">
       <thead>
         <tr>
-          <th v-for="(cell, idx) in header" :key="'h'+idx" :style="{ width: colWidths[idx] + 'px', height: rowHeights[0] + 'px', position: 'relative' }">
+          <th v-for="(_cell, idx) in header" :key="'h'+idx" :style="{ width: colWidths[idx] + 'px', height: rowHeights[0] + 'px', position: 'relative' }">
             <div class="cell-wrapper">
               <span v-if="idx === 0" class="table-dot insert-row-dot" @click="insertRow(0)" title="在首行前插入行"
   :style="{ left: '-6px', top: (rowHeights[0] - 8) + 'px' }"
@@ -39,7 +39,7 @@
       </thead>
       <tbody>
         <tr v-for="(row, rIdx) in body" :key="'r'+rIdx">
-          <td v-for="(cell, cIdx) in row" :key="'d'+cIdx" :style="{ width: colWidths[cIdx] + 'px', height: rowHeights[rIdx+1] + 'px', position: 'relative' }">
+          <td v-for="(_cell, cIdx) in row" :key="'d'+cIdx" :style="{ width: colWidths[cIdx] + 'px', height: rowHeights[rIdx+1] + 'px', position: 'relative' }">
             <div class="cell-wrapper">
               <span v-if="cIdx === 0" class="table-dot insert-row-dot" @click="insertRow(rIdx+1)" title="插入行"
                 :style="{ left: '-6px', top: (rowHeights[rIdx+1] - 4) + 'px', position: 'absolute' }"
@@ -77,7 +77,7 @@
 
 <script lang="ts" setup>
 import { onBeforeUnmount } from 'vue'
-import { defineProps, ref, watch, toRaw, nextTick, defineEmits, onMounted, nextTick as vueNextTick } from 'vue'
+import { defineProps, ref, watch, toRaw, defineEmits } from 'vue'
 const props = defineProps<{
   header: string[]
   body: string[][]
@@ -233,7 +233,7 @@ const deleteRow = (idx: number) => {
 // 监听header/body变化，动态同步列宽和行高
 watch(
   () => ({ header: props.header, body: props.body }),
-  ({ header, body }, _, onCleanup) => {
+  ({ header, body }, _, _onCleanup) => {
     // 判断是否为大幅更改（如列数或行数变化）
     const headerChanged = header.length !== colWidths.value.length
     const bodyChanged = body.length !== rowHeights.value.length - 1
@@ -306,7 +306,7 @@ function emitChange() {
 
 // 捕捉方向键和Tab/Enter行为
 function handleKeydown(e: KeyboardEvent, rIdx?: number, cIdx?: number, isHeader = false) {
-  const refsArr = isHeader ? headerRefs.value : bodyRefs.value
+  // const refsArr = isHeader ? headerRefs.value : bodyRefs.value
   const row = isHeader ? 0 : rIdx || 0
   const col = cIdx || 0
   if (e.key === 'Enter' && !e.shiftKey) {
