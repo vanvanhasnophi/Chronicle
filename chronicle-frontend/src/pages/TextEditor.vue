@@ -1,8 +1,5 @@
 <template>
   <div class="text-editor-page">
-    <div class="page-header">
-      <h2>Chronicle Sonetto 文本编辑器</h2>
-    </div>
     <div class="editor-container">
       <div class="input-section">
         <h3>Markdown 输入</h3>
@@ -17,7 +14,7 @@
       <div class="preview-section">
         <h3>实时预览</h3>
   <div class="preview-content" :key="parsedBlocks.length" ref="previewContentRef">
-          <template v-for="(block, index) in parsedBlocks" :key="index">
+          <template v-for="(block, index) in parsedBlocks" :key="block.type + '-' + index">
             <template v-if="block.type === 'table'">
               <div class="content-block">
                 <MarkdownTable :header="block.header || []" :body="block.body || []" @change="(h,b)=>updateTableBlock(index,h,b)" />
@@ -27,11 +24,12 @@
               <div class="content-block">
                 <CodeChunk
                   v-model="block.content"
-                  :language="block.language || 'javascript'"
+                  :language="block.language || 'plain'"
                   :title="`代码块 ${index + 1}`"
                   height="300px"
                   @change="(code, lang) => updateCodeBlock(index, code, lang)"
                   @copy="onCodeCopy"
+                  :key="'code-' + index"
                 />
               </div>
             </template>
@@ -39,7 +37,13 @@
               <div class="content-block text-block" v-html="convertToHtml(block)"></div>
             </template>
             <template v-else>
-              <div class="content-block text-block" v-html="convertToHtml(block.content)"></div>
+              <div class="content-block text-block">
+                <div
+                  class="editable-text-block"
+                  v-html="convertToHtml(block.content)"
+                  style="min-height:2.5em;"
+                ></div>
+              </div>
             </template>
           </template>
         </div>
@@ -53,6 +57,7 @@
 </template>
 
 <script setup lang="ts">
+import { debounce } from '../utils/debounce'
 import { ref, computed, nextTick } from 'vue'
 import CodeChunk from '../components/CodeChunk.vue'
 import { parseMarkdown, convertToHtml, blocksToMarkdown } from '../components/MdParser.vue'
@@ -68,9 +73,34 @@ type Block = {
 // 如果MdParser.vue中有ContentBlock类型导出，则如下导入
 // import type { ContentBlock } from '../components/MdParser.vue'
 // 若没有导出，则在此处定义ContentBlock类型
+/*
+const editingIndex = ref<number|null>(null)
+const editingContent = ref('')
+const editingTextareaRef = ref<HTMLTextAreaElement|null>(null)
 
-
-
+function startEdit(index: number, content: string) {
+  editingIndex.value = index
+  editingContent.value = content
+  nextTick(() => {
+    if (editingTextareaRef.value) {
+      editingTextareaRef.value.focus()
+      editingTextareaRef.value.select()
+    }
+  })
+}
+function saveEdit(_index: number) {
+  if (editingIndex.value !== null) {
+    parsedBlocks.value[editingIndex.value].content = editingContent.value
+    syncMarkdownContent()
+    editingIndex.value = null
+    editingContent.value = ''
+  }
+}
+function cancelEdit() {
+  editingIndex.value = null
+  editingContent.value = ''
+}
+*/
 const markdownContent = ref(`# 欢迎使用 Chronicle Sonetto
 
 这是一个简单的 Markdown 编辑器，支持代码块、表格、段落自动识别。
@@ -154,20 +184,55 @@ const totalCharacters = computed(() => {
   return markdownContent.value.length
 })
 
-// 解析 Markdown 内容
-function parseMarkdownContent() {
-  // 记录滚动位置
+// 解析 Markdown 内容（分块+防抖）
+const parseMarkdownContent = debounce(() => {
   let scrollTop = 0
   if (previewContentRef.value) {
     scrollTop = previewContentRef.value.scrollTop
   }
-  parsedBlocks.value = parseMarkdown(markdownContent.value)
+  // 分块解析：优先完整提取代码块（以```包围），代码块内内容全部归为同一块
+  const blocks: Block[] = [];
+  const src = markdownContent.value;
+  const codeBlockRegex = /(^|\n)(```[\s\S]*?\n```)/g;
+  let lastIndex = 0;
+  let match;
+  while ((match = codeBlockRegex.exec(src)) !== null) {
+    // 处理代码块前的普通段落
+    if (match.index > lastIndex) {
+      const before = src.slice(lastIndex, match.index);
+      const sections = before.split(/\n{2,}/);
+      for (const section of sections) {
+        if (section.trim()) {
+          const parsed = parseMarkdown(section);
+          if (Array.isArray(parsed)) blocks.push(...parsed);
+        }
+      }
+    }
+    // 处理代码块本身（全部内容归为同一块）
+    const codeBlock = match[2];
+    const parsed = parseMarkdown(codeBlock);
+    if (Array.isArray(parsed)) blocks.push(...parsed);
+    lastIndex = match.index + codeBlock.length;
+  }
+  // 处理最后一段
+  if (lastIndex < src.length) {
+    const rest = src.slice(lastIndex);
+    const sections = rest.split(/\n{2,}/);
+    for (const section of sections) {
+      if (section.trim()) {
+        const parsed = parseMarkdown(section);
+        if (Array.isArray(parsed)) blocks.push(...parsed);
+      }
+    }
+  }
+  // 过滤掉内容仅为`的块
+  parsedBlocks.value = blocks.filter(b => !(typeof b.content === 'string' && b.content.trim() === '`'));
   nextTick(() => {
     if (previewContentRef.value) {
       previewContentRef.value.scrollTop = scrollTop
     }
   })
-}
+}, 150);
 
 // convertToHtml 已由 MdParser 导出
 
@@ -269,6 +334,9 @@ function onTextareaKeydown(e: KeyboardEvent) {
 
 .input-section {
   border-right: 1px solid #3e3e42;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .input-section h3,
@@ -280,7 +348,9 @@ function onTextareaKeydown(e: KeyboardEvent) {
 
 .markdown-input {
   width: 100%;
-  height: calc(100% - 3rem);
+  flex: 1 1 0%;
+  min-height: 0;
+  height: 100%;
   background: #252526;
   color: #d4d4d4;
   border: 1px solid #3e3e42;
@@ -291,6 +361,7 @@ function onTextareaKeydown(e: KeyboardEvent) {
   line-height: 1.5;
   resize: none;
   outline: none;
+  box-sizing: border-box;
 }
 
 .markdown-input:focus {

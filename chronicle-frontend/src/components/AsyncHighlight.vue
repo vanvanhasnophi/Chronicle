@@ -1,13 +1,3 @@
-// 滚动同步辅助：暴露方法，或在高亮内容变化后自动同步滚动
-import { watchEffect } from 'vue'
-
-// 监听 highlightLayer 变化，自动同步 scrollTop/scrollLeft
-watchEffect(() => {
-  if (highlightLayer && highlightLayer.value) {
-    // 触发一次 scrollTop/scrollLeft 同步（父组件会负责）
-    // 这里可选：如需要可暴露方法
-  }
-})
 <template>
   <pre class="syntax-highlight" :style="styleObject" ref="innerHighlightLayer"><span v-for="(part, idx) in highlightedParts" :key="idx" v-html="part"></span></pre>
 </template>
