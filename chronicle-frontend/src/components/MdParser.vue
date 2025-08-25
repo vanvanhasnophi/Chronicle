@@ -7,6 +7,8 @@
 function processEmphasis(text: string, isHeading = false): string {
   let processed = text
   if (!isHeading) {
+    // 行内代码 `mono`
+    processed = processed.replace(/`([^`]+?)`/g, '<code>$1</code>')
     // ***粗斜体***
     processed = processed.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
     processed = processed.replace(/___(.+?)___/g, '<strong><em>$1</em></strong>')
@@ -20,9 +22,11 @@ function processEmphasis(text: string, isHeading = false): string {
   return processed
 }
 export interface ContentBlock {
-  type: 'text' | 'code'
-  content: string
-  language?: string
+  type: 'text' | 'code' | 'table' | 'heading' | 'list' | 'quote' | 'paraWithBackslash' | 'para-backslash' | 'softBreakPara';
+  content: string;
+  language?: string;
+  header?: string[];
+  body?: string[][];
 }
 
 // 只识别行首的```为代码块起止
@@ -74,36 +78,59 @@ export function parseMarkdown(content: string, cacheKey?: number): Array<{
     }
 
     // 新的段落换行逻辑：单反斜杠结尾合并为同一段落并用<br>换行，多反斜杠结尾分段并转义
-    const bsMatchNew = line.match(/(\\+)$/)
-    if (bsMatchNew && bsMatchNew.index === line.length - bsMatchNew[1].length) {
-      const bsCount = bsMatchNew[1].length
-      if (bsCount === 1 && (line.length === 1 || line[line.length-2] !== '\\')) {
-        // 单反斜杠结尾，合并后续所有单反斜杠结尾行，用<br>连接
-        let paraLines = [line.slice(0, -1)]
-        let j = i+1
-        while (j < lines.length) {
-          const nextLine = lines[j]
-          const nextMatch = nextLine.match(/(\\+)$/)
-          if (nextMatch && nextMatch.index === nextLine.length - nextMatch[1].length && nextMatch[1].length === 1 && (nextLine.length === 1 || nextLine[nextLine.length-2] !== '\\')) {
-            paraLines.push(nextLine.slice(0, -1))
-            j++
-          } else {
-            break
+    // 对quote类型完全忽略软换行逻辑
+    if (!/^\s*> /.test(line)) {
+      const bsMatchNew = line.match(/(\\+)$/)
+      if (bsMatchNew && bsMatchNew.index === line.length - bsMatchNew[1].length) {
+        const bsCount = bsMatchNew[1].length
+        if (bsCount === 1 && (line.length === 1 || line[line.length-2] !== '\\')) {
+          // 非引用块，原有软换行逻辑
+          let paraLines = [line.slice(0, -1)]
+          let j = i+1
+          while (j < lines.length) {
+            const nextLine = lines[j]
+            // 遇到特殊块直接break，不合并
+            if (
+              /^\s*> /.test(nextLine) || // 引用
+              /^\s*\|.*\|\s*$/.test(nextLine) || // 表格
+              /^\s*```/.test(nextLine) || // 代码块
+              /^([ \t]*)([-*]|\d+\.) /.test(nextLine) || // 列表
+              /^\s*#{1,6} /.test(nextLine) || // 标题
+              /^\[\[MARKDOWN_TABLE:/.test(nextLine) // 表格占位符
+            ) {
+              break
+            }
+            const nextMatch = nextLine.match(/(\\+)$/)
+            if (nextMatch && nextMatch.index === nextLine.length - nextMatch[1].length && nextMatch[1].length === 1 && (nextLine.length === 1 || nextLine[nextLine.length-2] !== '\\')) {
+              paraLines.push(nextLine.slice(0, -1))
+              j++
+            } else {
+              break
+            }
           }
+          // 合并后如有非单反斜杠结尾行，且不是特殊块，合进去
+          if (
+            j < lines.length &&
+            lines[j].trim() !== '' &&
+            !/^\s*> /.test(lines[j]) &&
+            !/^\s*\|.*\|\s*$/.test(lines[j]) &&
+            !/^\s*```/.test(lines[j]) &&
+            !/^([ \t]*)([-*]|\d+\.) /.test(lines[j]) &&
+            !/^\s*#{1,6} /.test(lines[j]) &&
+            !/^\[\[MARKDOWN_TABLE:/.test(lines[j])
+          ) {
+            paraLines.push(lines[j])
+            j++
+          }
+          blocks.push({ type: 'softBreakPara', content: paraLines.join('<br>') })
+          i = j
+          continue
+        } else if (bsCount >= 2) {
+          // 多反斜杠结尾，转义为少一个反斜杠，分段
+          blocks.push({ type: 'softBreakPara', content: line.slice(0, -1) })
+          i++
+          continue
         }
-        // 合并后如有非单反斜杠结尾行，合进去
-        if (j < lines.length && lines[j].trim() !== '') {
-          paraLines.push(lines[j])
-          j++
-        }
-        blocks.push({ type: 'softBreakPara', content: paraLines.join('<br>') })
-        i = j
-        continue
-      } else if (bsCount >= 2) {
-        // 多反斜杠结尾，转义为少一个反斜杠，分段
-        blocks.push({ type: 'softBreakPara', content: line.slice(0, -1) })
-        i++
-        continue
       }
     }
     // 支持标准markdown表格
@@ -142,23 +169,28 @@ export function parseMarkdown(content: string, cacheKey?: number): Array<{
       i++
       continue
     }
-    // 引用
+    // 引用块递归解析（不解析代码块、表格、嵌套引用），不再处理软换行
     if (/^\s*> /.test(line)) {
-      let quoteLines = [line]
-      let j = i+1
+      let quoteLines: string[] = [];
+      let j = i;
       while (j < lines.length && /^\s*> /.test(lines[j])) {
-        quoteLines.push(lines[j])
-        j++
+        let curr = lines[j].replace(/^\s*>\s?/, '');
+        quoteLines.push(curr);
+        j++;
       }
-      blocks.push({ type: 'quote', content: quoteLines.join('\n') })
-      i = j
-      continue
+      // 递归解析，禁用代码块、表格、嵌套引用
+      const quoteContent = quoteLines.join('\n');
+      const innerBlocks = parseMarkdown(quoteContent, cacheKey)
+        .filter(b => b.type !== 'code' && b.type !== 'table' && b.type !== 'quote');
+      blocks.push({ type: 'quote', content: innerBlocks });
+      i = j;
+      continue;
     }
-    // 列表（支持制表符和空格缩进多级）
-    if (/^([ \t]*)([-*]|\d+\.) /.test(line)) {
+    // 列表（支持制表符、空格缩进多级，以及引用内列表）
+    if (/^([ \t]*)([-*]|\d+\.) /.test(line) || /^\s*>\s*([-*]|\d+\.) /.test(line)) {
       let listLines = [line]
       let j = i+1
-      while (j < lines.length && /^([ \t]*)([-*]|\d+\.) /.test(lines[j])) {
+      while (j < lines.length && (/^([ \t]*)([-*]|\d+\.) /.test(lines[j]) || /^\s*>\s*([-*]|\d+\.) /.test(lines[j]))) {
         listLines.push(lines[j])
         j++
       }
@@ -209,25 +241,30 @@ export function parseMarkdown(content: string, cacheKey?: number): Array<{
 }
 
 // 用自定义控件占位符替换表格，后续由TextEditor渲染MarkdownTable组件
-export function convertToHtml(text: string): string {
+export function convertToHtml(text: any): string {
   // 处理表格，支持单元格内换行（\n），并支持粗体/斜体渲染
-  text = text.replace(/((?:^\s*\|.*\|\s*\n)+)\s*([| :]*)\-+([| :\-]*)\n((?:\s*\|.*\|\s*\n?)*)/gm,
-    (match: string, headerRows: string, beforeSep: string, afterSep: string, bodyRows: string) => {
-      const headerLines = headerRows.trim().split(/\n/).filter(Boolean);
-      const header = headerLines[headerLines.length - 1].replace(/^\||\|$/g, '').split('|').map((cell: string) =>
-        processEmphasis(cell.replace(/\\\|/g, '|').replace(/\\\\/g, '\\').replace(/\\n/g, '\n').trim())
-      );
-      const body = bodyRows.split(/\n/).filter((row: string) => row.trim()).map((row: string) => {
-        return row.trim().replace(/^\||\|$/g, '').split('|').map((cell: string) =>
+  if (typeof text === 'string') {
+    text = text.replace(/((?:^\s*\|.*\|\s*\n)+)\s*([| :]*)\-+([| :\-]*)\n((?:\s*\|.*\|\s*\n?)*)/gm,
+      (match: string, headerRows: string, beforeSep: string, afterSep: string, bodyRows: string) => {
+        const headerLines = headerRows.trim().split(/\n/).filter(Boolean);
+        const header = headerLines[headerLines.length - 1].replace(/^\||\|$/g, '').split('|').map((cell: string) =>
           processEmphasis(cell.replace(/\\\|/g, '|').replace(/\\\\/g, '\\').replace(/\\n/g, '\n').trim())
         );
+        const body = bodyRows.split(/\n/).filter((row: string) => row.trim()).map((row: string) => {
+          return row.trim().replace(/^\||\|$/g, '').split('|').map((cell: string) =>
+            processEmphasis(cell.replace(/\\\|/g, '|').replace(/\\\\/g, '\\').replace(/\\n/g, '\n').trim())
+          );
+        });
+        // 用特殊标记包裹，后续TextEditor中replace为组件
+        return `[[MARKDOWN_TABLE:${JSON.stringify({header,body})}]]`;
       });
-      // 用特殊标记包裹，后续TextEditor中replace为组件
-      return `[[MARKDOWN_TABLE:${JSON.stringify({header,body})}]]`;
-    });
+  }
 
-  // 预处理：将所有行分割为数组
-  const lines = text.split(/\n/)
+  // 预处理：将所有行分割为数组（仅字符串时）
+  let lines: string[] = [];
+  if (typeof text === 'string') {
+    lines = text.split(/\n/)
+  }
   const blocks: string[] = []
   let buffer: string[] = []
   let inCode = false
@@ -287,8 +324,8 @@ export function convertToHtml(text: string): string {
       }
       continue
     }
-    // 列表
-    if (/^\s*([-*]|\d+\.) /.test(line)) {
+    // 列表（支持引用内列表）
+    if (/^\s*([-*]|\d+\.) /.test(line) || /^\s*>\s*([-*]|\d+\.) /.test(line)) {
       if (!inList) {
         if (buffer.length) blocks.push(buffer.join('\n'))
         buffer = [line]
@@ -296,8 +333,8 @@ export function convertToHtml(text: string): string {
       } else {
         buffer.push(line)
       }
-      // 检查下一个是否还是列表
-      if (i+1 >= lines.length || !/^\s*([-*]|\d+\.) /.test(lines[i+1])) {
+      // 检查下一个是否还是列表或引用内列表
+      if (i+1 >= lines.length || (!/^\s*([-*]|\d+\.) /.test(lines[i+1]) && !/^\s*>\s*([-*]|\d+\.) /.test(lines[i+1]))) {
         blocks.push(buffer.join('\n'))
         buffer = []
         inList = false
@@ -345,9 +382,22 @@ export function convertToHtml(text: string): string {
   // 渲染每个段落
   // 新的段落换行与反斜杠处理逻辑
   function renderParaBlock(block: string) {
-    // 代码块、列表、引用原样输出
-    if (/^\s*```/.test(block) || /^\s*([-*]|\d+\.) /.test(block) || /^\s*> /.test(block)) {
+    // 代码块、列表原样输出
+    if (/^\s*```/.test(block) || /^\s*([-*]|\d+\.) /.test(block)) {
       return block
+    }
+    // 引用块特殊处理：行间只插入一次 quote-hard-break，避免多余换行
+    if (/^\s*> /.test(block)) {
+      const lines = block.split(/\n/)
+      let html = ''
+      for (let i = 0; i < lines.length; i++) {
+        html += processEmphasis(lines[i]).replace(/\\/g, '&#92;')
+        // 只在行间插入一次 quote-hard-break
+        if (i === 0 && lines.length > 1) {
+          html += '<span class="quote-hard-break"></span>'
+        }
+      }
+      return `<div class=\"para-backslash\">${html}</div>`
     }
     // 表格占位符不渲染，交由TextEditor中的MarkdownTable组件渲染
     if (/^\[\[MARKDOWN_TABLE:/.test(block)) {
@@ -361,37 +411,36 @@ export function convertToHtml(text: string): string {
       return `<h${level}>${content}</h${level}>`
     }
     // 纯文本段落反斜杠换行与结束处理，并处理粗体/斜体/粗斜体
+    // 优先处理 paraWithBackslash/softBreakPara 类型的 <br>，直接转为 <br> 标签
+    // quote类型不处理软换行<br>
+    if (block.includes('<br>') && !/^<blockquote/.test(block)) {
+      // 先按 <br> 拆分，逐段 processEmphasis
+      return `<div class=\"para-backslash\">${block.split('<br>').map(s => processEmphasis(s)).join('<br>')}</div>`;
+    }
+    // 引用块内硬换行插入特殊span
     const lines = block.split(/\n/)
     let html = ''
     let i = 0
     while (i < lines.length) {
       let line = lines[i]
-      // 统计结尾反斜杠数
-      const match = line.match(/(\\+)$/)
-      if (match) {
-        const bsCount = match[1].length
-        if (bsCount === 1) {
-          html += processEmphasis(line.slice(0, -1)) + '<br>'
-          i++
-          continue
-        } else {
-          html += processEmphasis(line.slice(0, -bsCount)) + '\\'.repeat(bsCount - 1)
-          break
-        }
-      } else {
-        html += processEmphasis(line)
-      }
-      if (i < lines.length - 1) html += '\n'
+      // 先处理markdown强调，再转义反斜杠，保证不会被误处理
+      html += processEmphasis(line).replace(/\\/g, '&#92;')
+      // quote block: 段落间插入更大行距
+      if (i < lines.length - 1) html += '<span class="quote-hard-break"></span>'
       i++
     }
     return `<div class=\"para-backslash\">${html}</div>`
   }
   // 支持list/quote类型的block渲染
-  return blocks.map(block => {
-    // 列表
-    // 多级列表渲染，li内容支持粗体/斜体
-    if (/^([ \t]*)([-*]|\d+\.) /.test(block)) {
-      const lines = block.split(/\n/).filter(Boolean)
+  function renderBlock(block: any): string {
+    // 递归渲染quote类型
+    if (block && block.type === 'quote' && Array.isArray(block.content)) {
+      const html = block.content.map(renderBlock).join('');
+      return `<blockquote class='md-quote-block'>${html}</blockquote>`;
+    }
+    // 递归渲染list类型
+    if (block && block.type === 'list') {
+      const lines = block.content.split(/\n/).filter(Boolean)
       function renderList(lines: string[], level = 0): string {
         let html = ''
         let i = 0
@@ -430,15 +479,30 @@ export function convertToHtml(text: string): string {
       }
       return renderList(lines)
     }
-    // 引用，内容支持粗体/斜体
-    if (/^\s*> /.test(block)) {
-      const lines = block.split(/\n/).filter(Boolean)
-      const html = lines.map(l => l.replace(/^\s*>\s?/, '')).map(l => `<p>${processEmphasis(l)}</p>`).join('')
-      return `<blockquote>${html}</blockquote>`
-    }
     // 其他类型走原有逻辑
-    return renderParaBlock(block)
-  }).join('\n')
+    if (typeof block === 'string') return renderParaBlock(block)
+    if (block && typeof block.content === 'string') return renderParaBlock(block.content)
+    return ''
+  }
+  // 判断输入是markdown还是blocks
+  let parsedBlocks: any[]
+  if (typeof text === 'string') {
+    parsedBlocks = parseMarkdown(text)
+  } else if (Array.isArray(text)) {
+    parsedBlocks = text
+  } else {
+    parsedBlocks = [text]
+  }
+  return parsedBlocks.map(renderBlock).join('\n')
+}
+
+// 反转义markdown表格单元格内容，供TextEditor等还原时使用
+export function unescapeMarkdownCell(cell: string) {
+  // 反转义顺序要和转义顺序相反
+  return cell
+    .replace(/\\n/g, '\n')   // \\n -> 换行
+    .replace(/\\\|/g, '|')  // \\| -> |
+    .replace(/\\\\/g, '\\') // \\\\ -> \
 }
 
 // 解析markdown表格，返回{header, body}数组，供TextEditor渲染MarkdownTable用
@@ -461,16 +525,107 @@ export function parseTableMarkdown(text: string): Array<{header: string[], body:
 export function blocksToMarkdown(blocks: ContentBlock[]): string {
   let md = '';
   for (const block of blocks) {
-    if (block.type === 'code') {
-      md += `\n\n\`\`\`${block.language || 'plain'}\n${block.content}\n\`\`\`\n\n`;
-    } else if (block.type === 'text') {
-      let text = block.content;
-      text = text.replace(/<p>(.*?)<\/p>/g, '$1\n');
-      text = text.replace(/<br\s*\/?>(\n)?/g, '\n');
-      text = text.replace(/<[^>]+>/g, '');
-      md += text + '\n\n';
+    switch (block.type) {
+      case 'code':
+        md += `\`\`\`${block.language || 'plain'}\n${block.content}\n\`\`\`\n\n`;
+        break;
+      case 'table': {
+        // 优先用header/body还原标准表格
+        if (block.header && block.body) {
+          const headerLine = '| ' + block.header.join(' | ') + ' |';
+          const sepLine = '| ' + block.header.map(()=>'---').join(' | ') + ' |';
+          const bodyLines = block.body.map(row => '| ' + row.join(' | ') + ' |');
+          md += [headerLine, sepLine, ...bodyLines].join('\n') + '\n\n';
+        } else {
+          md += (block.content || '') + '\n\n';
+        }
+        break;
+      }
+      case 'paraWithBackslash':
+      case 'para-backslash':
+      case 'softBreakPara': {
+        let text = block.content;
+        text = text.replace(/^<div[^>]*>|<\/div>$/g, '');
+        // 还原行内代码 <code> 为 `mono`
+        text = text.replace(/<code>(.*?)<\/code>/g, '`$1`');
+        text = text.replace(/<br\s*\/?>(?!$)/g, '\\\n');
+        text = text.replace(/\s+$/g, '');
+        if (!text.endsWith('\n')) text += '\n\n';
+        md += text;
+        break;
+      }
+      case 'heading':
+      case 'list':
+        md += (block.content || '') + '\n\n';
+        break;
+      case 'quote': {
+        // 递归还原为> 行，不加后置换行
+        if (Array.isArray(block.content)) {
+          const quoteMd = blocksToMarkdown(block.content)
+            .split('\n')
+            .map(l => l ? '> ' + l +'\n': '')
+            .join('');
+          md += quoteMd + '\n';
+        } else {
+          md += block.content || '';
+        }
+        break;
+      }
+      case 'text': {
+        let text = block.content;
+        // 还原行内代码 <code> 为 `mono`
+        text = text.replace(/<code>(.*?)<\/code>/g, '`$1`');
+        text = text.replace(/<p>(.*?)<\/p>/g, '$1\n');
+        text = text.replace(/<br\s*\/?>(\n)?/g, '\n');
+        text = text.replace(/<[^>]+>/g, '');
+        md += text + '\n\n';
+        break;
+      }
+      default:
+        md += (block.content || '') + '\n\n';
     }
   }
   return md.trim();
 }
 </script>
+
+<style>
+.md-quote-block {
+  background: #8585851d;
+  border-left: 4px solid #4a90e2;
+  padding: 0.5em 1em;
+  margin: 0.5em 0;
+  border-radius: 4px;
+  line-height: 1.6;
+}
+
+/* 引用块整体行距更大，软换行略小 */
+.md-quote-block br {
+  line-height: 1.2;
+  display: block;
+  margin: 0.2em 0 0.2em 0;
+}
+.md-quote-block .quote-hard-break {
+  display: block;
+  height: 1.6em;
+  content: '';
+}
+.md-quote-block .backslash {
+  font-family: 'Consolas', 'Menlo', 'Monaco', monospace;
+  color: #b8b8b8;
+  padding: 0 0.1em;
+}
+
+
+code {
+  background: rgba(255, 0, 0, 0.12);
+  color: #d23330d6;
+  border-radius: 5px;
+  padding: 0.4em 1em;
+  font-size: 0.85em;
+  font-family: 'Consolas', 'Menlo', 'Monaco', monospace;
+  font-weight: 500;
+  vertical-align: middle;
+  /* 让行内 code 与正文高度更协调 */
+}
+</style>

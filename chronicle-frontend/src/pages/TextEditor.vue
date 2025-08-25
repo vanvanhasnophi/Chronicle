@@ -36,6 +36,9 @@
                 />
               </div>
             </template>
+            <template v-else-if="block.type === 'quote'">
+              <div class="content-block text-block" v-html="convertToHtml(block)"></div>
+            </template>
             <template v-else>
               <div class="content-block text-block" v-html="convertToHtml(block.content)"></div>
             </template>
@@ -56,7 +59,7 @@ import CodeChunk from '../components/CodeChunk.vue'
 import { parseMarkdown, convertToHtml, blocksToMarkdown, parseTableMarkdown } from '../components/MdParser.vue'
 import MarkdownTable from '../components/MarkdownTable.vue'
 type Block = {
-  type: 'text' | 'code' | 'table' | 'heading' | 'list' | 'quote' | 'paraWithBackslash';
+  type: 'text' | 'code' | 'table' | 'heading' | 'list' | 'quote' | 'paraWithBackslash'  | 'softBreakPara';
   content: string;
   language?: string;
   header?: string[];
@@ -78,6 +81,7 @@ const markdownContent = ref(`# 欢迎使用 Chronicle Sonetto
 这是一个简单的 Markdown 编辑器，支持代码块、表格、段落自动识别。
 
 ## JavaScript 代码块
+
 \`\`\`javascript
 function hello(name) {
   console.log("Hello, " + name + "!");
@@ -90,12 +94,14 @@ hello("World");
 使用三个反引号 \`\`\` 来创建代码块，支持多种编程语言的语法高亮！
 
 ## 这是一个表格：
-|Row1|Row2|Row3|
-|-|-|-|
-|John Doe|Zhang San|胡彦斌|
-|1|2.00|3|
+
+| Row1 | Row2 | Row3 |
+| --- | --- | --- |
+| John Doe | Zhang San | 胡彦斌 |
+| 1 | 2.00 | 3 |
 
 ## 这是一个长段落
+
 红军不怕远征难\\
 万水千山只等闲
 五岭逶迤腾细浪\\
@@ -106,13 +112,23 @@ hello("World");
 三军过后尽开颜\\
 
 ## 这是一个引用块
+
 > 引用内容
+> 1
+> 1. 引用内容
+> 3. 引用内容
+> \`this is code\`
 
 这是\*\*粗体\*\*
+
 这是\*斜体\*
+
 这是\*\*\*粗斜体\*\*\*
 
+这是\`行内代码mono code\`
+
 ## 这是一个列表
+
 1. 姓名：kun
 2. 爱好
     - 唱
@@ -121,7 +137,9 @@ hello("World");
     - 篮球
     - music
 25. 所属：美国校队
+
 #### 这是野兽先辈
+
 * 114
     * 514
         * 1919
@@ -213,30 +231,8 @@ function tableBlockToMarkdown(tableBlock: string): string {
 }
 
 function syncMarkdownContent() {
-  // 支持所有类型block的还原
-  const md = parsedBlocks.value.map(block => {
-    if (block.type === 'text') {
-      return block.content
-    } else if (block.type === 'code') {
-  // 转义内容中的```，避免破坏markdown结构
-  const codeSep = '```'
-  const safeContent = (block.content || '').replace(/```/g, '`\`\`')
-  return `${codeSep}${block.language || ''}\n${safeContent}\n${codeSep}`
-    } else if (block.type === 'table') {
-      return tableBlockToMarkdown(block.content)
-    } else if (block.type === 'heading') {
-      return block.content
-    } else if (block.type === 'list') {
-      return block.content
-    } else if (block.type === 'quote') {
-      return block.content
-    } else if (block.type === 'paraWithBackslash') {
-      return block.content
-    }
-    return ''
-  }).join('\n\n')
-  // 自动赋值markdownContent，实现代码块和表格内容同步回输入区
-  markdownContent.value = md.trim()
+  // 直接用 blocksToMarkdown 进行源码同步，保证 para-backslash 等类型正确还原为 markdown
+  markdownContent.value = blocksToMarkdown(parsedBlocks.value);
 }
 
 // 代码复制回调

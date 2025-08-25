@@ -17,7 +17,7 @@ const count = ref(0)
       </div>
       <h1>欢迎使用 Chronicle</h1>
       <p class="hero-description">
-        一个功能强大的文本编辑和管理平台
+        一个xx的平台
       </p>
     </div>
 

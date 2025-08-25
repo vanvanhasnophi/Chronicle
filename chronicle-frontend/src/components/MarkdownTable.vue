@@ -273,19 +273,34 @@ watch(
 const headerRefs = ref<any[]>([])
 const bodyRefs = ref<any[][]>([])
 
+function unescapeMarkdownCell(cell: string) {
+  // 反转义顺序要和转义顺序相反
+  return cell
+    .replace(/\\n/g, '\n')   // \n -> 换行
+    .replace(/\\\|/g, '|')  // \| -> |
+    .replace(/\\\\/g, '\\') // \\ -> \
+}
+
 watch(
   () => ({ header: props.header, body: props.body }),
   ({ header, body }) => {
-    editHeader.value = Array.isArray(header) ? header.slice() : []
-    editBody.value = Array.isArray(body) ? body.map(row => Array.isArray(row) ? row.slice() : []) : []
+    editHeader.value = Array.isArray(header) ? header.map(unescapeMarkdownCell) : []
+    editBody.value = Array.isArray(body) ? body.map(row => Array.isArray(row) ? row.map(unescapeMarkdownCell) : []) : []
   },
   { deep: true }
 )
 
 // 触发change事件，header/body内容中的\n转为真正的换行
+function escapeMarkdownCell(cell: string) {
+  // 先转义反斜杠，再转义竖线和换行
+  return cell
+  .replace(/\\/g, '\\') // 反斜杠 -> \\
+  .replace(/\|/g, '\\|')     // 竖线 -> \\|
+  .replace(/\n/g, '\\n')     // 换行 -> \\n+}
+}
 function emitChange() {
-  const safeHeader = editHeader.value.map(cell => cell.replace(/\\n/g, '\n'))
-  const safeBody = editBody.value.map(row => row.map(cell => cell.replace(/\\n/g, '\n')))
+  const safeHeader = editHeader.value.map(cell => escapeMarkdownCell(cell))
+  const safeBody = editBody.value.map(row => row.map(cell => escapeMarkdownCell(cell)))
   emit('change', toRaw(safeHeader), toRaw(safeBody))
 }
 
