@@ -77,7 +77,7 @@
 
 <script lang="ts" setup>
 import { onBeforeUnmount } from 'vue'
-import { defineProps, ref, watch, toRaw, defineEmits } from 'vue'
+import { ref, watch, toRaw } from 'vue'
 const props = defineProps<{
   header: string[]
   body: string[][]
