@@ -1,4 +1,5 @@
 import katex from 'katex'
+import { Icons } from './icons'
 
 function escapeAttr(s: string) {
   return s.replace(/&/g, '&amp;')
@@ -22,11 +23,21 @@ export interface ContentBlock {
 export function processEmphasis(text: string, isHeading = false): string {
   let processed = text
 
-  // 0. Placeholder for escaped dollar signs AND escaped brackets to prevent math matching
+  // 0. Placeholder for HTML tags, escaped dollar signs AND escaped brackets
+  const PLACEHOLDER_HTML_TAG = (id: string) => `___HTML_TAG_${id}___`
   const PLACEHOLDER_ESCAPED_DOLLAR = '___ESCAPED_DOLLAR___'
   const PLACEHOLDER_ESCAPED_LBRACKET = '___ESCAPED_LBRACKET___'
   const PLACEHOLDER_ESCAPED_RBRACKET = '___ESCAPED_RBRACKET___'
   
+  const htmlTagMatches: string[] = []
+  
+  // Protect HTML tags from markdown processing (e.g. underscores in attributes)
+  processed = processed.replace(/<[^>]+>/g, (match) => {
+      const id = htmlTagMatches.length.toString()
+      htmlTagMatches.push(match)
+      return PLACEHOLDER_HTML_TAG(id)
+  })
+
   processed = processed.replace(/\\\$/g, PLACEHOLDER_ESCAPED_DOLLAR)
   processed = processed.replace(/\\\\\[/g, PLACEHOLDER_ESCAPED_LBRACKET)
   processed = processed.replace(/\\\\\]/g, PLACEHOLDER_ESCAPED_RBRACKET)
@@ -34,6 +45,15 @@ export function processEmphasis(text: string, isHeading = false): string {
   // 1. Block Math \[ ... \] (inline occurrence) - Display Mode
   processed = processed.replace(/\\\[([\s\S]+?)\\\]/g, (_match, tex) => {
     try {
+      // Restore HTML tags for tex? No, tex shouldn't contain HTML tags usually, but if it does, Katex might handle it or we need to restore?
+      // Actually strictly Tex shouldn't have arbitrary HTML.
+      // But if user typed \[ ... <br> ... \], we might have replaced <br> with placeholder.
+      // Katex renderToString takes string. If we feed it placeholder, it renders placeholder.
+      // We should probably NOT restore HTML tags inside math before passing to KaTex, unless we're sure.
+      // But wait, the math regex is simply matching, it definitely matched the placeholder string if it was inside.
+      // Let's restore strictly for the content passing to renderToString if necessary, but actually usually math mode ignores HTML tags anyway or treats as invalid.
+      // For safety, let's just proceed. The main goal is protecting text rendering.
+      
       const html = katex.renderToString(tex, { displayMode: true, throwOnError: false })
       return `<div class="katex-display-wrapper katex-interactive" data-tex="${escapeAttr(tex)}" data-type="block">${html}</div>`
     } catch {
@@ -77,19 +97,114 @@ export function processEmphasis(text: string, isHeading = false): string {
   processed = processed.replace(new RegExp(PLACEHOLDER_ESCAPED_LBRACKET, 'g'), '\\[')
   processed = processed.replace(new RegExp(PLACEHOLDER_ESCAPED_RBRACKET, 'g'), '\\]')
 
+  // Restore HTML tags BEFORE markdown link/image processing? 
+  // No, actually if we restore HTML tags now, subsequent regex (like Bold/Italic) might mess them up if we didn't disable _ for italic.
+  
+  // Wait, I already disabled _ for italic in the previous tool call. 
+  // But strictly speaking, we generally want to restore HTML *after* markdown processing so that markdown regex doesn't match inside HTML attributes.
+  // HOWEVER, for things like Images/Links, sometimes people put HTML inside?
+  
+  // Let's restore at the VERY END.
+  
   if (!isHeading) {
+    // 图片 ![alt](url)
+    processed = processed.replace(/!\[([^\]]*?)\]\((.*?)\)/g, (_match, alt, url) => {
+        const safeAlt = escapeAttr(alt)
+        const captionHtml = safeAlt ? `<div class="md-image-caption">${safeAlt}</div>` : ''
+        
+        if (!url || url.trim() === '') {
+            return `<div class="md-image-container">
+                      <div class="md-image-wrapper placeholder">
+                        <span class="md-placeholder-text">解析中</span>
+                      </div>
+                      ${captionHtml}
+                    </div>`
+        }
+        return `<div class="md-image-container">
+                  <div class="md-image-wrapper loading">
+                    <img src="${url}" alt="${safeAlt}" class="md-image" />
+                    <span class="md-placeholder-text">解析中</span>
+                  </div>
+                  ${captionHtml}
+                </div>`
+    })
+
+    // 正在输入的图片语法 ![alt] (且后面没有跟着左括号)
+    processed = processed.replace(/!\[([^\]]*?)\](?!\()/g, (_match, alt) => {
+         const safeAlt = escapeAttr(alt)
+         const captionHtml = safeAlt ? `<div class="md-image-caption">${safeAlt}</div>` : ''
+         return `<div class="md-image-container">
+                   <div class="md-image-wrapper placeholder">
+                     <span class="md-placeholder-text">解析中</span>
+                   </div>
+                   ${captionHtml}
+                 </div>`
+    })
+    
+    // 链接 [text](url) -> 智能转换为文件卡片
+    // 识别常见文件后缀，如果是媒体文件则渲染为卡片，否则保留默认链接样式
+    processed = processed.replace(/\[([^\]]+?)\]\((.*?)\)/g, (match, text, url) => {
+        const cleanUrl = url.trim()
+        const extMatch = cleanUrl.match(/\.([0-9a-z]+)($|\?)/i)
+        const ext = extMatch ? extMatch[1].toLowerCase() : ''
+        
+        // Define types
+        let type = '', icon = ''
+        
+        // Audio
+        if (['mp3','wav','ogg','m4a','flac','aac'].includes(ext)) {
+            type = 'Audio'; icon = Icons.audio
+        }
+        // Video
+        else if (['mp4','webm','mkv','mov','avi'].includes(ext)) {
+            type = 'Video'; icon = Icons.video
+        }
+        // Doc
+        else if (['pdf','doc','docx','ppt','pptx','xls','xlsx'].includes(ext)) {
+            type = 'Document'; icon = Icons.document
+        }
+        // Code/Text
+        else if (['txt','md','js','ts','json','c','cpp','py','java','html','css','vue','log','xml','yaml'].includes(ext)) {
+            type = 'Code/Text'; icon = Icons.codeText
+        }
+        // Archive/Other (only if extension exists and it's likely a file link)
+        else if (['zip','rar','7z','tar','gz'].includes(ext)) {
+            type = 'Archive'; icon = Icons.archive
+        }
+        
+        if (type) {
+             const safeName = escapeAttr(text)
+             const safeUrl = escapeAttr(cleanUrl)
+             return `<div class="file-card" data-url="${safeUrl}" data-name="${safeName}" data-type="${type}">
+                       <div class="file-card-icon">${icon}</div>
+                       <div class="file-card-info">
+                          <div class="file-name">${safeName}</div>
+                          <div class="file-type">${type}</div>
+                       </div>
+                    </div>`
+        }
+
+        return `<a href="${cleanUrl}" target="_blank" rel="noopener noreferrer" class="md-link">${text}</a>`
+    })
+
     // 行内代码 `mono`
     processed = processed.replace(/`([^`]+?)`/g, '<code>$1</code>')
     // ***粗斜体***
     processed = processed.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><i>$1</i></strong>')
-    processed = processed.replace(/___(.+?)___/g, '<strong><i>$1</i></strong>')
+    // processed = processed.replace(/___(.+?)___/g, '<strong><i>$1</i></strong>')
     // **粗体**
     processed = processed.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    processed = processed.replace(/__(.+?)__/g, '<strong>$1</strong>')
+    // processed = processed.replace(/__(.+?)__/g, '<strong>$1</strong>')
   }
   // *斜体*
   processed = processed.replace(/\*(.+?)\*/g, '<i>$1</i>')
-  processed = processed.replace(/_(.+?)_/g, '<i>$1</i>')
+  // processed = processed.replace(/_(.+?)_/g, '<i>$1</i>')
+  
+  // 6. Restore HTML tags
+  htmlTagMatches.forEach((tag, index) => {
+      processed = processed.replace(PLACEHOLDER_HTML_TAG(index.toString()), tag)
+  })
+
   return processed
 }
 

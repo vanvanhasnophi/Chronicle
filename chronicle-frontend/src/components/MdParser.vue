@@ -18,9 +18,9 @@
           @change="(code, lang) => updateCode(index, code, lang)"
         />
       </div>
-      <div v-else-if="block.type === 'quote'" class="content-block text-block" v-html="convertToHtml(block)"></div>
+      <div v-else-if="block.type === 'quote'" class="content-block text-block" v-html="renderBlockHtml(block)"></div>
       <div v-else class="content-block text-block">
-        <div class="parsed-html-content" v-html="convertToHtml(block)"></div>
+        <div class="parsed-html-content" v-html="renderBlockHtml(block)"></div>
       </div>
     </template>
 
@@ -40,21 +40,27 @@
         </div>
       </div>
     </div>
+
+    <!-- Image Preview Modal moved to global App.vue -->
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, toRaw, reactive, onMounted, onUnmounted, nextTick } from 'vue'
 import { parseMarkdown, convertToHtml, blocksToMarkdown, type ContentBlock } from '../utils/markdownParser'
+import { usePreview } from '../composables/usePreview'
+import { useImagePreview } from '../composables/useImagePreview'
 import MarkdownTable from './MarkdownTable.vue'
 import CodeChunk from './CodeChunk.vue'
 
 const props = withDefaults(defineProps<{
   modelValue?: string
   readOnly?: boolean
+  assetMap?: Record<string, string>
 }>(), {
   modelValue: '',
-  readOnly: false
+  readOnly: false,
+  assetMap: () => ({})
 })
 
 const emit = defineEmits<{
@@ -63,6 +69,8 @@ const emit = defineEmits<{
 
 const localBlocks = ref<ContentBlock[]>([])
 const keyPrefix = ref('block-')
+const { openPreview } = usePreview()
+const { openImagePreview } = useImagePreview()
 
 // Latex Tooltip Logic
 const tooltip = reactive({
@@ -74,23 +82,94 @@ const tooltip = reactive({
   timer: null as any
 })
 
-function handleGlobalClick(e: MouseEvent) {
-  const target = e.target as HTMLElement
-  const wrapper = target.closest('.katex-interactive') as HTMLElement
+// Removed local preview states as we now use global composables
+
+function handleImgWheel(e: WheelEvent) {
+  // Logic moved to useImagePreview
+}
+
+function handleImgMouseDown(e: MouseEvent) {
+  // Logic moved to useImagePreview
+}
+
+function handleImgMouseMove(e: MouseEvent) { 
+  // Logic moved to useImagePreview
+}
+
+function handleImgMouseUp() {
+  // Logic moved to useImagePreview
+}
+
+function renderBlockHtml(block: ContentBlock): string {
+  let html = convertToHtml(block)
   
-  if (wrapper) {
+  // Replace images
+  // Matches any src that is NOT http/https
+  // We use a regex that captures the src content
+  if (props.assetMap && Object.keys(props.assetMap).length > 0) {
+      html = html.replace(/src=["']([^"']+)["']/g, (match, src) => {
+          // If online url, skip
+          if (/^https?:\/\//i.test(src)) {
+              return match
+          }
+          // If we have a local mapping (from upload), use it
+          if (props.assetMap![src]) {
+              return `src="${props.assetMap![src]}"`
+          }
+          // Otherwise keep as is (might be absolute server path)
+          return match
+      })
+  }
+
+  return html
+}
+
+async function handleGlobalClick(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  
+  const mathWrapper = target.closest('.katex-interactive') as HTMLElement
+  if (mathWrapper) {
     e.stopPropagation()
-    const tex = wrapper.getAttribute('data-tex')
+    const tex = mathWrapper.getAttribute('data-tex')
     if (tex) {
-      showTooltip(e, tex, wrapper)
+      showTooltip(e, tex, mathWrapper)
       return
     }
   }
+
+  // File Card Click
+  const cardEl = target.closest('.file-card') as HTMLElement
+  if (cardEl) {
+      e.stopPropagation()
+      const url = cardEl.getAttribute('data-url') || ''
+      const name = cardEl.getAttribute('data-name') || 'File'
+      const type = cardEl.getAttribute('data-type') || ''
+      openPreview({
+        name,
+        path: url,
+        type
+      })
+      return
+  }
+
+  // Image Click Handling
+  if (target.tagName === 'IMG' && target.classList.contains('md-image')) {
+    const wrapper = target.closest('.md-image-wrapper')
+    // Allow clicking even if not fully "loaded" class if src exists
+    if (wrapper || target) {
+      e.stopPropagation()
+      const src = (target as HTMLImageElement).src
+      openImagePreview(src)
+      return
+    }
+  }
+
   // Click elsewhere closes tooltip
   if (tooltip.visible) {
     tooltip.visible = false
   }
 }
+
 
 function showTooltip(e: MouseEvent, tex: string, targetEl: HTMLElement) {
     tooltip.tex = tex
@@ -149,11 +228,47 @@ function closeTooltipOutside(e: MouseEvent) {
        }
     }
 }
+
+// Handling Image Events (Capture phase)
+function handleImageError(e: Event) {
+  const img = e.target as HTMLImageElement
+  if (img && img.classList.contains('md-image')) {
+    const wrapper = img.closest('.md-image-wrapper')
+    if (wrapper) {
+      wrapper.classList.remove('loading')
+      wrapper.classList.add('error')
+      const text = wrapper.querySelector('.md-placeholder-text')
+      if (text) text.textContent = '解析失败'
+    }
+  }
+}
+
+function handleImageLoad(e: Event) {
+  const img = e.target as HTMLImageElement
+  if (img && img.classList.contains('md-image')) {
+    const wrapper = img.closest('.md-image-wrapper')
+    if (wrapper) {
+      wrapper.classList.remove('loading')
+      wrapper.classList.add('loaded')
+    }
+  }
+}
+
 onMounted(() => {
     document.addEventListener('click', closeTooltipOutside)
+    const container = document.querySelector('.md-parser-rendered')
+    if (container) {
+       container.addEventListener('error', handleImageError, true)
+       container.addEventListener('load', handleImageLoad, true)
+    }
 })
 onUnmounted(() => {
     document.removeEventListener('click', closeTooltipOutside)
+    const container = document.querySelector('.md-parser-rendered')
+    if (container) {
+       container.removeEventListener('error', handleImageError, true)
+       container.removeEventListener('load', handleImageLoad, true)
+    }
 })
 
 watch(() => props.modelValue, (newVal) => {
@@ -294,7 +409,7 @@ defineExpose({
 
 code {
   background: rgba(255, 0, 0, 0.12);
-  color: #d23330d6;
+  color: #ff8585;
   border-radius: 5px;
   padding: 0.2em 0.5em;
   font-size: 0.85em;
@@ -314,5 +429,235 @@ i, em {
 }
 strong, b {
   font-weight: bold;
+}
+
+/* Image Centering & Wrapper */
+.md-image-container {
+  display: block;
+  margin: 1em auto;
+  width: fit-content; /* Ensure caption stays with image width or minimal needed */
+  text-align: center;
+  max-width: 100%;
+}
+
+.md-image-wrapper {
+  display: block;
+  margin: 0 auto; /* Center inside container */
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  max-width: 100%;
+  width: fit-content;
+}
+
+/* Loading / Error / Placeholder States (Dark box) */
+.md-image-wrapper.loading,
+.md-image-wrapper.error,
+.md-image-wrapper.placeholder {
+  background-color: #2b2b2b;
+  min-width: 200px;
+  min-height: 120px;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  box-sizing: border-box;
+}
+
+/* Ensure consistent font for placeholder text */
+.md-placeholder-text {
+  font-family: var(--app-font-stack);
+  font-size: 14px;
+  color: #ccc;
+  pointer-events: none;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* Error State Specifics */
+.md-image-wrapper.error .md-placeholder-text {
+  color: #ff4d4f; /* Red text for error */
+}
+
+/* Hide the actual image element in non-loaded states */
+.md-image-wrapper.loading .md-image,
+.md-image-wrapper.error .md-image,
+.md-image-wrapper.placeholder .md-image {
+  display: none !important;
+}
+
+/* Loaded State */
+.md-image-wrapper.loaded {
+  background-color: transparent;
+}
+
+.md-image-wrapper.loaded .md-placeholder-text {
+  display: none;
+}
+
+.md-image-caption {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.9em;
+  color: #999;
+  text-align: center;
+  font-family: var(--app-font-stack);
+  width: 100%; /* Ensure it spans the container's width */
+}
+
+.md-image {
+  max-width: 100%;
+  max-height: 500px; /* Max height in document flow */
+  height: auto;
+  border-radius: 8px;
+  display: block;
+  cursor: zoom-in;
+  object-fit: contain; /* Ensure it doesn't stretch */
+}
+
+.md-link {
+  color: #2ea35f;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  transition: color 0.2s;
+}
+
+.md-link:hover {
+  color: #24804a;
+}
+
+/* Image Preview Modal */
+.image-preview-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.9);
+  z-index: 10000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  animation: fadeIn 0.2s ease;
+}
+
+.preview-close-btn {
+  position: absolute;
+  top: 30px;
+  right: 30px;
+  background: rgba(0, 0, 0, 0.5); /* #2b2b2b ish but semi-transparent */
+  border: none;
+  color: #fff;
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  min-height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10001;
+  transition: background 0.2s, transform 0.1s;
+  padding: 0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+.preview-close-btn:hover {
+  background: rgba(0, 0, 0, 0.8);
+  transform: scale(1.05);
+}
+.preview-close-btn svg {
+  width: 24px;
+  height: 24px;
+}
+.preview-close-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.image-preview-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-preview-content {
+  max-width: 90%;
+  max-height: 90%;
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+  cursor: grab;
+  transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+  will-change: transform;
+}
+.image-preview-content.is-dragging {
+  transition: none !important;
+}
+.image-preview-content:active {
+  cursor: grabbing;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* File Card Styles */
+.file-card {
+  display: inline-flex;
+  align-items: center;
+  background-color: #2b2b2b;
+  border: 1px solid #3d3d3d;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+  max-width: 100%;
+}
+
+.file-card:hover {
+  background-color: #383838;
+  border-color: #2ea35f;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.file-card-icon {
+  width: 24px;
+  height: 24px;
+  margin-right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ccc;
+}
+.file-card:hover .file-card-icon {
+    color: #2ea35f;
+}
+
+.file-card-info {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.file-name {
+  font-size: 14px;
+  color: #eee;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-type {
+  font-size: 11px;
+  color: #999;
+  margin-top: 2px;
 }
 </style>
