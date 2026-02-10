@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "katex": "^0.16.28",
     "vite": "^7.1.2"
   }
 }

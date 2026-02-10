@@ -1,106 +1,13 @@
 <template>
   <div class="text-editor-page">
-    <div class="editor-container">
-      <div class="input-section">
-        <h3>Markdown 输入</h3>
-        <textarea
-          v-model="markdownContent"
-          class="markdown-input"
-          placeholder="输入 Markdown 内容..."
-          @input="parseMarkdownContent"
-          @keydown="onTextareaKeydown"
-        ></textarea>
-      </div>
-      <div class="preview-section">
-        <h3>实时预览</h3>
-  <div class="preview-content" :key="parsedBlocks.length" ref="previewContentRef">
-          <template v-for="(block, index) in parsedBlocks" :key="block.type + '-' + index">
-            <template v-if="block.type === 'table'">
-              <div class="content-block">
-                <MarkdownTable :header="block.header || []" :body="block.body || []" @change="(h,b)=>updateTableBlock(index,h,b)" />
-              </div>
-            </template>
-            <template v-else-if="block.type === 'code'">
-              <div class="content-block">
-                <CodeChunk
-                  v-model="block.content"
-                  :language="block.language || 'plain'"
-                  :title="`代码块 ${index + 1}`"
-                  height="300px"
-                  @change="(code, lang) => updateCodeBlock(index, code, lang)"
-                  @copy="onCodeCopy"
-                  :key="'code-' + index"
-                />
-              </div>
-            </template>
-            <template v-else-if="block.type === 'quote'">
-              <div class="content-block text-block" v-html="convertToHtml(block)"></div>
-            </template>
-            <template v-else>
-              <div class="content-block text-block">
-                <div
-                  class="editable-text-block"
-                  v-html="convertToHtml(block.content)"
-                  style="min-height:2.5em;"
-                ></div>
-              </div>
-            </template>
-          </template>
-        </div>
-      </div>
-    </div>
-    <div class="status-bar">
-      <span>代码块数量: {{ codeBlockCount }}</span>
-      <span>总字符数: {{ totalCharacters }}</span>
-    </div>
+    <BlogEditor v-model="markdownContent" class="full-height-editor" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { debounce } from '../utils/debounce'
-import { ref, computed, nextTick } from 'vue'
-import CodeChunk from '../components/CodeChunk.vue'
-import { parseMarkdown, convertToHtml, blocksToMarkdown } from '../components/MdParser.vue'
-import MarkdownTable from '../components/MarkdownTable.vue'
-type Block = {
-  type: 'text' | 'code' | 'table' | 'heading' | 'list' | 'quote' | 'paraWithBackslash'  | 'softBreakPara';
-  content: string;
-  language?: string;
-  header?: string[];
-  body?: string[][];
-}
+import { ref } from 'vue'
+import BlogEditor from '../components/BlogEditor.vue'
 
-// 如果MdParser.vue中有ContentBlock类型导出，则如下导入
-// import type { ContentBlock } from '../components/MdParser.vue'
-// 若没有导出，则在此处定义ContentBlock类型
-/*
-const editingIndex = ref<number|null>(null)
-const editingContent = ref('')
-const editingTextareaRef = ref<HTMLTextAreaElement|null>(null)
-
-function startEdit(index: number, content: string) {
-  editingIndex.value = index
-  editingContent.value = content
-  nextTick(() => {
-    if (editingTextareaRef.value) {
-      editingTextareaRef.value.focus()
-      editingTextareaRef.value.select()
-    }
-  })
-}
-function saveEdit(_index: number) {
-  if (editingIndex.value !== null) {
-    parsedBlocks.value[editingIndex.value].content = editingContent.value
-    syncMarkdownContent()
-    editingIndex.value = null
-    editingContent.value = ''
-  }
-}
-function cancelEdit() {
-  editingIndex.value = null
-  editingContent.value = ''
-}
-*/
 const markdownContent = ref(`# 欢迎使用 Chronicle Sonetto
 
 这是一个简单的 Markdown 编辑器，支持代码块、表格、段落自动识别。
@@ -170,337 +77,40 @@ hello("World");
         * 1919
             * 810
 
+### 这是数学公式
+
+#### 这是用\\$\\$包裹的公式
+$$
+e^x=\\sum_{n=0}^{\\infty} \\frac{x^n}{n!}
+$$
+
+\\$\\$这部分不会显示为公式\\$\\$
+
+#### 这是用\\\\[和\\\\]包裹的公式
+\\[
+x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}
+\\]
+
+\\\\[这部分也不会显示为公式\\\\]
+
+这是行内公式1：\\(E = mc^2\\)
+
+这是行内公式2：$L(x,\\lambda) = f(x) + \\lambda h(x)$
+
 `)
-
-const parsedBlocks = ref<Block[]>([])
-const previewContentRef = ref<HTMLDivElement | null>(null)
-
-// 计算属性
-const codeBlockCount = computed(() => {
-  return parsedBlocks.value.filter(block => block.type === 'code').length
-})
-
-const totalCharacters = computed(() => {
-  return markdownContent.value.length
-})
-
-// 解析 Markdown 内容（分块+防抖）
-const parseMarkdownContent = debounce(() => {
-  let scrollTop = 0
-  if (previewContentRef.value) {
-    scrollTop = previewContentRef.value.scrollTop
-  }
-  // 分块解析：优先完整提取代码块（以```包围），代码块内内容全部归为同一块
-  const blocks: Block[] = [];
-  const src = markdownContent.value;
-  const codeBlockRegex = /(^|\n)(```[\s\S]*?\n```)/g;
-  let lastIndex = 0;
-  let match;
-  while ((match = codeBlockRegex.exec(src)) !== null) {
-    // 处理代码块前的普通段落
-    if (match.index > lastIndex) {
-      const before = src.slice(lastIndex, match.index);
-      const sections = before.split(/\n{2,}/);
-      for (const section of sections) {
-        if (section.trim()) {
-          const parsed = parseMarkdown(section);
-          if (Array.isArray(parsed)) blocks.push(...parsed);
-        }
-      }
-    }
-    // 处理代码块本身（全部内容归为同一块）
-    const codeBlock = match[2];
-    const parsed = parseMarkdown(codeBlock);
-    if (Array.isArray(parsed)) blocks.push(...parsed);
-    lastIndex = match.index + codeBlock.length;
-  }
-  // 处理最后一段
-  if (lastIndex < src.length) {
-    const rest = src.slice(lastIndex);
-    const sections = rest.split(/\n{2,}/);
-    for (const section of sections) {
-      if (section.trim()) {
-        const parsed = parseMarkdown(section);
-        if (Array.isArray(parsed)) blocks.push(...parsed);
-      }
-    }
-  }
-  // 过滤掉内容仅为`的块
-  parsedBlocks.value = blocks.filter(b => !(typeof b.content === 'string' && b.content.trim() === '`'));
-  nextTick(() => {
-    if (previewContentRef.value) {
-      previewContentRef.value.scrollTop = scrollTop
-    }
-  })
-}, 150);
-
-// convertToHtml 已由 MdParser 导出
-
-// 更新代码块内容
-function updateCodeBlock(index: number, code: string, language: string) {
-  const block = parsedBlocks.value[index]
-  if (block && block.type === 'code') {
-    block.content = code
-    block.language = language
-    // 同步更新原始 markdown
-    syncMarkdownContent()
-  }
-}
-
-// 更新表格块
-function updateTableBlock(index: number, header: string[], body: string[][]) {
-  // 更新block内容并同步markdown
-  const block = parsedBlocks.value[index]
-  if (block && block.type === 'table') {
-    block.header = header
-    block.body = body
-    // 重新生成表格占位符内容
-    block.content = `[[MARKDOWN_TABLE:${JSON.stringify({header,body})}]]`
-    syncMarkdownContent()
-  }
-}
-
-
-function syncMarkdownContent() {
-  // 直接用 blocksToMarkdown 进行源码同步，保证 para-backslash 等类型正确还原为 markdown
-  markdownContent.value = blocksToMarkdown(parsedBlocks.value);
-}
-
-// 代码复制回调
-function onCodeCopy(code: string) {
-  console.log('代码已复制:', code.substring(0, 50) + '...')
-}
-
-// 初始化解析
-parseMarkdownContent()
-
-// 阻止Tab切出textarea，支持缩进体验
-function onTextareaKeydown(e: KeyboardEvent) {
-  if (e.key === 'Tab') {
-    e.preventDefault()
-    const textarea = e.target as HTMLTextAreaElement
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-    const value = textarea.value
-    // 插入4空格
-    textarea.value = value.substring(0, start) + '    ' + value.substring(end)
-    textarea.selectionStart = textarea.selectionEnd = start + 4
-    // 触发v-model更新
-    markdownContent.value = textarea.value
-    parseMarkdownContent()
-  }
-}
 </script>
 
 <style scoped>
 .text-editor-page {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  background: #1e1e1e;
-  color: #d4d4d4;
-}
-
-.page-header {
-  background: #2d2d30;
-  padding: 1.5rem 2rem;
-  border-bottom: 1px solid #3e3e42;
-}
-
-.page-header h1 {
-  margin: 0 0 0.5rem 0;
-  color: #ffffff;
-  font-size: 1.8rem;
-}
-
-.page-header p {
-  margin: 0;
-  color: #b8b8b8;
-  font-size: 1rem;
-}
-
-.editor-container {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-}
-
-.input-section,
-.preview-section {
-  flex: 1;
-  padding: 1.5rem;
-  overflow-y: auto;
-}
-
-.input-section {
-  border-right: 1px solid #3e3e42;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.input-section h3,
-.preview-section h3 {
-  color: #ffffff;
-  margin: 0 0 1rem 0;
-  font-size: 1.1rem;
-}
-
-.markdown-input {
-  width: 100%;
-  flex: 1 1 0%;
-  min-height: 0;
   height: 100%;
-  background: #252526;
-  color: #d4d4d4;
-  border: 1px solid #3e3e42;
-  border-radius: 6px;
-  padding: 1rem;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 14px;
-  line-height: 1.5;
-  resize: none;
-  outline: none;
-  box-sizing: border-box;
-}
-
-.markdown-input:focus {
-  border-color: #007acc;
-}
-
-.preview-content {
-  height: calc(100% - 3rem);
-  overflow-y: auto;
-}
-
-.content-block {
-  margin-bottom: 1.5rem;
-}
-
-.text-block {
-  line-height: 1.6;
-}
-.text-block table {
-  border-collapse: collapse;
-  margin: 1em 0;
   width: 100%;
-  background: #232323;
-  border: 2px solid #888;
-  box-shadow: 0 2px 8px #0002;
-}
-.text-block th, .text-block td {
-  border: 1.5px solid #aaa;
-  padding: 0.5em 1em;
-  text-align: left;
-  background: #232323;
-}
-.text-block th {
-  background: #2d2d30;
-  color: #fff;
-  border-bottom: 2px solid #888;
-}
-.text-block ul, .text-block ol {
-  margin: 1em 0 1em 2em;
-  padding: 0 0 0 1.2em;
-}
-.text-block li {
-  margin: 0.2em 0;
-}
-
-
-.text-block h1,
-.text-block h2,
-.text-block h3 {
-  color: #ffffff;
-  margin: 1rem 0 0.8rem 0;
-}
-
-.text-block h1 {
-  font-size: 1.6rem;
-  border-bottom: 2px solid #3e3e42;
-  padding-bottom: 0.5rem;
-}
-
-.text-block h2 {
-  font-size: 1.4rem;
-  border-bottom: 1px solid #3e3e42;
-  padding-bottom: 0.3rem;
-}
-
-.text-block h3 {
-  font-size: 1.2rem;
-}
-
-
-.text-block p {
-  margin: 0.8rem 0;
-  color: #d4d4d4;
-}
-.text-block .para-backslash {
-  display: block;
-  line-height: 1.2;
-  margin: 0.2em 0;
-  color: #d4d4d4;
-}
-
-.text-block strong {
-  color: #ffffff;
-  font-weight: bold;
-}
-
-.text-block em {
-  color: #b8b8b8;
-  font-style: italic;
-}
-
-.text-block code {
-  background: #2d2d30;
-  color: #ce9178;
-  padding: 0.2rem 0.4rem;
-  border-radius: 3px;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 0.9em;
-}
-
-.code-block-container {
-  margin: 1.5rem 0;
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.status-bar {
-  background: #007acc;
-  color: white;
-  padding: 0.8rem 2rem;
-  font-size: 0.9rem;
   display: flex;
-  gap: 2rem;
-  align-items: center;
+  flex-direction: column;
+  background: #1e1e1e;
 }
-
-/* 滚动条样式 */
-.input-section::-webkit-scrollbar,
-.preview-section::-webkit-scrollbar,
-.preview-content::-webkit-scrollbar {
-  width: 8px;
-}
-
-.input-section::-webkit-scrollbar-track,
-.preview-section::-webkit-scrollbar-track,
-.preview-content::-webkit-scrollbar-track {
-  background: #2d2d30;
-}
-
-.input-section::-webkit-scrollbar-thumb,
-.preview-section::-webkit-scrollbar-thumb,
-.preview-content::-webkit-scrollbar-thumb {
-  background: #424242;
-  border-radius: 4px;
-}
-
-.input-section::-webkit-scrollbar-thumb:hover,
-.preview-section::-webkit-scrollbar-thumb:hover,
-.preview-content::-webkit-scrollbar-thumb:hover {
-  background: #555555;
+.full-height-editor {
+  height:100%;
+  flex: 1;
+  overflow: hidden;
 }
 </style>

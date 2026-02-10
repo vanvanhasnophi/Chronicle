@@ -5,7 +5,7 @@
         <span class="chunk-title">{{ title }}</span>
       </div>
       <div class="toolbar">
-        <select v-model="selectedLanguage" @change="updateHighlighting" class="language-selector transparent-select" :title="selectedLanguage">
+        <select v-model="selectedLanguage" @change="updateHighlighting" class="language-selector transparent-select" :title="selectedLanguage" :disabled="readonly">
             <option value="apache">Apache</option>
             <option value="bash">Bash</option>
             <option value="c">C</option>
@@ -43,13 +43,13 @@
             <option value="yaml">YAML</option>
             <option value="plain">纯文本</option>
         </select>
-        <button class="icon-btn format-btn" @click="formatCode" title="格式化">
+        <button v-if="!readonly" class="icon-btn format-btn" @click="formatCode" title="格式化">
           <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M4 17h12M7 13l3-3 3 3M10 10V3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
         <button class="icon-btn copy-btn" @click="copyCode" title="复制">
           <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="7" y="7" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="4" y="4" width="9" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
         </button>
-        <button class="icon-btn clear-btn" @click="clearContent" title="清空">
+        <button v-if="!readonly" class="icon-btn clear-btn" @click="clearContent" title="清空">
           <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M6 6l8 8M6 14L14 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
         </button>
       </div>
@@ -84,7 +84,7 @@
     </div>
     
     <div class="editor-footer" v-if="showFooter">
-  <span>行: {{ currentLine }} | 列: {{ currentColumn }}</span>
+  <span v-if="!readonly">行: {{ currentLine }} | 列: {{ currentColumn }}</span>
   <span>字符数: {{ code.length }} | 行数: {{ lineCount }}</span>
     </div>
   </div>
@@ -637,7 +637,8 @@ onMounted(() => {
 .code-chunk-container {
   display: flex;
   flex-direction: column;
-  background: #23252b;
+  background: #2b2b2b;
+  border: 1px solid #333;
   color: #d4d4d4;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   border-radius: 8px;

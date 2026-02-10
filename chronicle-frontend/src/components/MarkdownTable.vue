@@ -1,5 +1,19 @@
 <template>
-  <div class="table-outer" :style="{ width: tableWidth + 'px', marginLeft: '10px' }">
+  <div v-if="readOnly" class="markdown-table-readonly">
+    <table class="readonly-table">
+      <thead>
+        <tr>
+          <th v-for="(cell, idx) in editHeader" :key="'h-'+idx">{{ cell }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="(row, rIdx) in editBody" :key="'r-'+rIdx">
+          <td v-for="(cell, cIdx) in row" :key="'c-'+cIdx">{{ cell }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div v-else class="table-outer" :style="{ width: tableWidth + 'px', marginLeft: '10px' }">
     <!-- 插入/删除列按钮（表头上方） -->
     <div class="table-insert-row">
       <span v-for="(_cell, idx) in header.length+1" :key="'insert-col-'+idx" class="table-dot insert-col-dot"
@@ -78,10 +92,13 @@
 <script lang="ts" setup>
 import { onBeforeUnmount } from 'vue'
 import { ref, watch, toRaw } from 'vue'
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   header: string[]
   body: string[][]
-}>()
+  readOnly?: boolean
+}>(), {
+  readOnly: false
+})
 const emit = defineEmits(['change'])
 
 
@@ -509,5 +526,30 @@ function autoResize(e: Event) {
   border: none;
   outline: none;
   box-shadow: none;
+}
+
+.markdown-table-readonly {
+  width: 100%;
+  overflow-x: auto;
+  margin: 1em 0;
+}
+.readonly-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #444;
+}
+.readonly-table th, .readonly-table td {
+  border: 1px solid #555;
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+  line-height: 1.5;
+}
+.readonly-table th {
+  background: rgba(255, 255, 255, 0.05);
+  font-weight: 600;
+}
+.readonly-table tr:nth-child(2n) {
+  background: rgba(255, 255, 255, 0.02);
 }
 </style>
