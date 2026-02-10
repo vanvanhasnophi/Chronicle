@@ -152,9 +152,11 @@ function syncScroll(e: Event) {
 
 .editor-pane {
   border-right: 1px solid #333;
+  overflow: hidden;
 }
 
 .markdown-input {
+  display: block;
   width: 100%;
   height: 100%;
   background: #1e1e1e;
