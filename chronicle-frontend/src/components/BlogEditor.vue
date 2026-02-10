@@ -31,15 +31,23 @@
       <!-- Editor Pane -->
       <div v-show="showEditor" class="pane editor-pane">
         <textarea
+          ref="editorRef"
           v-model="localValue"
           class="markdown-input"
           placeholder="Start writing markdown..."
-          @scroll="syncScroll"
+          @scroll="syncScroll('editor')"
+          @mouseover="activeScroll = 'editor'"
         ></textarea>
       </div>
 
       <!-- Preview Pane -->
-      <div v-show="showPreview" class="pane preview-pane">
+      <div 
+        v-show="showPreview" 
+        class="pane preview-pane"
+        ref="previewRef"
+        @scroll="syncScroll('preview')"
+        @mouseover="activeScroll = 'preview'"
+      >
         <MdParser 
           v-model="localValue" 
           :readOnly="previewReadOnly" 
@@ -76,18 +84,40 @@ type LayoutMode = 'split' | 'edit' | 'preview'
 const layout = ref<LayoutMode>('split')
 const isMobile = ref(false) // placeholder for responsiveness
 
-const displayModes: { label: string, value: LayoutMode, icon: string }[] = [
-  { label: 'Split View', value: 'split', icon: '🌗' },
-  { label: 'Editor Only', value: 'edit', icon: '✏️' },
-  { label: 'Preview Only', value: 'preview', icon: '👁️' }
+const displayModes: { label: string, value: LayoutMode, icon: string | null }[] = [
+  { label: 'Split View', value: 'split' , icon: 'Split'},
+  { label: 'Editor Only', value: 'edit', icon: 'Edit' },
+  { label: 'Preview Only', value: 'preview', icon: 'Preview' }
 ]
 
 const showEditor = computed(() => layout.value === 'split' || layout.value === 'edit')
 const showPreview = computed(() => layout.value === 'split' || layout.value === 'preview')
 
-// Scroll sync placeholder
-function syncScroll(e: Event) {
-  // Implementation for scroll sync left as exercise or future improvement
+const editorRef = ref<HTMLTextAreaElement | null>(null)
+const previewRef = ref<HTMLDivElement | null>(null)
+const activeScroll = ref<'editor' | 'preview' | null>(null)
+
+// Scroll sync
+function syncScroll(source: 'editor' | 'preview') {
+  if (layout.value !== 'split') return
+  if (activeScroll.value && activeScroll.value !== source) return
+
+  const editor = editorRef.value
+  const preview = previewRef.value
+
+  if (!editor || !preview) return
+
+  if (source === 'editor') {
+    const percentage = editor.scrollTop / (editor.scrollHeight - editor.clientHeight)
+    if (!isNaN(percentage)) {
+      preview.scrollTop = percentage * (preview.scrollHeight - preview.clientHeight)
+    }
+  } else {
+    const percentage = preview.scrollTop / (preview.scrollHeight - preview.clientHeight)
+    if (!isNaN(percentage)) {
+      editor.scrollTop = percentage * (editor.scrollHeight - editor.clientHeight)
+    }
+  }
 }
 </script>
 
