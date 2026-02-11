@@ -105,7 +105,7 @@
             </button>
         </div>
         <button class="stats-display" @click="activeModal = 'stats'">
-            {{ editorStats.wordCount }} words
+            {{ editorStats.wordCount }} word{{ editorStats.wordCount === 1 ? '' : 's' }}
         </button>
       </div>
 
