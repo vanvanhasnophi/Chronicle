@@ -14,56 +14,62 @@ const routes = [
   {
     path: '/',
     name: 'Home',
-    component: Home
+    component: Home,
+    meta: { title: 'Home' }
   },
   {
     path: '/login',
     name: 'Login',
-    component: Login
+    component: Login,
+    meta: { title: 'Login' }
   },
   {
     path: '/security',
     name: 'Security',
     component: Security,
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, title: 'Security' }
   },
   {
     path: '/blogs',
     name: 'BlogList',
-    component: BlogList
+    component: BlogList,
+    meta: { title: 'Blogs' }
   },
   {
     path: '/post/:id',
     name: 'BlogPost',
     component: BlogPost
+    // Title set dynamically in component
   },
   {
     path: '/manage',
     name: 'PostManager',
     component: PostManager,
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, title: 'Manage Posts' }
   },
   {
     path: '/editor',
     name: 'TextEditor',
     component: TextEditor,
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, title: 'Editor' }
   },
   {
     path: '/files',
     name: 'FileManager',
     component: FileManager,
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, title: 'Files' }
   },
   {
     path: '/search',
     name: 'Search',
-    component: Search
+    component: Search,
+    meta: { title: 'Search' }
   },
   {
     path: '/friends',
     name: 'Friends',
-    component: Friends
+    component: Friends,
+    meta: { title: 'Friends' }
   }
 ]
 
@@ -96,6 +102,26 @@ router.beforeEach((to, from, next) => {
     next('/login')
   } else {
     next()
+  }
+})
+
+router.afterEach((to) => {
+  let appName = 'Chronicle'
+  
+  // Distinguish Management and Editor
+  if (to.path.startsWith('/manage') || to.path.startsWith('/files') || to.path.startsWith('/security')) {
+      appName = 'Chronicle Manager'
+  } else if (to.path.startsWith('/editor')) {
+      appName = 'Md Editor'
+  }
+
+  if (to.name === 'Home') {
+      document.title = 'Chronicle'
+  } else if (to.meta && to.meta.title) {
+    document.title = `${to.meta.title} - ${appName}`
+  } else if (to.name !== 'BlogPost') {
+    // Default fallback if no title set and not a dynamic page handled elsewhere
+    document.title = appName
   }
 })
 

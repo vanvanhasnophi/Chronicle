@@ -1,87 +1,84 @@
 <template>
-  <div class="blog-container" ref="scrollContainer"> 
-    <main class="blog-main">
-      
-      <!-- Featured Section -->
-      <section v-if="featuredPosts.length > 0" class="section-block">
-        <div class="section-header">
-           <h2 class="section-title">Featured</h2>
-           <button v-if="featuredPosts.length > 3" class="toggle-btn" @click="isFeaturedExpanded = !isFeaturedExpanded">
-             {{ isFeaturedExpanded ? 'Collapse' : 'Expand' }}
-           </button>
-        </div>
-        <div class="featured-grid">
-           <article 
-             v-for="post in visibleFeatured" 
-             :key="post.id" 
-             class="post-card featured-card" 
-             @click="openPost(post.id)"
-           >
-            <div class="post-meta">
-              <span class="post-date">{{ formatDate(post.date) }}</span>
-            </div>
-            <h3 class="post-title">{{ post.title }}</h3>
-             <div class="post-tags">
-              <span v-for="tag in post.tags" :key="tag" class="tag" :class="{ featured: tag === 'featured' }" style="margin-right:3px">#&nbsp;{{ tag }}</span>
-            </div>
-          </article>
-        </div>
-      </section>
+    <div class="blog-container" ref="scrollContainer">
+        <main class="blog-main">
 
-      <!-- Archive Section -->
-      <section class="section-block">
-        <h2 class="section-title">All Posts</h2>
-         <div v-if="loading" class="loading">Loading posts...</div>
-        <div v-else-if="posts.length === 0" class="empty">No posts found. Start writing!</div>
-        
-        <div v-else class="archive-list">
-          <div v-for="yearGroup in groupedPosts" :key="yearGroup.year" class="year-block">
-             <div class="year-header">{{ yearGroup.year }}</div>
-             
-             <div v-for="monthGroup in yearGroup.months" :key="monthGroup.name" class="month-row">
-                 <div class="month-label">
-                     <span>{{ monthGroup.name }}</span>
-                 </div>
-                 <div class="month-posts">
-                     <article 
-                        v-for="post in monthGroup.posts" 
-                        :key="post.id" 
-                        class="post-card compact-card"
-                        @click="openPost(post.id)"
-                     >
-                        <div class="post-header-row">
-                             <h4 class="post-title">{{ post.title }}</h4>
-                             <span class="post-day">{{ new Date(post.date).getDate() }}日</span>
+            <!-- Featured Section -->
+            <section v-if="featuredPosts.length > 0" class="section-block">
+                <div class="section-header">
+                    <h2 class="section-title">Featured</h2>
+                    <button v-if="featuredPosts.length > 3" class="toggle-btn"
+                        @click="isFeaturedExpanded = !isFeaturedExpanded">
+                        {{ isFeaturedExpanded ? 'Collapse' : 'Expand' }}
+                    </button>
+                </div>
+                <div class="featured-grid">
+                    <article v-for="post in visibleFeatured" :key="post.id" class="post-card featured-card"
+                        @click="openPost(post.id)">
+                        <div class="post-meta">
+                            <span class="post-date">{{ formatDate(post.date) }}</span>
                         </div>
-                        <div class="post-tags" v-if="post.tags && post.tags.length">
-                            <span v-for="tag in post.tags" :key="tag" class="tag" :class="{ featured: tag === 'featured' }">#&nbsp;{{ tag }}</span>
+                        <h3 class="post-title">{{ post.title }}</h3>
+                        <div class="post-tags">
+                            <span v-for="tag in post.tags" :key="tag" class="tag"
+                                :class="{ featured: tag === 'featured' }" style="margin-right:3px">#&nbsp;{{ tag
+                                }}</span>
                         </div>
-                     </article>
-                 </div>
-             </div>
-          </div>
-        </div>
-      </section>
+                    </article>
+                </div>
+            </section>
 
-    </main>
+            <!-- Archive Section -->
+            <section class="section-block">
+                <h2 class="section-title">All Posts</h2>
+                <div v-if="loading" class="loading">Loading posts...</div>
+                <div v-else-if="posts.length === 0" class="empty">No posts found. Start writing!</div>
 
-    <!-- Back to Top -->
-    <button class="back-to-top" :class="{ visible: showBackToTop }" @click="scrollToTop" title="Back to Top">
-      ↑
-    </button>
-  </div>
+                <div v-else class="archive-list">
+                    <div v-for="yearGroup in groupedPosts" :key="yearGroup.year" class="year-block">
+                        <div class="year-header">{{ yearGroup.year }}</div>
+
+                        <div v-for="monthGroup in yearGroup.months" :key="monthGroup.name" class="month-row">
+                            <div class="month-label">
+                                <span>{{ monthGroup.name }}</span>
+                            </div>
+                            <div class="month-posts">
+                                <article v-for="post in monthGroup.posts" :key="post.id" class="post-card compact-card"
+                                    @click="openPost(post.id)">
+                                    <div class="post-header-row">
+                                        <h4 class="post-title">{{ post.title }}</h4>
+                                        <span class="post-day">{{ new Date(post.date).getDate() }}日</span>
+                                    </div>
+                                    <div class="post-tags" v-if="post.tags && post.tags.length">
+                                        <span v-for="tag in post.tags" :key="tag" class="tag"
+                                            :class="{ featured: tag === 'featured' }">#&nbsp;{{ tag }}</span>
+                                    </div>
+                                </article>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- Back to Top -->
+        <button class="back-to-top" :class="{ visible: showBackToTop }" @click="scrollToTop" title="Back to Top">
+            <span v-html="Icons.arrowUp"></span>
+        </button>
+    </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, computed, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { Icons } from '../utils/icons'
 
 interface Post {
-  id: string
-  title: string
-  date: string
-  summary: string
-  tags?: string[]
+    id: string
+    title: string
+    date: string
+    summary: string
+    tags?: string[]
 }
 
 const router = useRouter()
@@ -103,9 +100,9 @@ const visibleFeatured = computed(() => {
 
 const groupedPosts = computed(() => {
     const groups: { year: number, months: { name: string, posts: Post[] }[] }[] = []
-    
+
     // Copy posts to ensure sort safety, though inputs are likely sorted
-    const sorted = [...posts.value].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    const sorted = [...posts.value].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
     sorted.forEach(post => {
         const d = new Date(post.date)
@@ -113,37 +110,37 @@ const groupedPosts = computed(() => {
         // Format Month as "1月", "2月" or "Jan", "Feb" depending on locale.
         // User is using Chinese UI ("精选", "全部"). Let's use Chinese month if possible or numbers.
         // d.getMonth() is 0-indexed.
-        const m = `${d.getMonth() + 1}月` 
-        
+        const m = `${d.getMonth() + 1}月`
+
         let yGroup = groups.find(g => g.year === y)
         if (!yGroup) {
             yGroup = { year: y, months: [] }
             groups.push(yGroup)
         }
-        
+
         let mGroup = yGroup.months.find(mg => mg.name === m)
         if (!mGroup) {
             mGroup = { name: m, posts: [] }
             yGroup.months.push(mGroup)
         }
-        
+
         mGroup.posts.push(post)
     })
-    
+
     return groups
 })
 
 const formatDate = (isoStr: string) => {
-  if (!isoStr) return ''
-  return new Date(isoStr).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  })
+    if (!isoStr) return ''
+    return new Date(isoStr).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    })
 }
 
 const openPost = (id: string) => {
-  router.push(`/post/${id}`)
+    router.push(`/post/${id}`)
 }
 
 const handleScroll = (e: Event) => {
@@ -160,23 +157,23 @@ const scrollToTop = () => {
 }
 
 onMounted(async () => {
-  mainContentEl = document.querySelector('.main-content')
-  if (mainContentEl) {
-      mainContentEl.addEventListener('scroll', handleScroll)
-  } else {
-      window.addEventListener('scroll', handleScroll)
-  }
-
-  try {
-    const res = await fetch(`/api/posts?t=${Date.now()}`)
-    if (res.ok) {
-      posts.value = await res.json()
+    mainContentEl = document.querySelector('.main-content')
+    if (mainContentEl) {
+        mainContentEl.addEventListener('scroll', handleScroll)
+    } else {
+        window.addEventListener('scroll', handleScroll)
     }
-  } catch (e) {
-    console.error(e)
-  } finally {
-    loading.value = false
-  }
+
+    try {
+        const res = await fetch(`/api/posts?t=${Date.now()}`)
+        if (res.ok) {
+            posts.value = await res.json()
+        }
+    } catch (e) {
+        console.error(e)
+    } finally {
+        loading.value = false
+    }
 })
 
 onUnmounted(() => {
@@ -191,12 +188,12 @@ onUnmounted(() => {
 
 <style scoped>
 .blog-container {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 40px 20px;
-  color: #e0e0e0;
-  box-sizing: border-box;
-  scroll-behavior: smooth;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 20px;
+    color: #e0e0e0;
+    box-sizing: border-box;
+    scroll-behavior: smooth;
 }
 
 .section-block {
@@ -216,7 +213,7 @@ onUnmounted(() => {
     font-size: 1.8em;
     margin: 0;
     color: #fff;
-    padding-bottom: 0px; 
+    padding-bottom: 0px;
     border-bottom: none;
     display: inline-block;
 }
@@ -230,6 +227,7 @@ onUnmounted(() => {
     cursor: pointer;
     font-size: 0.85em;
 }
+
 .toggle-btn:hover {
     color: #2ea35f;
     border-color: #2ea35f;
@@ -241,19 +239,23 @@ onUnmounted(() => {
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 16px;
 }
+
 .featured-card {
     background: linear-gradient(145deg, #252526, #1e1e1e);
     border: 1px solid #3e3e42;
     padding: 16px;
     margin-bottom: 0;
 }
+
 .featured-card .post-title {
     font-size: 1.1em;
     margin-bottom: 8px;
 }
+
 .featured-card .post-meta {
     font-size: 0.8em;
 }
+
 .featured-card .tag {
     font-size: 0.7em;
 }
@@ -287,7 +289,8 @@ onUnmounted(() => {
     flex-shrink: 0;
     text-align: right;
     padding-right: 20px;
-    padding-top: 14px; /* Align with first card text */
+    padding-top: 14px;
+    /* Align with first card text */
     font-weight: bold;
     color: #2ea35f;
     font-size: 1.1em;
@@ -301,13 +304,13 @@ onUnmounted(() => {
 }
 
 .post-card {
-  /* Default styles for featured cards still rely on this */
-  padding: 16px;
-  background: #1e1e1e;
-  border: 1px solid #333;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: transform 0.2s, border-color 0.2s;
+    /* Default styles for featured cards still rely on this */
+    padding: 16px;
+    background: #1e1e1e;
+    border: 1px solid #333;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 0.2s, border-color 0.2s;
 }
 
 .compact-card {
@@ -317,6 +320,7 @@ onUnmounted(() => {
     background: transparent;
     border-radius: 4px;
 }
+
 .compact-card:hover {
     background: #252526;
     border-color: #555;
@@ -357,6 +361,7 @@ onUnmounted(() => {
     color: #888;
     margin-bottom: 8px;
 }
+
 .post-summary {
     color: #aaa;
     line-height: 1.6;
@@ -377,7 +382,8 @@ onUnmounted(() => {
     color: #ffd700;
 }
 
-.loading, .empty {
+.loading,
+.empty {
     text-align: center;
     padding: 60px;
     color: #666;
@@ -388,20 +394,28 @@ onUnmounted(() => {
     position: fixed;
     bottom: 30px;
     right: 30px;
-    width: 50px;
-    height: 50px;
+    width: 50px !important;
+    height: 50px !important;
     border-radius: 50%;
-    background: #2ea35f;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(10px);
     color: white;
-    border: none;
-    font-size: 24px;
+    padding: 0;
     cursor: pointer;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     opacity: 0;
     pointer-events: none;
-    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    transition: all 0.3s ease;
     transform: translateY(20px);
     z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+}
+
+.back-to-top span {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -412,8 +426,9 @@ onUnmounted(() => {
     pointer-events: auto;
     transform: translateY(0);
 }
+
 .back-to-top:hover {
-    background: #24804a;
-    transform: scale(1.1);
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
 }
 </style>

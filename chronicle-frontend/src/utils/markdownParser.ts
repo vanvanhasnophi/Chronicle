@@ -704,3 +704,76 @@ export function unescapeMarkdownCell(cell: string) {
     .replace(/\\\|/g, '|')  // \\| -> |
     .replace(/\\\\/g, '\\') // \\\\ -> \
 }
+
+export function stripMarkdown(md: string): string {
+    if (!md) return ''
+    let text = md
+    // Headers
+    text = text.replace(/^#+\s+/gm, '')
+    // Blockquotes
+    text = text.replace(/^>\s+/gm, '')
+    // Bold/Italic
+    text = text.replace(/(\*\*|__)(.*?)\1/g, '$2')
+    text = text.replace(/(\*|_)(.*?)\1/g, '$2')
+    // Links [text](url)
+    text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    // Images ![alt](url)
+    text = text.replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
+    // Code blocks
+    text = text.replace(/```[\s\S]*?```/g, '')
+    // Inline code
+    text = text.replace(/`([^`]+)`/g, '$1')
+    // HTML tags
+    text = text.replace(/<[^>]+>/g, '')
+    // Horizontal rules
+    text = text.replace(/^[-*_]{3,}\s*$/gm, '')
+    // List elements
+    text = text.replace(/^[\s-]*[-+*]\s+/gm, '')
+    text = text.replace(/^\s*\d+\.\s+/gm, '')
+    
+    return text
+}
+
+export function getStats(md: string) {
+    const plain = stripMarkdown(md)
+    
+    // 1. Character Count (with spaces)
+    const charCount = plain.length
+    
+    // 2. Character Count (no spaces)
+    const charCountNoSpaces = plain.replace(/\s/g, '').length
+    
+    // 3. Word Count
+    // Split by whitespace and filter empty
+    const westernWords = plain.split(/\s+/).filter(w => w.length > 0)
+    // Count simple western words as 1, but we need to account for CJK. 
+    // Simple approach: Count CJK characters as words, and non-CJK sequences as words.
+    // Regex for CJK characters
+    const cjkRegex = /[\u4e00-\u9fa5\uf900-\ufa2d\u3040-\u309f\u30a0-\u30ff]/g
+    const cjkMatches = plain.match(cjkRegex) || []
+    const cjkCount = cjkMatches.length
+    
+    // Remove CJK from plain to count western words more accurately
+    const nonCjk = plain.replace(cjkRegex, ' ')
+    const westernWordCount = nonCjk.split(/\s+/).filter(w => w.length > 0).length
+    
+    const wordCount = westernWordCount + cjkCount
+
+    // 4. Non-Western Count
+    const nonWesternCount = cjkCount
+
+    // 5. Markdown Count
+    const markdownCount = md.length
+
+    // Summary: First 150 chars
+    const summary = plain.replace(/\s+/g, ' ').trim().slice(0, 150) + (plain.length > 150 ? '...' : '')
+    
+    return {
+        charCount,
+        charCountNoSpaces,
+        wordCount,
+        nonWesternCount,
+        markdownCount,
+        summary
+    }
+}

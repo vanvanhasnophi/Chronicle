@@ -1,5 +1,7 @@
 {
   "dependencies": {
+    "@simplewebauthn/browser": "^13.2.2",
+    "@simplewebauthn/server": "^13.2.2",
     "katex": "^0.16.28",
     "vite": "^7.1.2"
   },

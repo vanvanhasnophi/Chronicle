@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute ,useRouter } from 'vue-router'
+import { Icons } from './utils/icons'
 import FilePreviewModal from './components/FilePreviewModal.vue'
 import ImagePreviewModal from './components/ImagePreviewModal.vue'
 
@@ -9,17 +10,37 @@ const router = useRouter()
 const isBackend = computed(() => {
     return ['/manage', '/files', '/security'].some(p => route.path.startsWith(p))
 })
+
+const isScrolled = ref(false)
+const isMenuOpen = ref(false)
+
+const handleScroll = (e: Event) => {
+    const target = e.target as HTMLElement
+    // User requested ~30px
+    isScrolled.value = target.scrollTop > 30
+}
+
+watch(route, () => {
+    isMenuOpen.value = false
+})
 </script>
 
 <template>
   <div id="app">
-    <nav class="nav-header" v-if="route.path !== '/editor' && route.path !== '/login'">
+    <nav class="nav-header" 
+         v-if="route.path !== '/editor' && route.path !== '/login'"
+         :class="{ 'at-top': !isScrolled }"
+    >
       <div class="nav-content">
         <div @click="router.push('/')" style="cursor: pointer !important;">
           <h1 class="app-title" >Chronicle</h1>
         </div>
+
+        <!-- Mobile Menu Toggle -->
+        <button class="menu-toggle" @click="isMenuOpen = !isMenuOpen" v-html="isMenuOpen ? Icons.cross : Icons.menu"></button>
+        
         <!-- Frontend Nav -->
-        <div class="nav-links" v-if="!isBackend">
+        <div class="nav-links" :class="{ 'mobile-open': isMenuOpen }" v-if="!isBackend">
           <RouterLink to="/" class="nav-link">Home</RouterLink>
           <RouterLink to="/blogs" class="nav-link">Blogs</RouterLink>
           <RouterLink to="/search" class="nav-link">Search</RouterLink>
@@ -27,7 +48,7 @@ const isBackend = computed(() => {
         </div>
 
         <!-- Backend Nav -->
-        <div class="nav-links" v-else>
+        <div class="nav-links" :class="{ 'mobile-open': isMenuOpen }" v-else>
           <RouterLink to="/manage" class="nav-link">Posts</RouterLink>
           <RouterLink to="/files" class="nav-link">Files</RouterLink>
           <RouterLink to="/security" class="nav-link">Security</RouterLink>
@@ -35,7 +56,10 @@ const isBackend = computed(() => {
         </div>
       </div>
     </nav>
-    <main class="main-content" :class="{ 'no-nav': route.path === '/editor' }">
+    <main class="main-content" 
+        :class="{ 'no-nav': route.path === '/editor' }"
+        @scroll="handleScroll"
+    >
       <RouterView />
     </main>
     <FilePreviewModal />
@@ -62,6 +86,14 @@ const isBackend = computed(() => {
   z-index: 100;
   height: 70px;
   box-sizing: border-box;
+  transition: background 0.3s ease, border-color 0.3s ease, backdrop-filter 0.3s ease;
+}
+
+.nav-header.at-top {
+    background: transparent;
+    border-bottom-color: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
 }
 
 .nav-content {
@@ -77,12 +109,53 @@ const isBackend = computed(() => {
 .app-title {
   color: #ffffff;
   margin: 0;
-  font-size: 1.8rem;
+  font-size: 1.6rem;
+}
+
+.menu-toggle {
+    display: none;
+    background: transparent;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    padding: 8px;
+    z-index: 102; /* Higher than nav-content */
 }
 
 .nav-links {
   display: flex;
   gap: 2rem;
+}
+
+@media (max-width: 768px) {
+    .menu-toggle {
+        display: block;
+    }
+    
+    .nav-links {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 100vh;
+        background: #1e1e1e; /* Solid background for menu */
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        transform: translateY(-100%);
+        transition: transform 0.3s ease;
+        z-index: 101; /* Behind toggle, above content */
+        gap: 30px;
+    }
+
+    .nav-links.mobile-open {
+        transform: translateY(0);
+    }
+
+    .nav-link {
+        font-size: 1.5em;
+    }
 }
 
 .nav-link {

@@ -1,5 +1,5 @@
 <template>
-  <div class="page-container">
+  <div class="page-container" :class="{ 'centered-mode': !isSearchActive && !isTagCloudOpen }">
     <div class="search-box-wrapper">
       <div class="search-box">
         <!-- Tag Trigger -->
@@ -12,6 +12,7 @@
           <span v-html="Icons.hash" class="icon"></span>
         </button>
 
+        <span class="divider"></span>
         <!-- Input Area -->
         <div class="input-area" @click="focusInput">
            <div v-for="tag in selectedTags" :key="tag" class="selected-tag-chip">
@@ -32,56 +33,65 @@
     </div>
 
     <!-- Content Area: Tag Cloud OR Results -->
-    <div class="content-area">
-        <!-- Tag Cloud -->
-        <div v-if="isTagCloudOpen" class="tag-cloud-container">
-           <h3 class="cloud-title">Select Tags</h3>
-           <div class="tags-grid">
-              <button 
-                  v-for="tag in allTags" 
-                  :key="tag" 
-                  class="tag-cloud-item" 
-                  :class="{ selected: selectedTags.includes(tag) }"
-                  @click="toggleTagAndKeepOpen(tag)"
-              >
-                  {{ tag }}
-              </button>
-           </div>
-           <div v-if="allTags.length === 0" class="no-tags">No tags found</div>
-           <button class="close-cloud-btn" @click="isTagCloudOpen = false">Done</button>
-        </div>
-
-        <!-- Search Results -->
-        <div v-else class="results-list">
-            <div v-if="loading" class="loading">Loading...</div>
-            <div v-else-if="filteredPosts.length === 0" class="empty">
-               No posts found matching your criteria.
+    <Transition name="fade">
+      <div class="content-wrapper" v-if="isSearchActive || isTagCloudOpen">
+        <div class="content-scroll-area">
+            <!-- Tag Cloud -->
+            <div v-if="isTagCloudOpen" class="tag-cloud-container">
+            <!-- No title, just content -->
+            <div class="tags-grid">
+                <button 
+                    v-for="tagData in allTagData" 
+                    :key="tagData.name" 
+                    class="tag-cloud-item" 
+                    :class="{ selected: selectedTags.includes(tagData.name) }"
+                    @click="toggleTagAndKeepOpen(tagData.name)"
+                >
+                    {{ tagData.name }}
+                    <span class="tag-count">{{ tagData.count }}</span>
+                </button>
             </div>
-            <article 
-              v-for="post in filteredPosts" 
-              :key="post.id" 
-              class="result-card" 
-              @click="openPost(post.id)"
-            >
-               <div class="post-header">
-                  <h3 class="post-title">{{ post.title }}</h3>
-                  <span class="post-date">{{ formatDate(post.date) }}</span>
-               </div>
-               <div class="post-tags" v-if="post.tags && post.tags.length">
-                   <span v-for="tag in post.tags" :key="tag" class="tag-display">#{{ tag }}</span>
-               </div>
-               <div class="post-summary">{{ post.summary }}</div>
-            </article>
-        </div>
-    </div>
+            <div v-if="allTagData.length === 0" class="no-tags">No tags found</div>
+            
+            <div class="cloud-actions">
+              <button class="close-cloud-btn" @click="isTagCloudOpen = false">Done</button>
+            </div>
+          </div>
+
+          <!-- Search Results -->
+          <div v-else class="results-list">
+              <div v-if="loading" class="loading">Loading...</div>
+              <div v-else-if="filteredPosts.length === 0" class="empty">
+                No posts found matching your criteria.
+              </div>
+              <article 
+                v-for="post in filteredPosts" 
+                :key="post.id" 
+                class="result-card" 
+                @click="openPost(post.id)"
+              >
+                <div class="post-header">
+                    <h3 class="post-title">{{ post.title }}</h3>
+                    <span class="post-date">{{ formatDate(post.date) }}</span>
+                </div>
+                <div class="post-tags" v-if="post.tags && post.tags.length">
+                    <span v-for="tag in post.tags" :key="tag" class="tag-display">#{{ tag }}</span>
+                </div>
+                <div class="post-summary">{{ post.summary }}</div>
+              </article>
+              <div class="list-spacer"></div>
+          </div>
+      </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icons } from '../utils/icons'
-
+import { debounce } from '../utils/debounce'
 interface Post {
   id: string
   title: string
@@ -94,27 +104,51 @@ const router = useRouter()
 const posts = ref<Post[]>([])
 const loading = ref(true)
 const searchQuery = ref('')
+const debouncedSearchQuery = ref('')
 const selectedTags = ref<string[]>([])
 const isTagCloudOpen = ref(false)
 const searchInput = ref<HTMLInputElement | null>(null)
 
-const allTags = computed(() => {
-    const tags = new Set<string>()
+// Update debounced query with delay
+watch(searchQuery, debounce((newVal: string) => {
+    debouncedSearchQuery.value = newVal
+    if (newVal.trim()) {
+        document.title = `Search: ${newVal} - Chronicle`
+    } else {
+        document.title = 'Search - Chronicle'
+    }
+}, 300))
+
+const isSearchActive = computed(() => {
+    return debouncedSearchQuery.value.trim().length > 0 || selectedTags.value.length > 0
+})
+
+const allTagData = computed(() => {
+    const counts = new Map<string, number>()
     posts.value.forEach(p => {
         if (p.tags) {
-            p.tags.forEach(t => tags.add(t))
+            p.tags.forEach(t => {
+                counts.set(t, (counts.get(t) || 0) + 1)
+            })
         }
     })
-    return Array.from(tags).sort()
+    
+    // Convert to array and sort alphabetically
+    return Array.from(counts.entries())
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => a.name.localeCompare(b.name))
 })
 
 const filteredPosts = computed(() => {
+    // Determine active query source - if tags selected, we might filter immediately, 
+    // but for text, use debounced.
+    // Actually, tags affect immediately. Text affects debounced.
+    
     return posts.value.filter(post => {
-        // 1. Title Match
-        const matchesTitle = post.title.toLowerCase().includes(searchQuery.value.toLowerCase())
+        // 1. Title Match (Use Debounced)
+        const matchesTitle = post.title.toLowerCase().includes(debouncedSearchQuery.value.toLowerCase())
         
-        // 2. Tag Match (AND)
-        // If no tags selected, true. Else, post must have ALL selected tags.
+        // 2. Tag Match (Use Immediate)
         let matchesTags = true
         if (selectedTags.value.length > 0) {
             const tempTags = post.tags || []
@@ -171,21 +205,43 @@ onMounted(async () => {
 <style scoped>
 .page-container {
   max-width: 800px;
+  max-height: calc(100vh - 70px);
   margin: 0 auto;
-  padding: 40px 20px;
+  padding: 15vh 20px 0;
   color: #e0e0e0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Centered Mode */
+.page-container.centered-mode .search-box-wrapper {
+    transform: translateY(20vh);
 }
 
 /* Search Box */
 .search-box-wrapper {
+    flex-shrink: 0;
     margin-bottom: 2rem;
-    position: sticky;
-    top: 80px; /* Adjust based on navbar */
     z-index: 50;
-    backdrop-filter: blur(8px);
-    background: rgba(30,30,30,0.8);
-    padding: 1rem 0;
-    border-radius: 0 0 12px 12px;
+    width: 100%;
+    transition: transform 0.6s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+/* Results Fade Transition */
+.fade-enter-active {
+  transition: opacity 0.6s ease 0.5s;
+}
+.fade-leave-active {
+  transition: opacity 0.1s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 
 .search-box {
@@ -208,10 +264,10 @@ onMounted(async () => {
     cursor: pointer;
     padding: 8px 12px;
     color: #555; /* Faint default */
-    border-right: 1px solid #333;
     display: flex;
     align-items: center;
     transition: color 0.3s ease;
+    flex-shrink: 0;
 }
 .tag-trigger.active {
     color: #2ea35f; /* Green if active */
@@ -265,23 +321,46 @@ onMounted(async () => {
     outline: none;
 }
 
+/* Content Area Wrapper */
+.content-wrapper {
+    flex: 1;
+    min-height: 0; 
+    margin-bottom: 10vh;
+    position: relative;
+    /* Blur mask */
+    mask-image: linear-gradient(to bottom, transparent, black 20px, black calc(100% - 20px), transparent);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, black 20px, black calc(100% - 20px), transparent);
+}
+
+.content-scroll-area {
+    height: 100%;
+    overflow-y: auto;
+    padding-top: 20px;
+    padding-bottom: 20px;
+    scrollbar-width: none; 
+    -ms-overflow-style: none;
+}
+.content-scroll-area::-webkit-scrollbar { 
+    display: none; 
+}
+
 /* Tag Cloud Overlay */
 .tag-cloud-container {
-    background: #1e1e1e;
-    border: 1px solid #3e3e42;
-    border-radius: 8px;
-    padding: 20px;
+    background: transparent; /* Removed background */
+    border: none; /* Removed border */
+    padding: 0; /* Align with content area */
     animation: fadeIn 0.2s ease;
-}
-.cloud-title {
-    margin: 0 0 1rem 0;
-    font-size: 1.2rem;
-    color: #aaa;
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
 }
 .tags-grid {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 12px;
+    justify-content: center; /* Scattered feel */
+    align-content: flex-start;
+    flex: 1;
 }
 .tag-cloud-item {
     background: #2d2d30;
@@ -291,6 +370,9 @@ onMounted(async () => {
     border-radius: 20px;
     cursor: pointer;
     transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }
 .tag-cloud-item:hover {
     background: #3e3e42;
@@ -301,17 +383,34 @@ onMounted(async () => {
     color: #fff;
     border-color: #2ea35f;
 }
+.tag-count {
+    font-size: 0.75em;
+    opacity: 0.7;
+    background: rgba(0,0,0,0.2);
+    padding: 0 4px;
+    border-radius: 4px;
+    min-width: 14px;
+    text-align: center;
+}
+
+.cloud-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 2rem;
+    padding-bottom: 1rem;
+}
 .close-cloud-btn {
-    margin-top: 1.5rem;
-    background: #3e3e42;
+    background: #2ea35f;
     color: #fff;
     border: none;
-    padding: 8px 16px;
+    padding: 8px 24px;
     border-radius: 4px;
+    margin-bottom: 20px;
     cursor: pointer;
+    font-weight: 600;
 }
 .close-cloud-btn:hover {
-    background: #4e4e52;
+    background: #25824c;
 }
 
 /* Results */
@@ -384,6 +483,20 @@ onMounted(async () => {
     text-align: center;
     color: #666;
     padding: 2rem;
+}
+
+
+.divider {
+  width: 1px;
+  height: 28px;
+  background-color: rgba(70,70,70,0.4);
+  margin: 0 2px;
+}
+
+.list-spacer {
+    height: 40px; 
+    width: 100%;
+    flex-shrink: 0;
 }
 
 @keyframes fadeIn {

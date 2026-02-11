@@ -20,6 +20,10 @@
   --glow-light: rgba(0, 0, 0, 0.678);
   --glow-dark: rgba(255, 255, 255, 0.644);
 
+  
+  --accent-color: #2ea35f;
+  --border-color: #333;
+
   color: var(--app-text-dark);
   background-color: var(--app-bg-dark);
 

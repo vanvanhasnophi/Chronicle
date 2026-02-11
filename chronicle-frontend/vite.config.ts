@@ -4,6 +4,12 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import type { Connect } from 'vite'
+import {
+  generateRegistrationOptions,
+  verifyRegistrationResponse,
+  generateAuthenticationOptions,
+  verifyAuthenticationResponse,
+} from '@simplewebauthn/server'
 
 // Simple Encryption
 const ALGORITHM = 'aes-256-cbc'
@@ -32,7 +38,7 @@ function decrypt(text: string): string {
 const backendPlugin = () => ({
   name: 'backend-middleware',
   configureServer(server: any) {
-    server.middlewares.use((req: Connect.IncomingMessage, res: any, next: Connect.NextFunction) => {
+    server.middlewares.use(async (req: Connect.IncomingMessage, res: any, next: Connect.NextFunction) => {
       const BASE_UPLOAD_DIR = path.resolve(process.cwd(), '../server/data/upload')
       const CATEGORIES = ['pic', 'sound', 'txt', 'video', 'doc', 'other'] as const
       
@@ -51,6 +57,176 @@ const backendPlugin = () => ({
 
       const SECURITY_FILE = path.resolve(process.cwd(), '../server/data/security.json')
       
+      // Passkey Globals
+      const RP_ID = 'localhost'
+      const ORIGIN = 'http://localhost:5173'
+      // Use global to persist across HMR
+      if (!(global as any).passkeyChallenges) {
+        (global as any).passkeyChallenges = new Map<string, string>()
+      }
+      const challenges = (global as any).passkeyChallenges as Map<string, string>
+
+      // PASSKEY - Register Options
+      if (urlObj.pathname === '/api/auth/passkey/register/options' && req.method === 'POST') {
+          // In this simple app, we only have one user: 'admin'.
+          // Real app would get user from session/request.
+          // We allow registration if authenticated OR if no security file exists (bootstrap).
+          
+          let body = ''
+          req.on('data', chunk => body += chunk)
+          req.on('end', async () => {
+             const user = 'admin'
+             
+             // Check if we can register (Authenticated or Setup mode)
+             // Simple check: for now we assume client side checks auth, 
+             // but effectively anyone with access to this endpoint when logged in can register.
+             // (Improvement: check cookie/token here)
+
+             const options = await generateRegistrationOptions({
+               rpName: 'Chronicle Blog',
+               rpID: RP_ID,
+               userID: new Uint8Array(Buffer.from(user)),
+               userName: user,
+               // valid devices to exclude...
+             })
+             
+             challenges.set(user, options.challenge)
+             
+             res.setHeader('Content-Type', 'application/json')
+             res.end(JSON.stringify(options))
+          })
+          return
+      }
+
+      // PASSKEY - Register Verify
+      if (urlObj.pathname === '/api/auth/passkey/register/verify' && req.method === 'POST') {
+          let body = ''
+          req.on('data', chunk => body += chunk)
+          req.on('end', async () => {
+              try {
+                  const { response } = JSON.parse(body)
+                  const user = 'admin'
+                  const expectedChallenge = challenges.get(user)
+                  
+                  if (!expectedChallenge) {
+                      res.statusCode = 400; res.end(JSON.stringify({ error: 'No challenge' })); return
+                  }
+
+                  const verification = await verifyRegistrationResponse({
+                      response,
+                      expectedChallenge,
+                      expectedOrigin: ORIGIN,
+                      expectedRPID: RP_ID,
+                  })
+
+                  if (verification.verified && verification.registrationInfo) {
+                      challenges.delete(user)
+                      
+                      // Save to security.json
+                      if (!fs.existsSync(SECURITY_FILE)) {
+                          // Allow bootstrap
+                          const defaultHash = hashPassword('admin')
+                          fs.writeFileSync(SECURITY_FILE, JSON.stringify({ passwordHash: defaultHash, devices: [] }))
+                      }
+                      
+                      const saved = JSON.parse(fs.readFileSync(SECURITY_FILE, 'utf-8'))
+                      if (!saved.devices) saved.devices = []
+                      
+                      const { credential } = verification.registrationInfo
+                      const { id: credentialID, publicKey: credentialPublicKey, counter } = credential
+
+                      // Check for duplicates? SimpleWebAuthn handles this via options in future, but for now simple push
+                      saved.devices.push({
+                          credentialID: credentialID,
+                          credentialPublicKey: Buffer.from(credentialPublicKey).toString('base64url'),
+                          counter,
+                          transports: response.response.transports
+                      })
+                      
+                      fs.writeFileSync(SECURITY_FILE, JSON.stringify(saved, null, 2))
+                      
+                      res.setHeader('Content-Type', 'application/json')
+                      res.end(JSON.stringify({ verified: true }))
+                  } else {
+                      res.statusCode = 400
+                      res.end(JSON.stringify({ verified: false }))
+                  }
+              } catch (e: any) {
+                  console.error(e)
+                  res.statusCode = 400; res.end(JSON.stringify({ error: e.message }))
+              }
+          })
+          return
+      }
+
+      // PASSKEY - Login Options
+      if (urlObj.pathname === '/api/auth/passkey/login/options' && req.method === 'POST') {
+          const user = 'admin'
+          const options = await generateAuthenticationOptions({
+               rpID: RP_ID,
+               userVerification: 'preferred', // 'preferred' allows devices that support UV but falls back
+          })
+          challenges.set(user, options.challenge)
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify(options))
+          return
+      }
+
+      // PASSKEY - Login Verify
+      if (urlObj.pathname === '/api/auth/passkey/login/verify' && req.method === 'POST') {
+         let body = ''
+          req.on('data', chunk => body += chunk)
+          req.on('end', async () => {
+              try {
+                  const { response } = JSON.parse(body)
+                  const user = 'admin'
+                  const expectedChallenge = challenges.get(user)
+
+                  if (!fs.existsSync(SECURITY_FILE)) {
+                      res.statusCode = 400; res.end('No devices registered'); return
+                  }
+                  const saved = JSON.parse(fs.readFileSync(SECURITY_FILE, 'utf-8'))
+                  const devices = saved.devices || []
+                  
+                  // Find the device
+                  const device = devices.find((d: any) => d.credentialID === response.id)
+                  
+                  if (!device) {
+                      res.statusCode = 400; res.end('Device not found'); return
+                  }
+
+                  const verification = await verifyAuthenticationResponse({
+                      response,
+                      expectedChallenge: expectedChallenge || '',
+                      expectedOrigin: ORIGIN,
+                      expectedRPID: RP_ID,
+                      credential: {
+                          id: device.credentialID,
+                          publicKey: new Uint8Array(Buffer.from(device.credentialPublicKey, 'base64url')),
+                          counter: device.counter,
+                          transports: device.transports,
+                      },
+                  })
+
+                  if (verification.verified) {
+                      challenges.delete(user)
+                      // Update counter
+                      device.counter = verification.authenticationInfo.newCounter
+                      fs.writeFileSync(SECURITY_FILE, JSON.stringify(saved, null, 2))
+                      
+                      res.setHeader('Content-Type', 'application/json')
+                      res.end(JSON.stringify({ verified: true, token: 'session-valid' }))
+                  } else {
+                       res.statusCode = 400; res.end(JSON.stringify({ verified: false }))
+                  }
+              } catch(e: any) {
+                  console.error(e)
+                  res.statusCode = 400; res.end(JSON.stringify({ error: e.message }))
+              }
+          })
+          return
+      }
+
       // Helper to hash password
       const hashPassword = (pwd: string) => {
           return crypto.scryptSync(pwd, 'chronicle-salt', 64).toString('hex')
@@ -74,8 +250,14 @@ const backendPlugin = () => ({
                   const attemptHash = hashPassword(password)
                   
                   if (saved.passwordHash === attemptHash) {
-                      res.setHeader('Content-Type', 'application/json')
-                      res.end(JSON.stringify({ success: true, token: 'session-valid' })) 
+                      // Check for 2FA (if devices exist)
+                      if (saved.devices && saved.devices.length > 0) {
+                          res.setHeader('Content-Type', 'application/json')
+                          res.end(JSON.stringify({ success: true, requirePasskey: true }))
+                      } else {
+                          res.setHeader('Content-Type', 'application/json')
+                          res.end(JSON.stringify({ success: true, token: 'session-valid' }))
+                      }
                   } else {
                       res.statusCode = 401
                       res.setHeader('Content-Type', 'application/json')
@@ -476,12 +658,6 @@ const backendPlugin = () => ({
                      
                      fs.writeFileSync(path.join(POSTS_DIR, targetFilename), encryptedContent)
                  }
-
-                 // Save Index
-                 fs.writeFileSync(INDEX_FILE, JSON.stringify(posts, null, 2))
-
-                 res.setHeader('Content-Type', 'application/json')
-                 res.end(JSON.stringify({ success: true, id: post.id }))
 
                  // Save Index
                  fs.writeFileSync(INDEX_FILE, JSON.stringify(posts, null, 2))

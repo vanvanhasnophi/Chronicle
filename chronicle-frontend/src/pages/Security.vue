@@ -3,7 +3,7 @@
     <h2>Security Settings</h2>
     
     <div class="card">
-      <h3>Change Password</h3>
+      <h3 style="margin-top: 5px;">Change Password</h3>
       
       <div class="form-group">
         <label>Current Password</label>
@@ -29,8 +29,19 @@
       </p>
     </div>
 
+    <div class="card">
+      <h3 style="margin-top: 5px;">Two-Factor Authentication</h3>
+      <p class="hint">Register a Passkey device (FaceID/TouchID/YubiKey) to enforce 2FA verification after password login.</p>
+      <button @click="registerPasskey" :disabled="regLoading" class="secondary-btn">
+        {{ regLoading ? 'Registering...' : 'Register New Passkey' }}
+      </button>
+      <p v-if="regMessage" :class="['message', regSuccess ? 'success' : 'error']">
+        {{ regMessage }}
+      </p>
+    </div>
+
     <div class="card logout-card">
-      <h3>Session</h3>
+      <h3 style="margin-top: 5px;">Session</h3>
       <button class="logout-btn" @click="logout">Log Out</button>
     </div>
   </div>
@@ -39,6 +50,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { startRegistration } from '@simplewebauthn/browser'
 
 const router = useRouter()
 const oldPassword = ref('')
@@ -96,6 +108,40 @@ const logout = () => {
   localStorage.removeItem('chronicle_auth')
   router.push('/login')
 }
+
+const regLoading = ref(false)
+const regMessage = ref('')
+const regSuccess = ref(false)
+
+const registerPasskey = async () => {
+    regLoading.value = true
+    regMessage.value = ''
+    try {
+        const resp = await fetch('/api/auth/passkey/register/options', { method: 'POST' })
+        const options = await resp.json()
+        
+        const attResp = await startRegistration(options)
+        
+        const verResp = await fetch('/api/auth/passkey/register/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ response: attResp })
+        })
+        const verData = await verResp.json()
+        if (verData.verified) {
+             regSuccess.value = true
+             regMessage.value = 'Passkey registered successfully!'
+        } else {
+             regSuccess.value = false
+             regMessage.value = 'Verification failed'
+        }
+    } catch (e: any) {
+        regSuccess.value = false
+        regMessage.value = e.message || 'Error registering passkey'
+    } finally {
+        regLoading.value = false
+    }
+}
 </script>
 
 <style scoped>
@@ -111,6 +157,24 @@ const logout = () => {
   border: 1px solid var(--border-color);
   margin-bottom: 2rem;
 }
+.hint {
+    color: #888;
+    font-size: 0.9em;
+    margin-bottom: 1rem;
+}
+.secondary-btn {
+    width: 100%;
+    padding: 0.8rem;
+    background: transparent;
+    border: 1px solid #2ea35f;
+    color: #2ea35f;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+}
+.secondary-btn:hover {
+    background: rgba(46, 163, 95, 0.1);
+}
 .form-group {
   margin-bottom: 1.5rem;
 }
@@ -120,7 +184,8 @@ label {
   color: var(--text-secondary);
 }
 input {
-  width: 100%;
+  display: flex;
+  width: calc(100% - 20px);
   padding: 0.8rem;
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
@@ -147,4 +212,5 @@ button:disabled {
 .logout-btn {
   background: #ff4444;
 }
+
 </style>

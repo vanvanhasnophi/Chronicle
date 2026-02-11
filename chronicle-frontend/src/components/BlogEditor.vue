@@ -52,6 +52,16 @@
       <!-- ROW 2: Editing Tools -->
       <div class="toolbar-row row-tools">
         <div class="tool-group">
+            <button
+                class="toolbar-btn"
+                @click="openFileMenu"
+                title="File Menu"
+            >
+                <span class="icon-svg" v-html="Icons.file"></span>
+                <span>File</span>
+            </button>
+            <span class="divider"></span>
+            
             <button 
                 class="toolbar-btn" 
                 @click="undo" 
@@ -72,10 +82,10 @@
             <button 
               class="toolbar-btn" 
               @click="openImageModal"
-              title="Insert Media"
+              title="Media Library"
             >
-              <span class="icon-svg" v-html="Icons.plus"></span>
-              <span>Insert</span>
+              <span class="icon-svg" v-html="Icons.media"></span>
+              <span>Media</span>
             </button>
             <button 
               class="toolbar-btn" 
@@ -94,9 +104,9 @@
               <span>Table</span>
             </button>
         </div>
-        <div class="stats-display">
-            Chars: {{ localValue.length }}
-        </div>
+        <button class="stats-display" @click="activeModal = 'stats'">
+            {{ editorStats.wordCount }} words
+        </button>
       </div>
 
       <!-- ROW 3: View Settings -->
@@ -156,30 +166,99 @@
       </div>
     </div>
 
-    <!-- Image Modal -->
-    <div v-if="showImageModal" class="modal-overlay" @click.self="showImageModal = false">
-      <div class="modal-content large-modal">
+    <!-- Group 1: File Menu Modal -->
+    <div v-if="activeModal === 'file'" class="modal-overlay" @click.self="activeModal = 'none'">
+        <div class="modal-content file-menu-modal">
+            <div class="sidebar">
+                <button 
+                v-for="tab in fileTabs" 
+                :key="tab.id"
+                class="sidebar-btn" 
+                :class="{ active: fileTab === tab.id }"
+                @click="handleFileTabChange(tab.id)"
+                >
+                <span class="icon-svg sidebar-icon" v-html="tab.icon" ></span>
+                {{ tab.label }}
+                </button>
+            </div>
+            <div class="main-area">
+                <div class="header">
+                    <h3>{{ currentFileTabTitle }}</h3>
+                    <button class="close-btn" @click="activeModal = 'none'">
+                        <span class="icon-svg" v-html="Icons.close"></span>
+                    </button>
+                </div>
+                
+                <div class="content-body">
+                    <!-- New Post -->
+                    <div v-if="fileTab === 'new'" class="tab-pane">
+                        <p>Create a new empty post.</p>
+                        <div class="warning-box">
+                            <strong>Note:</strong> Any unsaved changes in the current document will require confirmation.
+                        </div>
+                        <button class="primary-btn" @click="executeFileAction">Create New Post</button>
+                    </div>
+
+                    <!-- Open Post -->
+                    <div v-if="fileTab === 'open'" class="tab-pane">
+                        <div v-if="fileLoading" class="loading">Loading posts...</div>
+                        <div v-else class="post-list">
+                            <div 
+                                v-for="post in filePosts" 
+                                :key="post.id" 
+                                class="post-item"
+                                @click="handlePostOpen(post.id)"
+                            >
+                                <span class="post-title">{{ post.title }}</span>
+                                <span class="post-status status-chip" :class="post.status || 'draft'">{{ post.status || 'draft' }}</span>
+                                <span class="post-date">{{ new Date(post.date).toLocaleDateString() }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Import -->
+                    <div v-if="fileTab === 'import'" class="tab-pane">
+                        <p>Import a Markdown or text file from your device.</p>
+                        <div class="file-drop-area" @click="triggerImportInput">
+                            <span v-if="!selectedImportFile">Click to select file</span>
+                            <span v-else>{{ selectedImportFile.name }}</span>
+                        </div>
+                        <input type="file" ref="fileInput" @change="handleImportSelect" accept=".md,.txt" style="display:none" />
+                        <button class="primary-btn" :disabled="!selectedImportFile" @click="executeFileAction">Import File</button>
+                    </div>
+
+                    <!-- Export -->
+                    <div v-if="fileTab === 'export'" class="tab-pane">
+                        <p>Download current content as a Markdown file.</p>
+                        <button class="primary-btn" @click="executeFileAction">Export to Markdown</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Group 2: Insert Modals (Media, Link, Table) -->
+    <div v-if="['media', 'link', 'table'].includes(activeModal)" class="modal-overlay" @click.self="activeModal = 'none'">
+      <div class="modal-content" :class="activeModal === 'media' ? 'large-modal' : 'small-modal'">
         <div class="modal-header">
-            <h3>{{ modalTitle }}</h3>
-            <button class="close-btn" @click="showImageModal = false">
+            <h3>{{ activeModal === 'media' ? 'Media Library' : (activeModal === 'link' ? 'Insert Link' : 'Insert Table') }}</h3>
+            <button class="close-btn" @click="activeModal = 'none'">
                 <span class="icon-svg" v-html="Icons.close"></span>
             </button>
         </div>
         
-        <div class="modal-body media-manager-layout">
-            <!-- Sidebar -->
-            <div class="media-sidebar">
+        <!-- Media Body -->
+        <div v-if="activeModal === 'media'" class="modal-body media-manager-layout">
+            <div class="modal-sidebar">
                 <div v-for="cat in mediaCategories" 
                      :key="cat.id"
-                     class="media-cat-item"
+                     class="modal-sidebar-item"
                      :class="{ active: selectedCategory === cat.id }"
                      @click="selectedCategory = cat.id">
                      <span class="media-cat-icon" v-html="cat.icon"></span>
                      {{ cat.label }}
                 </div>
             </div>
-
-            <!-- Content Area -->
             <div class="media-content-area">
                 <div class="media-toolbar">
                     <button class="primary-btn" @click="triggerFileUpload">Upload New File</button>
@@ -191,7 +270,6 @@
                         @change="handleFileSelect"
                     />
                 </div>
-                
                 <div class="library-section">
                     <div v-if="uploadedImages.length > 0" class="image-grid">
                         <div 
@@ -214,15 +292,61 @@
                 </div>
             </div>
         </div>
+
+        <!-- Link Body -->
+        <div v-if="activeModal === 'link'" class="modal-body">
+            <div class="form-group">
+                <label>Link Text</label>
+                <input v-model="linkText" class="modal-input" placeholder="Text to display" autofocus />
+            </div>
+            <div class="form-group">
+                <label>URL</label>
+                <input v-model="linkUrl" class="modal-input" placeholder="https://" @keyup.enter="insertLink" />
+            </div>
+            <div class="modal-actions">
+                <button class="secondary-btn" @click="activeModal = 'none'">Cancel</button>
+                <button class="primary-btn" @click="insertLink">Insert</button>
+            </div>
+        </div>
+
+        <!-- Table Body -->
+        <div v-if="activeModal === 'table'" class="modal-body">
+            <div class="table-grid-container">
+                <div class="table-grid" @mouseleave="tableGridHover(tblRows, tblCols)">
+                    <div 
+                        v-for="i in 64" 
+                        :key="i"
+                        :class="['grid-cell', { active: ((i-1)%8 < tblHoverC) && (Math.floor((i-1)/8) < tblHoverR) }]"
+                        @mouseover="tableGridHover(Math.floor((i-1)/8)+1, (i-1)%8+1)"
+                        @click="tableGridClick(Math.floor((i-1)/8)+1, (i-1)%8+1)"
+                    ></div>
+                </div>
+                <div class="grid-info">{{ tblHoverR }} x {{ tblHoverC }} Table</div>
+            </div>
+            <div class="manual-inputs">
+                 <div class="form-group">
+                    <label>Rows</label>
+                    <input type="number" v-model="tblRows" min="1" class="modal-input" />
+                 </div>
+                 <div class="form-group">
+                    <label>Cols</label>
+                    <input type="number" v-model="tblCols" min="1" class="modal-input" />
+                 </div>
+            </div>
+            <div class="modal-actions">
+                <button class="secondary-btn" @click="activeModal = 'none'">Cancel</button>
+                <button class="primary-btn" @click="insertTable">Insert</button>
+            </div>
+        </div>
       </div>
     </div>
 
-    <!-- Save/Publish Modal -->
-    <div v-if="currentModal !== 'none'" class="modal-overlay" @click.self="currentModal = 'none'">
+    <!-- Group 3: Save/Publish Modals -->
+    <div v-if="['draft', 'publish'].includes(activeModal)" class="modal-overlay" @click.self="activeModal = 'none'">
       <div class="modal-content small-modal">
         <div class="modal-header">
-            <h3>{{ currentModal === 'draft' ? 'Save as Draft' : 'Publish Post' }}</h3>
-            <button class="close-btn" @click="currentModal = 'none'">
+            <h3>{{ activeModal === 'draft' ? 'Save as Draft' : 'Publish Post' }}</h3>
+            <button class="close-btn" @click="activeModal = 'none'">
                 <span class="icon-svg" v-html="Icons.close"></span>
             </button>
         </div>
@@ -238,7 +362,7 @@
                 />
             </div>
 
-            <div v-if="currentModal === 'publish'" class="form-group">
+            <div v-if="activeModal === 'publish'" class="form-group">
                 <label>Tags</label>
                 <div class="tags-input-container">
                     <div class="tags-list">
@@ -275,119 +399,46 @@
             </div>
 
             <div class="modal-actions">
-                <button class="secondary-btn" @click="currentModal = 'none'">Cancel</button>
+                <button class="secondary-btn" @click="activeModal = 'none'">Cancel</button>
                 <button 
                   class="primary-btn" 
                   @click="doSave()"
                   :disabled="isSaving || !tempTitle.trim()"
                 >
-                  {{ isSaving ? 'Saving...' : (currentModal === 'draft' ? 'Save Draft' : 'Publish Now') }}
+                  {{ isSaving ? 'Saving...' : (activeModal === 'draft' ? 'Save Draft' : 'Publish Now') }}
                 </button>
             </div>
         </div>
       </div>
     </div>
 
-    <!-- Link Modal -->
-    <div v-if="showLinkModal" class="modal-overlay" @click.self="showLinkModal = false">
+    <!-- Group 4: Confirmation Modals (Restore, Unsaved) -->
+    <div v-if="['restore', 'unsaved', 'stats'].includes(activeModal)" class="modal-overlay" @click.self="activeModal = 'none'">
       <div class="modal-content small-modal">
         <div class="modal-header">
-            <h3>Insert Link</h3>
-            <button class="close-btn" @click="showLinkModal = false">
+            <h3 v-if="activeModal === 'restore'">Confirm Restore</h3>
+            <h3 v-else-if="activeModal === 'unsaved'">Unsaved Changes</h3>
+            <h3 v-else>Document Statistics</h3>
+
+            <button class="close-btn" @click="activeModal = 'none'">
                 <span class="icon-svg" v-html="Icons.close"></span>
             </button>
         </div>
-        <div class="modal-body">
-            <div class="form-group">
-                <label>Link Text</label>
-                <input v-model="linkText" class="modal-input" placeholder="Text to display" autofocus />
-            </div>
-            <div class="form-group">
-                <label>URL</label>
-                <input v-model="linkUrl" class="modal-input" placeholder="https://" @keyup.enter="insertLink" />
-            </div>
-            <div class="modal-actions">
-                <button class="secondary-btn" @click="showLinkModal = false">Cancel</button>
-                <button class="primary-btn" @click="insertLink">Insert</button>
-            </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Table Modal -->
-    <div v-if="showTableModal" class="modal-overlay" @click.self="showTableModal = false">
-      <div class="modal-content small-modal">
-        <div class="modal-header">
-            <h3>Insert Table</h3>
-            <button class="close-btn" @click="showTableModal = false">
-                <span class="icon-svg" v-html="Icons.close"></span>
-            </button>
-        </div>
-        <div class="modal-body">
-            <div class="table-grid-container">
-                <div class="table-grid" @mouseleave="tableGridHover(tblRows, tblCols)">
-                    <div 
-                        v-for="i in 64" 
-                        :key="i"
-                        :class="['grid-cell', { active: ((i-1)%8 < tblHoverC) && (Math.floor((i-1)/8) < tblHoverR) }]"
-                        @mouseover="tableGridHover(Math.floor((i-1)/8)+1, (i-1)%8+1)"
-                        @click="tableGridClick(Math.floor((i-1)/8)+1, (i-1)%8+1)"
-                    ></div>
-                </div>
-                <div class="grid-info">{{ tblHoverR }} x {{ tblHoverC }} Table</div>
-            </div>
-            
-            <div class="manual-inputs">
-                 <div class="form-group">
-                    <label>Rows</label>
-                    <input type="number" v-model="tblRows" min="1" class="modal-input" />
-                 </div>
-                 <div class="form-group">
-                    <label>Cols</label>
-                    <input type="number" v-model="tblCols" min="1" class="modal-input" />
-                 </div>
-            </div>
-
-            <div class="modal-actions">
-                <button class="secondary-btn" @click="showTableModal = false">Cancel</button>
-                <button class="primary-btn" @click="insertTable">Insert</button>
-            </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Restore Confirmation Modal -->
-    <div v-if="currentModal === 'restore'" class="modal-overlay">
-      <div class="modal-content small-modal">
-        <div class="modal-header">
-            <h3>Confirm Restore</h3>
-            <button class="close-btn" @click="currentModal = 'none'">
-                <span class="icon-svg" v-html="Icons.close"></span>
-            </button>
-        </div>
-        <div class="modal-body">
+        
+        <!-- Restore Body -->
+        <div v-if="activeModal === 'restore'" class="modal-body">
             <p style="color: #ccc; margin-bottom: 20px;">
                 This will <strong>permanently delete</strong> your draft changes and restore the original published version from the server. <br><br>
                 This action cannot be undone. Are you sure?
             </p>
             <div class="modal-actions">
-                <button class="secondary-btn" @click="currentModal = 'none'">Cancel</button>
+                <button class="secondary-btn" @click="activeModal = 'none'">Cancel</button>
                 <button class="primary-btn danger-action" @click="doRestore">Confirm Restore</button>
             </div>
         </div>
-      </div>
-    </div>
 
-    <!-- Unsaved Changes Modal -->
-    <div v-if="currentModal === 'unsaved'" class="modal-overlay">
-      <div class="modal-content small-modal">
-        <div class="modal-header">
-            <h3>Unsaved Changes</h3>
-            <button class="close-btn" @click="closeModals">
-                <span class="icon-svg" v-html="Icons.close"></span>
-            </button>
-        </div>
-        <div class="modal-body">
+        <!-- Unsaved Body -->
+        <div v-if="activeModal === 'unsaved'" class="modal-body">
             <p style="color: #ccc; margin-bottom: 20px;">
                 You have unsaved changes in "<strong>{{ postTitle }}</strong>". <br>
                 Do you want to save them before leaving?
@@ -396,6 +447,32 @@
                 <button class="secondary-btn" @click="closeModals">Cancel</button>
                 <button class="secondary-btn" style="border-color:#d9534f; color:#d9534f" @click="handleUnsavedOption('discard')">Discard</button>
                 <button class="primary-btn" @click="handleUnsavedOption('save')">Save & Continue</button>
+            </div>
+        </div>
+
+        <!-- Stats Body -->
+        <div v-if="activeModal === 'stats'" class="modal-body">
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <span class="stat-label">Words</span>
+                    <span class="stat-value">{{ editorStats.wordCount }}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Characters (with spaces)</span>
+                    <span class="stat-value">{{ editorStats.charCount }}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Characters (no spaces)</span>
+                    <span class="stat-value">{{ editorStats.charCountNoSpaces }}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Non-Western Characters</span>
+                    <span class="stat-value">{{ editorStats.nonWesternCount }}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Original Markdown Chars</span>
+                    <span class="stat-value">{{ editorStats.markdownCount }}</span>
+                </div>
             </div>
         </div>
       </div>
@@ -409,6 +486,7 @@ import { useRoute, useRouter, onBeforeRouteUpdate, onBeforeRouteLeave } from 'vu
 import MdParser from './MdParser.vue'
 import { debounce } from '../utils/debounce'
 import { Icons } from '../utils/icons'
+import { getStats } from '../utils/markdownParser'
 
 const route = useRoute()
 const router = useRouter()
@@ -428,6 +506,10 @@ const previewReadOnly = ref(false)
 const assetMap = ref<Record<string, string>>({})
 // Post Meta
 const postTitle = ref('Untitled Post')
+watch(postTitle, (val) => {
+    if (val) document.title = `${val} - Md Editor`
+    else document.title = 'Md Editor'
+}, { immediate: true })
 const postId = ref<string | null>(null)
 const postStatus = ref<'draft' | 'published' | 'modifying'>('draft')
 const postTags = ref<string[]>([])
@@ -436,10 +518,138 @@ const postUpdated = ref<string>('')
 
 // UI State
 const isSaving = ref(false)
-const currentModal = ref<'none' | 'draft' | 'publish' | 'unsaved' | 'restore'>('none')
+const activeModal = ref('none')
 const tempTitle = ref('')
 
-// Dirty State Tracking
+// File Menu State
+const fileTab = ref('new')
+const filePosts = ref<any[]>([])
+const fileLoading = ref(false)
+const fileInput = ref<HTMLInputElement|null>(null)
+const selectedImportFile = ref<File|null>(null)
+
+const fileTabs = [
+    { id: 'new', label: 'New Post', icon: Icons.plus },
+    { id: 'open', label: 'Open...', icon: Icons.folder },
+    { id: 'import', label: 'Import', icon: Icons.document },
+    { id: 'export', label: 'Export', icon: Icons.save }
+]
+
+const currentFileTabTitle = computed(() => {
+    return fileTabs.find(t => t.id === fileTab.value)?.label || ''
+})
+
+// Stats
+const editorStats = computed(() => getStats(localValue.value))
+
+// File Menu Logic
+async function openFileMenu() {
+    activeModal.value = 'file'
+    // Preload posts if switching to open tab? Or wait until user clicks.
+    // Let's reset tab
+    fileTab.value = 'new'
+}
+
+async function handleFileTabChange(tab: string) {
+    fileTab.value = tab
+    if (tab === 'open') {
+        fileLoading.value = true
+        try {
+            const res = await fetch('/api/posts?includeDrafts=true')
+            if (res.ok) {
+                filePosts.value = await res.json()
+            }
+        } finally {
+            fileLoading.value = false
+        }
+    }
+}
+
+function triggerImportInput() {
+    fileInput.value?.click()
+}
+
+function handleImportSelect(e: Event) {
+    const target = e.target as HTMLInputElement
+    if (target.files && target.files.length > 0) {
+        selectedImportFile.value = target.files[0]
+    }
+}
+
+function executeFileAction() {
+    if (fileTab.value === 'export') {
+        const blob = new Blob([localValue.value], { type: 'text/markdown;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${postTitle.value.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.md`
+        a.click()
+        URL.revokeObjectURL(url)
+        activeModal.value = 'none'
+        return
+    }
+
+    if (fileTab.value === 'new') {
+        const doNew = () => {
+            resetEditor()
+            activeModal.value = 'none'
+        }
+        if (isDirty.value) handleUnsavedCheck(doNew)
+        else doNew()
+        return
+    }
+
+    if (fileTab.value === 'import' && selectedImportFile.value) {
+        const file = selectedImportFile.value
+        const doImport = () => {
+             const reader = new FileReader()
+             reader.onload = (e) => {
+                 if (e.target?.result) {
+                     localValue.value = e.target.result as string
+                     postTitle.value = file.name.replace(/\.[^/.]+$/, "")
+                     activeModal.value = 'none'
+                     postId.value = null 
+                     postStatus.value = 'draft'
+                     
+                     // Clear selection
+                     selectedImportFile.value = null
+                     if (fileInput.value) fileInput.value.value = ''
+                 }
+             }
+             reader.readAsText(file)
+        }
+        if (isDirty.value) handleUnsavedCheck(doImport)
+        else doImport()
+    }
+}
+
+function handlePostOpen(id: string) {
+    const doOpen = async () => {
+        await loadPost(id)
+        activeModal.value = 'none'
+    }
+    if (isDirty.value) handleUnsavedCheck(doOpen)
+    else doOpen()
+}
+
+// Reuseable unsaved check helper
+let pendingActionCallback: (() => void) | null = null
+function handleUnsavedCheck(callback: () => void) {
+    pendingActionCallback = callback
+    activeModal.value = 'unsaved'
+}
+
+function resetEditor() {
+    router.push({ query: { id: 'new' } }) // Update URL
+    setTimeout(() => {
+         initLoad() // Will read 'new' from query
+    }, 50)
+}
+
+function loadPost(id: string) {
+    if (id === postId.value) return 
+    router.push({ query: { id } })
+}
 const savedContent = ref('')
 const savedTitle = ref('')
 const pendingRoute = ref<any>(null) // To store where user wanted to go
@@ -491,7 +701,7 @@ function toggleFeatured() {
 
 async function restorePost() {
     if (!postId.value) return
-    currentModal.value = 'restore'
+    activeModal.value = 'restore'
 }
 
 async function doRestore() {
@@ -507,7 +717,7 @@ async function doRestore() {
             sessionStorage.removeItem(historyKey.value)
 
             await initLoad()
-            currentModal.value = 'none'
+            activeModal.value = 'none'
         } else {
             alert('Failed to restore')
         }
@@ -520,7 +730,7 @@ async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
     let status = forceStatus 
     if (!status) {
          // Determine intent based on modal
-         const intent = currentModal.value // 'draft' or 'publish' or 'unsaved'
+         const intent = activeModal.value 
          
          if (intent === 'publish') {
              status = 'published'
@@ -532,11 +742,7 @@ async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
                  status = 'draft'
              }
          } else if (intent === 'unsaved') {
-             // Default to keeping current status, but if we are 'published', simplistic auto-save might be dangerous
-             // Safest is to keep status unless it's strictly published -> modifying transition logic needed?
-             // For now, keep current status. If published, it overwrites published file. 
-             // Ideally unsaved prompt shouldn't publish, it should draft.
-             // But let's stick to existing logic: save with current status.
+             // Default to keeping current status
              status = postStatus.value
          }
     }
@@ -593,11 +799,11 @@ async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
 
 function openSaveModal(type: 'draft' | 'publish') {
     tempTitle.value = postTitle.value
-    currentModal.value = type
+    activeModal.value = type
 }
 
 function closeModals() {
-    currentModal.value = 'none'
+    activeModal.value = 'none'
     pendingRoute.value = null
 }
 
@@ -610,8 +816,14 @@ async function handleUnsavedOption(action: 'save' | 'discard') {
     savedContent.value = localValue.value
     savedTitle.value = postTitle.value
     
-    currentModal.value = 'none'
+    activeModal.value = 'none'
     
+    if (pendingActionCallback) {
+        pendingActionCallback()
+        pendingActionCallback = null
+        return
+    }
+
     if (pendingRoute.value) {
         router.push(pendingRoute.value)
         pendingRoute.value = null
@@ -649,7 +861,7 @@ const handleNavigation = (to: any, from: any, next: any) => {
     if (isDirty.value) {
         // Pause navigation
         pendingRoute.value = to
-        currentModal.value = 'unsaved'
+        activeModal.value = 'unsaved'
         // If we cancel the navigation here, standard router behavior is to abort.
         // If it's a param change (update), it just stays.
         // But we want to show modal.
@@ -667,7 +879,7 @@ onBeforeRouteLeave(handleNavigation)
 onBeforeRouteUpdate(async (to, from, next) => {
     if (isDirty.value) {
         pendingRoute.value = to
-        currentModal.value = 'unsaved'
+        activeModal.value = 'unsaved'
         next(false)
     } else {
         // Proceed with update
@@ -900,7 +1112,6 @@ const previewRef = ref<HTMLDivElement | null>(null)
 const activeScroll = ref<'editor' | 'preview' | null>(null)
 
 // Image Handling
-const showImageModal = ref(false)
 const uploadedImages = ref<{name: string, url: string, path: string}[]>([])
 const fileInputRef = ref<HTMLInputElement | null>(null)
 
@@ -955,7 +1166,7 @@ async function fetchServerImages() {
 }
 
 async function openImageModal() {
-  showImageModal.value = true
+  activeModal.value = 'media'
   selectedCategory.value = 'pic' // Default start
   fetchServerImages()
 }
@@ -984,7 +1195,7 @@ function insertMediaMarkdown(name: string, path: string, category?: string) {
     
     localValue.value = text.substring(0, start) + insertText + text.substring(end);
     
-    showImageModal.value = false
+    activeModal.value = 'none'
     
     setTimeout(() => {
         if (editorRef.value) {
@@ -1060,7 +1271,7 @@ function insertImageMarkdown(name: string, path: string) {
     
     localValue.value = text.substring(0, start) + insertText + text.substring(end);
     
-    showImageModal.value = false
+    activeModal.value = 'none'
     
     setTimeout(() => {
         if (editorRef.value) {
@@ -1072,7 +1283,6 @@ function insertImageMarkdown(name: string, path: string) {
 }
 
 // Link Modal
-const showLinkModal = ref(false)
 const linkText = ref('')
 const linkUrl = ref('')
 
@@ -1086,18 +1296,17 @@ function openLinkModal() {
         }
     }
     linkUrl.value = ''
-    showLinkModal.value = true
+    activeModal.value = 'link'
 }
 
 function insertLink() {
     const text = linkText.value || 'Link'
     const url = linkUrl.value || '#'
     insertAtCursor(`[${text}](${url})`)
-    showLinkModal.value = false
+    activeModal.value = 'none'
 }
 
 // Table Modal
-const showTableModal = ref(false)
 const tblRows = ref(2)
 const tblCols = ref(2)
 const tblHoverR = ref(2)
@@ -1113,7 +1322,7 @@ function openTableModal() {
     tblCols.value = 2
     tblHoverR.value = 2
     tblHoverC.value = 2
-    showTableModal.value = true
+    activeModal.value = 'table'
 }
 
 function tableGridHover(r: number, c: number) {
@@ -1142,7 +1351,7 @@ function insertTable() {
     md += '\n'
     
     insertAtCursor(md)
-    showTableModal.value = false
+    activeModal.value = 'none'
 }
 
 function insertAtCursor(insertText: string) {
@@ -1291,8 +1500,10 @@ function syncScroll(source: 'editor' | 'preview') {
 }
 
 .stats-display {
+    background-color: var(--app-bg-dark);
     font-size: 12px;
     color: #666;
+    border: none;
 }
 
 .status-chip {
@@ -1491,7 +1702,7 @@ function syncScroll(source: 'editor' | 'preview') {
 }
 
 /* Sidebar */
-.media-sidebar {
+.modal-sidebar {
     width: 200px;
     background: #252526;
     border-right: 1px solid #333;
@@ -1500,7 +1711,7 @@ function syncScroll(source: 'editor' | 'preview') {
     flex-shrink: 0;
 }
 
-.media-cat-item {
+.modal-sidebar-item {
     padding: 8px 12px;
     cursor: pointer;
     border-radius: 4px;
@@ -1510,15 +1721,15 @@ function syncScroll(source: 'editor' | 'preview') {
     color: #ccc;
     font-size: 14px;
 }
-.media-cat-item:hover {
+.modal-sidebar-item:hover {
     background: #2a2d2e;
 }
-.media-cat-item.active {
+.modal-sidebar-item.active {
   background: rgba(46, 163, 95, 0.2);
   border: 1px solid rgba(46, 163, 95, 0.4);
 }
 
-.media-cat-item.active:hover {
+.modal-sidebar-item.active:hover {
   background: rgba(46, 163, 95, 0.4);
 }
 
@@ -1676,6 +1887,15 @@ function syncScroll(source: 'editor' | 'preview') {
   width: 100%;
   height: 100%;
   stroke-width: 1.5;
+}
+
+.icon-svg.sidebar-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    margin-right: 10px;
 }
 
 
@@ -1897,4 +2117,137 @@ function syncScroll(source: 'editor' | 'preview') {
 .primary-btn.danger-action:hover {
     background: #c9302c;
 }
+/* File Menu Specifics */
+.modal-content.file-menu-modal {
+    flex-direction: row; 
+    height: 600px;
+}
+
+.sidebar {
+    width: 200px;
+    background: #252526;
+    border-right: 1px solid #333;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+}
+.sidebar-btn {
+    padding: 8px 12px;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 4px;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    color: #ccc;
+    font-size: 14px;
+}
+.sidebar-btn:hover {
+    background: #2a2d2e;
+    color: #fff;
+}
+.sidebar-btn.active {
+  background: rgba(46, 163, 95, 0.2);
+  border: 1px solid rgba(46, 163, 95, 0.4);
+}
+.sidebar-btn.active:hover {
+  background: rgba(46, 163, 95, 0.4);
+}
+.main-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    overflow: hidden;
+}
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #333;
+    padding-bottom: 15px;
+}
+.header h3 { margin: 0; color: #fff; font-size: 18px; }
+.content-body { flex: 1; overflow-y: auto; }
+
+.warning-box {
+    background: rgba(255, 165, 0, 0.1);
+    border-left: 3px solid orange;
+    padding: 10px;
+    margin: 15px 0;
+    color: #ddd;
+    font-size: 13px;
+}
+
+.post-list { display: flex; flex-direction: column; gap: 8px; }
+.post-item {
+    padding: 12px;
+    background: #333;
+    border: 1px solid #444;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.post-item:hover { background: #3c3c3c; }
+.post-title { font-weight: bold; color: #e0e0e0; flex: 1; margin-right: 10px; }
+.post-date { color: #888; font-size: 0.85em; margin-right: 10px; }
+.post-status {
+    font-size: 0.75em; border-radius: 3px;
+    padding: 2px 6px; text-transform: uppercase;
+    margin-right:10px;
+}
+
+.file-drop-area {
+    border: 2px dashed #444;
+    padding: 40px;
+    text-align: center;
+    color: #888;
+    margin: 20px 0;
+    cursor: pointer;
+    border-radius: 6px;
+}
+.file-drop-area:hover { border-color: #666; color: #aaa; }
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 10px 0;
+}
+.stat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+    background:transparent;
+    border-radius: 4px;
+}
+.stat-label {
+    color: #aeaeae;
+    font-size: 0.9em;
+}
+.stat-value {
+    color: #2ea35f;
+    font-weight: bold;
+    font-family: monospace;
+    font-size: 1.2em;
+}
+.stats-display {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 12px;
+    color: #666;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: color 0.2s, background 0.2s;
+}
+.stats-display:hover {
+    color: #e0e0e0;
+    background: #333;
+}
+
 </style>
