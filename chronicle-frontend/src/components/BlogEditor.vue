@@ -751,6 +751,7 @@ async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
     try {
         const res = await fetch('/api/post', {
             method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 id: postId.value,
                 title: tempTitle.value || postTitle.value, // Use tempTitle if set, else current title

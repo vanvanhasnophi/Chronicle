@@ -32,12 +32,28 @@
     <div class="card">
       <h3 style="margin-top: 5px;">Two-Factor Authentication</h3>
       <p class="hint">Register a Passkey device (FaceID/TouchID/YubiKey) to enforce 2FA verification after password login.</p>
+      
       <button @click="registerPasskey" :disabled="regLoading" class="secondary-btn">
         {{ regLoading ? 'Registering...' : 'Register New Passkey' }}
       </button>
+      
       <p v-if="regMessage" :class="['message', regSuccess ? 'success' : 'error']">
         {{ regMessage }}
       </p>
+
+      <div v-if="passkeys.length > 0" class="passkey-list">
+        <h4>Registered Keys</h4>
+        <div v-for="pk in passkeys" :key="pk.id" class="passkey-item">
+            <div class="pk-info">
+                <span class="pk-name">{{ pk.name || 'Unnamed Key' }}</span>
+                <span class="pk-date">Added: {{ new Date(pk.createdAt).toLocaleDateString() }}</span>
+            </div>
+            <div class="pk-actions">
+                <button class="icon-btn edit-btn" @click="renamePasskey(pk.id, pk.name || 'Unnamed Key')" title="Rename" v-html="Icons.edit"></button>
+                <button class="icon-btn delete-btn" @click="deletePasskey(pk.id)" title="Delete" v-html="Icons.trash"></button>
+            </div>
+        </div>
+      </div>
     </div>
 
     <div class="card logout-card">
@@ -48,9 +64,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { startRegistration } from '@simplewebauthn/browser'
+import { startRegistration, startAuthentication } from '@simplewebauthn/browser'
+import { Icons } from '../utils/icons'
 
 const router = useRouter()
 const oldPassword = ref('')
@@ -60,7 +77,38 @@ const loading = ref(false)
 const message = ref('')
 const success = ref(false)
 
-const changePassword = async () => {
+interface Passkey {
+    id: string;
+    name: string;
+    createdAt: number;
+    lastUsed?: number;
+}
+const passkeys = ref<Passkey[]>([])
+
+const verifyPasskey = async () => {
+    try {
+        message.value = "Verifying 2FA..."
+        const resp = await fetch('/api/auth/passkey/login/options', { method: 'POST' })
+        const options = await resp.json()
+        
+        const authResp = await startAuthentication(options)
+        
+        const verResp = await fetch('/api/auth/passkey/login/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ response: authResp })
+        })
+        const verData = await verResp.json()
+        return verData.verified ? verData.token : null
+    } catch (e) {
+        console.error(e)
+        return null
+    }
+}
+
+const changePassword = async (tokenOrEvent?: string | Event) => {
+  const actualToken = typeof tokenOrEvent === 'string' ? tokenOrEvent : ''
+
   if (newPassword.value !== confirmPassword.value) {
     message.value = "New passwords do not match"
     success.value = false
@@ -81,12 +129,23 @@ const changePassword = async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         oldPassword: oldPassword.value,
-        newPassword: newPassword.value
+        newPassword: newPassword.value,
+        token: actualToken
       })
     })
     
     const data = await res.json()
-    if (data.success) {
+
+    if (data.requirePasskey) {
+        const passkeyToken = await verifyPasskey()
+        if (passkeyToken) {
+            await changePassword(passkeyToken)
+            return
+        } else {
+             message.value = "2FA Verification Failed"
+             success.value = false
+        }
+    } else if (data.success) {
       message.value = "Password updated successfully"
       success.value = true
       oldPassword.value = ''
@@ -131,6 +190,7 @@ const registerPasskey = async () => {
         if (verData.verified) {
              regSuccess.value = true
              regMessage.value = 'Passkey registered successfully!'
+             fetchPasskeys()
         } else {
              regSuccess.value = false
              regMessage.value = 'Verification failed'
@@ -142,6 +202,51 @@ const registerPasskey = async () => {
         regLoading.value = false
     }
 }
+
+const fetchPasskeys = async () => {
+    try {
+        const res = await fetch('/api/auth/passkeys')
+        if (res.ok) {
+            passkeys.value = await res.json()
+        }
+    } catch (e) {
+        console.error("Failed to fetch passkeys", e)
+    }
+}
+
+const deletePasskey = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this passkey?')) return;
+    try {
+        const res = await fetch(`/api/auth/passkeys/${id}`, { method: 'DELETE' })
+        if (res.ok) {
+            fetchPasskeys()
+        }
+    } catch(e) {
+        alert('Failed to delete passkey')
+    }
+}
+
+const renamePasskey = async (id: string, currentName: string) => {
+    const newName = prompt('Enter new name:', currentName)
+    if (!newName || newName === currentName) return;
+    
+    try {
+        const res = await fetch(`/api/auth/passkeys/${id}`, {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ name: newName })
+        })
+        if (res.ok) {
+            fetchPasskeys()
+        }
+    } catch(e) {
+        alert('Failed to rename passkey')
+    }
+}
+
+onMounted(() => {
+    fetchPasskeys()
+})
 </script>
 
 <style scoped>
@@ -175,6 +280,64 @@ const registerPasskey = async () => {
 .secondary-btn:hover {
     background: rgba(46, 163, 95, 0.1);
 }
+.passkey-list {
+    margin-top: 2rem;
+    border-top: 1px solid var(--border-color);
+    padding-top: 1rem;
+}
+.passkey-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.8rem;
+    border-bottom: 1px solid var(--border-color);
+    background: rgba(0,0,0,0.2);
+    margin-bottom: 8px;
+    border-radius: 4px;
+}
+.pk-info {
+    display: flex;
+    flex-direction: column;
+}
+.pk-name {
+    font-weight: bold;
+    color: var(--text-primary);
+}
+.pk-date {
+    font-size: 0.8rem;
+    color: #888;
+}
+.pk-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+.icon-btn {
+    padding: 0.4rem;
+    font-size: 1rem;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.icon-btn :deep(svg) {
+    width: 1.2rem;
+    height: 1.2rem;
+}
+.icon-btn:hover {
+    background: rgba(255,255,255,0.1);
+}
+.delete-btn {
+    color: #ff4444;
+    border-color: #ff4444;
+}
+.edit-btn {
+    color: #2ea35f;
+    border-color: #2ea35f;
+}
+
 .form-group {
   margin-bottom: 1.5rem;
 }

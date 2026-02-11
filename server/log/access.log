@@ -1,0 +1,7 @@
+nohup: ignoring input
+Passkey Config: { RP_ID: 'blog.eightyfor.top', ORIGIN: 'https://blog.eightyfor.top' }
+Server running at http://localhost:3000
+::ffff:127.0.0.1 - - [11/Feb/2026:08:07:43 +0000] "GET /api/post?id=c723374c-eac1-4875-aced-bacda1ee1f57&mode=edit HTTP/1.1" 304 - "http://localhost:5173/editor?id=c723374c-eac1-4875-aced-bacda1ee1f57" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0"
+::ffff:127.0.0.1 - - [11/Feb/2026:08:07:45 +0000] "POST /api/post HTTP/1.1" 200 60 "http://localhost:5173/editor?id=c723374c-eac1-4875-aced-bacda1ee1f57" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0"
+::ffff:127.0.0.1 - - [11/Feb/2026:08:07:56 +0000] "GET /api/post?id=c723374c-eac1-4875-aced-bacda1ee1f57&mode=edit HTTP/1.1" 200 1898 "http://localhost:5173/editor?id=c723374c-eac1-4875-aced-bacda1ee1f57" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0"
+::ffff:127.0.0.1 - - [11/Feb/2026:08:08:03 +0000] "POST /api/post HTTP/1.1" 200 60 "http://localhost:5173/editor?id=c723374c-eac1-4875-aced-bacda1ee1f57" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0"

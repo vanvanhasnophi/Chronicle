@@ -3,6 +3,7 @@
     "@simplewebauthn/browser": "^13.2.2",
     "@simplewebauthn/server": "^13.2.2",
     "katex": "^0.16.28",
+    "run": "^1.5.0",
     "vite": "^7.1.2"
   },
   "devDependencies": {
