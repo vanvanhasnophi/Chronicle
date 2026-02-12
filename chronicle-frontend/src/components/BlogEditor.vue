@@ -103,6 +103,19 @@
               <span class="icon-svg" v-html="Icons.table"></span>
               <span>Table</span>
             </button>
+
+            <span class="divider"></span>
+
+            <button 
+              v-for="font in fontOptions" 
+              :key="font.value"
+              class="toolbar-btn"
+              :class="{ active: postFont === font.value , ['font-' + font.value]: true }"
+              @click="postFont = font.value"
+              :title="font.label"
+            >
+              <span class="icon-svg" v-html="font.icon"></span>
+            </button>
         </div>
         <button class="stats-display" @click="activeModal = 'stats'">
             {{ editorStats.wordCount }} word{{ editorStats.wordCount === 1 ? '' : 's' }}
@@ -153,6 +166,7 @@
       <div 
         v-show="showPreview" 
         class="pane preview-pane"
+        :class="fontClass"
         ref="previewRef"
         @scroll="syncScroll('preview')"
         @mouseover="activeScroll = 'preview'"
@@ -261,7 +275,9 @@
             </div>
             <div class="media-content-area">
                 <div class="media-toolbar">
-                    <button class="primary-btn" @click="triggerFileUpload">Upload New File</button>
+                    <button class="primary-btn" @click="triggerFileUpload">
+                        <span>Upload New File</span>
+                    </button>
                     <input 
                         type="file" 
                         ref="fileInputRef" 
@@ -368,7 +384,7 @@
                     <div class="tags-list">
                         <span 
                             class="tag-badge" 
-                            v-for="tag in postTags" 
+                            v-for="tag in sortTags(postTags)" 
                             :key="tag"
                             :class="{ featured: tag === 'featured' }"
                         >
@@ -477,19 +493,37 @@
         </div>
       </div>
     </div>
+    <!-- Upload Toast -->
+    <div v-if="uploadState.show" class="upload-toast" :class="uploadState.status">
+        <div class="toast-content">
+            <div class="toast-header-row">
+                <span class="toast-title">File Upload</span>
+                <button class="toast-close" @click="uploadState.show = false">
+                    <span class="icon-svg" v-html="Icons.close"></span>
+                </button>
+            </div>
+            <div class="toast-message">{{ uploadState.message }}</div>
+            <div v-if="['uploading', 'processing'].includes(uploadState.status)" class="toast-progress-bg">
+                <div class="toast-progress-bar" :style="{ width: uploadState.progress + '%' }"></div>
+            </div>
+        </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick, reactive } from 'vue'
 import { useRoute, useRouter, onBeforeRouteUpdate, onBeforeRouteLeave } from 'vue-router'
 import MdParser from './MdParser.vue'
 import { debounce } from '../utils/debounce'
 import { Icons } from '../utils/icons'
 import { getStats } from '../utils/markdownParser'
+import { sortTags } from '../utils/tagUtils'
 
 const route = useRoute()
 const router = useRouter()
+const CDN_BASE_URL = import.meta.env.VITE_CDN_BASE_URL || ''
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 
 const props = withDefaults(defineProps<{
   modelValue?: string
@@ -513,6 +547,7 @@ watch(postTitle, (val) => {
 const postId = ref<string | null>(null)
 const postStatus = ref<'draft' | 'published' | 'modifying'>('draft')
 const postTags = ref<string[]>([])
+const postFont = ref<string>('sans')
 const postDate = ref<string>('')
 const postUpdated = ref<string>('')
 
@@ -533,6 +568,12 @@ const fileTabs = [
     { id: 'open', label: 'Open...', icon: Icons.folder },
     { id: 'import', label: 'Import', icon: Icons.document },
     { id: 'export', label: 'Export', icon: Icons.save }
+]
+
+const fontOptions = [
+    { value: 'sans', label: 'Sans Serif', icon: 'A' },
+    { value: 'serif', label: 'Serif', icon: 'A' },
+    { value: 'mono', label: 'Monospaced', icon: 'M' }
 ]
 
 const currentFileTabTitle = computed(() => {
@@ -757,7 +798,8 @@ async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
                 title: tempTitle.value || postTitle.value, // Use tempTitle if set, else current title
                 content: localValue.value,
                 status: status,
-                tags: postTags.value
+                tags: postTags.value,
+                font: postFont.value
             })
         })
         if (res.ok) {
@@ -921,6 +963,7 @@ async function loadPostById(id: string) {
                  postDate.value = detail.date || ''
                  postUpdated.value = detail.updatedAt || detail.date || ''
                  postTags.value = detail.tags || []
+                 postFont.value = detail.font || 'sans'
                  
                  savedContent.value = detail.content // Base is server content
                  savedTitle.value = detail.title
@@ -953,6 +996,7 @@ async function loadPostById(id: string) {
              postDate.value = detail.date || ''
              postUpdated.value = detail.updatedAt || detail.date || ''
              postTags.value = detail.tags || []
+             postFont.value = detail.font || 'sans'
              localValue.value = detail.content
              
              // Update baseline
@@ -988,6 +1032,7 @@ async function initLoad() {
         postTitle.value = 'Untitled Post'
         postStatus.value = 'draft'
         postTags.value = []
+        postFont.value = 'sans'
         localValue.value = ''
         
         savedContent.value = ''
@@ -1116,6 +1161,16 @@ const activeScroll = ref<'editor' | 'preview' | null>(null)
 const uploadedImages = ref<{name: string, url: string, path: string}[]>([])
 const fileInputRef = ref<HTMLInputElement | null>(null)
 
+// Upload Notification State
+const uploadState = reactive({
+    show: false,
+    progress: 0,
+    status: '' as 'uploading' | 'processing' | 'success' | 'error',
+    message: ''
+})
+// ...existing code...
+
+
 // Categories for simplified file manager view
 const mediaCategories = [
     { id: 'pic', label: 'Images', icon: Icons.image },
@@ -1154,14 +1209,14 @@ async function fetchServerImages() {
      const res = await fetch(`/api/files?path=${encodeURIComponent(path)}`)
      if(res.ok) {
         const items = await res.json()
-        uploadedImages.value = items
-          .filter((i:any) => i.type === 'file')
-          .map((i:any) => ({
-               name: i.name,
-               url: `/server/data/upload/${i.path}`,
-               path: `/server/data/upload/${i.path}`,
-               cat: path
-          }))
+           uploadedImages.value = items
+            .filter((i:any) => i.type === 'file')
+            .map((i:any) => ({
+                name: i.name,
+                   url: i.url || `/server/data/upload/${i.path}`,
+                   path: i.url || `/server/data/upload/${i.path}`,
+                cat: path
+            }))
      }
    } catch (e) { console.error(e) }
 }
@@ -1186,12 +1241,14 @@ function insertMediaMarkdown(name: string, path: string, category?: string) {
 
     // 1. Image (Keep standard markdown image)
     if (['jpg','jpeg','png','gif','webp','svg','bmp'].includes(ext)) {
-        insertText = `\n![${name}](${path})\n`;
+        // 生产环境拼接CDN
+        const url = !path.startsWith('http') ? `${CDN_BASE_URL}${path}` : path;
+        insertText = `\n![${name}](${url})\n`;
     }
     // 2. Audio/Video/Doc/Other -> Use standard Link syntax, Parser will render as Card
     else {
-        // Remove emoji if I added it previously to name
-        insertText = `\n[${name}](${path})\n`;
+        const url = !path.startsWith('http') ? `${CDN_BASE_URL}${path}` : path;
+        insertText = `\n[${name}](${url})\n`;
     }
     
     localValue.value = text.substring(0, start) + insertText + text.substring(end);
@@ -1215,48 +1272,74 @@ async function handleFileSelect(event: Event) {
   const input = event.target as HTMLInputElement
   if (input.files && input.files[0]) {
     const file = input.files[0]
-    
-    // Upload filename encoding
     const filename = encodeURIComponent(file.name)
     
+    // Init Toast
+    uploadState.show = true
+    uploadState.progress = 0
+    uploadState.status = 'uploading'
+    uploadState.message = `Uploading: ${file.name}`
+
     try {
-        const res = await fetch('/api/upload', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/octet-stream',
-                'X-Filename': filename
-                // No X-Category header needed, backend auto-sorts
-            },
-            body: file
-        })
+        const xhr = new XMLHttpRequest()
+        // Upload should go directly to backend origin when configured to avoid CDN proxying upload requests
+        const uploadUrl = API_BASE_URL ? `${API_BASE_URL.replace(/\/$/, '')}/api/upload` : '/api/upload'
+        xhr.open('POST', uploadUrl, true)
+        xhr.setRequestHeader('Content-Type', 'application/octet-stream')
+        xhr.setRequestHeader('X-Filename', filename)
         
-        if (res.ok) {
-            const data = await res.json()
-            // data.category will be returned confirmed by backend
-            if (data.category === 'pic') {
-                 // only refresh list if it's actually an image
-                 fetchServerImages() 
-            } else {
-                 alert(`File uploaded to ${data.category}`)
+        // Progress: Browser -> Server transfer
+        xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+                const percent = Math.round((e.loaded / e.total) * 100)
+                uploadState.progress = percent
+                if (percent === 100) {
+                     uploadState.status = 'processing'
+                     uploadState.message = 'Processing...'
+                }
             }
-            
-            // If it IS an image, insert it
-            if (/\.(png|jpe?g|gif|svg|webp|bmp|ico)$/i.test(file.name)) {
-                insertMediaMarkdown(file.name, data.url)
-            } else {
-                // Determine if we should insert other media types automatically?
-                // Yes, user probably wants to use it immediately
-                insertMediaMarkdown(file.name, data.url)
-            }
-        } else {
-            console.error('Upload failed')
-            alert('Image upload failed')
         }
+        
+        xhr.onload = () => {
+             if (xhr.status === 200) {
+                uploadState.status = 'success'
+                uploadState.progress = 100
+                uploadState.message = 'Upload successful'
+                
+                try {
+                    const data = JSON.parse(xhr.responseText)
+                    if (data.category === 'pic') fetchServerImages()
+                    
+                    if (/\.(png|jpe?g|gif|svg|webp|bmp|ico)$/i.test(file.name)) {
+                        insertMediaMarkdown(file.name, data.url)
+                    } else {
+                        insertMediaMarkdown(file.name, data.url)
+                    }
+                } catch(e) {
+                    console.error('JSON Parse error', e);
+                }
+
+                // Auto hide
+                setTimeout(() => { uploadState.show = false }, 3000)
+            } else {
+                uploadState.status = 'error'
+                uploadState.message = `Upload failed (${xhr.status})`
+                setTimeout(() => { uploadState.show = false }, 5000) // Keep error longer
+            }
+        }
+        
+        xhr.onerror = () => {
+            uploadState.status = 'error'
+            uploadState.message = 'Network error'
+            setTimeout(() => { uploadState.show = false }, 5000)
+        }
+        
+        xhr.send(file)
     } catch (e) {
-        console.error(e)
-        alert('Error uploading image')
+        uploadState.status = 'error'
+        uploadState.message = 'Upload error'
+        setTimeout(() => { uploadState.show = false }, 5000)
     }
-    
     input.value = ''
   }
 }
@@ -1395,6 +1478,9 @@ function syncScroll(source: 'editor' | 'preview') {
     }
   }
 }
+const fontClass = computed(() => {
+    return `font-${postFont.value}`
+})
 </script>
 
 <style scoped>
@@ -1557,6 +1643,12 @@ function syncScroll(source: 'editor' | 'preview') {
   color: #555;
   pointer-events: none;
 }
+
+.toolbar-btn.font-sans, .toolbar-btn.font-serif, .toolbar-btn.font-mono {
+  text-transform: capitalize;
+  font-size: 1em;
+}
+
 
 .editor-workspace {
   flex: 1;
@@ -1911,8 +2003,8 @@ function syncScroll(source: 'editor' | 'preview') {
     background: rgba(46, 163, 95, 0.1);
 }
 .status-chip.modifying {
-    color: #ffd700;
-    border-color: #ffd700;
+    color: var(--featured);
+    border-color: var(--featured);
     background: rgba(255, 215, 0, 0.1);
 }
 .toolbar-btn.danger-btn {
@@ -2069,9 +2161,9 @@ function syncScroll(source: 'editor' | 'preview') {
     user-select: none;
 }
 .tag-badge.featured {
-    background: rgba(255, 215, 0, 0.15);
-    color: #ffd700;
-    border-color: #ffd700;
+    background: var(--featured-bg);
+    color: var(--featured);
+    border-color: var(--featured);
 }
 
 .tag-remove {
@@ -2107,9 +2199,9 @@ function syncScroll(source: 'editor' | 'preview') {
     font-size: 13px;
 }
 .small-btn.active {
-    background: rgba(255, 215, 0, 0.15);
-    color: #ffd700;
-    border-color: #ffd700;
+    background: var(--featured-bg);
+    color: var(--featured);
+    border-color: var(--featured);
 }
 
 .primary-btn.danger-action {
@@ -2249,6 +2341,115 @@ function syncScroll(source: 'editor' | 'preview') {
 .stats-display:hover {
     color: #e0e0e0;
     background: #333;
+}
+
+/* Font Selector */
+.font-selector {
+    display: flex;
+    gap: 15px;
+    margin-top: 5px;
+}
+.radio-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    font-size: 0.9em;
+    color: #ccc;
+}
+.radio-label input {
+    margin: 0;
+}
+
+/* Upload Toast */
+.upload-toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    width: 320px;
+    background: #252526;
+    border: 1px solid #454545;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    z-index: 2000;
+    overflow: hidden;
+    animation: slideIn 0.3s ease-out;
+    color: #cccccc;
+    font-size: 13px;
+}
+
+.upload-toast.error {
+    border-left: 4px solid #f48771;
+}
+
+.upload-toast.success {
+    border-left: 4px solid #89d185;
+}
+
+.upload-toast.uploading, .upload-toast.processing {
+    border-left: 4px solid #007acc;
+}
+
+.toast-content {
+    padding: 12px 16px;
+}
+
+.toast-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.toast-title {
+    font-weight: 600;
+    color: #e0e0e0;
+}
+
+.toast-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #aaa;
+    padding: 0;
+    line-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.toast-close:hover {
+    color: #fff;
+}
+.toast-close .icon-svg {
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
+}
+
+.toast-message {
+    color: #aaa;
+    margin-bottom: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.toast-progress-bg {
+    height: 4px;
+    background: #3c3c3c;
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.toast-progress-bar {
+    height: 100%;
+    background: #007acc;
+    transition: width 0.2s ease;
+}
+
+@keyframes slideIn {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
 }
 
 </style>

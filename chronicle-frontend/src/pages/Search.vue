@@ -15,9 +15,9 @@
         <span class="divider"></span>
         <!-- Input Area -->
         <div class="input-area" @click="focusInput">
-           <div v-for="tag in selectedTags" :key="tag" class="selected-tag-chip">
+           <div v-for="tag in sortTags(selectedTags)" :key="tag" class="selected-tag-chip" :class="{featured: tag === 'featured'}">
               <span class="chip-text">{{ tag }}</span>
-              <button class="chip-remove" @click.stop="removeTag(tag)">
+              <button class="chip-remove" :class="{featured: tag === 'featured'}" @click.stop="removeTag(tag)">
                  <span v-html="Icons.cross" class="icon-sm"></span>
               </button>
            </div>
@@ -44,7 +44,7 @@
                     v-for="tagData in allTagData" 
                     :key="tagData.name" 
                     class="tag-cloud-item" 
-                    :class="{ selected: selectedTags.includes(tagData.name) }"
+                    :class="{ selected: selectedTags.includes(tagData.name), featured: tagData.name === 'featured' }"
                     @click="toggleTagAndKeepOpen(tagData.name)"
                 >
                     {{ tagData.name }}
@@ -75,7 +75,7 @@
                     <span class="post-date">{{ formatDate(post.date) }}</span>
                 </div>
                 <div class="post-tags" v-if="post.tags && post.tags.length">
-                    <span v-for="tag in post.tags" :key="tag" class="tag-display">#{{ tag }}</span>
+                    <span v-for="tag in sortTags(post.tags)" :key="tag" class="tag-display">#{{ tag }}</span>
                 </div>
                 <div class="post-summary">{{ post.summary }}</div>
               </article>
@@ -89,9 +89,10 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { Icons } from '../utils/icons'
 import { debounce } from '../utils/debounce'
+import { sortTags } from '../utils/tagUtils'
 interface Post {
   id: string
   title: string
@@ -100,6 +101,7 @@ interface Post {
   tags?: string[]
 }
 
+const route = useRoute()
 const router = useRouter()
 const posts = ref<Post[]>([])
 const loading = ref(true)
@@ -136,7 +138,11 @@ const allTagData = computed(() => {
     // Convert to array and sort alphabetically
     return Array.from(counts.entries())
         .map(([name, count]) => ({ name, count }))
-        .sort((a, b) => a.name.localeCompare(b.name))
+        .sort((a, b) => {
+            if (a.name === 'featured') return -1;
+            if (b.name === 'featured') return 1;
+            return a.name.localeCompare(b.name);
+        })
 })
 
 const filteredPosts = computed(() => {
@@ -198,6 +204,24 @@ onMounted(async () => {
         console.error(e)
     } finally {
         loading.value = false
+    }
+    // 读取query参数
+    const { tags, title } = route.query;
+    // tags赋值到selectedTags，支持数组或字符串
+    if (tags) {
+        if (Array.isArray(tags)) {
+            selectedTags.value = tags.filter((t): t is string => t !== null);
+        } else {
+            selectedTags.value = [tags as string];
+        }
+    }
+    // title赋值到searchQuery
+    if (title) {
+        searchQuery.value = String(title);
+    }
+    // 替换地址栏，去除query参数
+    if (tags || title) {
+        router.replace('/search');
     }
 })
 </script>
@@ -295,6 +319,12 @@ onMounted(async () => {
     border-radius: 4px;
     font-size: 0.9rem;
 }
+
+.selected-tag-chip.featured{
+    background: var(--featured-bg);
+    color: var(--featured);
+    font-weight: 600;
+}
 .chip-remove {
     background: transparent;
     border: none;
@@ -305,6 +335,9 @@ onMounted(async () => {
     display: flex;
     align-items: center;
     opacity: 0.7;
+}
+.chip-remove.featured {
+    color: var(--featured);
 }
 .chip-remove:hover {
     opacity: 1;
@@ -383,11 +416,22 @@ onMounted(async () => {
     color: #fff;
     border-color: #2ea35f;
 }
+.tag-cloud-item.featured {
+    color: var(--featured);
+    font-weight: 600;
+}
+
+.tag-cloud-item.featured.selected {
+    background: var(--featured);
+    border-color: var(--featured);
+    color: #000;
+}
+
 .tag-count {
     font-size: 0.75em;
     opacity: 0.7;
-    background: rgba(0,0,0,0.2);
-    padding: 0 4px;
+    background: transparent;
+    padding: 0;
     border-radius: 4px;
     min-width: 14px;
     text-align: center;

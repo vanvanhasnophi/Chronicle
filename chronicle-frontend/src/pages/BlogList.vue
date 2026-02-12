@@ -19,7 +19,7 @@
                         </div>
                         <h3 class="post-title">{{ post.title }}</h3>
                         <div class="post-tags">
-                            <span v-for="tag in post.tags" :key="tag" class="tag"
+                            <span v-for="tag in sortTags(post.tags)" :key="tag" class="tag"
                                 :class="{ featured: tag === 'featured' }" style="margin-right:3px">#&nbsp;{{ tag
                                 }}</span>
                         </div>
@@ -49,7 +49,7 @@
                                         <span class="post-day">{{ new Date(post.date).getDate() }}日</span>
                                     </div>
                                     <div class="post-tags" v-if="post.tags && post.tags.length">
-                                        <span v-for="tag in post.tags" :key="tag" class="tag"
+                                        <span v-for="tag in sortTags(post.tags)" :key="tag" class="tag"
                                             :class="{ featured: tag === 'featured' }">#&nbsp;{{ tag }}</span>
                                     </div>
                                 </article>
@@ -72,6 +72,7 @@
 import { ref, onMounted, computed, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icons } from '../utils/icons'
+import { sortTags } from '../utils/tagUtils'
 
 interface Post {
     id: string
@@ -378,8 +379,8 @@ onUnmounted(() => {
 
 .tag.featured {
     font-weight: 600;
-    background: rgba(255, 215, 0, 0.15);
-    color: #ffd700;
+    background: var(--featured-bg);
+    color: var(--featured);
 }
 
 .loading,

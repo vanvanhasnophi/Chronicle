@@ -12,11 +12,13 @@ export default defineConfig({
         '/api': {
             target: 'http://localhost:3000',
             changeOrigin: true
-        },
-        '/server/data/upload': {
-            target: 'http://localhost:3000',
-            changeOrigin: true
         }
+        // Image proxy removed to improve performance. 
+        // Images are now served directly via symlink in public/server/data/upload
+        // '/server/data/upload': {
+        //     target: 'http://localhost:3000',
+        //     changeOrigin: true
+        // }
     }
   }
 })

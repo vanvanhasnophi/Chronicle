@@ -3,7 +3,8 @@
   /*系统字体*/
   --app-font-stack-system: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   /*Inter字体*/
-  --app-font-stack-inter: 'InterVariable','Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  /* Apple设备优先使用系统字体，其他设备使用Inter */
+  --app-font-stack-inter: -apple-system, BlinkMacSystemFont, 'InterVariable','Inter', 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   /*当前字体栈，入口动态切换*/
   --app-font-stack: var(--app-font-stack-inter);
   
@@ -19,6 +20,9 @@
   --app-text-dark: rgba(255,255,255,0.87);
   --glow-light: rgba(0, 0, 0, 0.678);
   --glow-dark: rgba(255, 255, 255, 0.644);
+
+  --featured: #ffd700;
+  --featured-bg: rgba(255, 215, 0, 0.15);
 
   
   --accent-color: #2ea35f;
@@ -168,4 +172,16 @@ button:focus-visible {
   button {
     background-color: #f9f9f9;
   }
+}
+
+/* Article Fonts */
+.font-serif {
+  font-family: "EB Garamond", "Noto Serif SC", serif !important;
+  font-size: 1.15em; /* Adjust size for EB Garamond visual balance */
+}
+.font-mono {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace !important;
+}
+.font-sans {
+  font-family: var(--app-font-stack) !important;
 }

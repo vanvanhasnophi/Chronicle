@@ -39,7 +39,7 @@
               </div>
               
               <span v-if="post.tags && post.tags.length" class="tags-row">
-                 <span v-for="tag in post.tags" :key="tag" class="tag-badge">{{ tag }}</span>
+                 <span v-for="tag in sortTags(post.tags)" :key="tag" class="tag-badge">{{ tag }}</span>
               </span>
             </td>
             <td>
@@ -62,6 +62,7 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
+import { sortTags } from '../utils/tagUtils'
 
 interface Post {
   id: string
@@ -316,8 +317,8 @@ onMounted(() => {
 }
 .status-badge.modifying {
   background: rgba(255, 215, 0, 0.2);
-  color: #ffd700;
-  border: 1px solid #ffd700;
+  color: var(--featured);
+  border: 1px solid var(--featured);
 }
 
 .action-btn {

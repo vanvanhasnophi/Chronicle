@@ -114,13 +114,12 @@ function renderBlockHtml(block: ContentBlock): string {
           }
           // If we have a local mapping (from upload), use it
           if (props.assetMap![src]) {
-              return `src="${props.assetMap![src]}"`
+              return `src=\"${props.assetMap![src]}\"`
           }
           // Otherwise keep as is (might be absolute server path)
           return match
       })
   }
-
   return html
 }
 

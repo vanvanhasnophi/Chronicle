@@ -1,19 +1,49 @@
 <template>
   <div class="login-container">
     <div class="login-box">
-      <h2>Log In</h2>
-      <div class="input-group">
-        <label>Password</label>
-        <input 
-          type="password" 
-          v-model="password" 
-          @keyup.enter="handleLogin"
-          placeholder="Enter admin password"
-        />
+      <h2>Chronicle Manager</h2>
+
+      <div v-if="!show2FAGate">
+        <div class="input-group">
+          <label>Password</label>
+          <input 
+            type="password" 
+            v-model="password" 
+            @keyup.enter="handleLogin"
+            placeholder="Enter admin password"
+            style="width: calc(100% - 20px) !important;"
+          />
+        </div>
+        <button @click="handleLogin" :disabled="loading" class="primary-btn">
+          {{ loading ? 'Checking...' : 'Enter' }}
+        </button>
       </div>
-      <button @click="handleLogin" :disabled="loading" class="primary-btn">
-        {{ loading ? 'Checking...' : 'Enter' }}
-      </button>
+
+      <div v-else class="two-fa-section">
+          <p class="verification-hint">Two-Factor Authentication Required</p>
+          
+          <button @click="handlePasskeyLogin(true)" :disabled="loading" class="primary-btn passkey-main-btn">
+             <span class="icon" v-html="Icons.lock"></span>
+             Use Passkey / FaceID
+          </button>
+          
+          <div class="divider">OR</div>
+          
+          <div class="code-entry">
+              <input 
+                  type="text" 
+                  v-model="inputCode" 
+                  placeholder="6-digit code"
+                  maxlength="6"
+                  @keyup.enter="handleCodeVerify"
+              />
+              <button @click="handleCodeVerify" class="secondary-btn" :disabled="loading || inputCode.length < 6">
+                  Verify
+              </button>
+          </div>
+          
+          <button @click="resetLogin" class="text-btn">Back to Password</button>
+      </div>
       
       <p v-if="error" class="error">{{ error }}</p>
     </div>
@@ -24,11 +54,30 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { startAuthentication } from '@simplewebauthn/browser'
+import { Icons } from '../utils/icons' 
 
 const router = useRouter()
 const password = ref('')
 const loading = ref(false)
 const error = ref('')
+const show2FAGate = ref(false)
+const inputCode = ref('')
+
+const resetLogin = () => {
+    show2FAGate.value = false
+    password.value = ''
+    error.value = ''
+    inputCode.value = ''
+}
+
+const completeLogin = () => {
+    const session = {
+        token: 'active',
+        expiry: Date.now() + 24 * 60 * 60 * 1000 
+    }
+    localStorage.setItem('chronicle_auth', JSON.stringify(session))
+    router.push('/manage')
+}
 
 const handleLogin = async () => {
   if (!password.value) return
@@ -46,16 +95,9 @@ const handleLogin = async () => {
     const data = await res.json()
     if (data.success) {
       if (data.requirePasskey) {
-        // Trigger 2FA
-        await handlePasskeyLogin(true) // Pass flag to indicate 2FA flow
+        show2FAGate.value = true
       } else {
-        // Login success (no 2FA)
-        const session = {
-            token: 'active',
-            expiry: Date.now() + 24 * 60 * 60 * 1000 
-        }
-        localStorage.setItem('chronicle_auth', JSON.stringify(session))
-        router.push('/manage')
+        completeLogin()
       }
     } else {
       error.value = data.message || 'Login failed'
@@ -67,9 +109,31 @@ const handleLogin = async () => {
   }
 }
 
+const handleCodeVerify = async () => {
+    loading.value = true
+    error.value = ''
+    try {
+        const res = await fetch('/api/auth/code/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: inputCode.value })
+        })
+        const data = await res.json()
+        if (data.success) {
+            completeLogin()
+        } else {
+            error.value = data.message || 'Verification failed'
+        }
+    } catch(e) {
+        error.value = 'Verification error'
+    } finally {
+        loading.value = false
+    }
+}
+
 const handlePasskeyLogin = async (is2FA = false) => {
     loading.value = true
-    if (is2FA) error.value = 'Password valid. Please verify Passkey...'
+    if (is2FA) error.value = '' 
     else error.value = ''
 
     try {
@@ -85,17 +149,18 @@ const handlePasskeyLogin = async (is2FA = false) => {
         })
         const verData = await verResp.json()
         if (verData.verified) {
-            const session = {
-                token: 'active',
-                expiry: Date.now() + 24 * 60 * 60 * 1000 
-            }
-            localStorage.setItem('chronicle_auth', JSON.stringify(session))
-            router.push('/manage')
+            completeLogin()
         } else {
             error.value = 'Passkey verification failed'
         }
     } catch (e: any) {
-        error.value = e.message || 'Passkey error'
+        if (e.name === 'NotAllowedError') {
+             error.value = 'Login cancelled by user'
+        } else if (e.name === 'InvalidStateError') {
+             error.value = 'Invalid authenticator state'
+        } else {
+             error.value = 'Authentication failed. Please try again.'
+        }
     } finally {
         loading.value = false
     }
@@ -133,7 +198,7 @@ input {
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   color: var(--text-primary);
-  border-radius: 4px;
+  border-radius: 6px;
 }
 .primary-btn {
   width: 100%;
@@ -141,7 +206,7 @@ input {
   background: var(--accent-color);
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
   font-weight: bold;
 }
@@ -151,7 +216,7 @@ input {
   background: transparent;
   border: 1px solid var(--accent-color);
   color: var(--accent-color);
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
   margin-top: 10px;
 }
@@ -180,9 +245,10 @@ button {
   background: var(--accent-color);
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
   font-weight: bold;
+  font-size: 1.05em;
 }
 button:disabled {
   opacity: 0.7;
@@ -190,5 +256,68 @@ button:disabled {
 .error {
   color: #ff4444;
   margin-top: 1rem;
+}
+
+/* New Responsive & 2FA Styles */
+@media (max-width: 480px) {
+    .login-box {
+        border: none;
+        background: transparent;
+        padding: 1rem;
+    }
+    .input-group input {
+        border-radius: 8px;
+    }
+}
+.two-fa-section {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+.secondary-btn {
+    width: 100%;
+    padding: 0.8rem;
+    background: transparent;
+    border: 1px solid var(--accent-color);
+    color: var(--accent-color);
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+}
+.secondary-btn:hover {
+    background: rgba(46, 163, 95, 0.1);
+}
+.text-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    text-decoration: underline;
+    cursor: pointer;
+    font-size: 0.9em;
+    padding: 5px;
+}
+.verification-hint {
+    margin-bottom: 5px;
+    color: var(--text-secondary);
+    font-size: 0.9em;
+}
+.code-entry {
+    display: flex;
+    gap: 10px;
+}
+.code-entry input {
+    width: 60%;
+    text-align: center;
+    letter-spacing: 2px;
+    font-size: 1.1em;
+}
+.code-entry button {
+    width: 40%;
+}
+.passkey-main-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
 }
 </style>

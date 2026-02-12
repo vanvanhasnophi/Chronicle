@@ -10,6 +10,7 @@ const {
   generateAuthenticationOptions,
   verifyAuthenticationResponse,
 } = require('@simplewebauthn/server');
+const os = require('os');
 
 const app = express();
 const PORT = 3000;
@@ -36,6 +37,48 @@ const INDEX_FILE = path.join(POSTS_DIR, 'index.json');
 
 const CATEGORIES = ['pic', 'sound', 'txt', 'video', 'doc', 'other'];
 
+function sortTags(tags) {
+    if (!tags || !Array.isArray(tags)) return [];
+    return tags.sort((a, b) => {
+        if (a === 'featured') return -1;
+        if (b === 'featured') return 1;
+        return a.localeCompare(b);
+    });
+}
+
+// Dev Static Link Helper
+// Ensures that even if started without start.sh, or if links are missing,
+// we try to bind the upload folder to the frontend public folder.
+function ensureDevSymlink() {
+    try {
+        // Detect if we are in the monorepo structure
+        // ../chronicle-frontend/public
+        const frontendPublic = path.resolve(__dirname, '../chronicle-frontend/public');
+        if (fs.existsSync(frontendPublic)) {
+            const targetParent = path.join(frontendPublic, 'server/data');
+            const targetLink = path.join(targetParent, 'upload');
+            
+            if (!fs.existsSync(targetParent)) {
+                fs.mkdirSync(targetParent, { recursive: true });
+            }
+
+            if (!fs.existsSync(targetLink)) {
+                // Ensure source exists
+                if (fs.existsSync(UPLOAD_DIR)) {
+                     // Check if targetLink is a broken link
+                     try { fs.unlinkSync(targetLink); } catch(e) {}
+                     fs.symlinkSync(UPLOAD_DIR, targetLink, 'dir');
+                     console.log('[Dev] Created static asset symlink:', targetLink);
+                }
+            }
+        }
+    } catch (e) {
+        // Silent fail - permission or structure issues
+    }
+}
+// Run once on startup
+ensureDevSymlink();
+
 // Ensure directories exist
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -49,6 +92,70 @@ if (!fs.existsSync(INDEX_FILE)) fs.writeFileSync(INDEX_FILE, '[]');
 // Encryption Setup
 const ALGORITHM = 'aes-256-cbc';
 const SECRET_KEY = crypto.scryptSync('chronicle-secret-key-123', 'salt', 32);
+
+// --- Front Matter Helpers ---
+function parseFrontMatter(content) {
+    const match = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+    if (!match) return { attributes: {}, body: content };
+    
+    const attributes = {};
+    match[1].split('\n').forEach(line => {
+        const parts = line.split(':');
+        if (parts.length >= 2) {
+            const key = parts[0].trim();
+            const value = parts.slice(1).join(':').trim();
+            if (key === 'tags') {
+                try { attributes[key] = JSON.parse(value); } catch(e) { attributes[key] = []; }
+            } else {
+                attributes[key] = value;
+            }
+        }
+    });
+    return { attributes, body: match[2] };
+}
+
+function stringifyFrontMatter(attributes, body) {
+    let fm = '---\n';
+    if (attributes.title) fm += `title: ${attributes.title}\n`;
+    if (attributes.date) fm += `date: ${attributes.date}\n`;
+    if (attributes.font) fm += `font: ${attributes.font}\n`;
+    if (attributes.tags) fm += `tags: ${JSON.stringify(attributes.tags)}\n`;
+    fm += '---\n';
+    return fm + body;
+}
+
+// Ensure Index Consistency on Startup
+function syncIndexWithFiles() {
+    try {
+        if (!fs.existsSync(INDEX_FILE)) return;
+        let posts = JSON.parse(fs.readFileSync(INDEX_FILE, 'utf-8'));
+        let modified = false;
+
+        posts.forEach(post => {
+            const mdPath = path.join(POSTS_DIR, post.filename);
+            if (fs.existsSync(mdPath)) {
+                let content = fs.readFileSync(mdPath, 'utf-8');
+                try { content = decrypt(content); } catch(e) {}
+                
+                const { attributes } = parseFrontMatter(content);
+                if (attributes.font && attributes.font !== post.font) {
+                    post.font = attributes.font;
+                    modified = true;
+                    console.log(`[Sync] Updated font for ${post.id} from file metadata: ${post.font}`);
+                }
+                // We could sync other fields too, but font is the request focus
+            }
+        });
+
+        if (modified) {
+            fs.writeFileSync(INDEX_FILE, JSON.stringify(posts, null, 2));
+            console.log('[Sync] Index updated based on file metadata');
+        }
+    } catch (e) {
+        console.error('[Sync] Failed to sync index:', e);
+    }
+}
+syncIndexWithFiles();
 
 function encrypt(text) {
   const iv = crypto.randomBytes(16);
@@ -73,10 +180,15 @@ function hashPassword(pwd) {
 }
 
 // Passkey Globals
-const RP_ID = 'blog.eightyfor.top'; 
-const ORIGIN = 'https://blog.eightyfor.top'; 
+const isDev = process.argv.includes('--dev');
+const RP_ID = isDev ? 'localhost' : 'blog.eightyfor.top'; 
+const ORIGIN = isDev ? 'http://localhost:5173' : 'https://blog.eightyfor.top'; 
+// MEDIA_DOMAIN controls the public base URL for uploaded media files.
+// Set via environment variable in production: MEDIA_DOMAIN=https://file.eightyfor.top
+const MEDIA_DOMAIN = (process.env.MEDIA_DOMAIN && process.env.MEDIA_DOMAIN.replace(/\/$/, '')) || (isDev ? 'http://localhost:3000' : 'https://file.eightyfor.top');
 console.log('Passkey Config:', { RP_ID, ORIGIN });
 const passkeyChallenges = new Map();
+const verificationCodes = new Map();
 
 // Middlewares
 // Use JSON parser for everything EXCEPT upload endpoint which needs raw stream
@@ -93,10 +205,43 @@ app.use((req, res, next) => {
 
 // 1. Static File Serving (Mimic /server/data/upload/...)
 // Frontend requests: /server/data/upload/pic/xxx.png
-app.use('/server/data/upload', express.static(UPLOAD_DIR));
+app.use('/server/data/upload', express.static(UPLOAD_DIR, {
+    maxAge: '7d',
+    immutable: true
+}));
 
 
 // 2. Auth - Passkey
+// Code Verification Routes
+app.get('/api/auth/code/generate', (req, res) => {
+    // Simple mock auth check - in prod check session
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    verificationCodes.set('admin', { 
+        code, 
+        expires: Date.now() + 5 * 60 * 1000 
+    });
+    console.log('Generated code:', code);
+    res.json({ code, expiresIn: 300 });
+});
+
+app.post('/api/auth/code/verify', (req, res) => {
+    const { code } = req.body;
+    const stored = verificationCodes.get('admin');
+    
+    if (!stored) return res.status(400).json({ success: false, message: 'No code active' });
+    if (Date.now() > stored.expires) {
+        verificationCodes.delete('admin');
+        return res.status(400).json({ success: false, message: 'Code expired' });
+    }
+    
+    if (stored.code === code) {
+        verificationCodes.delete('admin');
+        res.json({ success: true, token: 'session-valid' });
+    } else {
+        res.status(400).json({ success: false, message: 'Invalid code' });
+    }
+});
+
 app.post('/api/auth/passkey/register/options', async (req, res) => {
     const user = 'admin';
     const options = await generateRegistrationOptions({
@@ -127,7 +272,6 @@ app.post('/api/auth/passkey/register/verify', async (req, res) => {
         if (verification.verified && verification.registrationInfo) {
             passkeyChallenges.delete(user);
             
-            // Allow bootstrap if missing
             if (!fs.existsSync(SECURITY_FILE)) {
                 const defaultHash = hashPassword('admin');
                 fs.writeFileSync(SECURITY_FILE, JSON.stringify({ passwordHash: defaultHash, devices: [] }));
@@ -137,13 +281,17 @@ app.post('/api/auth/passkey/register/verify', async (req, res) => {
             if (!saved.devices) saved.devices = [];
             
             const { credential } = verification.registrationInfo;
-            
+            // 获取设备名和类型
+            const deviceName = os.hostname();
+            const ua = req.headers['user-agent'] || '';
+            const deviceType = getDeviceTypeFromUA(ua);
+            const dateStr = new Date().toLocaleDateString();
             saved.devices.push({
                 credentialID: credential.id,
                 credentialPublicKey: Buffer.from(credential.publicKey).toString('base64url'),
                 counter: credential.counter,
                 transports: response.response.transports,
-                name: req.query.name || `Passkey (${new Date().toLocaleDateString()})`,
+                name: req.query.name || `${deviceName}（${deviceType}, ${dateStr}）`,
                 createdAt: new Date().toISOString()
             });
             
@@ -343,7 +491,8 @@ app.get('/api/files', (req, res) => {
                             name: dirent.name,
                             type: 'file',
                             category: cat,
-                            path: `${cat}/${dirent.name}`
+                            path: `${cat}/${dirent.name}`,
+                            url: `${MEDIA_DOMAIN}/server/data/upload/${cat}/${dirent.name}`
                         }));
                         allFiles = allFiles.concat(files);
                     } catch(e) {}
@@ -362,10 +511,12 @@ app.get('/api/files', (req, res) => {
 
     try {
         const items = fs.readdirSync(targetDir, { withFileTypes: true }).map(dirent => {
+            const rel = path.relative(UPLOAD_DIR, path.join(targetDir, dirent.name)).replace(/\\/g, '/');
             return {
                 name: dirent.name,
                 type: dirent.isDirectory() ? 'directory' : 'file',
-                path: path.relative(UPLOAD_DIR, path.join(targetDir, dirent.name)).replace(/\\/g, '/')
+                path: rel,
+                url: `${MEDIA_DOMAIN}/server/data/upload/${rel}`
             };
         });
         res.json(items);
@@ -407,6 +558,9 @@ app.delete('/api/files', (req, res) => {
 });
 
 app.post('/api/upload', (req, res) => {
+    // Ensure access capability
+    ensureDevSymlink();
+
     const filename = req.headers['x-filename'];
     let category = req.headers['x-category'] || '';
     
@@ -437,7 +591,8 @@ app.post('/api/upload', (req, res) => {
 
     writeStream.on('finish', () => {
         const webPath = `/server/data/upload/${category}/${randomName}`;
-        res.json({ url: webPath, path: webPath, category });
+        const fullUrl = `${MEDIA_DOMAIN}${webPath}`;
+        res.json({ url: fullUrl, path: webPath, category });
     });
     writeStream.on('error', (err) => {
         console.error(err);
@@ -487,6 +642,9 @@ app.get('/api/post', (req, res) => {
         if (fs.existsSync(mdPath)) {
             const raw = fs.readFileSync(mdPath, 'utf-8');
             try { content = decrypt(raw); } catch(err) { content = raw; }
+            // Strip front matter for frontend consumption
+            const { body } = parseFrontMatter(content);
+            content = body;
         }
         res.json({ ...post, content });
     } catch(e) {
@@ -549,7 +707,8 @@ app.post('/api/post', (req, res) => {
                 } else if (status) {
                     post.status = status;
                 }
-                if (data.tags) post.tags = data.tags;
+                if (data.tags) post.tags = sortTags(data.tags || []);
+                if (data.font) post.font = data.font;
                 post.updatedAt = now;
             }
         }
@@ -564,7 +723,8 @@ app.post('/api/post', (req, res) => {
                 updatedAt: now,
                 filename,
                 summary: (content || '').slice(0, 200).replace(/[#*`\[\]]/g, ''),
-                tags: data.tags || [],
+                tags: sortTags(data.tags || []),
+                font: data.font || 'sans',
                 status: status || 'draft'
             };
             posts.push(post);
@@ -572,11 +732,46 @@ app.post('/api/post', (req, res) => {
         }
 
         if (content !== undefined || !data.id) {
-            const encryptedContent = encrypt(content || '');
+            // Attach source data (Front Matter) to file
+            const fullContent = stringifyFrontMatter({
+                title: post.title,
+                date: post.date,
+                updatedAt: post.updatedAt,
+                tags: post.tags || [],
+                font: post.font || 'sans'
+            }, content || '');
+
+            const encryptedContent = encrypt(fullContent);
             const targetFilename = (post.status === 'modifying' && post.draftFilename) 
                 ? post.draftFilename 
                 : post.filename;
             fs.writeFileSync(path.join(POSTS_DIR, targetFilename), encryptedContent);
+        } else {
+             // If content wasn't sent but metadata was updated, we should update the file metadata too.
+             // But reading, decrypting, updating FM, encrypting, saving is expensive.
+             // Given BlogEditor always sends content, we might skip this edge case or handle it.
+             // For robustness (user request: "ensure... linking"), allow metadata-only update to file:
+             const targetFilename = (post.status === 'modifying' && post.draftFilename) 
+                ? post.draftFilename 
+                : post.filename;
+             const mdPath = path.join(POSTS_DIR, targetFilename);
+             if (fs.existsSync(mdPath)) {
+                 try {
+                     const raw = fs.readFileSync(mdPath, 'utf-8');
+                     let currentContent = raw;
+                     try { currentContent = decrypt(raw); } catch(e){}
+                     const { body } = parseFrontMatter(currentContent);
+                     
+                     const newContent = stringifyFrontMatter({
+                        title: post.title,
+                        date: post.date,
+                        updatedAt: post.updatedAt,
+                        tags: post.tags || [],
+                        font: post.font || 'sans'
+                    }, body);
+                    fs.writeFileSync(mdPath, encrypt(newContent));
+                 } catch(e) { console.error('Failed to update file metadata', e); }
+             }
         }
 
         fs.writeFileSync(INDEX_FILE, JSON.stringify(posts, null, 2));
@@ -659,3 +854,15 @@ app.post('/api/scan', (req, res) => {
 app.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);
 });
+
+function getDeviceTypeFromUA(ua) {
+    if (!ua) return 'Unknown';
+    ua = ua.toLowerCase();
+    if (ua.includes('windows')) return 'Windows';
+    if (ua.includes('macintosh') || ua.includes('mac os')) return 'Mac';
+    if (ua.includes('iphone') || ua.includes('ipad')) return 'iOS';
+    if (ua.includes('android')) return 'Android';
+    if (ua.includes('linux')) return 'Linux';
+    if (ua.includes('cros')) return 'ChromeOS';
+    return 'Other';
+}

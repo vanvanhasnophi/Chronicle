@@ -29,12 +29,12 @@
          
          <div v-for="file in items" :key="file.name" class="grid-item file">
             <div class="preview" @click="openPreview(file)">
-               <img v-if="isImage(file.name)" :src="`/server/data/upload/${file.path}`" loading="lazy" />
+               <img v-if="isImage(file.name)" :src="file.url || `/server/data/upload/${file.path}`" loading="lazy" />
                <div v-else class="icon scalable-icon" v-html="getIconForFile(file.name)"></div>
             </div>
             <div class="name" :title="file.name">{{ file.name }}</div>
             <div class="actions-row">
-                <button class="copy-btn" @click.stop="copyLink(file.path)" title="Copy Link" v-html="Icons.link"></button>
+                <button class="copy-btn" @click.stop="copyLink(file)" title="Copy Link" v-html="Icons.link"></button>
                 <button class="delete-btn" @click.stop="deleteItem(file.path)" v-html="Icons.trash"></button>
             </div>
          </div>
@@ -146,10 +146,9 @@ const getIconForFile = (name: string) => {
     return Icons.generic // Using generic file icon for unknown
 }
 
-const copyLink = (path: string) => {
-    const url = `/server/data/upload/${path}`
+const copyLink = (file: any) => {
+    const url = file.url || `/server/data/upload/${file.path}`
     navigator.clipboard.writeText(`![](${url})`)
-    // Could use toast here, but alert is fine for now
 }
 
 const getFileType = (name: string) => {
@@ -161,12 +160,13 @@ const getFileType = (name: string) => {
 }
 
 const openPreview = async (file: any) => {
+    const url = file.url || `/server/data/upload/${file.path}`
     if (isImage(file.name)) {
-        openImagePreview(`/server/data/upload/${file.path}`)
+        openImagePreview(url)
     } else {
         openGlobalPreview({
             name: file.name,
-            path: `/server/data/upload/${file.path}`,
+            path: url,
             type: getFileType(file.name)
         })
     }

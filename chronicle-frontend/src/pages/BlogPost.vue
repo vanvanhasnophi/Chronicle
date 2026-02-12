@@ -4,11 +4,11 @@
     <div v-else-if="!post" class="error">Post not found.</div>
     <div v-else class="post-content-wrapper">
       <nav class="post-nav">
-        <router-link to="/" class="nav-back">← Back to Home</router-link>
+        <router-link to="/blogs" class="nav-back">← Back to Blogs</router-link>
       </nav>
       
       <header class="post-header">
-        <h1 class="title">{{ post.title }}</h1>
+        <h1 class="title" :class="fontClass">{{ post.title }}</h1>
         
         <div class="post-meta-info">
             <div class="meta-row stats" v-if="postStats">
@@ -26,11 +26,11 @@
         </div>
 
         <div class="tags" v-if="post.tags && post.tags.length">
-            <span v-for="tag in post.tags" :key="tag" class="tag">#{{ tag }}</span>
+            <span v-for="tag in sortTags(post.tags)" :key="tag" class="tag" :class="{ featured: tag === 'featured' }" @click="router.push('/search?tags='+tag)">#{{ tag }}</span>
         </div>
       </header>
 
-      <div class="markdown-body">
+      <div class="markdown-body" :class="fontClass">
          <MdParser 
             v-if="post.content"
             :modelValue="post.content"
@@ -46,6 +46,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import MdParser from '../components/MdParser.vue'
 import { getStats } from '../utils/markdownParser'
+import { sortTags } from '../utils/tagUtils'
 
 interface PostDetail {
   id: string
@@ -54,14 +55,21 @@ interface PostDetail {
   updatedAt?: string
   content: string
   tags?: string[]
+  font?: string
 }
 
 const route = useRoute()
 const post = ref<PostDetail | null>(null)
 const loading = ref(true)
 
+const fontClass = computed(() => {
+    if (!post.value?.font) return 'font-sans'
+    return `font-${post.value.font}`
+})
+
 // Update title when post changes
 import { watch } from 'vue'
+import router from '../router'
 watch(post, (newPost) => {
     if (newPost && newPost.title) {
         document.title = `${newPost.title} - Chronicle`
@@ -176,8 +184,14 @@ onMounted(async () => {
     margin-top: 16px;
 }
 .tag {
-    color: #888;
+    color: var(--accent-color);
     font-size: 14px;
+    cursor: pointer;
+}
+
+.tag.featured {
+    color: var(--featured);
+    font-weight: 600;
 }
 
 .loading, .error {

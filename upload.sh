@@ -11,11 +11,18 @@ read -p "请输入服务器目标路径（如 /opt/chronicle-deploy）: " REMOTE
 cd /opt/Chronicle/chronicle-frontend
 npm run build
 
-# 3. 复制 server 目录到临时目录，并清理 data 文件，仅保留目录结构
-cd /opt/Chronicle
+# Clean temp dir to prevent stale files
 rm -rf /tmp/chronicle-upload
 mkdir -p /tmp/chronicle-upload
-cp -r server /tmp/chronicle-upload/
+
+# 3. 复制 server 目录到临时目录，并清理 data 文件，仅保留目录结构
+cd /opt/Chronicle
+if [ -d "server/node_modules" ]; then
+    echo "Warning: server/node_modules detected. It will be excluded from upload."
+fi
+# Copy server but exclude node_modules
+rsync -av --exclude='node_modules' --exclude='.git' server /tmp/chronicle-upload/
+# Clean data files
 find /tmp/chronicle-upload/server/data -type f -delete
 
 # 4. 复制 dist 到临时目录

@@ -12,10 +12,24 @@ if [ ! -d "node_modules" ]; then
     echo "Installing backend dependencies..."
     npm install
 fi
-npm start &
+
+# Default to --dev if no arguments provided
+if [ $# -eq 0 ]; then
+    npm start -- --dev &
+else
+    npm start -- "$@" &
+fi
 
 # 2. Start Frontend
 echo "[System] Starting Frontend (Vite)..."
+
+# Create symlink for faster image serving (bypassing Node proxy)
+echo "[System] Optimizing static assets..."
+mkdir -p /opt/Chronicle/chronicle-frontend/public/server/data
+if [ ! -L "/opt/Chronicle/chronicle-frontend/public/server/data/upload" ]; then
+    ln -s /opt/Chronicle/server/data/upload /opt/Chronicle/chronicle-frontend/public/server/data/upload
+fi
+
 cd /opt/Chronicle/chronicle-frontend
 if [ ! -d "node_modules" ]; then
     echo "Installing frontend dependencies..."

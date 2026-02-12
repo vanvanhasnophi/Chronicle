@@ -609,7 +609,7 @@ onMounted(() => {
 .syntax-highlight .number { color: #b5cea8; }
 .syntax-highlight .boolean { color: #569cd6; }
 .syntax-highlight .operator { color: #d4d4d4; }
-.syntax-highlight .bracket { color: #ffd700; }
+.syntax-highlight .bracket { color: var(--featured); }
 .syntax-highlight .tag { color: #569cd6; }
 .syntax-highlight .attribute { color: #9cdcfe; }
 .syntax-highlight .property { color: #9cdcfe; }
@@ -630,7 +630,7 @@ onMounted(() => {
 .syntax-highlight .inline-code { background: #2d2d30; color: #ce9178; padding: 0.2rem 0.4rem; border-radius: 3px; }
 .syntax-highlight .code-block { background: #2d2d30; color: #d4d4d4; padding: 0.5rem; border-radius: 4px; border-left: 4px solid #007acc; }
 .syntax-highlight .link { color: #569cd6; }
-.syntax-highlight .list { color: #ffd700; }
+.syntax-highlight .list { color: var(--featured); }
 
 /* 代码块主体统一深灰色 */
 /* 代码块主体统一深灰色，降低饱和度 */
