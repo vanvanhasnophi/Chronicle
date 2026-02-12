@@ -93,6 +93,67 @@ if (!fs.existsSync(INDEX_FILE)) fs.writeFileSync(INDEX_FILE, '[]');
 const ALGORITHM = 'aes-256-cbc';
 const SECRET_KEY = crypto.scryptSync('chronicle-secret-key-123', 'salt', 32);
 
+// CDN purge config from env (for Alibaba Cloud)
+const ALIYUN_ACCESS_KEY_ID = process.env.ALIYUN_ACCESS_KEY_ID || '';
+const ALIYUN_ACCESS_KEY_SECRET = process.env.ALIYUN_ACCESS_KEY_SECRET || '';
+const CDN_API_ENDPOINT = process.env.CDN_API_ENDPOINT || 'https://cdn.aliyuncs.com/';
+// Optional switch to enable/disable CDN purge behaviour. Accepts '1' or 'true'. Default off.
+const ENABLE_CDN_PURGE = (process.env.ENABLE_CDN_PURGE === '1' || String(process.env.ENABLE_CDN_PURGE).toLowerCase() === 'true');
+
+function percentEncode(str) {
+    return encodeURIComponent(str)
+        .replace(/\+/g, '%20')
+        .replace(/\*/g, '%2A')
+        .replace(/%7E/g, '~');
+}
+
+async function aliyunCdnRefresh(urls = []) {
+    if (!ENABLE_CDN_PURGE) {
+        console.log('[CDN] Purge disabled by ENABLE_CDN_PURGE env var');
+        return;
+    }
+    if (!ALIYUN_ACCESS_KEY_ID || !ALIYUN_ACCESS_KEY_SECRET || !urls || urls.length === 0) {
+        console.log('[CDN] Skipping CDN refresh - missing creds or urls');
+        return;
+    }
+
+    try {
+        const params = {
+            Format: 'JSON',
+            Version: '2018-05-10',
+            AccessKeyId: ALIYUN_ACCESS_KEY_ID,
+            SignatureMethod: 'HMAC-SHA1',
+            Timestamp: new Date().toISOString(),
+            SignatureVersion: '1.0',
+            SignatureNonce: Math.random().toString(36).slice(2),
+            Action: 'RefreshObjectCaches'
+        };
+
+        // ObjectPath.N entries
+        urls.forEach((u, i) => { params[`ObjectPath.${i+1}`] = u; });
+        params.ObjectType = 'File';
+
+        // Canonicalize
+        const keys = Object.keys(params).sort();
+        const canonicalized = keys.map(k => `${percentEncode(k)}=${percentEncode(String(params[k]))}`).join('&');
+        const stringToSign = `GET&%2F&${percentEncode(canonicalized)}`;
+
+        const sign = crypto.createHmac('sha1', ALIYUN_ACCESS_KEY_SECRET + '&').update(stringToSign).digest('base64');
+        const finalParams = { Signature: sign, ...params };
+
+        const qs = Object.keys(finalParams).map(k => `${percentEncode(k)}=${percentEncode(String(finalParams[k]))}`).join('&');
+        const url = `${CDN_API_ENDPOINT}?${qs}`;
+
+        // Fire request (GET)
+        console.log('[CDN] Purge request URL:', url.replace(/(AccessKeyId=)[^&]+/, '$1****'));
+        const resp = await fetch(url, { method: 'GET', timeout: 10000 });
+        const body = await resp.text();
+        console.log('[CDN] Purge response:', resp.status, body);
+    } catch (e) {
+        console.error('[CDN] Purge error', e);
+    }
+}
+
 // --- Front Matter Helpers ---
 function parseFrontMatter(content) {
     const match = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
@@ -210,6 +271,68 @@ app.use('/server/data/upload', express.static(UPLOAD_DIR, {
     immutable: true
 }));
 
+// Thumbnail endpoint: /thumb/<category>/<file>
+// Tries to generate a cached thumbnail under UPLOAD_DIR/.thumbs
+let sharpLib = null;
+try {
+    sharpLib = require('sharp');
+} catch (e) {
+    // sharp not installed - thumbnails will fallback to original image
+    console.log('[Thumb] sharp not available, thumbnails will fallback to original images');
+}
+
+app.get('/thumb/*', async (req, res) => {
+    try {
+        const rel = req.path.replace(/^\/thumb\//, '').replace(/^\/+/, '');
+        const target = path.resolve(UPLOAD_DIR, rel);
+        if (!target.startsWith(UPLOAD_DIR) || !fs.existsSync(target)) {
+            return res.status(404).send('Not found');
+        }
+
+        // cached thumbs dir
+        const thumbBase = path.join(UPLOAD_DIR, '.thumbs');
+        const thumbPath = path.join(thumbBase, rel);
+        const thumbDir = path.dirname(thumbPath);
+
+        // Ensure thumb dir exists
+        if (!fs.existsSync(thumbDir)) fs.mkdirSync(thumbDir, { recursive: true });
+
+        // If sharp available, create thumbnail if needed
+        if (sharpLib) {
+            let needCreate = true;
+            try {
+                if (fs.existsSync(thumbPath)) {
+                    const tStat = fs.statSync(thumbPath);
+                    const oStat = fs.statSync(target);
+                    if (tStat.mtimeMs >= oStat.mtimeMs) needCreate = false;
+                }
+            } catch (e) { needCreate = true; }
+
+            if (needCreate) {
+                try {
+                        await sharpLib(target)
+                            .resize({ width: 200, height: 200, fit: 'inside', withoutEnlargement: true })
+                        .toFile(thumbPath);
+                } catch (e) {
+                    console.error('[Thumb] failed to generate thumb for', target, e.message || e);
+                    // fallback to original
+                    return res.sendFile(target);
+                }
+            }
+
+            res.setHeader('Cache-Control', 'public, max-age=2592000, immutable'); // 30 days
+            return res.sendFile(thumbPath);
+        }
+
+        // sharp not available -> just serve original image
+        res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+        return res.sendFile(target);
+    } catch (e) {
+        console.error('[Thumb] error', e);
+        res.status(500).send('Error');
+    }
+});
+
 
 // 2. Auth - Passkey
 // Code Verification Routes
@@ -286,12 +409,16 @@ app.post('/api/auth/passkey/register/verify', async (req, res) => {
             const ua = req.headers['user-agent'] || '';
             const deviceType = getDeviceTypeFromUA(ua);
             const dateStr = new Date().toLocaleDateString();
+            
+            // Format: "Device (Type, Date)" e.g. "MyMac (Mac, 2/12/2026)"
+            let finalName = req.query.name || `${deviceName} (${deviceType}, ${dateStr})`;
+            
             saved.devices.push({
                 credentialID: credential.id,
                 credentialPublicKey: Buffer.from(credential.publicKey).toString('base64url'),
                 counter: credential.counter,
                 transports: response.response.transports,
-                name: req.query.name || `${deviceName}（${deviceType}, ${dateStr}）`,
+                name: finalName,
                 createdAt: new Date().toISOString()
             });
             
@@ -487,13 +614,24 @@ app.get('/api/files', (req, res) => {
                     try {
                         const files = fs.readdirSync(catDir, { withFileTypes: true })
                         .filter(d => !d.isDirectory())
-                        .map(dirent => ({
-                            name: dirent.name,
-                            type: 'file',
-                            category: cat,
-                            path: `${cat}/${dirent.name}`,
-                            url: `${MEDIA_DOMAIN}/server/data/upload/${cat}/${dirent.name}`
-                        }));
+                        .map(dirent => {
+                            const relPath = `${cat}/${dirent.name}`;
+                            const fullUrl = `${MEDIA_DOMAIN}/server/data/upload/${relPath}`;
+                            // Construct thumb URL if likely an image (simple check via cat or ext)
+                            // We use /thumb/ route which handles existence check or fallback
+                                const thumbUrl = ['pic'].includes(cat)
+                                    ? `${MEDIA_DOMAIN}/server/data/upload/.thumbs/${relPath}`
+                                : undefined;
+                                
+                            return {
+                                name: dirent.name,
+                                type: 'file',
+                                category: cat,
+                                path: relPath,
+                                url: fullUrl,
+                                thumb: thumbUrl
+                            };
+                        });
                         allFiles = allFiles.concat(files);
                     } catch(e) {}
                 }
@@ -512,11 +650,26 @@ app.get('/api/files', (req, res) => {
     try {
         const items = fs.readdirSync(targetDir, { withFileTypes: true }).map(dirent => {
             const rel = path.relative(UPLOAD_DIR, path.join(targetDir, dirent.name)).replace(/\\/g, '/');
+            const isDir = dirent.isDirectory();
+            const fullUrl = `${MEDIA_DOMAIN}/server/data/upload/${rel}`;
+            
+            // Determine thumb
+            // If we are listing a specific path (e.g. 'pic'), we can infer category logic
+            // Or just check extension
+            let thumbUrl;
+            if (!isDir) {
+                const ext = path.extname(dirent.name).toLowerCase();
+                if (['.png','.jpg','.jpeg','.gif','.svg','.webp','.ico','.bmp','.tiff'].includes(ext)) {
+                         thumbUrl = `${MEDIA_DOMAIN}/server/data/upload/.thumbs/${rel}`;
+                }
+            }
+
             return {
                 name: dirent.name,
-                type: dirent.isDirectory() ? 'directory' : 'file',
+                type: isDir ? 'directory' : 'file',
                 path: rel,
-                url: `${MEDIA_DOMAIN}/server/data/upload/${rel}`
+                url: fullUrl,
+                thumb: thumbUrl
             };
         });
         res.json(items);
@@ -551,6 +704,40 @@ app.delete('/api/files', (req, res) => {
         if (fs.existsSync(targetPath)) {
             fs.rmSync(targetPath, { recursive: true, force: true });
         }
+
+        // Also remove cached thumbnails for this path under .thumbs
+        try {
+            const rel = path.relative(UPLOAD_DIR, targetPath).replace(/\\/g, '/');
+            const thumbTarget = path.join(UPLOAD_DIR, '.thumbs', rel);
+            // Ensure thumbTarget is inside upload dir for safety
+            if (thumbTarget.startsWith(UPLOAD_DIR) && fs.existsSync(thumbTarget)) {
+                fs.rmSync(thumbTarget, { recursive: true, force: true });
+            }
+
+            // Trigger CDN refresh for both origin path and thumbs path (fire-and-forget)
+            (async () => {
+                try {
+                    const relSafe = rel.replace(/^\/+/, '');
+                    if (!relSafe) return;
+                    const urls = [];
+                    const originUrl = `${MEDIA_DOMAIN.replace(/\/$/, '')}/server/data/upload/${relSafe}`;
+                    const thumbUrl = `${MEDIA_DOMAIN.replace(/\/$/, '')}/server/data/upload/.thumbs/${relSafe}`;
+                    urls.push(originUrl);
+                    urls.push(thumbUrl);
+                    // Also add wildcard variants to try to purge directories
+                    urls.push(originUrl + '*');
+                    urls.push(thumbUrl + '*');
+
+                    console.log('[Delete] Triggering CDN purge for', urls);
+                    await aliyunCdnRefresh(urls);
+                } catch (e) {
+                    console.error('[Delete] CDN purge failed', e);
+                }
+            })();
+        } catch (e) {
+            console.error('[Delete] Failed to remove thumbs for', targetPath, e);
+        }
+
         res.json({ success: true });
     } catch (e) {
         res.status(500).send('Error');
@@ -589,10 +776,57 @@ app.post('/api/upload', (req, res) => {
     const writeStream = fs.createWriteStream(filePath);
     req.pipe(writeStream);
 
-    writeStream.on('finish', () => {
+    writeStream.on('finish', async () => {
         const webPath = `/server/data/upload/${category}/${randomName}`;
         const fullUrl = `${MEDIA_DOMAIN}${webPath}`;
-        res.json({ url: fullUrl, path: webPath, category });
+        
+        let thumbUrl = '';
+        
+        // Thumbnail generation & Pre-warm logic
+            try {
+                // 1. Generate thumbnail immediately if it's an image and sharp is available
+                if (sharpLib && ['pic'].includes(category)) {
+                     const thumbRel = `/${category}/${randomName}`;
+                     const thumbBase = path.join(UPLOAD_DIR, '.thumbs');
+                     const thumbPath = path.join(thumbBase, thumbRel);
+                     const thumbDir = path.dirname(thumbPath);
+                     
+                     if (!fs.existsSync(thumbDir)) fs.mkdirSync(thumbDir, { recursive: true });
+                     
+                     try {
+                         await sharpLib(filePath)
+                             .resize({ width: 200, height: 200, fit: 'inside', withoutEnlargement: true })
+                             .toFile(thumbPath);
+                         thumbUrl = `${MEDIA_DOMAIN}/server/data/upload/.thumbs${thumbRel}`;
+                     } catch (err) {
+                         console.error('[Upload] Thumb generation failed:', err.message);
+                     }
+                }
+
+            // 2. Pre-warm CDN (Async)
+            // Trigger GET requests to the CDN URLs so it pulls from origin immediately
+            // We do not await this to avoid blocking the response significantly, 
+            // but a small delay might be fine to ensure origin is ready.
+            const warmUrls = [fullUrl];
+            if (thumbUrl) warmUrls.push(thumbUrl);
+
+            // Fire and forget pre-warm
+            (async () => {
+                try {
+                    console.log('[Pre-warm] Triggering fetch for:', warmUrls);
+                    const results = await Promise.allSettled(warmUrls.map(u => fetch(u, { method: 'HEAD', timeout: 5000 })));
+                    results.forEach((r, i) => {
+                         if (r.status === 'rejected') console.error(`[Pre-warm] Failed ${warmUrls[i]}:`, r.reason);
+                         else console.log(`[Pre-warm] Success ${warmUrls[i]}`);
+                    });
+                } catch (e) { console.error('[Pre-warm] error', e); }
+            })();
+
+        } catch (e) {
+            console.error('[Upload] Post-process error', e);
+        }
+
+        res.json({ url: fullUrl, path: webPath, category, thumb: thumbUrl });
     });
     writeStream.on('error', (err) => {
         console.error(err);

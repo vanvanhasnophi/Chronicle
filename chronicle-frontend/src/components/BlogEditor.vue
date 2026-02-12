@@ -295,7 +295,7 @@
                             @click="insertMediaMarkdown(img.name, img.path)"
                             :title="img.name"
                         >
-                            <div class="img-thumb" v-if="['pic'].includes(selectedCategory)" :style="{ backgroundImage: `url(${img.url})` }"></div>
+                            <div class="img-thumb" v-if="['pic'].includes(selectedCategory)" :style="{ backgroundImage: `url(${img.thumb || img.url})` }"></div>
                             <div class="img-thumb icon-thumb" v-else>
                                 <span class="scalable-icon" v-html="getIconForFile(img.name)"></span>
                             </div>
@@ -940,6 +940,22 @@ onBeforeRouteUpdate(async (to, from, next) => {
 
 // Watch query change to reload data when navigation keeps component alive
 watch(() => route.query.id, async (newId, oldId) => {
+    // If opening a brand-new editor, force-clear any saved draft/history and reset state
+    if (newId === 'new') {
+        try { localStorage.removeItem(draftKey.value); } catch(e) {}
+        try { sessionStorage.removeItem(historyKey.value); } catch(e) {}
+
+        localValue.value = '';
+        savedContent.value = '';
+        savedTitle.value = '';
+        postId.value = null;
+        postTitle.value = 'Untitled Post';
+        postStatus.value = 'draft';
+        history.value = [];
+        historyIndex.value = -1;
+        return;
+    }
+
     if (newId !== oldId) {
         await initLoad()
     }
@@ -1158,7 +1174,7 @@ const previewRef = ref<HTMLDivElement | null>(null)
 const activeScroll = ref<'editor' | 'preview' | null>(null)
 
 // Image Handling
-const uploadedImages = ref<{name: string, url: string, path: string}[]>([])
+const uploadedImages = ref<{name: string, url: string, path: string, thumb?: string}[]>([])
 const fileInputRef = ref<HTMLInputElement | null>(null)
 
 // Upload Notification State
@@ -1213,9 +1229,9 @@ async function fetchServerImages() {
             .filter((i:any) => i.type === 'file')
             .map((i:any) => ({
                 name: i.name,
-                   url: i.url || `/server/data/upload/${i.path}`,
-                   path: i.url || `/server/data/upload/${i.path}`,
-                cat: path
+                url: i.url || `/server/data/upload/${i.path}`,
+                path: i.url || `/server/data/upload/${i.path}`,
+                thumb: (i.url || `/server/data/upload/${i.path}`).replace('/server/data/upload/', '/server/data/upload/.thumbs/')
             }))
      }
    } catch (e) { console.error(e) }

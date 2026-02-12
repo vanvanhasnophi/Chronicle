@@ -29,7 +29,7 @@
          
          <div v-for="file in items" :key="file.name" class="grid-item file">
             <div class="preview" @click="openPreview(file)">
-               <img v-if="isImage(file.name)" :src="file.url || `/server/data/upload/${file.path}`" loading="lazy" />
+               <img v-if="isImage(file.name)" :src="getThumbUrl(file)" loading="lazy" />
                <div v-else class="icon scalable-icon" v-html="getIconForFile(file.name)"></div>
             </div>
             <div class="name" :title="file.name">{{ file.name }}</div>
@@ -170,6 +170,15 @@ const openPreview = async (file: any) => {
             type: getFileType(file.name)
         })
     }
+}
+
+const getThumbUrl = (file: any) => {
+    // Prefer server-provided absolute URL. Convert to thumbnail path when possible.
+    if (file.url && typeof file.url === 'string') {
+        return file.url.replace('/server/data/upload/', '/server/data/upload/.thumbs/')
+    }
+    // fallback to relative thumb path
+    return `/.thumbs/${file.path}`
 }
 
 const refresh = () => loadItems()
