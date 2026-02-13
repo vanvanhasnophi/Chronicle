@@ -2,7 +2,11 @@
   <div class="page-container">
     <h1>Friends</h1>
     <div class="friends-list">
-        <p>No friends added yet.</p>
+        <p><h3>Waiwai</h3>
+          <h4>非常乐意并享受被人挂网上的感觉</h4>
+        <img src="https://file.eightyfor.top/server/data/upload/pic/1770999133303_vne7_177099908700-992.webp">
+          <p>（据说这位是家属）</p>
+      </p>
     </div>
   </div>
 </template>

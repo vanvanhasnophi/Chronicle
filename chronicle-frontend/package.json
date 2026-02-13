@@ -12,6 +12,7 @@
     "@simplewebauthn/browser": "^13.2.2",
     "@simplewebauthn/server": "^13.2.2",
     "katex": "^0.16.28",
+    "mermaid": "^10.1.0",
     "vue": "^3.5.18",
     "vue-router": "^4.5.1"
   },

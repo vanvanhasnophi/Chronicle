@@ -1502,20 +1502,23 @@ const fontClass = computed(() => {
 <style scoped>
 
 .blog-editor {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  border: none;
-  background: #1e1e1e;
+    display: flex;
+    flex-direction: column;
+    height: 100vh; /* ensure editor fills viewport so internal panes scroll, not the page */
+    border: none;
+    background: #1e1e1e;
 }
 
 .editor-toolbar {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  padding: 0 12px;
-  background: #252526;
-  border-bottom: 1px solid #333;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 0 12px;
+    background: #252526;
+    border-bottom: 1px solid #333;
+    position: sticky; /* keep toolbar fixed inside editor viewport */
+    top: 0;
+    z-index: 30;
 }
 
 .toolbar-row {
@@ -1667,10 +1670,11 @@ const fontClass = computed(() => {
 
 
 .editor-workspace {
-  flex: 1;
-  display: flex;
-  overflow: hidden;
-  position: relative;
+    flex: 1;
+    min-height: 0; /* allow flex children to shrink and enable internal scrolling */
+    display: flex;
+    overflow: hidden;
+    position: relative;
 }
 
 .pane {

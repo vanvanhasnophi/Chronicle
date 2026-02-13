@@ -97,8 +97,9 @@ const SECRET_KEY = crypto.scryptSync('chronicle-secret-key-123', 'salt', 32);
 const ALIYUN_ACCESS_KEY_ID = process.env.ALIYUN_ACCESS_KEY_ID || '';
 const ALIYUN_ACCESS_KEY_SECRET = process.env.ALIYUN_ACCESS_KEY_SECRET || '';
 const CDN_API_ENDPOINT = process.env.CDN_API_ENDPOINT || 'https://cdn.aliyuncs.com/';
-// Optional switch to enable/disable CDN purge behaviour. Accepts '1' or 'true'. Default off.
-const ENABLE_CDN_PURGE = (process.env.ENABLE_CDN_PURGE === '1' || String(process.env.ENABLE_CDN_PURGE).toLowerCase() === 'true');
+// Optional switch to enable/disable CDN purge behaviour.
+// Currently hard-coded OFF for safety. To enable later, set this to read from env as before.
+const ENABLE_CDN_PURGE = false;
 
 function percentEncode(str) {
     return encodeURIComponent(str)

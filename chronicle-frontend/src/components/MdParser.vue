@@ -1,5 +1,6 @@
 <template>
   <div class="md-parser-rendered" @click="handleGlobalClick">
+    <!-- Inline TOC removed; handled at page level (BlogPost.vue) -->
     <template v-for="(block, index) in localBlocks" :key="keyPrefix + index">
       <div v-if="block.type === 'table'" class="content-block">
         <MarkdownTable
@@ -14,7 +15,7 @@
           v-model="block.content"
           :language="block.language || 'plain'"
           :readonly="readOnly"
-          :title="readOnly ? '' : `代码块 ${index + 1}`"
+          :title="readOnly ? '' : ''/*`Code Block ${index + 1}`*/"
           @change="(code, lang) => updateCode(index, code, lang)"
         />
       </div>
@@ -23,6 +24,7 @@
         <div class="parsed-html-content" v-html="renderBlockHtml(block)"></div>
       </div>
     </template>
+    
 
     <!-- Math Interaction Popup -->
     <div v-if="tooltip.visible" 
@@ -40,8 +42,6 @@
         </div>
       </div>
     </div>
-
-    <!-- Image Preview Modal moved to global App.vue -->
   </div>
 </template>
 
@@ -82,6 +82,8 @@ const tooltip = reactive({
   timer: null as any
 })
 
+// Inline TOC logic moved to page-level (BlogPost.vue)
+
 // Removed local preview states as we now use global composables
 
 function handleImgWheel(e: WheelEvent) {
@@ -102,6 +104,8 @@ function handleImgMouseUp() {
 
 function renderBlockHtml(block: ContentBlock): string {
   let html = convertToHtml(block)
+
+  // Heading id injection is handled at page level (BlogPost.vue)
   
   // Replace images
   // Matches any src that is NOT http/https
@@ -122,6 +126,7 @@ function renderBlockHtml(block: ContentBlock): string {
   }
   return html
 }
+
 
 async function handleGlobalClick(e: MouseEvent) {
   const target = e.target as HTMLElement
@@ -276,6 +281,7 @@ watch(() => props.modelValue, (newVal) => {
     return
   }
   localBlocks.value = parseMarkdown(newVal || '')
+  // TOC is built at page level when needed
 }, { immediate: true })
 // ... rest of script to follow
 
@@ -297,6 +303,15 @@ function updateCode(index: number, code: string, lang: string) {
     block.language = lang
     sync()
   }
+}
+
+function scrollToHeading(id: string) {
+  const el = document.getElementById(id)
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  const offset = 72
+  const top = window.scrollY + rect.top - offset
+  window.scrollTo({ top, behavior: 'smooth' })
 }
 
 function sync() {
@@ -644,6 +659,46 @@ strong, b {
   flex-direction: column;
   overflow: hidden;
 }
+
+/* TOC styles */
+.markdown-toc {
+  margin: 12px 0 18px 0;
+  padding: 12px;
+  background: #222;
+  border: 1px solid #333;
+  border-radius: 8px;
+}
+.markdown-toc .toc-title {
+  font-weight: 600;
+  color: #d4d4d4;
+  margin-bottom: 8px;
+}
+.markdown-toc .toc-list { list-style: none; padding: 0; margin: 0; }
+.markdown-toc .toc-list li { margin: 4px 0; }
+.markdown-toc .toc-list li a { color: #cfd8dc; text-decoration: none; }
+.markdown-toc .toc-list .toc-level-2 { margin-left: 8px }
+.markdown-toc .toc-list .toc-level-3 { margin-left: 16px }
+.markdown-toc .toc-list .toc-level-4 { margin-left: 24px }
+.markdown-toc .toc-list .toc-level-5 { margin-left: 32px }
+.markdown-toc .toc-list .toc-level-6 { margin-left: 40px }
+
+.toc-float {
+  position: fixed;
+  right: 20px;
+  top: 120px;
+  width: 220px;
+  max-height: 60vh;
+  overflow: auto;
+  background: rgba(34,34,34,0.9);
+  border: 1px solid #333;
+  padding: 8px;
+  border-radius: 8px;
+  z-index: 1200;
+}
+.toc-float ul { list-style: none; margin: 0; padding: 4px }
+.toc-float li { margin: 6px 0 }
+.toc-float a { color: #cfd8dc; text-decoration: none }
+
 
 .file-name {
   font-size: 14px;

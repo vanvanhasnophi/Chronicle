@@ -1,13 +1,12 @@
 <template>
   <div class="code-chunk-container">
     <div class="editor-header">
-      <div class="header-left" style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif; font-size: 0.8rem;">
-        <span class="chunk-title">{{ title }}</span>
-      </div>
-      <div class="toolbar">
-        <select v-model="selectedLanguage" @change="updateHighlighting" class="language-selector transparent-select" :title="selectedLanguage" :disabled="readonly">
+      <div class="header-left">
+        <select v-model="selectedLanguage" @change="updateHighlighting" class="language-selector transparent-select" :title="selectedLanguage" :disabled="readonly" style="font-family:var(--app-font-stack)">
             <option value="apache">Apache</option>
             <option value="bash">Bash</option>
+            <option value="basic">Basic</option>
+            <option value="vb">VB</option>
             <option value="c">C</option>
             <option value="cpp">C++</option>
             <option value="csharp">C#</option>
@@ -25,6 +24,7 @@
             <option value="lua">Lua</option>
             <option value="markdown">Markdown</option>
             <option value="matlab">MATLAB</option>
+            <option value="mermaid">Mermaid</option>
             <option value="nginx">Nginx</option>
             <option value="php">PHP</option>
             <option value="powershell">PowerShell</option>
@@ -39,15 +39,48 @@
             <option value="toml">TOML</option>
             <option value="typescript">TypeScript</option>
             <option value="vue">Vue</option>
+            <option value="vb">Visual Basic</option>
             <option value="xml">XML</option>
             <option value="yaml">YAML</option>
             <option value="plain">纯文本</option>
         </select>
+      </div>
+      <div class="toolbar">
+        <!-- Mermaid group (左侧，靠近基础按钮) -->
+        <template v-if="selectedLanguage === 'mermaid'">
+          <button class="icon-btn" title="下载 SVG" @click="downloadMermaid" :disabled="!lastRenderedSvg" style="margin-right:0.25rem;">
+            <!-- download icon -->
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3v10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 10l5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 21H3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="toolbar-divider"/>
+          <div class="mermaid-group">
+            <button class="icon-btn" :class="{active: mermaidMode === 'split'}" @click="mermaidMode = 'split'" title="上下拆分">
+              <!-- split icon: stacked panes -->
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="8" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="3" y="13" width="18" height="8" rx="1" stroke="currentColor" stroke-width="1.5"/></svg>
+            </button>
+            <button class="icon-btn" :class="{active: mermaidMode === 'code'}" @click="mermaidMode = 'code'" title="仅代码">
+              <!-- code icon -->
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M16 18l6-6-6-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 6l-6 6 6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="icon-btn" :class="{active: mermaidMode === 'preview'}" @click="mermaidMode = 'preview'" title="预览">
+              <!-- preview / eye icon -->
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+          <div class="toolbar-divider"/>
+        </template>
+        
         <button v-if="!readonly" class="icon-btn format-btn" @click="formatCode" title="格式化">
           <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M4 17h12M7 13l3-3 3 3M10 10V3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
         <button class="icon-btn copy-btn" @click="copyCode" title="复制">
-          <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="7" y="7" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="4" y="4" width="9" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+          <template v-if="!copySuccess">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="7" y="7" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="4" y="4" width="9" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+          </template>
+          <template v-else>
+            <!-- check icon -->
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M4 10l3 3 9-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </template>
         </button>
         <button v-if="!readonly" class="icon-btn clear-btn" @click="clearContent" title="清空">
           <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M6 6l8 8M6 14L14 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
@@ -55,7 +88,7 @@
       </div>
     </div>
     
-    <div class="editor-wrapper" :style="{ height: editorHeight }">
+    <div v-if="(mermaidMode !== 'preview') || selectedLanguage !== 'mermaid'" class="editor-wrapper" :style="{ height: editorHeight }">
   <div class="editor-content" @sync-scroll="syncScroll">
         <!-- 语法高亮层 -->
         <AsyncHighlight
@@ -83,9 +116,14 @@
       </div>
     </div>
     
+    <!-- mermaid 预览区域 -->
+    <div v-if="selectedLanguage === 'mermaid' && mermaidMode !== 'code'" class="mermaid-preview" ref="mermaidPreview" style="padding:0.5rem 1rem;">
+      <div ref="mermaidContainer"></div>
+    </div>
+
     <div class="editor-footer" v-if="showFooter">
-  <span v-if="!readonly">行: {{ currentLine }} | 列: {{ currentColumn }}</span>
-  <span>字符数: {{ code.length }} | 行数: {{ lineCount }}</span>
+  <span v-if="!readonly">Line: {{ currentLine }} | Col: {{ currentColumn }}</span>
+  <span>{{ code.length }} Char{{ code.length !== 1 ? 's' : '' }} | {{ lineCount }} Line{{ lineCount !== 1 ? 's' : '' }}</span>
     </div>
   </div>
 </template>
@@ -102,6 +140,7 @@ const textareaHeight = computed(() => {
   return h + 'px'
 })
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import mermaid from 'mermaid'
 
 // Props 定义
 interface Props {
@@ -121,7 +160,7 @@ const props = withDefaults(defineProps<Props>(), {
   modelValue: '',
   language: 'plain',
   title: '',
-  placeholder: '在此输入代码...',
+  placeholder: 'Code here...',
   readonly: false,
   showHeader: true,
   showToolbar: true,
@@ -172,6 +211,16 @@ const editorHeight = computed(() => {
 })
 
 import AsyncHighlight from './AsyncHighlight.vue'
+
+function escapeHtml(text: string) {
+  if (!text) return ''
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+}
 
 // 输入处理
 function onInput() {
@@ -500,6 +549,8 @@ async function copyCode() {
     await navigator.clipboard.writeText(code.value)
     emit('copy', code.value)
     // 这里可以添加一个提示消息
+    copySuccess.value = true
+    setTimeout(() => (copySuccess.value = false), 1500)
   } catch (err) {
     console.error('复制失败:', err)
     // 备用方案：使用传统的复制方法
@@ -510,6 +561,8 @@ async function copyCode() {
     try {
       document.execCommand('copy')
       emit('copy', code.value)
+      copySuccess.value = true
+      setTimeout(() => (copySuccess.value = false), 1500)
     } catch (err) {
       console.error('复制失败:', err)
     }
@@ -551,6 +604,87 @@ watch(code, (newVal) => {
 
 onMounted(() => {
   // 不自动聚焦，避免markdown编辑时跳焦点
+  try {
+    // 使 mermaid 主题与页面代码块配色一致
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'base',
+      themeVariables: {
+        background: 'transparent',
+        nodeBkg: 'transparent',
+        clusterBkg: 'transparent',
+        primaryColor: 'transparent',
+        primaryTextColor: '#d4d4d4',
+        textColor: '#d4d4d4',
+        // 边框颜色，比文字略淡
+        nodeBorder: '#e0e0e0',
+        clusterBorder: '#e0e0e0',
+        // 连接线颜色，比边框再略淡
+        lineColor: '#ececec',
+        // 次要颜色
+        secondaryColor: '#0b7285',
+        // 字体
+        fontFamily: 'var(--app-font-stack)'
+      }
+    })
+  } catch (e) {
+    console.warn('mermaid init failed', e)
+  }
+  // 如果当前语言是 mermaid，则在组件挂载时立即渲染一次
+  if (selectedLanguage.value === 'mermaid') {
+    nextTick(() => {
+      renderMermaid()
+    })
+  }
+})
+
+// mermaid 支持：模式 preview | split | code
+const mermaidMode = ref<'preview'|'split'|'code'>(props.language === 'mermaid' ? 'split' : 'code')
+const mermaidContainer = ref<HTMLElement | null>(null)
+const mermaidPreview = ref<HTMLElement | null>(null)
+const lastRenderedSvg = ref<string | null>(null)
+const copySuccess = ref(false)
+
+function downloadMermaid() {
+  if (!lastRenderedSvg.value) return
+  const svg = lastRenderedSvg.value
+  const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'mermaid-' + Date.now() + '.svg'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+async function renderMermaid() {
+  if (selectedLanguage.value !== 'mermaid') return
+  if (!mermaidContainer.value) return
+  const codeText = code.value || ''
+  try {
+    const id = 'mermaid_' + Date.now()
+    const { svg } = await mermaid.render(id, codeText)
+    mermaidContainer.value.innerHTML = svg
+    lastRenderedSvg.value = svg
+  } catch (err) {
+    // render error -> show as preformatted text
+    mermaidContainer.value.innerHTML = '<pre style="color:#f88;background:transparent;white-space:pre-wrap;">' + escapeHtml(String(err)) + '\n---\n' + escapeHtml(codeText) + '</pre>'
+    lastRenderedSvg.value = null
+  }
+}
+
+// 观察 code 和模式的变化
+watch([code, selectedLanguage, () => mermaidMode.value], () => {
+  if (selectedLanguage.value === 'mermaid' && mermaidMode.value !== 'code') {
+    nextTick(() => renderMermaid())
+  }
+})
+
+// 当 props.language 初始为 mermaid 时设置模式
+watch(() => props.language, (n) => {
+  if (n === 'mermaid') mermaidMode.value = 'split'
 })
 </script>
 
@@ -572,7 +706,7 @@ onMounted(() => {
   border: none;
   color: #d4d4d4;
   font-size: 0.95em;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif;
+  font-family: var(--app-font-stack);
   outline: none;
   box-shadow: none;
   padding: 0 1.2em 0 0.2em;
@@ -594,14 +728,14 @@ onMounted(() => {
   align-items: center;
 }
 .chunk-title {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif;
+  font-family: var(--app-font-stack);
   font-size: 0.8rem;
   font-weight: 500;
   color: #d4d4d4;
   letter-spacing: 0.01em;
 }
 .editor-header, .editor-footer {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif;
+  font-family: var(--app-font-stack);
 }
 .syntax-highlight .keyword { color: #569cd6; font-weight: bold; }
 .syntax-highlight .string { color: #ce9178; }
@@ -694,9 +828,40 @@ onMounted(() => {
   transition: background 0.2s, color 0.2s;
 }
 .icon-btn:hover {
-  background: #23272e;
   color: #fff;
 }
+.icon-btn.active {
+  background: #80808080;
+  color: #fff;
+}
+.mermaid-preview {
+  background: #2b2b2b;
+  border-top: 1px solid #333;
+  max-height: 420px;
+  overflow: auto;
+}
+.mermaid-preview svg {
+  background: #2b2b2b;
+}
+.mermaid-preview svg rect {
+  fill: #2b2b2b !important;
+  stroke: #e0e0e0 !important;
+}
+.mermaid-preview svg path {
+  stroke: #ececec !important;
+}
+.mermaid-preview svg text {
+  fill: #d4d4d4 !important;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif !important;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 20px;
+  background: #3b3b3b;
+  margin: 0 0.45rem;
+}
+.mermaid-group { display:flex; gap:0.2rem; align-items:center }
 .editor-wrapper {
   display: flex;
   overflow: auto;

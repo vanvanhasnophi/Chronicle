@@ -108,6 +108,150 @@ const syntaxRules: Record<string, Array<{ pattern: RegExp; className: string }>>
     { pattern: /[{}[\]()]/g, className: 'bracket' },
     { pattern: /[+\-*/%=<>!&|?:.]/g, className: 'operator' }
   ],
+  apache: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /\b(Listen|ServerName|DocumentRoot|LoadModule|ProxyPass|ProxyPassReverse|ErrorLog|CustomLog|DirectoryIndex)\b/gi, className: 'keyword' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' }
+  ],
+  bash: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\$\w+|\${[^}]+}/g, className: 'variable' },
+    { pattern: /\b(if|then|else|fi|for|in|do|done|case|esac|function|return)\b/g, className: 'keyword' }
+  ],
+  dockerfile: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /\b(FROM|RUN|CMD|LABEL|EXPOSE|ENV|ADD|COPY|ENTRYPOINT|VOLUME|WORKDIR|USER)\b/gi, className: 'keyword' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' }
+  ],
+  git: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /\b(commit|push|pull|merge|rebase|checkout|branch|tag|clone)\b/gi, className: 'keyword' }
+  ],
+  go: [
+    { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(package|import|func|var|const|type|struct|interface|map|range|return|if|else|for|go|select|case|defer)\b/g, className: 'keyword' },
+    { pattern: /\b\d+\.?\d*\b/g, className: 'number' }
+  ],
+  ini: [
+    { pattern: /;.*/g, className: 'comment' },
+    { pattern: /\[[^\]]+\]/g, className: 'section' },
+    { pattern: /\b[\w.-]+(?=\s*=)/g, className: 'attribute' },
+    { pattern: /=/g, className: 'operator' }
+  ],
+  kotlin: [
+    { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(class|fun|val|var|if|else|for|while|when|object|interface|package|import|return|is|in|null)\b/g, className: 'keyword' }
+  ],
+  less: [
+    { pattern: /\/\*([\s\S]*?)\*\//g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\.[a-zA-Z_][\w-]*/g, className: 'selector' }
+  ],
+  lua: [
+    { pattern: /--.*$/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(function|local|if|then|else|elseif|end|for|in|do|while|repeat|until|return)\b/g, className: 'keyword' }
+  ],
+  matlab: [
+    { pattern: /%.*/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(function|end|if|else|for|while|switch|case|otherwise|return)\b/gi, className: 'keyword' }
+  ],
+  nginx: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /\b(server|location|listen|proxy_pass|root|index|server_name|error_page|access_log|try_files)\b/gi, className: 'keyword' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' }
+  ],
+  php: [
+    { pattern: /(\/\*?[\s\S]*?\*?\/)/g, className: 'comment' },
+    { pattern: /(<\?php[\s\S]*?\?>)/g, className: 'string' },
+    { pattern: /\b(function|echo|print|return|if|else|foreach|as|class|public|private|protected|namespace|use|new)\b/gi, className: 'keyword' }
+  ],
+  powershell: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(function|param|return|if|else|elseif|foreach|for|while|switch|break|continue)\b/gi, className: 'keyword' },
+    { pattern: /[A-Za-z]+-[A-Za-z]+/g, className: 'cmdlet' }
+  ],
+  r: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(function|if|else|for|while|repeat|in|next|break|return)\b/gi, className: 'keyword' }
+  ],
+  react: [
+    { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
+    { pattern: /(["'`])(?:(?!(\\|\1)).|\\.)*(\\|\1)/g, className: 'string' },
+    { pattern: /\b(const|let|var|function|return|if|else|class|extends|import|export|from|JSX)\b/g, className: 'keyword' }
+  ],
+  ruby: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(def|class|module|end|if|else|elsif|do|while|until|for|in|return)\b/g, className: 'keyword' }
+  ],
+  rust: [
+    { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(fn|let|mut|pub|impl|trait|struct|enum|match|use|crate|mod|unsafe|async|await|move|ref|return)\b/g, className: 'keyword' }
+  ],
+  scss: [
+    { pattern: /\/\*[\s\S]*?\*\//g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b([a-z-]+)(?=\s*:)/gi, className: 'property' }
+  ],
+  sql: [
+    { pattern: /--.*$/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(SELECT|FROM|WHERE|INSERT|INTO|VALUES|UPDATE|SET|DELETE|JOIN|LEFT|RIGHT|INNER|OUTER|ON|GROUP BY|ORDER BY|LIMIT|OFFSET|AS|AND|OR|NOT|NULL|IS|IN|CREATE|TABLE|ALTER|DROP)\b/gi, className: 'keyword' }
+  ],
+  swift: [
+    { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(func|let|var|if|else|for|in|while|return|class|struct|enum|protocol|extension|import)\b/g, className: 'keyword' }
+  ],
+  toml: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /\[[^\]]+\]/g, className: 'section' },
+    { pattern: /=/g, className: 'operator' }
+  ],
+  vue: [
+    { pattern: /<!--([\s\S]*?)-->/g, className: 'comment' },
+    { pattern: /<\/?[a-zA-Z][^>]*>/g, className: 'tag' }
+  ],
+  xml: [
+    { pattern: /<!--([\s\S]*?)-->/g, className: 'comment' },
+    { pattern: /<\/?[a-zA-Z][^>]*>/g, className: 'tag' },
+    { pattern: /\b([a-zA-Z-]+)(?=\=)/g, className: 'attribute' }
+  ],
+  yaml: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /\b[\w-]+(?=\:)/g, className: 'attribute' },
+    { pattern: /\b(true|false|null)\b/g, className: 'boolean' }
+  ],
+  mermaid: [
+    { pattern: /^%%.*$/g, className: 'comment' },
+    { pattern: /%%\{[\s\S]*?\}%%/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(class|graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|gantt|erDiagram|pie|journey|subgraph|end|click|classDef|style|linkStyle|note|activate|deactivate|loop|alt|opt|par|rect|section|today|axis|direction|LR|TB|TD)\b/gi, className: 'keyword' },
+    { pattern: /(-->|->|---|==>|===|<--|<-)/g, className: 'operator' },
+    { pattern: /\[[^\]]*\]|\([^\)]*\)/g, className: 'bracket' }
+  ],
+  basic: [
+    { pattern: /'.*/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(PRINT|LET|IF|THEN|ELSE|FOR|TO|STEP|NEXT|GOTO|GOSUB|RETURN|DIM|REM|END|FUNCTION|SUB|WHILE|WEND|AND|OR|NOT|MOD)\b/gi, className: 'keyword' },
+    { pattern: /\b\d+\b/g, className: 'number' },
+    { pattern: /[+\-*/=<>]/g, className: 'operator' }
+  ],
+  vb: [
+    { pattern: /'[^\n]*/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(If|Then|Else|ElseIf|End If|For|Each|Next|While|Wend|Function|Sub|Dim|As|Set|Let|Return|Select|Case|Do|Loop|And|Or|Not|Is|Mod|Private|Public|Friend|End)\b/gi, className: 'keyword' },
+    { pattern: /\b\d+\.?\d*\b/g, className: 'number' },
+    { pattern: /[+\-*/=<>]/g, className: 'operator' }
+  ],
   plain: []
 }
 
@@ -137,6 +281,7 @@ async function asyncHighlight() {
 async function highlightSegment(segment: string, language: string) {
   // 可直接用同步高亮逻辑
   if (!segment || language === 'plain') return escapeHtml(segment).replace(/\n/g, '<br>')
+  // 允许 mermaid 使用规则高亮（已在 syntaxRules 中定义）
   const rules = syntaxRules[language] || []
   let highlighted = segment
   const placeholders: string[] = []

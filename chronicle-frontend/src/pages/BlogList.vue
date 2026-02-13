@@ -390,46 +390,5 @@ onUnmounted(() => {
     color: #666;
 }
 
-/* Back to Top */
-.back-to-top {
-    position: fixed;
-    bottom: 30px;
-    right: 30px;
-    width: 50px !important;
-    height: 50px !important;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    backdrop-filter: blur(10px);
-    color: white;
-    padding: 0;
-    cursor: pointer;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    opacity: 0;
-    pointer-events: none;
-    transition: all 0.3s ease;
-    transform: translateY(20px);
-    z-index: 200;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 0;
-}
 
-.back-to-top span {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.back-to-top.visible {
-    opacity: 1;
-    pointer-events: auto;
-    transform: translateY(0);
-}
-
-.back-to-top:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: scale(1.1);
-}
 </style>
