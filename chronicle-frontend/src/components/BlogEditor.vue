@@ -521,7 +521,7 @@ import { useI18n } from 'vue-i18n'
 
 const route = useRoute()
 const router = useRouter()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const CDN_BASE_URL = import.meta.env.VITE_CDN_BASE_URL || ''
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -557,10 +557,12 @@ const localValue = ref(props.modelValue)
 const previewReadOnly = ref(false)
 const assetMap = ref<Record<string, string>>({})
 // Post Meta
-const postTitle = ref(t('editor.untitled'))
+const postTitle = ref('')
+const isDefaultTitle = ref(true)
 watch(postTitle, (val) => {
-    if (val) document.title = `${val} - Chronicle Workdown`
-    else document.title = 'Chronicle Workdown'
+    if (val) document.title = `${val} - Workdown - Chronicle`
+    else document.title = 'Workdown - Chronicle'
+    if (val && val !== t('editor.untitled')) isDefaultTitle.value = false
 }, { immediate: true })
 const postId = ref<string | null>(null)
 const postStatus = ref<'draft' | 'published' | 'modifying'>('draft')
@@ -823,12 +825,17 @@ async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
     
     isSaving.value = true
     try {
+        // Ensure title sent to server reflects client locale when it's still the default
+        const titleToSend = (tempTitle.value && tempTitle.value.trim())
+            ? tempTitle.value
+            : (isDefaultTitle.value ? t('editor.untitled') : postTitle.value)
+
         const res = await fetch('/api/post', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 id: postId.value,
-                title: tempTitle.value || postTitle.value, // Use tempTitle if set, else current title
+                title: titleToSend,
                 content: localValue.value,
                 status: status,
                 tags: postTags.value,
@@ -1030,7 +1037,8 @@ async function loadPostById(id: string) {
         if (detailRes.ok) {
              const detail = await detailRes.json()
              postId.value = detail.id
-             postTitle.value = detail.title
+               postTitle.value = detail.title
+               isDefaultTitle.value = false
              postStatus.value = detail.status || 'draft'
              postDate.value = detail.date || ''
              postUpdated.value = detail.updatedAt || detail.date || ''
@@ -1081,6 +1089,7 @@ async function initLoad() {
         // Reset state for new post
         postId.value = null
         postTitle.value = t('editor.untitled')
+        isDefaultTitle.value = true
         postStatus.value = 'draft'
         postTags.value = []
         postFont.value = 'sans'
@@ -1125,6 +1134,7 @@ async function initLoad() {
     // We treat no ID as create mode
     postId.value = null
     postTitle.value = t('editor.untitled')
+    isDefaultTitle.value = true
     postStatus.value = 'draft'
     postDate.value = ''
     postUpdated.value = ''
@@ -1186,6 +1196,14 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
 onMounted(() => {
     // Attempt to load from cloud to sync latest state
     initLoad()
+
+    // If locale changes and title is still default, update displayed title
+    try {
+        // `locale` is reactive from useI18n
+        watch(() => locale.value, () => {
+            if (isDefaultTitle.value) postTitle.value = t('editor.untitled')
+        })
+    } catch (e) {}
 
     window.addEventListener('beforeunload', handleBeforeUnload)
 })
