@@ -1,10 +1,9 @@
 <template>
   <div class="home-container">
     <div class="hero">
-        <h1>Chronicle for Eightyfor</h1>
-        <p>Love what you wanna love, be what you wanna be.<br>
-        爱我所爱，自成一派。</p>
-        <router-link to="/blogs" class="cta-btn">View Blogs</router-link>
+        <h1>{{ $t('home.title') }}</h1>
+        <p v-html="$t('home.tagline')"></p>
+        <router-link to="/blogs" class="cta-btn">{{ $t('home.viewBlogs') }}</router-link>
     </div>
   </div>
 </template>

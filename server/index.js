@@ -33,6 +33,7 @@ const DATA_DIR = path.join(BASE_DIR, 'data');
 const UPLOAD_DIR = path.join(DATA_DIR, 'upload');
 const POSTS_DIR = path.join(DATA_DIR, 'posts');
 const SECURITY_FILE = path.join(DATA_DIR, 'security.json');
+const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 const INDEX_FILE = path.join(POSTS_DIR, 'index.json');
 
 const CATEGORIES = ['pic', 'sound', 'txt', 'video', 'doc', 'other'];
@@ -676,6 +677,35 @@ app.get('/api/files', (req, res) => {
         res.json(items);
     } catch (e) {
         res.status(500).send('Error listing files');
+    }
+});
+
+// 5. Settings API - read/write a simple JSON file under server/data/settings.json
+app.get('/api/settings', (req, res) => {
+    try {
+        if (!fs.existsSync(SETTINGS_FILE)) return res.json({});
+        const saved = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
+        res.json(saved);
+    } catch (e) {
+        console.error('[Settings] GET error', e);
+        res.status(500).json({});
+    }
+});
+
+app.post('/api/settings', (req, res) => {
+    try {
+        const body = req.body || {};
+        let saved = {};
+        if (fs.existsSync(SETTINGS_FILE)) {
+            try { saved = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8')) } catch(e) { saved = {} }
+        }
+        // Merge incoming values
+        saved = Object.assign({}, saved, body);
+        fs.writeFileSync(SETTINGS_FILE, JSON.stringify(saved, null, 2));
+        res.json(saved);
+    } catch (e) {
+        console.error('[Settings] POST error', e);
+        res.status(500).send('Error');
     }
 });
 

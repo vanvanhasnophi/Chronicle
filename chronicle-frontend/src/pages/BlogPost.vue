@@ -3,37 +3,37 @@
     <div v-if="loading" class="loading">Loading...</div>
     <div v-else-if="!post" class="error">Post not found.</div>
     <div v-else class="post-content-wrapper">
-      <nav class="post-nav">
-        <router-link to="/blogs" class="nav-back">← Back to Blogs</router-link>
-      </nav>
+            <nav class="post-nav">
+                <router-link to="/blogs" class="nav-back">← {{ $t('inblog.backToBlogs') }}</router-link>
+            </nav>
       
       <header class="post-header">
         <h1 class="title" :class="fontClass">{{ post.title }}</h1>
         
         <div class="post-meta-info">
             <div class="meta-row stats" v-if="postStats">
-                <span>{{ postStats.words }} words</span>
+                <span>{{ $t(postStats.words === 1 ? 'inblog.wordSing' : 'inblog.wordPlural', { count: postStats.words }) }}</span>
                 <span class="separator">/</span>
-                <span>{{ postStats.readTime }} min</span>
+                <span>{{ postStats.readTime }} {{ $t('inblog.min') }}</span>
             </div>
             <div class="meta-row dates">
-                <span>Created {{ formatDate(post.date) }}</span>
+                <span>{{ $t('inblog.created') }} {{ formatDate(post.date) }}</span>
                 <template v-if="post.updatedAt && post.updatedAt !== post.date">
                     <span class="separator">·</span>
-                    <span>Modified {{ formatDate(post.updatedAt) }}</span>
+                    <span>{{ $t('inblog.updated') }} {{ formatDate(post.updatedAt) }}</span>
                 </template>
             </div>
         </div>
 
-        <div class="tags" v-if="post.tags && post.tags.length">
-            <span v-for="tag in sortTags(post.tags)" :key="tag" class="tag" :class="{ featured: tag === 'featured' }" @click="router.push('/search?tags='+tag)">#{{ tag }}</span>
+            <div class="tags" v-if="post.tags && post.tags.length">
+            <span v-for="tag in sortTags(post.tags)" :key="tag" class="tag" :class="{ featured: tag === 'featured' }" @click="router.push('/search?tags='+tag)">#{{ tag === 'featured' ? $t('tag.featured') : tag }}</span>
         </div>
       </header>
 
                         <!-- 页面级目录（仅阅读模式） -->
         <div v-if="toc.length" class="markdown-toc">
             <div class="toc-header" @click="toggleInlineToc" :class="{ collapsed: inlineTocCollapsed }">
-                <div class="toc-title">Table of Contents</div>
+                <div class="toc-title">{{ $t('inblog.toc-title') }}</div>
                 <button class="toc-toggle-btn" :aria-expanded="!inlineTocCollapsed" :title="inlineTocCollapsed ? '展开' : '折叠'">
                      <span class="chev-icon" :class="{ folded: inlineTocCollapsed }" v-html="chevronIcon"></span>
                 </button>
@@ -70,7 +70,7 @@
                     </nav>
 
         <!-- Back to Top -->
-        <button class="back-to-top" :class="{ visible: showBackToTop }" @click="scrollToTop" title="Back to Top">
+           <button class="back-to-top" :class="{ visible: showBackToTop }" @click="scrollToTop" :title="$t('inblog.backToTop')">
              <span v-html="Icons.arrowUp"></span>
         </button>
     </div>
@@ -80,11 +80,15 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, nextTick, watch, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import MdParser from '../components/MdParser.vue'
 import { getStats } from '../utils/markdownParser'
 import { sortTags } from '../utils/tagUtils'
 import { parseMarkdown } from '../utils/markdownParser'
 import { Icons } from '../utils/icons'
+
+// i18n
+const { t } = useI18n()
 
 interface PostDetail {
   id: string
@@ -124,6 +128,8 @@ let floatCollapseTimer: any = null
 const activeId = ref('')
 const showBackToTop = ref(false)
 let observer: IntersectionObserver | null = null
+const suppressObserver = ref(false)
+let manualScrollTimer: any = null
 
 const chevronIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>`
 
@@ -134,6 +140,16 @@ function toggleInlineToc() {
 function onScroll(e: Event) {
     const target = e.target as HTMLElement
     showBackToTop.value = target.scrollTop > 300
+
+    // If we suppressed observer updates (due to clicking a TOC link),
+    // debounce until scrolling stops and then re-enable observer updates.
+    if (suppressObserver.value) {
+        if (manualScrollTimer) clearTimeout(manualScrollTimer)
+        manualScrollTimer = setTimeout(() => {
+            suppressObserver.value = false
+            manualScrollTimer = null
+        }, 200)
+    }
 }
 
 function scrollToTop() {
@@ -166,6 +182,8 @@ onBeforeUnmount(() => {
     if (container) {
         container.removeEventListener('scroll', onScroll)
     }
+    if (manualScrollTimer) clearTimeout(manualScrollTimer)
+    suppressObserver.value = false
 })
 
 const maxLevel = computed(() => {
@@ -293,6 +311,9 @@ function setupObserver() {
     }
 
     observer = new IntersectionObserver((entries) => {
+        // If suppressed (e.g. after clicking a TOC link), ignore observer events
+        if (suppressObserver.value) return
+
         // find matched entries
         entries.forEach(entry => {
             if (entry.isIntersecting) {
@@ -320,6 +341,15 @@ function scrollToHeading(id: string) {
     const targetTop = container.scrollTop + (elRect.top - containerRect.top) - offset
     
     container.scrollTo({ top: targetTop, behavior: 'smooth' })
+
+    // Temporarily suppress observer updates while smooth scrolling from a TOC click,
+    // and optimistically set the active id to the clicked heading.
+    suppressObserver.value = true
+    if (manualScrollTimer) clearTimeout(manualScrollTimer)
+    manualScrollTimer = setTimeout(() => {
+        suppressObserver.value = false
+        manualScrollTimer = null
+    }, 300)
     activeId.value = id
 }
 
@@ -471,7 +501,7 @@ watch(() => post.value && post.value.content, (v) => {
 .toc-float{
     font-size:0.8em;
     backdrop-filter: blur(10px);
-    margin-right:10px;
+    margin-right: 10px;
 }
 
 .toc-float-item{
@@ -530,14 +560,14 @@ watch(() => post.value && post.value.content, (v) => {
 .toc-float { 
     right: 20px; 
     position: fixed; 
-    top: 120px; 
+    top: 180px; 
     z-index: 1200; 
     overflow: hidden; 
     transition: width 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), background-color 0.3s ease; 
     box-sizing: border-box; 
     border-radius: 8px;
 }
-.toc-float.collapsed { width: 40px; border:none; background-color: transparent; }
+.toc-float.collapsed { width: 32px;padding: 6px; border:none; background-color: transparent; border-radius: 10px; }
 .toc-float:not(.collapsed) { width: 220px; background-color: rgba(30, 30, 30, 0.95); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
 
 .toc-float ul { padding: 4px; list-style: none; margin: 0; transition: padding 0.3s ease; }

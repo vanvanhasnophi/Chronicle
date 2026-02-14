@@ -6,8 +6,8 @@
         <button 
            class="tag-trigger" 
            :class="{ active: selectedTags.length > 0 || isTagCloudOpen }" 
-           @click="isTagCloudOpen = !isTagCloudOpen"
-           title="Select Tags"
+              @click="isTagCloudOpen = !isTagCloudOpen"
+              :title="t('search.selectTags')"
         >
           <span v-html="Icons.hash" class="icon"></span>
         </button>
@@ -15,19 +15,19 @@
         <span class="divider"></span>
         <!-- Input Area -->
         <div class="input-area" @click="focusInput">
-           <div v-for="tag in sortTags(selectedTags)" :key="tag" class="selected-tag-chip" :class="{featured: tag === 'featured'}">
-              <span class="chip-text">{{ tag }}</span>
+              <div v-for="tag in sortTags(selectedTags)" :key="tag" class="selected-tag-chip" :class="{featured: tag === 'featured'}">
+                  <span class="chip-text">{{ tag === 'featured' ? t('tag.featured') : tag }}</span>
               <button class="chip-remove" :class="{featured: tag === 'featured'}" @click.stop="removeTag(tag)">
                  <span v-html="Icons.cross" class="icon-sm"></span>
               </button>
            </div>
-           <input 
-              ref="searchInput"
-              type="text" 
-              v-model="searchQuery" 
-              placeholder="Search by title..." 
-              class="search-input" 
-           />
+              <input 
+                  ref="searchInput"
+                  type="text" 
+                  v-model="searchQuery" 
+                  :placeholder="t('search.placeholder')" 
+                  class="search-input" 
+              />
         </div>
       </div>
     </div>
@@ -47,23 +47,23 @@
                     :class="{ selected: selectedTags.includes(tagData.name), featured: tagData.name === 'featured' }"
                     @click="toggleTagAndKeepOpen(tagData.name)"
                 >
-                    {{ tagData.name }}
+                        {{ tagData.name === 'featured' ? $t('tag.featured') : tagData.name }}
                     <span class="tag-count">{{ tagData.count }}</span>
                 </button>
             </div>
-            <div v-if="allTagData.length === 0" class="no-tags">No tags found</div>
+            <div v-if="allTagData.length === 0" class="no-tags">{{ $t('search.noTags') }}</div>
             
-            <div class="cloud-actions">
-              <button class="close-cloud-btn" @click="isTagCloudOpen = false">Done</button>
-            </div>
+                        <div class="cloud-actions">
+                            <button class="close-cloud-btn" @click="isTagCloudOpen = false">{{ $t('search.done') }}</button>
+                        </div>
           </div>
 
           <!-- Search Results -->
           <div v-else class="results-list">
-              <div v-if="loading" class="loading">Loading...</div>
-              <div v-else-if="filteredPosts.length === 0" class="empty">
-                No posts found matching your criteria.
-              </div>
+                            <div v-if="loading" class="loading">{{ $t('search.loading') }}</div>
+                            <div v-else-if="filteredPosts.length === 0" class="empty">
+                                {{ $t('search.noResults') }}
+                            </div>
               <article 
                 v-for="post in filteredPosts" 
                 :key="post.id" 
@@ -75,7 +75,7 @@
                     <span class="post-date">{{ formatDate(post.date) }}</span>
                 </div>
                 <div class="post-tags" v-if="post.tags && post.tags.length">
-                    <span v-for="tag in sortTags(post.tags)" :key="tag" class="tag-display">#{{ tag }}</span>
+                    <span v-for="tag in sortTags(post.tags)" :key="tag" class="tag-display">#{{ tag === 'featured' ? t('tag.featured') : tag }}</span>
                 </div>
                 <div class="post-summary">{{ post.summary }}</div>
               </article>
@@ -90,6 +90,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { Icons } from '../utils/icons'
 import { debounce } from '../utils/debounce'
 import { sortTags } from '../utils/tagUtils'
@@ -103,6 +104,7 @@ interface Post {
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const posts = ref<Post[]>([])
 const loading = ref(true)
 const searchQuery = ref('')

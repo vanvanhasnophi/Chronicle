@@ -1,27 +1,27 @@
 <template>
   <div class="manager-container">
     <div class="manager-header">
-      <h1 class="page-title">Manage Posts</h1>
+      <h1 class="page-title">{{ $t('post.manageTitle') }}</h1>
       <button class="new-post-btn" @click="createNew">
-        <span class="plus">+</span> New Post
+        <span class="plus">+</span> {{ $t('post.newPost') }}
       </button>
     </div>
 
-    <div v-if="loading" class="loading">Loading posts...</div>
-    <div v-else-if="posts.length === 0" class="empty">No posts found.</div>
+    <div v-if="loading" class="loading">{{ $t('post.loadingPosts') }}</div>
+    <div v-else-if="posts.length === 0" class="empty">{{ $t('post.noPostsFound') }}</div>
     
     <div v-else class="table-wrapper">
       <table class="posts-table">
         <thead>
           <tr>
-            <th>Title</th>
-            <th>Status</th>
-            <th>Date</th>
-            <th>Actions</th>
+            <th>{{ $t('post.table.title') }}</th>
+            <th>{{ $t('post.table.status') }}</th>
+            <th>{{ $t('post.table.date') }}</th>
+            <th>{{ $t('post.table.actions') }}</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="post in posts" :key="post.id">
+            <tr v-for="post in posts" :key="post.id">
             <td class="col-title">
               <div v-if="renamingId === post.id" class="rename-box">
                   <input 
@@ -33,24 +33,24 @@
                     class="rename-input"
                   />
               </div>
-              <div v-else class="title-container" @dblclick="startRename(post)" title="Double click to rename">
+              <div v-else class="title-container" @dblclick="startRename(post)" :title="$t('post.renameHint')">
                   <span class="title-text">{{ post.title }}</span>
                   <span class="edit-icon-hint" @click.stop="startRename(post)">✎</span>
               </div>
               
               <span v-if="post.tags && post.tags.length" class="tags-row">
-                 <span v-for="tag in sortTags(post.tags)" :key="tag" class="tag-badge">{{ tag }}</span>
+                 <span v-for="tag in sortTags(post.tags)" :key="tag" class="tag-badge">{{ tag === 'featured' ? $t('tag.featured') : tag }}</span>
               </span>
             </td>
             <td>
-              <span :class="['status-badge', getStatus(post.status).toLowerCase()]">
-                {{ getStatus(post.status).toUpperCase() }}
+              <span :class="['status-badge', (typeof post.status === 'string' ? post.status : 'published') ]">
+                {{ $t('status.' + (typeof post.status === 'string' ? post.status : 'published')) }}
               </span>
             </td>
             <td>{{ formatDate(post.date) }}</td>
             <td>
-              <button class="action-btn edit-btn" @click="editPost(post.id)">Edit</button>
-              <button class="action-btn delete-btn" @click="deletePost(post.id)">Delete</button>
+              <button class="action-btn edit-btn" @click="editPost(post.id)">{{ $t('post.table.edit') }}</button>
+              <button class="action-btn delete-btn" @click="deletePost(post.id)">{{ $t('post.table.delete') }}</button>
             </td>
           </tr>
         </tbody>
@@ -62,6 +62,7 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { sortTags } from '../utils/tagUtils'
 
 interface Post {
@@ -73,6 +74,7 @@ interface Post {
 }
 
 const router = useRouter()
+const { t } = useI18n()
 const posts = ref<Post[]>([])
 const loading = ref(true)
 
@@ -108,10 +110,10 @@ async function saveRename(post: Post) {
              if (res.ok) {
                  post.title = newTitle
              } else {
-                 alert('Rename failed')
+                 alert(t('post.renameFailed'))
              }
          } catch(e) {
-             alert('Error renaming')
+             alert(t('post.errorRenaming'))
          }
     }
     
@@ -134,7 +136,10 @@ const formatDate = (isoStr: string) => {
 }
 
 const createNew = () => {
-    window.open('/editor?id=new', '_blank')
+  const id = (typeof crypto !== 'undefined' && (crypto as any).randomUUID)
+    ? `new-${(crypto as any).randomUUID()}`
+    : `new-${Math.random().toString(36).substring(2, 9)}`
+  window.open(`/editor?id=${id}`, '_blank')
 }
 
 const editPost = (id: string) => {
@@ -142,7 +147,7 @@ const editPost = (id: string) => {
 }
 
 const deletePost = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this post?')) return
+    if (!confirm(t('post.confirmDelete'))) return
     
     try {
         const res = await fetch(`/api/post?id=${id}`, { method: 'DELETE' })
@@ -150,10 +155,10 @@ const deletePost = async (id: string) => {
             // refresh
             loadPosts()
         } else {
-            alert('Failed to delete')
+            alert(t('post.failedToDelete'))
         }
     } catch(e) {
-        alert('Error deleting')
+        alert(t('post.errorDeleting'))
     }
 }
 

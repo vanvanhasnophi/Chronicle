@@ -1,0 +1,258 @@
+{
+  "app": {
+    "title": "Chronicle"
+  },
+  "nav": {
+    "home": "Home",
+    "blogs": "Blogs",
+    "search": "Search",
+    "friends": "Friends",
+    "posts": "Posts",
+    "files": "Files",
+    "settings": "Settings",
+    "newPost": "New Post"
+  },
+  "inblog": {
+    "toc-title": "Table of Contents",
+    "backToBlogs": "Back to Blogs",
+    "wordSing": "{count} word",
+    "wordPlural": "{count} words",
+    "min": "min",
+    "created": "Created",
+    "updated": "Updated"
+  },
+  
+  "misc": {
+    "backToTop": "Back to Top"
+  },
+  "blog": {
+    "featured": "Featured",
+    "collapse": "Collapse",
+    "expand": "Expand",
+    "allPosts": "All Posts",
+    "loadingPosts": "Loading posts...",
+    "noPostsStartWriting": "No posts found. Start writing!",
+    "daySuffix": ""
+  },
+  "home": {
+    "title": "Chronicle for Eightyfor",
+    "tagline": "Love what you wanna love, be what you wanna be.<br/>爱我所爱，自成一派。",
+    "viewBlogs": "View Blogs"
+  },
+  "file": {
+    "library": "Library",
+    "upload": "Upload",
+    "refresh": "Refresh",
+    "loading": "Loading...",
+    "noFiles": "No files in this category.",
+    "copyLink": "Copy Link",
+    "delete": "Delete",
+    "categories": {
+      "all": "All Files",
+      "images": "Images",
+      "videos": "Videos",
+      "audio": "Audio",
+      "documents": "Documents",
+      "text": "Text/Code",
+      "others": "Others"
+    },
+    "type": {
+      "audio": "Audio",
+      "video": "Video",
+      "document": "Document",
+      "code": "Code/Text",
+      "file": "File"
+    }
+  },
+  "friends": {
+    "title": "Friends"
+  },
+  "settings": {
+    "home": "Home Page",
+    "homeHint": "Edit the HTML content of your homepage (stored in local config)",
+    "friends": "Friends Page",
+    "friendsHint": "Edit the HTML content of your friends page (stored in local config)",
+    "i18n": "Language & Fonts",
+    "i18nHint": "Set default language and font preferences for frontend/backend (UI only, does not affect post content)",
+    "security": "Security",
+    "locale": {
+      "follow": "Follow Browser",
+      "zh": "中文（简体）",
+      "en": "English"
+    }
+  },
+  "post": {
+    "manageTitle": "Manage Posts",
+    "newPost": "New Post",
+    "loadingPosts": "Loading posts...",
+    "noPostsFound": "No posts found.",
+    "table": {
+      "title": "Title",
+      "status": "Status",
+      "date": "Date",
+      "actions": "Actions",
+      "edit": "Edit",
+      "delete": "Delete"
+    },
+    "renameHint": "Double click to rename",
+    "confirmDelete": "Are you sure you want to delete this post?",
+    "renameFailed": "Rename failed",
+    "errorRenaming": "Error renaming",
+    "failedToDelete": "Failed to delete",
+    "errorDeleting": "Error deleting"
+  },
+  "search": {
+    "selectTags": "Select Tags",
+    "placeholder": "Search by title...",
+    "noTags": "No tags found",
+    "done": "Done",
+    "loading": "Loading...",
+    "noResults": "No posts found matching your criteria."
+  },
+  "login": {
+    "title": "Chronicle Manager",
+    "password": "Password",
+    "placeholder": "Enter admin password",
+    "checking": "Checking...",
+    "enter": "Enter",
+    "2faRequired": "Two-Factor Authentication Required",
+    "usePasskey": "Use Passkey / FaceID",
+    "or": "OR",
+    "codePlaceholder": "6-digit code",
+    "verify": "Verify",
+    "backToPassword": "Back to Password",
+    "failed": "Login failed",
+    "connectionError": "Connection error",
+    "verifyFailed": "Verification failed",
+    "verifyError": "Verification error",
+    "passkeyFailed": "Passkey verification failed",
+    "cancelled": "Login cancelled by user",
+    "invalidAuthenticator": "Invalid authenticator state",
+    "authFailed": "Authentication failed. Please try again."
+  },
+  "security": {
+    "title": "Security Settings",
+    "verificationTitle": "Login Verification Code",
+    "verificationHint": "Use this code to log in on another device requiring 2FA.",
+    "generateCode": "Generate Code",
+    "changePasswordTitle": "Change Password",
+    "currentPassword": "Current Password",
+    "newPassword": "New Password",
+    "confirmPassword": "Confirm New Password",
+    "updating": "Updating...",
+    "updatePassword": "Update Password",
+    "verifying": "Verifying 2FA...",
+    "newPasswordsMismatch": "New passwords do not match",
+    "enterCurrentPassword": "Please enter current password",
+    "2faFailed": "2FA Verification Failed",
+    "passwordUpdated": "Password updated successfully",
+    "failedToUpdate": "Failed to update password",
+    "connectionError": "Connection error",
+    "twoFactorTitle": "Two-Factor Authentication",
+    "twoFactorHint": "Register a Passkey device (FaceID/TouchID/YubiKey) to enforce 2FA verification after password login.",
+    "registering": "Registering...",
+    "registerNewPasskey": "Register New Passkey",
+    "passkeyRegistered": "Passkey registered successfully!",
+    "verificationFailed": "Verification failed",
+    "registrationCancelled": "Registration cancelled",
+    "authenticatorRegistered": "Authenticator already registered",
+    "registrationFailed": "Registration failed. Please try again.",
+    "registeredKeys": "Registered Keys",
+    "unnamedKey": "Unnamed Key",
+    "added": "Added",
+    "rename": "Rename",
+    "delete": "Delete",
+    "confirmDeletePasskey": "Are you sure you want to delete this passkey?",
+    "failedToDeletePasskey": "Failed to delete passkey",
+    "enterNewName": "Enter new name:",
+    "failedToRenamePasskey": "Failed to rename passkey",
+    "session": "Session",
+    "logout": "Log Out"
+  },
+  "tag":{
+    "featured": "featured"
+  }
+  ,
+  "status": {
+    "draft": "Draft",
+    "published": "Published",
+    "modifying": "Modifying"
+  },
+  "editor": {
+    "restore": "Restore",
+    "draft": "Draft",
+    "publish": "Publish",
+    "file": {
+      "new": "New Post",
+      "open": "Open...",
+      "import": "Import",
+      "export": "Export",
+      "createNew": "Create a new empty post.",
+      "note": "Note: Any unsaved changes in the current document will require confirmation.",
+      "clickToSelect": "Click to select file",
+      "importInstruction": "Import a Markdown or text file from your device.",
+      "uploadNewFile": "Upload New File",
+      "exportasMarkdown": "Export as Markdown",
+      "exportasText": "Export as Text"
+    },
+    "fileLabel": "File",
+    "media": "Media",
+    "link": "Link",
+    "linktext": "Link Text",
+    "texttoDisplay": "Text to display",
+    "table": "Table",
+    "locked": "Read Only",
+    "editable": "Editable",
+    "lock": "Lock Preview",
+    "unlock": "Unlock Preview",
+    "saving": "Saving...",
+    "placeholder": "Start writing markdown...",
+    "cancel": "Cancel",
+    "insert": "Insert",
+    "saveDraft": "Save Draft",
+    "publishNow": "Publish Now",
+    "createNewPost": "Create New Post",
+    "toggleFeatured": "Toggle Featured"
+    ,
+    "undo": "Undo",
+    "redo": "Redo",
+    "postTitle": "Post Title",
+    "titlePlaceholder": "Enter a title for this post...",
+    "tagsLabel": "Tags",
+    "addTagPlaceholder": "Add tag...",
+    "addTag": "Add",
+    "confirmRestoreTitle": "Confirm Restore",
+    "confirmRestoreBody": "This will permanently delete your draft changes and restore the original published version from the server. This action cannot be undone.",
+    "confirmRestoreAction": "Confirm Restore",
+    "unsavedTitle": "Unsaved Changes",
+    "unsavedBody": "You have unsaved changes in \"{title}\". Do you want to save them before leaving?",
+    "discard": "Discard",
+    "saveContinue": "Save & Continue",
+    "statsTitle": "Document Statistics",
+    "stats": {
+      "words": "Words",
+      "charsWithSpaces": "Characters (with spaces)",
+      "charsNoSpaces": "Characters (no spaces)",
+      "nonWestern": "Non-Western Characters",
+      "markdownChars": "Original Markdown Chars"
+    }
+    ,
+    "countWords": "{count} word",
+    "countWordsPlural": "{count} words",
+    "rows": "Rows",
+    "cols": "Cols",
+    "code": {
+        "lineCol": "Line: {line} | Col: {col}",
+        "charSing": "{count} Char",
+        "charPlural": "{count} Chars",
+        "lineSing": "{count} Line",
+        "linePlural": "{count} Lines"
+    },
+    "view": {
+      "split": "Split View",
+      "edit": "Editor Only",
+      "preview": "Preview Only"
+    }
+  }
+    
+}

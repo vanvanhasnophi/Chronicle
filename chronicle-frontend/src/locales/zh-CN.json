@@ -1,0 +1,259 @@
+{
+  "app": {
+    "title": "Chronicle"
+  },
+  "nav": {
+    "home": "首页",
+    "blogs": "博客",
+    "search": "搜索",
+    "friends": "朋友",
+    "posts": "文章",
+    "files": "文件管理",
+    "settings": "设置",
+    "newPost": "写文章"
+  },
+  "inblog": {
+    "toc-title": "目录",
+    "backToBlogs": "返回博客列表",
+    "wordSing": "{count} 字",
+    "wordPlural": "{count} 字",
+    "min": "分钟",
+    "created": "创建于",
+    "updated": "更新于"
+  },
+  "misc": {
+    "backToTop": "回到顶部"
+  },
+  "blog": {
+    "featured": "精选",
+    "collapse": "收起",
+    "expand": "展开",
+    "allPosts": "全部文章",
+    "loadingPosts": "正在加载文章...",
+    "noPostsStartWriting": "暂无文章，开始写第一篇吧！",
+    "daySuffix": "日"
+  },
+  "home": {
+    "title": "Chronicle for Eightyfor",
+    "tagline": "Love what you wanna love, be what you wanna be.<br/>爱我所爱，自成一派。",
+    "viewBlogs": "查看博客"
+  },
+  "file": {
+    "library": "资源库",
+    "upload": "上传",
+    "refresh": "刷新",
+    "loading": "正在加载...",
+    "noFiles": "该分类暂无文件。",
+    "copyLink": "复制链接",
+    "delete": "删除",
+    "categories": {
+      "all": "全部文件",
+      "images": "图片",
+      "videos": "视频",
+      "audio": "音频",
+      "documents": "文档",
+      "text": "文本/代码",
+      "others": "其他"
+    },
+    "type": {
+      "audio": "音频",
+      "video": "视频",
+      "document": "文档",
+      "code": "文本/代码",
+      "file": "文件"
+    }
+  },
+  "friends": {
+    "title": "友人"
+  },
+  "settings": {
+    "home": "首页设置",
+    "homeHint": "编辑首页自定义 HTML（将保存在本地配置中）",
+    "friends": "朋友页设置",
+    "friendsHint": "编辑朋友页自定义 HTML（将保存在本地配置中）",
+    "i18n": "语言与字体",
+    "i18nHint": "设置前台/后台默认语言与字体偏好（仅调整 UI，不影响文章内容）",
+    "security": "安全",
+    "locale": {
+      "follow": "跟随浏览器",
+      "zh": "中文（简体）",
+      "en": "英文"
+    }
+  },
+  "post": {
+    "manageTitle": "文章管理",
+    "newPost": "新建文章",
+    "loadingPosts": "正在加载文章...",
+    "noPostsFound": "暂无文章。",
+    "table": {
+      "title": "标题",
+      "status": "状态",
+      "date": "日期",
+      "actions": "操作",
+      "edit": "编辑",
+      "delete": "删除"
+    },
+    "renameHint": "双击重命名",
+    "confirmDelete": "确认删除这篇文章吗？",
+    "renameFailed": "重命名失败",
+    "errorRenaming": "重命名出错",
+    "failedToDelete": "删除失败",
+    "errorDeleting": "删除时出错"
+  },
+  "search": {
+    "selectTags": "选择标签",
+    "placeholder": "按标题搜索...",
+    "noTags": "未找到标签",
+    "done": "完成",
+    "loading": "正在加载...",
+    "noResults": "未找到符合条件的文章。"
+  },
+  "login": {
+    "title": "管理登录",
+    "password": "密码",
+    "placeholder": "输入管理员密码",
+    "checking": "校验中...",
+    "enter": "登录",
+    "2faRequired": "需要两步验证",
+    "usePasskey": "使用访问密钥 / 面容 ID",
+    "or": "或",
+    "codePlaceholder": "6 位验证码",
+    "verify": "验证",
+    "backToPassword": "返回密码登录",
+    "failed": "登录失败",
+    "connectionError": "连接错误",
+    "verifyFailed": "校验失败",
+    "verifyError": "验证出错",
+    "passkeyFailed": "访问密钥验证失败",
+    "cancelled": "用户取消登录",
+    "invalidAuthenticator": "认证器状态无效",
+    "authFailed": "身份验证失败，请重试。"
+  },
+  "security": {
+    "title": "安全设置",
+    "verificationTitle": "登录验证码",
+    "verificationHint": "在需要两步验证的设备上使用此验证码登录。",
+    "generateCode": "生成验证码",
+    "changePasswordTitle": "修改密码",
+    "currentPassword": "当前密码",
+    "newPassword": "新密码",
+    "confirmPassword": "确认新密码",
+    "updating": "更新中...",
+    "updatePassword": "更新密码",
+    "verifying": "正在校验 2FA...",
+    "newPasswordsMismatch": "两次输入的新密码不一致",
+    "enterCurrentPassword": "请输入当前密码",
+    "2faFailed": "两步验证失败",
+    "passwordUpdated": "密码已更新",
+    "failedToUpdate": "更新失败",
+    "connectionError": "连接错误",
+    "twoFactorTitle": "两步验证（2FA）",
+    "twoFactorHint": "注册访问密钥（面容 ID/触控 ID/YubiKey）以在密码登录后启用两步验证。",
+    "registering": "注册中...",
+    "registerNewPasskey": "注册新的访问密钥",
+    "passkeyRegistered": "访问密钥注册成功！",
+    "verificationFailed": "验证失败",
+    "registrationCancelled": "注册已取消",
+    "authenticatorRegistered": "认证器已注册",
+    "registrationFailed": "注册失败，请重试。",
+    "registeredKeys": "已注册密钥",
+    "unnamedKey": "未命名密钥",
+    "added": "添加于",
+    "rename": "重命名",
+    "delete": "删除",
+    "confirmDeletePasskey": "确认删除此访问密钥吗？",
+    "failedToDeletePasskey": "删除访问密钥失败",
+    "enterNewName": "输入新名称：",
+    "failedToRenamePasskey": "重命名访问密钥失败",
+    "session": "会话",
+    "logout": "退出登录"
+  },
+  "tag":{
+    "featured": "精选"
+  }
+  ,
+  "status": {
+    "draft": "草稿",
+    "published": "已发布",
+    "modifying": "修改中"
+  },
+  "editor": {
+    "restore": "恢复",
+    "draft": "存草稿",
+    "publish": "发布",
+    "file": {
+      "new": "新建文章",
+      "open": "打开...",
+      "import": "导入",
+      "export": "导出",
+      "createNew": "创建一篇新文章。",
+      "note": "注意：当前文档的未保存更改需要确认。",
+      "clickToSelect": "点击选择文件",
+      "importInstruction": "从你的设备导入一个 Markdown 或 文本 文件。",
+      "uploadNewFile": "上传新文件",
+      "exportasMarkdown": "导出为 Markdown",
+      "exportasText": "导出为文本"
+    },
+    "fileLabel": "文件",
+    "media": "媒体",
+    "link": "链接",
+    "linktext": "链接文本",
+    "texttoDisplay": "显示在链接上的文本",
+    "table": "表格",
+    "locked": "只读",
+    "editable": "编辑",
+    "lock": "锁定预览",
+    "unlock": "解锁预览",
+    "saving": "保存中...",
+    "placeholder": "开始书写 Markdown...",
+    "cancel": "取消",
+    "insert": "插入",
+    "saveDraft": "保存草稿",
+    "publishNow": "立即发布",
+    "createNewPost": "创建文章",
+    "toggleFeatured": "切换为精选"
+    ,
+    "undo": "撤销",
+    "redo": "重做",
+    "postTitle": "文章标题",
+    "titlePlaceholder": "为文章填写标题...",
+    "tagsLabel": "标签",
+    "addTagPlaceholder": "添加标签...",
+    "addTag": "添加",
+    "confirmRestoreTitle": "确认恢复",
+    "confirmRestoreBody": "这将永久删除你的草稿更改并从服务器恢复已发布版本。此操作不可撤销。",
+    "confirmRestoreAction": "确认恢复",
+    "unsavedTitle": "未保存的更改",
+    "unsavedBody": "你在 \"{title}\" 中有未保存的更改。离开前是否要保存？",
+    "discard": "放弃",
+    "saveContinue": "保存并继续",
+    "statsTitle": "文档统计",
+    "stats": {
+      "words": "字数",
+      "charsWithSpaces": "字符数（含空格）",
+      "charsNoSpaces": "字符数（不含空格）",
+      "nonWestern": "非西文字符数",
+      "markdownChars": "原始 Markdown 字符数"
+    }
+    ,
+    "countWords": "{count} 字",
+    "countWordsPlural": "{count} 字"
+  ,
+  "code": {
+    "lineCol": "行：{line} | 列：{col}",
+    "charSing": "{count} 字符",
+    "charPlural": "{count} 字符",
+    "lineSing": "{count} 行",
+    "linePlural": "{count} 行"
+  }
+    ,
+    "rows": "行数",
+    "cols": "列数",
+    "view": {
+      "split": "分屏",
+      "edit": "仅编辑",
+      "preview": "仅预览"
+    }
+  }
+    
+}

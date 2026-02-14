@@ -122,8 +122,14 @@
     </div>
 
     <div class="editor-footer" v-if="showFooter">
-  <span v-if="!readonly">Line: {{ currentLine }} | Col: {{ currentColumn }}</span>
-  <span>{{ code.length }} Char{{ code.length !== 1 ? 's' : '' }} | {{ lineCount }} Line{{ lineCount !== 1 ? 's' : '' }}</span>
+  <span v-if="!readonly">{{ t('editor.code.lineCol', { line: currentLine, col: currentColumn }) }}</span>
+  <span>
+    <span v-if="code.length === 1">{{ t('editor.code.charSing', { count: code.length }) }}</span>
+    <span v-else>{{ t('editor.code.charPlural', { count: code.length }) }}</span>
+    &nbsp;|&nbsp;
+    <span v-if="lineCount === 1">{{ t('editor.code.lineSing', { count: lineCount }) }}</span>
+    <span v-else>{{ t('editor.code.linePlural', { count: lineCount }) }}</span>
+  </span>
     </div>
   </div>
 </template>
@@ -140,6 +146,7 @@ const textareaHeight = computed(() => {
   return h + 'px'
 })
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import mermaid from 'mermaid'
 
 // Props 定义
@@ -194,6 +201,7 @@ function onTextareaScroll(e: Event) {
 */
 const currentLine = ref(1)
 const currentColumn = ref(1)
+const { t } = useI18n()
 
 // 计算属性
 const lineCount = computed(() => {

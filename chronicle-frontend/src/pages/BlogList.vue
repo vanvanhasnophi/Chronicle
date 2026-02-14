@@ -5,10 +5,10 @@
             <!-- Featured Section -->
             <section v-if="featuredPosts.length > 0" class="section-block">
                 <div class="section-header">
-                    <h2 class="section-title">Featured</h2>
+                    <h2 class="section-title">{{ $t('blog.featured') }}</h2>
                     <button v-if="featuredPosts.length > 3" class="toggle-btn"
                         @click="isFeaturedExpanded = !isFeaturedExpanded">
-                        {{ isFeaturedExpanded ? 'Collapse' : 'Expand' }}
+                        {{ isFeaturedExpanded ? $t('blog.collapse') : $t('blog.expand') }}
                     </button>
                 </div>
                 <div class="featured-grid">
@@ -20,8 +20,7 @@
                         <h3 class="post-title">{{ post.title }}</h3>
                         <div class="post-tags">
                             <span v-for="tag in sortTags(post.tags)" :key="tag" class="tag"
-                                :class="{ featured: tag === 'featured' }" style="margin-right:3px">#&nbsp;{{ tag
-                                }}</span>
+                                :class="{ featured: tag === 'featured' }" style="margin-right:3px">#&nbsp;{{ tag === 'featured' ? $t('tag.featured') : tag }}</span>
                         </div>
                     </article>
                 </div>
@@ -29,9 +28,9 @@
 
             <!-- Archive Section -->
             <section class="section-block">
-                <h2 class="section-title">All Posts</h2>
-                <div v-if="loading" class="loading">Loading posts...</div>
-                <div v-else-if="posts.length === 0" class="empty">No posts found. Start writing!</div>
+                <h2 class="section-title">{{ $t('blog.allPosts') }}</h2>
+                <div v-if="loading" class="loading">{{ $t('blog.loadingPosts') }}</div>
+                <div v-else-if="posts.length === 0" class="empty">{{ $t('blog.noPostsStartWriting') }}</div>
 
                 <div v-else class="archive-list">
                     <div v-for="yearGroup in groupedPosts" :key="yearGroup.year" class="year-block">
@@ -46,11 +45,11 @@
                                     @click="openPost(post.id)">
                                     <div class="post-header-row">
                                         <h4 class="post-title">{{ post.title }}</h4>
-                                        <span class="post-day">{{ new Date(post.date).getDate() }}日</span>
+                                        <span class="post-day">{{ new Date(post.date).getDate() }}{{ $t('blog.daySuffix') }}</span>
                                     </div>
                                     <div class="post-tags" v-if="post.tags && post.tags.length">
                                         <span v-for="tag in sortTags(post.tags)" :key="tag" class="tag"
-                                            :class="{ featured: tag === 'featured' }">#&nbsp;{{ tag }}</span>
+                                            :class="{ featured: tag === 'featured' }">#&nbsp;{{ tag === 'featured' ? $t('tag.featured') : tag }}</span>
                                     </div>
                                 </article>
                             </div>
@@ -71,6 +70,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { Icons } from '../utils/icons'
 import { sortTags } from '../utils/tagUtils'
 
@@ -83,6 +83,7 @@ interface Post {
 }
 
 const router = useRouter()
+const { t } = useI18n()
 const posts = ref<Post[]>([])
 const loading = ref(true)
 const scrollContainer = ref<HTMLElement | null>(null)

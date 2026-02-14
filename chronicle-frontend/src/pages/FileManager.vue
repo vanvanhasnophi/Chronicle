@@ -1,31 +1,31 @@
 <template>
   <div class="file-manager">
-    <div class="sidebar">
-      <div class="sidebar-header">Library</div>
+            <div class="sidebar">
+            <div class="sidebar-header">{{ $t('file.library') }}</div>
       <div v-for="cat in categories" :key="cat.id" 
            class="folder-item" 
            :class="{ active: currentCategory === cat.id }"
            @click="navigate(cat.id)">
         <span class="cat-icon" v-html="cat.icon"></span> 
-        {{ cat.label }}
+                {{ $t(cat.label) }}
       </div>
     </div>
     
     <div class="main-content">
       <div class="toolbar">
-        <h3>{{ currentCategoryLabel }}</h3>
+                <h3>{{ currentCategoryLabel }}</h3>
         <div class="actions">
-           <label class="upload-btn">
-             Upload
+                     <label class="upload-btn">
+                         {{ $t('file.upload') }}
              <input type="file" @change="handleUpload" hidden multiple />
            </label>
-           <button @click="refresh" class="icon-btn" v-html="Icons.refresh" title="Refresh"></button>
+                     <button @click="refresh" class="icon-btn" v-html="Icons.refresh" :title="$t('file.refresh')"></button>
         </div>
       </div>
 
       <div class="file-grid">
-         <div v-if="loading" class="loading">Loading...</div>
-         <div v-else-if="items.length === 0" class="empty">No files in this category.</div>
+         <div v-if="loading" class="loading">{{ $t('file.loading') }}</div>
+         <div v-else-if="items.length === 0" class="empty">{{ $t('file.noFiles') }}</div>
          
          <div v-for="file in items" :key="file.name" class="grid-item file">
             <div class="preview" @click="openPreview(file)">
@@ -34,8 +34,8 @@
             </div>
             <div class="name" :title="file.name">{{ file.name }}</div>
             <div class="actions-row">
-                <button class="copy-btn" @click.stop="copyLink(file)" title="Copy Link" v-html="Icons.link"></button>
-                <button class="delete-btn" @click.stop="deleteItem(file.path)" v-html="Icons.trash"></button>
+                <button class="copy-btn" @click.stop="copyLink(file)" :title="$t('file.copyLink')" v-html="Icons.link"></button>
+                <button class="delete-btn" @click.stop="deleteItem(file.path)" :title="$t('file.delete')" v-html="Icons.trash"></button>
             </div>
          </div>
       </div>
@@ -48,22 +48,24 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { usePreview } from '../composables/usePreview'
 import { useImagePreview } from '../composables/useImagePreview'
 import { Icons } from '../utils/icons'
 
 const router = useRouter()
+const { t } = useI18n()
 const { openPreview: openGlobalPreview } = usePreview()
 const { openImagePreview } = useImagePreview()
 
 const categories = [
-    { id: 'all', label: 'All Files', icon: Icons.folder },
-    { id: 'pic', label: 'Images', icon: Icons.image },
-    { id: 'video', label: 'Videos', icon: Icons.video },
-    { id: 'sound', label: 'Audio', icon: Icons.audio },
-    { id: 'doc', label: 'Documents', icon: Icons.document },
-    { id: 'txt', label: 'Text/Code', icon: Icons.codeText },
-    { id: 'other', label: 'Others', icon: Icons.archive }
+    { id: 'all', label: 'file.categories.all', icon: Icons.folder },
+    { id: 'pic', label: 'file.categories.images', icon: Icons.image },
+    { id: 'video', label: 'file.categories.videos', icon: Icons.video },
+    { id: 'sound', label: 'file.categories.audio', icon: Icons.audio },
+    { id: 'doc', label: 'file.categories.documents', icon: Icons.document },
+    { id: 'txt', label: 'file.categories.text', icon: Icons.codeText },
+    { id: 'other', label: 'file.categories.others', icon: Icons.archive }
 ]
 
 const currentCategory = ref('all')
@@ -74,7 +76,8 @@ const loading = ref(false)
 // No local preview state needed anymore
 
 const currentCategoryLabel = computed(() => {
-    return categories.find(c => c.id === currentCategory.value)?.label || 'Library'
+    const key = categories.find(c => c.id === currentCategory.value)?.label || 'file.library'
+    return t(key)
 })
 
 const loadItems = async () => {
@@ -152,11 +155,11 @@ const copyLink = (file: any) => {
 }
 
 const getFileType = (name: string) => {
-    if (/\.(mp3|wav|ogg|m4a|flac|aac)$/i.test(name)) return 'Audio'
-    if (/\.(mp4|webm|mkv|mov|avi)$/i.test(name)) return 'Video'
-    if (/\.(pdf|doc|docx|ppt|pptx|xls|xlsx)$/i.test(name)) return 'Document'
-    if (/\.(txt|md|js|ts|json|c|cpp|h|java|py|sh|bat|ini|conf|vue|log|csv|xml|yaml|yml|rs|go|php)$/i.test(name)) return 'Code/Text'
-    return 'File'
+    if (/\.(mp3|wav|ogg|m4a|flac|aac)$/i.test(name)) return t('file.type.audio')
+    if (/\.(mp4|webm|mkv|mov|avi)$/i.test(name)) return t('file.type.video')
+    if (/\.(pdf|doc|docx|ppt|pptx|xls|xlsx)$/i.test(name)) return t('file.type.document')
+    if (/\.(txt|md|js|ts|json|c|cpp|h|java|py|sh|bat|ini|conf|vue|log|csv|xml|yaml|yml|rs|go|php)$/i.test(name)) return t('file.type.code')
+    return t('file.type.file')
 }
 
 const openPreview = async (file: any) => {

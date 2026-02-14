@@ -7,6 +7,8 @@
   --app-font-stack-inter: -apple-system, BlinkMacSystemFont, 'InterVariable','Inter', 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   /*当前字体栈，入口动态切换*/
   --app-font-stack: var(--app-font-stack-inter);
+  /* Backend font stack (admin/editor). Defaults to same as frontend stack unless overridden */
+  --backend-font-stack: var(--app-font-stack-inter);
   
   font-family: var(--app-font-stack);
   line-height: 1.5;
@@ -21,12 +23,26 @@
   --glow-light: rgba(0, 0, 0, 0.678);
   --glow-dark: rgba(255, 255, 255, 0.644);
 
+  --component-bg: rgb(34,34,34);
+  --component-bg-blur:rgba(34,34,34,0.9);
+
   --featured: #ffd700;
   --featured-bg: rgba(255, 215, 0, 0.15);
 
+  --text-inactive: #a9a9a9;
   
   --accent-color: #2ea35f;
+  --accent-color-dark: #24804a;
   --border-color: #333;
+
+  /* Aliases for legacy variable names used across components */
+  --bg-primary: var(--app-bg-dark);
+  --bg-secondary: #1e1e1e;
+  --text-primary: var(--app-text-dark);
+  --text-secondary: #888;
+  --accent: var(--accent-color);
+  --text-on-accent: #fff;
+  --select-arrow-color: #bbbbbb;
 
   color: var(--app-text-dark);
   background-color: var(--app-bg-dark);
@@ -55,6 +71,11 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background: #1e1e1e;
+}
+
+/* When in backend/admin area, use a separate font stack to avoid changing frontend look */
+body.backend {
+  font-family: var(--backend-font-stack);
 }
 
 h1 {
@@ -149,6 +170,22 @@ button:focus-visible {
   outline: none;
 }
 
+button.primary{
+  background: var(--accent-color);
+  color: white;
+  transition: all 0.3s ease;
+}
+
+button.primary:hover {
+  background: var(--accent-color-dark);
+}
+button.secondary {
+  background: transparent;
+  border-color: var(--accent-color) !important;
+  color: var(--accent-color);
+}
+
+
 /* Back to Top */
 .back-to-top {
     position: fixed;
@@ -197,6 +234,98 @@ button:focus-visible {
   padding: 2em;
 }
 
+.modern-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='var(--text-primary) text' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 20px;
+  padding-right: 48px; /* reserve more space for larger arrow */
+}
+.modern-select:hover { border-color: #ffffff90; background: #ffffff09; }
+.modern-select:focus { outline: none; background-color: #ffffff10; box-shadow: 0 4px 12px rgba(0,0,0,0.25); border-color: var(--accent-color);}
+
+/* Hide native IE arrow */
+.modern-select::-ms-expand { display: none; }
+
+/* Option styles (browser support varies) */
+.modern-select option {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+
+  
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--component-bg);
+  color: var(--text-primary);
+}
+
+/* Compact variant */
+.modern-select.compact {
+  padding: 6px 32px 6px 8px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+/* Transparent variant keeps background transparent but preserves arrow */
+.transparent-select {
+  background-color: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.modern-select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.modern-select[disabled] {
+  background-image: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(0,0,0,0.01)), url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23777777' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+}
+
+/* Wrapper for select so we can draw arrow via pseudo-element (select doesn't support ::after) */
+.select-wrap {
+  display: inline-block;
+  position: relative;
+}
+.select-wrap .modern-select {
+  display: block; /* fill the wrapper */
+  width: 100%;
+  vertical-align: middle;
+  position: relative;
+  z-index: 1; /* keep select below the arrow pseudo-element */
+  box-sizing: border-box;
+}
+
+/* Arrow via pseudo-element using mask so color can be controlled by CSS variable */
+.select-wrap::after {
+  content: '';
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 18px;
+  pointer-events: none;
+  background-color: var(--select-arrow-color, #bbbbbb);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M6 9 L12 15 L18 9' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>") no-repeat center;
+  -webkit-mask-size: 18px 18px;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M6 9 L12 15 L18 9' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>") no-repeat center;
+  mask-size: 18px 18px;
+  z-index: 3; /* ensure arrow is above the select */
+}
+
 #app {
   width: 100vw;
   height: 100vh;
@@ -227,5 +356,5 @@ button:focus-visible {
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace !important;
 }
 .font-sans {
-  font-family: var(--app-font-stack) !important;
+  font-family: var(--app-font-stack-inter) !important;
 }

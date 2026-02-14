@@ -1,6 +1,6 @@
 <template>
   <div class="page-container">
-    <h1>Friends</h1>
+    <h1>{{ $t('friends.title') }}</h1>
     <div class="friends-list">
         <p><h3>Waiwai</h3>
           <h4>非常乐意并享受被人挂网上的感觉</h4>

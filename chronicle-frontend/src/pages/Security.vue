@@ -1,38 +1,38 @@
 <template>
   <div class="security-page">
-    <h2>Security Settings</h2>
+    <h2>{{ $t('security.title') }}</h2>
     
     <div class="card highlight-card">
-        <h3 style="margin-top: 5px;">Login Verification Code</h3>
-        <p class="hint">Use this code to log in on another device requiring 2FA.</p>
+        <h3 style="margin-top: 5px;">{{ $t('security.verificationTitle') }}</h3>
+        <p class="hint">{{ $t('security.verificationHint') }}</p>
         
         <div v-if="verificationCode" class="code-display">
             <div class="code code-display">{{ verificationCode.split('').join(' ') }}</div>
             <div class="timer expire-timer">Expires in {{ Math.floor(codeTimer / 60) }}:{{ (codeTimer % 60).toString().padStart(2, '0') }}</div>
         </div>
-        <button v-else @click="generateCode" class="secondary-btn">Generate Code</button>
+        <button v-else @click="generateCode" class="secondary-btn">{{ $t('security.generateCode') }}</button>
     </div>
 
     <div class="card">
-      <h3 style="margin-top: 5px;">Change Password</h3>
+      <h3 style="margin-top: 5px;">{{ $t('security.changePasswordTitle') }}</h3>
       
       <div class="form-group">
-        <label>Current Password</label>
+        <label>{{ $t('security.currentPassword') }}</label>
         <input type="password" v-model="oldPassword" />
       </div>
 
       <div class="form-group">
-        <label>New Password</label>
+        <label>{{ $t('security.newPassword') }}</label>
         <input type="password" v-model="newPassword" />
       </div>
 
       <div class="form-group">
-        <label>Confirm New Password</label>
+        <label>{{ $t('security.confirmPassword') }}</label>
         <input type="password" v-model="confirmPassword" />
       </div>
 
       <button @click="changePassword" :disabled="loading">
-        {{ loading ? 'Updating...' : 'Update Password' }}
+        {{ loading ? $t('security.updating') : $t('security.updatePassword') }}
       </button>
 
       <p v-if="message" :class="['message', success ? 'success' : 'error']">
@@ -41,11 +41,11 @@
     </div>
 
     <div class="card">
-      <h3 style="margin-top: 5px;">Two-Factor Authentication</h3>
-      <p class="hint">Register a Passkey device (FaceID/TouchID/YubiKey) to enforce 2FA verification after password login.</p>
+      <h3 style="margin-top: 5px;">{{ $t('security.twoFactorTitle') }}</h3>
+      <p class="hint">{{ $t('security.twoFactorHint') }}</p>
       
       <button @click="registerPasskey" :disabled="regLoading" class="secondary-btn">
-        {{ regLoading ? 'Registering...' : 'Register New Passkey' }}
+        {{ regLoading ? $t('security.registering') : $t('security.registerNewPasskey') }}
       </button>
       
       <p v-if="regMessage" :class="['message', regSuccess ? 'success' : 'error']">
@@ -53,23 +53,23 @@
       </p>
 
       <div v-if="passkeys.length > 0" class="passkey-list">
-        <h4>Registered Keys</h4>
+        <h4>{{ $t('security.registeredKeys') }}</h4>
         <div v-for="pk in passkeys" :key="pk.id" class="passkey-item">
             <div class="pk-info">
-                <span class="pk-name">{{ pk.name || 'Unnamed Key' }}</span>
-                <span class="pk-date">Added: {{ new Date(pk.createdAt).toLocaleDateString() }}</span>
-            </div>
+            <span class="pk-name">{{ pk.name || $t('security.unnamedKey') }}</span>
+            <span class="pk-date">{{ $t('security.added') }}: {{ new Date(pk.createdAt).toLocaleDateString() }}</span>
+          </div>
             <div class="pk-actions">
-                <button class="icon-btn edit-btn" @click="renamePasskey(pk.id, pk.name || 'Unnamed Key')" title="Rename" v-html="Icons.edit"></button>
-                <button class="icon-btn delete-btn" @click="deletePasskey(pk.id)" title="Delete" v-html="Icons.trash"></button>
+                <button class="icon-btn edit-btn" @click="renamePasskey(pk.id, pk.name || $t('security.unnamedKey'))" :title="$t('security.rename')" v-html="Icons.edit"></button>
+                <button class="icon-btn delete-btn" @click="deletePasskey(pk.id)" :title="$t('security.delete')" v-html="Icons.trash"></button>
             </div>
         </div>
       </div>
     </div>
 
     <div class="card logout-card">
-      <h3 style="margin-top: 5px;">Session</h3>
-      <button class="logout-btn" @click="logout">Log Out</button>
+      <h3 style="margin-top: 5px;">{{ $t('security.session') }}</h3>
+      <button class="logout-btn" @click="logout">{{ $t('security.logout') }}</button>
     </div>
   </div>
 </template>
@@ -77,10 +77,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser'
 import { Icons } from '../utils/icons'
 
 const router = useRouter()
+const { t } = useI18n()
 const oldPassword = ref('')
 const newPassword = ref('')
 const confirmPassword = ref('')
@@ -123,7 +125,7 @@ const passkeys = ref<Passkey[]>([])
 
 const verifyPasskey = async () => {
     try {
-        message.value = "Verifying 2FA..."
+            message.value = t('security.verifying')
         const resp = await fetch('/api/auth/passkey/login/options', { method: 'POST' })
         const options = await resp.json()
         
@@ -145,13 +147,13 @@ const verifyPasskey = async () => {
 const changePassword = async (tokenOrEvent?: string | Event) => {
   const actualToken = typeof tokenOrEvent === 'string' ? tokenOrEvent : ''
 
-  if (newPassword.value !== confirmPassword.value) {
-    message.value = "New passwords do not match"
+    if (newPassword.value !== confirmPassword.value) {
+    message.value = t('security.newPasswordsMismatch')
     success.value = false
     return
   }
   if (!oldPassword.value) {
-    message.value = "Please enter current password"
+    message.value = t('security.enterCurrentPassword')
     success.value = false
     return
   }
@@ -178,21 +180,21 @@ const changePassword = async (tokenOrEvent?: string | Event) => {
             await changePassword(passkeyToken)
             return
         } else {
-             message.value = "2FA Verification Failed"
+             message.value = t('security.2faFailed')
              success.value = false
         }
     } else if (data.success) {
-      message.value = "Password updated successfully"
+      message.value = t('security.passwordUpdated')
       success.value = true
       oldPassword.value = ''
       newPassword.value = ''
       confirmPassword.value = ''
     } else {
-      message.value = data.message || "Failed to update password"
+      message.value = data.message || t('security.failedToUpdate')
       success.value = false
     }
   } catch (e) {
-    message.value = "Connection error"
+    message.value = t('security.connectionError')
     success.value = false
   } finally {
     loading.value = false
@@ -223,14 +225,14 @@ const registerPasskey = async () => {
             body: JSON.stringify({ response: attResp })
         })
         const verData = await verResp.json()
-        if (verData.verified) {
+           if (verData.verified) {
              regSuccess.value = true
-             regMessage.value = 'Passkey registered successfully!'
+             regMessage.value = t('security.passkeyRegistered')
              fetchPasskeys()
-        } else {
+           } else {
              regSuccess.value = false
-             regMessage.value = 'Verification failed'
-        }
+             regMessage.value = t('security.verificationFailed')
+           }
     } catch (e: any) {
         regSuccess.value = false
         if (e.name === 'NotAllowedError') {
@@ -249,7 +251,7 @@ const fetchPasskeys = async () => {
     try {
         const res = await fetch('/api/auth/passkeys')
         if (res.ok) {
-            passkeys.value = await res.json()
+          passkeys.value = await res.json()
         }
     } catch (e) {
         console.error("Failed to fetch passkeys", e)
@@ -257,19 +259,19 @@ const fetchPasskeys = async () => {
 }
 
 const deletePasskey = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this passkey?')) return;
+    if (!confirm(t('security.confirmDeletePasskey'))) return;
     try {
         const res = await fetch(`/api/auth/passkeys/${id}`, { method: 'DELETE' })
         if (res.ok) {
             fetchPasskeys()
         }
     } catch(e) {
-        alert('Failed to delete passkey')
+          alert(t('security.failedToDeletePasskey'))
     }
 }
 
 const renamePasskey = async (id: string, currentName: string) => {
-    const newName = prompt('Enter new name:', currentName)
+    const newName = prompt(t('security.enterNewName'), currentName)
     if (!newName || newName === currentName) return;
     
     try {
@@ -279,10 +281,10 @@ const renamePasskey = async (id: string, currentName: string) => {
             body: JSON.stringify({ name: newName })
         })
         if (res.ok) {
-            fetchPasskeys()
+          fetchPasskeys()
         }
     } catch(e) {
-        alert('Failed to rename passkey')
+        alert(t('security.failedToRenamePasskey'))
     }
 }
 
@@ -293,7 +295,7 @@ onMounted(() => {
 
 <style scoped>
 .security-page {
-  max-width: 600px;
+  max-width: 800px;
   margin: 0 auto;
   padding: 2rem;
 }

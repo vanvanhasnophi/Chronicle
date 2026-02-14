@@ -1,48 +1,48 @@
 <template>
   <div class="login-container">
     <div class="login-box">
-      <h2>Chronicle Manager</h2>
+      <h2>{{ $t('login.title') }}</h2>
 
       <div v-if="!show2FAGate">
         <div class="input-group">
-          <label>Password</label>
+          <label>{{ $t('login.password') }}</label>
           <input 
             type="password" 
             v-model="password" 
             @keyup.enter="handleLogin"
-            placeholder="Enter admin password"
+            :placeholder="t('login.placeholder')"
             style="width: calc(100% - 20px) !important;"
           />
         </div>
         <button @click="handleLogin" :disabled="loading" class="primary-btn">
-          {{ loading ? 'Checking...' : 'Enter' }}
+          {{ loading ? $t('login.checking') : $t('login.enter') }}
         </button>
       </div>
 
       <div v-else class="two-fa-section">
-          <p class="verification-hint">Two-Factor Authentication Required</p>
+          <p class="verification-hint">{{ $t('login.2faRequired') }}</p>
           
           <button @click="handlePasskeyLogin(true)" :disabled="loading" class="primary-btn passkey-main-btn">
              <span class="icon" v-html="Icons.lock"></span>
-             Use Passkey / FaceID
+             {{ $t('login.usePasskey') }}
           </button>
           
-          <div class="divider">OR</div>
+          <div class="divider">{{ $t('login.or') }}</div>
           
           <div class="code-entry">
               <input 
                   type="text" 
                   v-model="inputCode" 
-                  placeholder="6-digit code"
+                  :placeholder="t('login.codePlaceholder')"
                   maxlength="6"
                   @keyup.enter="handleCodeVerify"
               />
-              <button @click="handleCodeVerify" class="secondary-btn" :disabled="loading || inputCode.length < 6">
-                  Verify
-              </button>
+                <button @click="handleCodeVerify" class="secondary-btn" :disabled="loading || inputCode.length < 6">
+                  {{ $t('login.verify') }}
+                </button>
           </div>
           
-          <button @click="resetLogin" class="text-btn">Back to Password</button>
+          <button @click="resetLogin" class="text-btn">{{ $t('login.backToPassword') }}</button>
       </div>
       
       <p v-if="error" class="error">{{ error }}</p>
@@ -55,8 +55,10 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { startAuthentication } from '@simplewebauthn/browser'
 import { Icons } from '../utils/icons' 
+import { useI18n } from 'vue-i18n'
 
 const router = useRouter()
+const { t } = useI18n()
 const password = ref('')
 const loading = ref(false)
 const error = ref('')
@@ -100,10 +102,10 @@ const handleLogin = async () => {
         completeLogin()
       }
     } else {
-      error.value = data.message || 'Login failed'
+      error.value = data.message || t('login.failed')
     }
   } catch (e) {
-    error.value = 'Connection error'
+    error.value = t('login.connectionError')
   } finally {
     loading.value = false
   }
@@ -149,18 +151,18 @@ const handlePasskeyLogin = async (is2FA = false) => {
         })
         const verData = await verResp.json()
         if (verData.verified) {
-            completeLogin()
+          completeLogin()
         } else {
-            error.value = 'Passkey verification failed'
+          error.value = t('login.passkeyFailed')
         }
     } catch (e: any) {
-        if (e.name === 'NotAllowedError') {
-             error.value = 'Login cancelled by user'
-        } else if (e.name === 'InvalidStateError') {
-             error.value = 'Invalid authenticator state'
-        } else {
-             error.value = 'Authentication failed. Please try again.'
-        }
+           if (e.name === 'NotAllowedError') {
+             error.value = t('login.cancelled')
+           } else if (e.name === 'InvalidStateError') {
+             error.value = t('login.invalidAuthenticator')
+           } else {
+             error.value = t('login.authFailed')
+           }
     } finally {
         loading.value = false
     }

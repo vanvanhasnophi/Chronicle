@@ -72,6 +72,8 @@ export const Icons = {
 
   fontSerif: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" font-family="serif" font-size="16" font-weight="bold">S</text></svg>`,
 
-  fontMono: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" font-family="monospace" font-size="16" font-weight="bold">M</text></svg>`
+  fontMono: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" font-family="monospace" font-size="16" font-weight="bold">M</text></svg>`,
+
+  globe: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></svg>`
 
 }

@@ -5,7 +5,7 @@
       <div class="toolbar-row row-meta">
         <div class="meta-left">
            <h4 class="post-title-display">{{ postTitle }}</h4>
-           <span :class="['status-chip', postStatus]">{{ postStatus.toUpperCase() }}</span>
+           <span :class="['status-chip', postStatus]">{{ $t('status.' + (postStatus || 'published')) }}</span>
            <div class="meta-dates">
              <span class="date-item" v-if="postUpdated" title="Last Edited">
                 <span class="icon-svg tiny" v-html="Icons.edit"></span>
@@ -19,14 +19,14 @@
         </div>
         <div class="actions-right">
             <button 
-              v-if="postStatus === 'modifying'"
-              class="toolbar-btn danger-btn"
-              @click="restorePost"
-              :disabled="isSaving"
-              title="Discard Draft & Restore Published"
+                            v-if="postStatus === 'modifying'"
+                            class="toolbar-btn danger-btn"
+                            @click="restorePost"
+                            :disabled="isSaving"
+                            :title="t('editor.restore')"
             >
               <span class="icon-svg" v-html="Icons.undo"></span>
-              <span v-if="!isMobile" class="btn-label">Restore</span>
+              <span v-if="!isMobile" class="btn-label">{{ t('editor.restore') }}</span>
             </button>
 
             <button 
@@ -35,7 +35,7 @@
               :disabled="isSaving"
             >
               <span class="icon-svg" v-html="Icons.save"></span>
-              <span v-if="!isMobile" class="btn-label">Draft</span>
+              <span v-if="!isMobile" class="btn-label">{{ t('editor.draft') }}</span>
             </button>
             
             <button 
@@ -44,7 +44,7 @@
               :disabled="isSaving"
             >
                <span class="icon-svg" v-html="Icons.publish"></span>
-               <span v-if="!isMobile" class="btn-label">Publish</span>
+               <span v-if="!isMobile" class="btn-label">{{ t('editor.publish') }}</span>
             </button>
         </div>
       </div>
@@ -52,13 +52,13 @@
       <!-- ROW 2: Editing Tools -->
       <div class="toolbar-row row-tools">
         <div class="tool-group">
-            <button
+            <button 
                 class="toolbar-btn"
                 @click="openFileMenu"
-                title="File Menu"
+                :title="t('editor.fileLabel')"
             >
                 <span class="icon-svg" v-html="Icons.file"></span>
-                <span>File</span>
+                <span>{{ t('editor.fileLabel') }}</span>
             </button>
             <span class="divider"></span>
             
@@ -66,7 +66,7 @@
                 class="toolbar-btn" 
                 @click="undo" 
                 :disabled="historyIndex <= 0"
-                title="Undo"
+                :title="t('editor.undo')"
             >
                 <span class="icon-svg" v-html="Icons.undo"></span>
             </button>
@@ -74,34 +74,34 @@
                 class="toolbar-btn" 
                 @click="redo" 
                 :disabled="historyIndex >= history.length - 1"
-                title="Redo"
+                :title="t('editor.redo')"
             >
                 <span class="icon-svg" v-html="Icons.redo"></span>
             </button>
             <span class="divider"></span>
-            <button 
-              class="toolbar-btn" 
-              @click="openImageModal"
-              title="Media Library"
-            >
-              <span class="icon-svg" v-html="Icons.media"></span>
-              <span>Media</span>
+                        <button 
+                            class="toolbar-btn" 
+                            @click="openImageModal"
+                            :title="t('editor.media')"
+                        >
+                            <span class="icon-svg" v-html="Icons.media"></span>
+                            <span>{{ t('editor.media') }}</span>
+                        </button>
+                        <button 
+                            class="toolbar-btn" 
+                            @click="openLinkModal"
+                            :title="t('editor.link')"
+                        >
+                <span class="icon-svg" v-html="Icons.link"></span>
+                <span>{{ t('editor.link') }}</span>
             </button>
-            <button 
-              class="toolbar-btn" 
-              @click="openLinkModal"
-              title="Insert Link"
-            >
-              <span class="icon-svg" v-html="Icons.link"></span>
-              <span>Link</span>
-            </button>
-            <button 
-              class="toolbar-btn" 
-              @click="openTableModal"
-              title="Insert Table"
-            >
+                        <button 
+                            class="toolbar-btn" 
+                            @click="openTableModal"
+                            :title="t('editor.table')"
+                        >
               <span class="icon-svg" v-html="Icons.table"></span>
-              <span>Table</span>
+              <span>{{ t('editor.table') }}</span>
             </button>
 
             <span class="divider"></span>
@@ -118,7 +118,7 @@
             </button>
         </div>
         <button class="stats-display" @click="activeModal = 'stats'">
-            {{ editorStats.wordCount }} word{{ editorStats.wordCount === 1 ? '' : 's' }}
+            {{ wordCountLabel }}
         </button>
       </div>
 
@@ -129,10 +129,10 @@
               class="toolbar-btn"
               :class="{ active: previewReadOnly }"
               @click="previewReadOnly = !previewReadOnly"
-              :title="previewReadOnly ? 'Unlock Edit Mode' : 'Lock Read Only'"
+              :title="previewReadOnly ? t('editor.unlock') : t('editor.lock')"
             >
               <span class="icon-svg" v-html="previewReadOnly ? Icons.lock : Icons.unlock"></span>
-              <span class="btn-label">{{ previewReadOnly ? 'Read Only' : 'Editable' }}</span>
+              <span class="btn-label">{{ previewReadOnly ? t('editor.locked') : t('editor.editable') }}</span>
             </button>
             <span class="divider"></span>
             <button 
@@ -152,14 +152,14 @@
     <div class="editor-workspace">
       <!-- Editor Pane -->
       <div v-show="showEditor" class="pane editor-pane">
-        <textarea
-          ref="editorRef"
-          v-model="localValue"
-          class="markdown-input"
-          placeholder="Start writing markdown..."
-          @scroll="syncScroll('editor')"
-          @mouseover="activeScroll = 'editor'"
-        ></textarea>
+                <textarea
+                    ref="editorRef"
+                    v-model="localValue"
+                    class="markdown-input"
+                    :placeholder="t('editor.placeholder')"
+                    @scroll="syncScroll('editor')"
+                    @mouseover="activeScroll = 'editor'"
+                ></textarea>
       </div>
 
       <!-- Preview Pane -->
@@ -206,16 +206,16 @@
                 <div class="content-body">
                     <!-- New Post -->
                     <div v-if="fileTab === 'new'" class="tab-pane">
-                        <p>Create a new empty post.</p>
+                        <p>{{ t('editor.file.createNew') }}</p>
                         <div class="warning-box">
-                            <strong>Note:</strong> Any unsaved changes in the current document will require confirmation.
+                            <strong>{{ t('editor.file.note').split(':')[0] }}</strong> {{ t('editor.file.note').split(':').slice(1).join(':') }}
                         </div>
-                        <button class="primary-btn" @click="executeFileAction">Create New Post</button>
+                        <button class="primary-btn" @click="executeFileAction">{{ t('editor.createNewPost') }}</button>
                     </div>
 
                     <!-- Open Post -->
                     <div v-if="fileTab === 'open'" class="tab-pane">
-                        <div v-if="fileLoading" class="loading">Loading posts...</div>
+                        <div v-if="fileLoading" class="loading">{{ t('post.loadingPosts') }}</div>
                         <div v-else class="post-list">
                             <div 
                                 v-for="post in filePosts" 
@@ -224,7 +224,7 @@
                                 @click="handlePostOpen(post.id)"
                             >
                                 <span class="post-title">{{ post.title }}</span>
-                                <span class="post-status status-chip" :class="post.status || 'draft'">{{ post.status || 'draft' }}</span>
+                                <span class="post-status status-chip" :class="post.status || 'draft'">{{ $t('status.' + (post.status || 'draft')) }}</span>
                                 <span class="post-date">{{ new Date(post.date).toLocaleDateString() }}</span>
                             </div>
                         </div>
@@ -232,19 +232,19 @@
 
                     <!-- Import -->
                     <div v-if="fileTab === 'import'" class="tab-pane">
-                        <p>Import a Markdown or text file from your device.</p>
+                        <p>{{ t('editor.file.importInstruction') }}</p>
                         <div class="file-drop-area" @click="triggerImportInput">
-                            <span v-if="!selectedImportFile">Click to select file</span>
+                            <span v-if="!selectedImportFile">{{ t('editor.file.clickToSelect') }}</span>
                             <span v-else>{{ selectedImportFile.name }}</span>
                         </div>
                         <input type="file" ref="fileInput" @change="handleImportSelect" accept=".md,.txt" style="display:none" />
-                        <button class="primary-btn" :disabled="!selectedImportFile" @click="executeFileAction">Import File</button>
+                        <button class="primary-btn" :disabled="!selectedImportFile" @click="executeFileAction">{{ t('editor.file.import') }}</button>
                     </div>
 
                     <!-- Export -->
                     <div v-if="fileTab === 'export'" class="tab-pane">
-                        <p>Download current content as a Markdown file.</p>
-                        <button class="primary-btn" @click="executeFileAction">Export to Markdown</button>
+                        <p>{{ t('editor.file.exportasMarkdown') }}</p>
+                        <button class="primary-btn" @click="executeFileAction">{{ t('editor.file.export') }}</button>
                     </div>
                 </div>
             </div>
@@ -255,7 +255,7 @@
     <div v-if="['media', 'link', 'table'].includes(activeModal)" class="modal-overlay" @click.self="activeModal = 'none'">
       <div class="modal-content" :class="activeModal === 'media' ? 'large-modal' : 'small-modal'">
         <div class="modal-header">
-            <h3>{{ activeModal === 'media' ? 'Media Library' : (activeModal === 'link' ? 'Insert Link' : 'Insert Table') }}</h3>
+            <h3>{{ activeModal === 'media' ? t('editor.media') : (activeModal === 'link' ? t('editor.link') : t('editor.table')) }}</h3>
             <button class="close-btn" @click="activeModal = 'none'">
                 <span class="icon-svg" v-html="Icons.close"></span>
             </button>
@@ -276,7 +276,7 @@
             <div class="media-content-area">
                 <div class="media-toolbar">
                     <button class="primary-btn" @click="triggerFileUpload">
-                        <span>Upload New File</span>
+                        <span>{{ t('editor.file.uploadNewFile') }}</span>
                     </button>
                     <input 
                         type="file" 
@@ -312,16 +312,16 @@
         <!-- Link Body -->
         <div v-if="activeModal === 'link'" class="modal-body">
             <div class="form-group">
-                <label>Link Text</label>
-                <input v-model="linkText" class="modal-input" placeholder="Text to display" autofocus />
+                <label>{{ t('editor.linktext') }}</label>
+                <input v-model="linkText" class="modal-input" :placeholder="t('editor.texttoDisplay')" autofocus />
             </div>
             <div class="form-group">
                 <label>URL</label>
                 <input v-model="linkUrl" class="modal-input" placeholder="https://" @keyup.enter="insertLink" />
             </div>
             <div class="modal-actions">
-                <button class="secondary-btn" @click="activeModal = 'none'">Cancel</button>
-                <button class="primary-btn" @click="insertLink">Insert</button>
+                <button class="secondary-btn" @click="activeModal = 'none'">{{ t('editor.cancel') }}</button>
+                <button class="primary-btn" @click="insertLink">{{ t('editor.insert') }}</button>
             </div>
         </div>
 
@@ -337,21 +337,21 @@
                         @click="tableGridClick(Math.floor((i-1)/8)+1, (i-1)%8+1)"
                     ></div>
                 </div>
-                <div class="grid-info">{{ tblHoverR }} x {{ tblHoverC }} Table</div>
+                <div class="grid-info">{{ tblHoverR }} x {{ tblHoverC }} {{ t('editor.table') }}</div>
             </div>
             <div class="manual-inputs">
                  <div class="form-group">
-                    <label>Rows</label>
+                    <label>{{ t('editor.rows') }}</label>
                     <input type="number" v-model="tblRows" min="1" class="modal-input" />
                  </div>
                  <div class="form-group">
-                    <label>Cols</label>
+                    <label>{{ t('editor.cols') }}</label>
                     <input type="number" v-model="tblCols" min="1" class="modal-input" />
                  </div>
             </div>
             <div class="modal-actions">
-                <button class="secondary-btn" @click="activeModal = 'none'">Cancel</button>
-                <button class="primary-btn" @click="insertTable">Insert</button>
+                <button class="secondary-btn" @click="activeModal = 'none'">{{ t('editor.cancel') }}</button>
+                <button class="primary-btn" @click="insertTable">{{ t('editor.insert') }}</button>
             </div>
         </div>
       </div>
@@ -361,25 +361,25 @@
     <div v-if="['draft', 'publish'].includes(activeModal)" class="modal-overlay" @click.self="activeModal = 'none'">
       <div class="modal-content small-modal">
         <div class="modal-header">
-            <h3>{{ activeModal === 'draft' ? 'Save as Draft' : 'Publish Post' }}</h3>
-            <button class="close-btn" @click="activeModal = 'none'">
-                <span class="icon-svg" v-html="Icons.close"></span>
-            </button>
+            <h3>{{ activeModal === 'draft' ? t('editor.saveDraft') : t('editor.publishNow') }}</h3>
+                    <button class="close-btn" @click="activeModal = 'none'">
+                        <span class="icon-svg" v-html="Icons.close"></span>
+                    </button>
         </div>
-        <div class="modal-body">
-            <div class="form-group">
-                <label>Post Title</label>
-                <input 
-                  v-model="tempTitle" 
-                  class="modal-input" 
-                  placeholder="Enter a title for this post..."
-                  @keyup.enter="doSave()"
-                  autofocus
-                />
-            </div>
+                        <div class="modal-body">
+                                <div class="form-group">
+                                        <label>{{ t('editor.postTitle') }}</label>
+                                        <input 
+                                            v-model="tempTitle" 
+                                            class="modal-input" 
+                                            :placeholder="t('editor.titlePlaceholder')"
+                                            @keyup.enter="doSave()"
+                                            autofocus
+                                        />
+                                </div>
 
             <div v-if="activeModal === 'publish'" class="form-group">
-                <label>Tags</label>
+                <label>{{ t('editor.tagsLabel') }}</label>
                 <div class="tags-input-container">
                     <div class="tags-list">
                         <span 
@@ -388,42 +388,42 @@
                             :key="tag"
                             :class="{ featured: tag === 'featured' }"
                         >
-                            {{ tag }}
+                            {{ tag === 'featured' ? $t('tag.featured') : tag }}
                             <button class="tag-remove" @click="removeTag(tag)">
                                 <span class="icon-svg" v-html="Icons.close"></span>
                             </button>
                         </span>
                     </div>
                     <div class="tag-controls">
-                         <input 
-                            v-model="tagInput" 
-                            class="modal-input small-input" 
-                            placeholder="Add tag..." 
-                            @keyup.enter="addTag"
-                         />
-                         <button class="secondary-btn small-btn" @click="addTag">Add</button>
-                         <button 
-                            class="secondary-btn small-btn" 
-                            :class="{ active: postTags.includes('featured') }"
-                            @click="toggleFeatured"
-                            title="Toggle Featured"
-                         >
-                            ★ Featured
-                         </button>
+                                 <input 
+                                     v-model="tagInput" 
+                                     class="modal-input small-input" 
+                                     :placeholder="t('editor.addTagPlaceholder')" 
+                                     @keyup.enter="addTag"
+                                 />
+                                 <button class="secondary-btn small-btn" @click="addTag">{{ t('editor.addTag') }}</button>
+                                 <button 
+                                     class="secondary-btn small-btn" 
+                                     :class="{ active: postTags.includes('featured') }"
+                                     @click="toggleFeatured"
+                                     :title="$t('tag.featured')"
+                                 >
+                                     ★ {{ $t('tag.featured') }}
+                                 </button>
                     </div>
                 </div>
             </div>
 
-            <div class="modal-actions">
-                <button class="secondary-btn" @click="activeModal = 'none'">Cancel</button>
-                <button 
-                  class="primary-btn" 
-                  @click="doSave()"
-                  :disabled="isSaving || !tempTitle.trim()"
-                >
-                  {{ isSaving ? 'Saving...' : (activeModal === 'draft' ? 'Save Draft' : 'Publish Now') }}
-                </button>
-            </div>
+                        <div class="modal-actions">
+                                <button class="secondary-btn" @click="activeModal = 'none'">{{ t('editor.cancel') }}</button>
+                                <button 
+                                    class="primary-btn" 
+                                    @click="doSave()"
+                                    :disabled="isSaving || !tempTitle.trim()"
+                                >
+                                    {{ isSaving ? t('editor.saving') : (activeModal === 'draft' ? t('editor.saveDraft') : t('editor.publishNow')) }}
+                                </button>
+                        </div>
         </div>
       </div>
     </div>
@@ -431,10 +431,10 @@
     <!-- Group 4: Confirmation Modals (Restore, Unsaved) -->
     <div v-if="['restore', 'unsaved', 'stats'].includes(activeModal)" class="modal-overlay" @click.self="activeModal = 'none'">
       <div class="modal-content small-modal">
-        <div class="modal-header">
-            <h3 v-if="activeModal === 'restore'">Confirm Restore</h3>
-            <h3 v-else-if="activeModal === 'unsaved'">Unsaved Changes</h3>
-            <h3 v-else>Document Statistics</h3>
+            <div class="modal-header">
+            <h3 v-if="activeModal === 'restore'">{{ t('editor.confirmRestoreTitle') }}</h3>
+            <h3 v-else-if="activeModal === 'unsaved'">{{ t('editor.unsavedTitle') }}</h3>
+            <h3 v-else>{{ t('editor.statsTitle') }}</h3>
 
             <button class="close-btn" @click="activeModal = 'none'">
                 <span class="icon-svg" v-html="Icons.close"></span>
@@ -444,25 +444,23 @@
         <!-- Restore Body -->
         <div v-if="activeModal === 'restore'" class="modal-body">
             <p style="color: #ccc; margin-bottom: 20px;">
-                This will <strong>permanently delete</strong> your draft changes and restore the original published version from the server. <br><br>
-                This action cannot be undone. Are you sure?
+                {{ t('editor.confirmRestoreBody') }}
             </p>
             <div class="modal-actions">
-                <button class="secondary-btn" @click="activeModal = 'none'">Cancel</button>
-                <button class="primary-btn danger-action" @click="doRestore">Confirm Restore</button>
+                <button class="secondary-btn" @click="activeModal = 'none'">{{ t('editor.cancel') }}</button>
+                <button class="primary-btn danger-action" @click="doRestore">{{ t('editor.confirmRestoreAction') }}</button>
             </div>
         </div>
 
         <!-- Unsaved Body -->
         <div v-if="activeModal === 'unsaved'" class="modal-body">
             <p style="color: #ccc; margin-bottom: 20px;">
-                You have unsaved changes in "<strong>{{ postTitle }}</strong>". <br>
-                Do you want to save them before leaving?
+                {{ t('editor.unsavedBody', { title: postTitle }) }}
             </p>
             <div class="modal-actions">
-                <button class="secondary-btn" @click="closeModals">Cancel</button>
-                <button class="secondary-btn" style="border-color:#d9534f; color:#d9534f" @click="handleUnsavedOption('discard')">Discard</button>
-                <button class="primary-btn" @click="handleUnsavedOption('save')">Save & Continue</button>
+                <button class="secondary-btn" @click="closeModals">{{ t('editor.cancel') }}</button>
+                <button class="secondary-btn" style="border-color:#d9534f; color:#d9534f" @click="handleUnsavedOption('discard')">{{ t('editor.discard') }}</button>
+                <button class="primary-btn" @click="handleUnsavedOption('save')">{{ t('editor.saveContinue') }}</button>
             </div>
         </div>
 
@@ -470,23 +468,23 @@
         <div v-if="activeModal === 'stats'" class="modal-body">
             <div class="stats-grid">
                 <div class="stat-item">
-                    <span class="stat-label">Words</span>
+                    <span class="stat-label">{{ t('editor.stats.words') }}</span>
                     <span class="stat-value">{{ editorStats.wordCount }}</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-label">Characters (with spaces)</span>
+                    <span class="stat-label">{{ t('editor.stats.charsWithSpaces') }}</span>
                     <span class="stat-value">{{ editorStats.charCount }}</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-label">Characters (no spaces)</span>
+                    <span class="stat-label">{{ t('editor.stats.charsNoSpaces') }}</span>
                     <span class="stat-value">{{ editorStats.charCountNoSpaces }}</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-label">Non-Western Characters</span>
+                    <span class="stat-label">{{ t('editor.stats.nonWestern') }}</span>
                     <span class="stat-value">{{ editorStats.nonWesternCount }}</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-label">Original Markdown Chars</span>
+                    <span class="stat-label">{{ t('editor.stats.markdownChars') }}</span>
                     <span class="stat-value">{{ editorStats.markdownCount }}</span>
                 </div>
             </div>
@@ -519,11 +517,31 @@ import { debounce } from '../utils/debounce'
 import { Icons } from '../utils/icons'
 import { getStats } from '../utils/markdownParser'
 import { sortTags } from '../utils/tagUtils'
+import { useI18n } from 'vue-i18n'
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const CDN_BASE_URL = import.meta.env.VITE_CDN_BASE_URL || ''
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
+
+// Helper: redirect to a randomized new-id. Uses full-location replace to emulate
+// a server-side replace (avoids creating a history entry and forces reload).
+function redirectToRandomNew() {
+    const randomId = (typeof crypto !== 'undefined' && (crypto as any).randomUUID)
+        ? `new-${(crypto as any).randomUUID()}`
+        : `new-${Math.random().toString(36).substring(2, 9)}`
+    try {
+        const params = new URLSearchParams(window.location.search)
+        params.set('id', randomId)
+        const url = window.location.pathname + (params.toString() ? `?${params.toString()}` : '')
+        // Use location.replace to avoid adding a history entry (closest to 301/replace)
+        window.location.replace(url)
+    } catch (e) {
+        // Fallback to router.replace if URL APIs unavailable
+        router.replace({ query: { ...route.query, id: randomId } as any })
+    }
+}
 
 const props = withDefaults(defineProps<{
   modelValue?: string
@@ -563,12 +581,12 @@ const fileLoading = ref(false)
 const fileInput = ref<HTMLInputElement|null>(null)
 const selectedImportFile = ref<File|null>(null)
 
-const fileTabs = [
-    { id: 'new', label: 'New Post', icon: Icons.plus },
-    { id: 'open', label: 'Open...', icon: Icons.folder },
-    { id: 'import', label: 'Import', icon: Icons.document },
-    { id: 'export', label: 'Export', icon: Icons.save }
-]
+const fileTabs = computed(() => [
+    { id: 'new', label: t('editor.file.new'), icon: Icons.plus },
+    { id: 'open', label: t('editor.file.open'), icon: Icons.folder },
+    { id: 'import', label: t('editor.file.import'), icon: Icons.document },
+    { id: 'export', label: t('editor.file.export'), icon: Icons.save }
+])
 
 const fontOptions = [
     { value: 'sans', label: 'Sans Serif', icon: 'A' },
@@ -577,11 +595,16 @@ const fontOptions = [
 ]
 
 const currentFileTabTitle = computed(() => {
-    return fileTabs.find(t => t.id === fileTab.value)?.label || ''
+    return (fileTabs.value.find(f => f.id === fileTab.value)?.label) || ''
 })
 
 // Stats
 const editorStats = computed(() => getStats(localValue.value))
+const wordCountLabel = computed(() => {
+    const n = editorStats.value.wordCount || 0
+    if (n === 1) return t('editor.countWords', { count: n })
+    return t('editor.countWordsPlural', { count: n })
+})
 
 // File Menu Logic
 async function openFileMenu() {
@@ -707,8 +730,18 @@ const isTimeTraveling = ref(false) // Flag to ignore component's own updates whe
 const MAX_HISTORY = 50
 
 // Persist Logic
-const draftKey = computed(() => `chronicle_draft_${postId.value || 'new'}`)
-const historyKey = computed(() => `chronicle_history_${postId.value || 'new'}`)
+const draftKey = computed(() => {
+    const qId = route.query.id as string
+    if (postId.value) return `chronicle_draft_${postId.value}`
+    if (qId && qId.startsWith('new')) return `chronicle_draft_${qId}`
+    return 'chronicle_draft_new'
+})
+const historyKey = computed(() => {
+    const qId = route.query.id as string
+    if (postId.value) return `chronicle_history_${postId.value}` 
+    if (qId && qId.startsWith('new')) return `chronicle_history_${qId}`
+    return 'chronicle_history_new'
+})
 
 const saveToLocalStorage = debounce(() => {
     // Save Content Draft
@@ -805,10 +838,10 @@ async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
         if (res.ok) {
             const data = await res.json()
             if (data.id) {
-                // If we were new, clear the 'new' draft before switching ID
+                // If we were new, clear the temp draft before switching ID
                 if (!postId.value) {
-                    localStorage.removeItem('chronicle_draft_new')
-                    sessionStorage.removeItem('chronicle_history_new')
+                    localStorage.removeItem(draftKey.value)
+                    sessionStorage.removeItem(historyKey.value)
                 }
 
                 postId.value = data.id
@@ -940,20 +973,10 @@ onBeforeRouteUpdate(async (to, from, next) => {
 
 // Watch query change to reload data when navigation keeps component alive
 watch(() => route.query.id, async (newId, oldId) => {
-    // If opening a brand-new editor, force-clear any saved draft/history and reset state
+    // If opening a brand-new editor (literal 'new'), redirect to randomized ID
     if (newId === 'new') {
-        try { localStorage.removeItem(draftKey.value); } catch(e) {}
-        try { sessionStorage.removeItem(historyKey.value); } catch(e) {}
-
-        localValue.value = '';
-        savedContent.value = '';
-        savedTitle.value = '';
-        postId.value = null;
-        postTitle.value = 'Untitled Post';
-        postStatus.value = 'draft';
-        history.value = [];
-        historyIndex.value = -1;
-        return;
+        redirectToRandomNew()
+        return
     }
 
     if (newId !== oldId) {
@@ -970,8 +993,8 @@ async function loadPostById(id: string) {
         if (draft) {
             // We have a local unsaved draft for this ID
             // Load base from server to get metadata, then override content
-             const detailRes = await fetch(`/api/post?id=${id}&mode=edit`)
-             if (detailRes.ok) {
+            const detailRes = await fetch(`/api/post?id=${id}&mode=edit`)
+            if (detailRes.ok) {
                  const detail = await detailRes.json()
                  postId.value = detail.id
                  postTitle.value = detail.title
@@ -1033,7 +1056,14 @@ async function loadPostById(id: string) {
                  history.value = [detail.content]
                  historyIndex.value = 0
              }
-        }
+            } else {
+                // If server reports not found and there's no local draft, redirect to a random new id
+                const draftExists = !!localStorage.getItem(`chronicle_draft_${id}`)
+                if (!draftExists) {
+                    redirectToRandomNew()
+                    return
+                }
+            }
     } catch(e) {
         console.error("Failed to load post", e)
     }
@@ -1043,6 +1073,11 @@ async function initLoad() {
     const queryId = route.query.id as string
     
     if (queryId === 'new') {
+        redirectToRandomNew()
+        return
+    }
+
+    if (queryId && queryId.startsWith('new')) {
         // Reset state for new post
         postId.value = null
         postTitle.value = 'Untitled Post'
@@ -1054,9 +1089,12 @@ async function initLoad() {
         savedContent.value = ''
         savedTitle.value = 'Untitled Post'
 
-        // Check draft/history for 'new'
-        const draft = localStorage.getItem('chronicle_draft_new')
-        const sessionHistory = sessionStorage.getItem('chronicle_history_new')
+        // Check draft/history for this specific ID
+        const dKey = `chronicle_draft_${queryId}`
+        const hKey = `chronicle_history_${queryId}`
+        
+        const draft = localStorage.getItem(dKey)
+        const sessionHistory = sessionStorage.getItem(hKey)
 
         if (draft) {
             localValue.value = draft
@@ -1161,9 +1199,9 @@ const layout = ref<LayoutMode>('split')
 const isMobile = ref(false) // placeholder for responsiveness
 
 const displayModes = computed(() => [
-  { label: 'Split View', value: 'split' as LayoutMode, icon: Icons.columns },
-  { label: 'Editor Only', value: 'edit' as LayoutMode, icon: Icons.edit },
-  { label: 'Preview Only', value: 'preview' as LayoutMode, icon: Icons.eye }
+    { label: t('editor.view.split'), value: 'split' as LayoutMode, icon: Icons.columns },
+    { label: t('editor.view.edit'), value: 'edit' as LayoutMode, icon: Icons.edit },
+    { label: t('editor.view.preview'), value: 'preview' as LayoutMode, icon: Icons.eye }
 ])
 
 const showEditor = computed(() => layout.value === 'split' || layout.value === 'edit')
@@ -1188,22 +1226,20 @@ const uploadState = reactive({
 
 
 // Categories for simplified file manager view
-const mediaCategories = [
-    { id: 'pic', label: 'Images', icon: Icons.image },
-    { id: 'video', label: 'Videos', icon: Icons.video },
-    { id: 'sound', label: 'Audio', icon: Icons.audio },
-    { id: 'doc', label: 'Documents', icon: Icons.document },
-    { id: 'txt', label: 'Text/Code', icon: Icons.codeText },
-    { id: 'other', label: 'Others', icon: Icons.archive }
-]
+const mediaCategories = computed(() => [
+    { id: 'pic', label: t('file.categories.images'), icon: Icons.image },
+    { id: 'video', label: t('file.categories.videos'), icon: Icons.video },
+    { id: 'sound', label: t('file.categories.audio'), icon: Icons.audio },
+    { id: 'doc', label: t('file.categories.documents'), icon: Icons.document },
+    { id: 'txt', label: t('file.categories.text'), icon: Icons.codeText },
+    { id: 'other', label: t('file.categories.others'), icon: Icons.archive }
+])
 
 // Defaults to 'pic' because this is the Image Modal -> Wait, now it's Media Modal
 const selectedCategory = ref('pic')
 
 // Update label for modal
-const modalTitle = computed(() => {
-    return 'Insert Media'
-})
+const modalTitle = computed(() => t('editor.media'))
 
 watch(selectedCategory, () => {
     fetchServerImages()

@@ -9,6 +9,11 @@ import Friends from '../pages/Friends.vue'
 import Home from '../pages/Home.vue'
 import Login from '../pages/Login.vue'
 import Security from '../pages/Security.vue'
+import Settings from '../pages/Settings.vue'
+import SettingsHome from '../pages/settings/SettingsHome.vue'
+import SettingsFriends from '../pages/settings/SettingsFriends.vue'
+import SettingsI18nFonts from '../pages/settings/SettingsI18nFonts.vue'
+import SettingsSecurity from '../pages/settings/SettingsSecurity.vue'
 
 const routes = [
   {
@@ -24,10 +29,20 @@ const routes = [
     meta: { title: 'Login' }
   },
   {
+    path: '/settings',
+    name: 'Settings',
+    component: Settings,
+    meta: { requiresAuth: true, title: 'Settings' },
+    children: [
+      { path: 'homepage', name: 'SettingsHome', component: SettingsHome, meta: { title: 'Settings - Home' } },
+      { path: 'friends', name: 'SettingsFriends', component: SettingsFriends, meta: { title: 'Settings - Friends' } },
+      { path: 'i18n', name: 'SettingsI18n', component: SettingsI18nFonts, meta: { title: 'Settings - Language & Fonts' } },
+      { path: 'security', name: 'SettingsSecurity', component: SettingsSecurity, meta: { requiresAuth: true, title: 'Settings - Security' } }
+    ]
+  },
+  {
     path: '/security',
-    name: 'Security',
-    component: Security,
-    meta: { requiresAuth: true, title: 'Security' }
+    redirect: '/settings/security'
   },
   {
     path: '/blogs',
