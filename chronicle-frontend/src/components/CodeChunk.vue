@@ -48,21 +48,21 @@
       <div class="toolbar">
         <!-- Mermaid group (左侧，靠近基础按钮) -->
         <template v-if="selectedLanguage === 'mermaid'">
-          <button class="icon-btn" title="下载 SVG" @click="downloadMermaid" :disabled="!lastRenderedSvg" style="margin-right:0.25rem;">
+          <button class="icon-btn" :title="t('editor.downloadSvg')" @click="downloadMermaid" :disabled="!lastRenderedSvg" style="margin-right:0.25rem;">
             <!-- download icon -->
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3v10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 10l5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 21H3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
           <div class="toolbar-divider"/>
           <div class="mermaid-group">
-            <button class="icon-btn" :class="{active: mermaidMode === 'split'}" @click="mermaidMode = 'split'" title="上下拆分">
+            <button class="icon-btn" :class="{active: mermaidMode === 'split'}" @click="mermaidMode = 'split'" :title="t('editor.mermaidSplit')">
               <!-- split icon: stacked panes -->
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="8" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="3" y="13" width="18" height="8" rx="1" stroke="currentColor" stroke-width="1.5"/></svg>
             </button>
-            <button class="icon-btn" :class="{active: mermaidMode === 'code'}" @click="mermaidMode = 'code'" title="仅代码">
+            <button class="icon-btn" :class="{active: mermaidMode === 'code'}" @click="mermaidMode = 'code'" :title="t('editor.mermaidCode')">
               <!-- code icon -->
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M16 18l6-6-6-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 6l-6 6 6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
-            <button class="icon-btn" :class="{active: mermaidMode === 'preview'}" @click="mermaidMode = 'preview'" title="预览">
+            <button class="icon-btn" :class="{active: mermaidMode === 'preview'}" @click="mermaidMode = 'preview'" :title="t('editor.mermaidPreview')">
               <!-- preview / eye icon -->
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
@@ -70,10 +70,10 @@
           <div class="toolbar-divider"/>
         </template>
         
-        <button v-if="!readonly" class="icon-btn format-btn" @click="formatCode" title="格式化">
+        <button v-if="!readonly" class="icon-btn format-btn" @click="formatCode" :title="t('editor.formatCode')">
           <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M4 17h12M7 13l3-3 3 3M10 10V3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
-        <button class="icon-btn copy-btn" @click="copyCode" title="复制">
+        <button class="icon-btn copy-btn" @click="copyCode" :title="t('editor.copyCode')">
           <template v-if="!copySuccess">
             <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="7" y="7" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="4" y="4" width="9" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
           </template>
@@ -82,7 +82,7 @@
             <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M4 10l3 3 9-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </template>
         </button>
-        <button v-if="!readonly" class="icon-btn clear-btn" @click="clearContent" title="清空">
+        <button v-if="!readonly" class="icon-btn clear-btn" @click="clearContent" :title="t('editor.clearContent')">
           <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M6 6l8 8M6 14L14 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
         </button>
       </div>

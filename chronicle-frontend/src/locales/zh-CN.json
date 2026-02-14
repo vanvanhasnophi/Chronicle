@@ -39,7 +39,7 @@
     "viewBlogs": "查看博客"
   },
   "file": {
-    "library": "资源库",
+    "library": "文件管理",
     "upload": "上传",
     "refresh": "刷新",
     "loading": "正在加载...",
@@ -181,6 +181,7 @@
     "restore": "恢复",
     "draft": "存草稿",
     "publish": "发布",
+    "fileUpload": "文件上传",
     "file": {
       "new": "新建文章",
       "open": "打开...",
@@ -206,6 +207,7 @@
     "unlock": "解锁预览",
     "saving": "保存中...",
     "placeholder": "开始书写 Markdown...",
+    "untitled": "未命名文章",
     "cancel": "取消",
     "insert": "插入",
     "saveDraft": "保存草稿",

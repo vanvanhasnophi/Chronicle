@@ -1,4 +1,32 @@
 import { createRouter, createWebHistory } from 'vue-router'
+// Import locale messages so we can translate route meta titles without
+// depending on the app instance. We pick locale from localStorage or navigator.
+import en from '../locales/en.json'
+import zh from '../locales/zh-CN.json'
+
+const messages: Record<string, any> = { en, 'zh-CN': zh }
+
+function getLocale() {
+  const stored = localStorage.getItem('locale')
+  if (stored) return stored
+  const nav = (typeof navigator !== 'undefined' && navigator.language) ? navigator.language : 'en'
+  return nav.startsWith('zh') ? 'zh-CN' : 'en'
+}
+
+function resolveMessage(key: string) {
+  try {
+    const locale = getLocale()
+    const parts = key.split('.')
+    let cur: any = messages[locale] || messages['en']
+    for (const p of parts) {
+      if (!cur) return key
+      cur = cur[p]
+    }
+    return (typeof cur === 'string') ? cur : key
+  } catch (e) {
+    return key
+  }
+}
 import TextEditor from '../pages/TextEditor.vue'
 import FileManager from '../pages/FileManager.vue'
 import BlogList from '../pages/BlogList.vue'
@@ -20,24 +48,24 @@ const routes = [
     path: '/',
     name: 'Home',
     component: Home,
-    meta: { title: 'Home' }
+    meta: { title: 'home.title' }
   },
   {
     path: '/login',
     name: 'Login',
     component: Login,
-    meta: { title: 'Login' }
+    meta: { title: 'login.title' }
   },
   {
     path: '/settings',
     name: 'Settings',
     component: Settings,
-    meta: { requiresAuth: true, title: 'Settings' },
+    meta: { requiresAuth: true, title: 'settings.home' },
     children: [
-      { path: 'homepage', name: 'SettingsHome', component: SettingsHome, meta: { title: 'Settings - Home' } },
-      { path: 'friends', name: 'SettingsFriends', component: SettingsFriends, meta: { title: 'Settings - Friends' } },
-      { path: 'i18n', name: 'SettingsI18n', component: SettingsI18nFonts, meta: { title: 'Settings - Language & Fonts' } },
-      { path: 'security', name: 'SettingsSecurity', component: SettingsSecurity, meta: { requiresAuth: true, title: 'Settings - Security' } }
+      { path: 'homepage', name: 'SettingsHome', component: SettingsHome, meta: { title: 'settings.home' } },
+      { path: 'friends', name: 'SettingsFriends', component: SettingsFriends, meta: { title: 'settings.friends' } },
+      { path: 'i18n', name: 'SettingsI18n', component: SettingsI18nFonts, meta: { title: 'settings.i18n' } },
+      { path: 'security', name: 'SettingsSecurity', component: SettingsSecurity, meta: { requiresAuth: true, title: 'settings.security' } }
     ]
   },
   {
@@ -48,7 +76,7 @@ const routes = [
     path: '/blogs',
     name: 'BlogList',
     component: BlogList,
-    meta: { title: 'Blogs' }
+    meta: { title: 'nav.blogs' }
   },
   {
     path: '/post/:id',
@@ -60,31 +88,31 @@ const routes = [
     path: '/manage',
     name: 'PostManager',
     component: PostManager,
-    meta: { requiresAuth: true, title: 'Manage Posts' }
+    meta: { requiresAuth: true, title: 'post.manageTitle' }
   },
   {
     path: '/editor',
     name: 'TextEditor',
     component: TextEditor,
-    meta: { requiresAuth: true, title: 'Editor' }
+    meta: { requiresAuth: true, title: 'editor.createNewPost' }
   },
   {
     path: '/files',
     name: 'FileManager',
     component: FileManager,
-    meta: { requiresAuth: true, title: 'Files' }
+    meta: { requiresAuth: true, title: 'file.library' }
   },
   {
     path: '/search',
     name: 'Search',
     component: Search,
-    meta: { title: 'Search' }
+    meta: { title: 'nav.search' }
   },
   {
     path: '/friends',
     name: 'Friends',
     component: Friends,
-    meta: { title: 'Friends' }
+    meta: { title: 'friends.title' }
   }
 ]
 
@@ -122,18 +150,19 @@ router.beforeEach((to, from, next) => {
 
 router.afterEach((to) => {
   let appName = 'Chronicle'
-  
-  // Distinguish Management and Editor
+
+  // Distinguish Management and Editor for suffixing
   if (to.path.startsWith('/manage') || to.path.startsWith('/files') || to.path.startsWith('/security')) {
       appName = 'Chronicle Manager'
   } else if (to.path.startsWith('/editor')) {
-      appName = 'Md Editor'
+      appName = 'Workdown - Chronicle'
   }
 
   if (to.name === 'Home') {
       document.title = 'Chronicle'
   } else if (to.meta && to.meta.title) {
-    document.title = `${to.meta.title} - ${appName}`
+    const titleText = resolveMessage(String(to.meta.title))
+    document.title = `${titleText} - ${appName}`
   } else if (to.name !== 'BlogPost') {
     // Default fallback if no title set and not a dynamic page handled elsewhere
     document.title = appName

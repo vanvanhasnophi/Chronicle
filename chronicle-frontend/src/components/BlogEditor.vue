@@ -495,7 +495,7 @@
     <div v-if="uploadState.show" class="upload-toast" :class="uploadState.status">
         <div class="toast-content">
             <div class="toast-header-row">
-                <span class="toast-title">File Upload</span>
+                <span class="toast-title">{{ t('editor.fileUpload') }}</span>
                 <button class="toast-close" @click="uploadState.show = false">
                     <span class="icon-svg" v-html="Icons.close"></span>
                 </button>
@@ -557,10 +557,10 @@ const localValue = ref(props.modelValue)
 const previewReadOnly = ref(false)
 const assetMap = ref<Record<string, string>>({})
 // Post Meta
-const postTitle = ref('Untitled Post')
+const postTitle = ref(t('editor.untitled'))
 watch(postTitle, (val) => {
-    if (val) document.title = `${val} - Md Editor`
-    else document.title = 'Md Editor'
+    if (val) document.title = `${val} - Chronicle Workdown`
+    else document.title = 'Chronicle Workdown'
 }, { immediate: true })
 const postId = ref<string | null>(null)
 const postStatus = ref<'draft' | 'published' | 'modifying'>('draft')
@@ -1080,14 +1080,14 @@ async function initLoad() {
     if (queryId && queryId.startsWith('new')) {
         // Reset state for new post
         postId.value = null
-        postTitle.value = 'Untitled Post'
+        postTitle.value = t('editor.untitled')
         postStatus.value = 'draft'
         postTags.value = []
         postFont.value = 'sans'
         localValue.value = ''
         
         savedContent.value = ''
-        savedTitle.value = 'Untitled Post'
+        savedTitle.value = t('editor.untitled')
 
         // Check draft/history for this specific ID
         const dKey = `chronicle_draft_${queryId}`
@@ -1124,13 +1124,13 @@ async function initLoad() {
     // No ID parameter -> Same as 'new' logic for now or redirect
     // We treat no ID as create mode
     postId.value = null
-    postTitle.value = 'Untitled Post'
+    postTitle.value = t('editor.untitled')
     postStatus.value = 'draft'
     postDate.value = ''
     postUpdated.value = ''
     localValue.value = ''
     savedContent.value = ''
-    savedTitle.value = 'Untitled Post'
+    savedTitle.value = t('editor.untitled')
     
     // Check 'new' draft
     const draft = localStorage.getItem('chronicle_draft_new')

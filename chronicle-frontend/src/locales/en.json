@@ -40,7 +40,7 @@
     "viewBlogs": "View Blogs"
   },
   "file": {
-    "library": "Library",
+    "library": "Files",
     "upload": "Upload",
     "refresh": "Refresh",
     "loading": "Loading...",
@@ -182,6 +182,7 @@
     "restore": "Restore",
     "draft": "Draft",
     "publish": "Publish",
+    "fileUpload": "File Upload",
     "file": {
       "new": "New Post",
       "open": "Open...",
@@ -207,6 +208,7 @@
     "unlock": "Unlock Preview",
     "saving": "Saving...",
     "placeholder": "Start writing markdown...",
+    "untitled": "Untitled Post",
     "cancel": "Cancel",
     "insert": "Insert",
     "saveDraft": "Save Draft",
