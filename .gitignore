@@ -10,3 +10,4 @@ node_modules/
 chronicle-deploy.sh
 chronicle-frontend/.env.production
 scripts/media_speed_test.sh
+server/log/access.log
