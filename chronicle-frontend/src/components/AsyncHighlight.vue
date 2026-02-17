@@ -80,6 +80,14 @@ const syntaxRules: Record<string, Array<{ pattern: RegExp; className: string }>>
     { pattern: /[{}[\]()]/g, className: 'bracket' },
     { pattern: /[:,]/g, className: 'operator' }
   ],
+  katex: [
+    { pattern: /(\%.*$)/gm, className: 'comment' },
+    { pattern: /[_+\-*/%=^&|]/g, className: 'katexoperator' },
+    { pattern: /\\[a-zA-Z]+(?![a-zA-Z])/g, className: 'katexcommand' },
+    { pattern: /\\[^a-zA-Z]/g, className: 'katexcommand' },
+    { pattern: /\b\d+\.?\d*\b/g, className: 'katexnumber' },
+    { pattern: /[{}[\]()]/g, className: 'katexbracket' },
+  ],
   markdown: [
     { pattern: /^\s{0,3}(#{1,6})\s+(.*)$/gm, className: 'header' },
     { pattern: /\*\*(.*?)\*\*/g, className: 'bold' },

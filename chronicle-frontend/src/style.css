@@ -358,3 +358,7 @@ button.secondary {
 .font-sans {
   font-family: var(--app-font-stack-inter) !important;
 }
+
+html {
+  overflow: hidden;
+}

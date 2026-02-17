@@ -38,22 +38,26 @@
                      <span class="chev-icon" :class="{ folded: inlineTocCollapsed }" v-html="chevronIcon"></span>
                 </button>
             </div>
-            <transition name="toc-expand">
-                                    <ul v-show="!inlineTocCollapsed" class="toc-list">
-                                        <li v-for="(item, idx) in toc" :key="item.id" :class="`toc-level-${item.level}`">
-                                            <a href="javascript:void(0)" @click.stop.prevent="scrollToHeading(item.id)"><span class="toc-text">{{ item.text }}</span></a>
-                                        </li>
-                                    </ul>
-                                </transition>
+            <div class="toc-list-shell" :class="{ open: inlineTocShellOpen }">
+                <transition name="toc-expand">
+                    <ul v-if="inlineTocRender" :class="['toc-list']">
+                        <li v-for="(item, idx) in toc" :key="item.id" :class="`toc-level-${item.level}`">
+                            <a href="javascript:void(0)" @click.stop.prevent="scrollToHeading(item.id)"><span class="toc-text">{{ item.text }}</span></a>
+                        </li>
+                    </ul>
+                </transition>
+            </div>
                         </div>
 
-            <div class="markdown-body" :class="fontClass">
-                 <MdParser 
+              <div class="markdown-body" :class="fontClass">
+                  <MdParser 
                         v-if="post.content"
+                        :blocks="parsedBlocks"
                         :modelValue="post.content"
                         :readOnly="true"
-                 />
-            </div>
+                    @rendered="onMdRendered"
+                  />
+              </div>
 
             <!-- 悬浮目录导航（页面级） -->
               <nav v-if="toc.length" class="toc-float" :class="{ collapsed: floatCollapsed }" aria-label="目录导航"
@@ -70,7 +74,7 @@
                     </nav>
 
         <!-- Back to Top -->
-           <button class="back-to-top" :class="{ visible: showBackToTop }" @click="scrollToTop" :title="$t('inblog.backToTop')">
+           <button class="back-to-top" :class="{ visible: showBackToTop }" @click="scrollToTop" :title="$t('misc.backToTop')">
              <span v-html="Icons.arrowUp"></span>
         </button>
     </div>
@@ -121,8 +125,13 @@ watch(post, (newPost) => {
 
 // 页面级 TOC
 const toc = ref<Array<{ id: string, text: string, level: number }>>([])
+const parsedBlocks = ref<any[]>([])
 // UI state for collapsible TOC
 const inlineTocCollapsed = ref(false)
+// Shell open state controls the lightweight expand/collapse animation first
+const inlineTocShellOpen = ref(!inlineTocCollapsed.value)
+// Control whether the inline TOC list is actually mounted (heavy nodes)
+const inlineTocRender = ref(inlineTocShellOpen.value)
 const floatCollapsed = ref(true)
 let floatCollapseTimer: any = null
 const activeId = ref('')
@@ -134,7 +143,46 @@ let manualScrollTimer: any = null
 const chevronIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>`
 
 function toggleInlineToc() {
-    inlineTocCollapsed.value = !inlineTocCollapsed.value
+    if (!inlineTocShellOpen.value) {
+        // start shell open animation
+        inlineTocShellOpen.value = true
+        // rotate chevron immediately to give instant feedback
+        inlineTocCollapsed.value = false
+        // mount heavy list after animation completes (use transitionend fallback)
+        const shell = document.querySelector('.toc-list-shell') as HTMLElement
+        if (shell) {
+            const onEnd = (e: TransitionEvent) => {
+                if (e.propertyName === 'transform' || e.propertyName === 'opacity') {
+                    inlineTocRender.value = true
+                    shell.removeEventListener('transitionend', onEnd)
+                }
+            }
+            shell.addEventListener('transitionend', onEnd)
+            // safety fallback
+            setTimeout(() => { if (!inlineTocRender.value) inlineTocRender.value = true }, 300)
+        } else {
+            inlineTocRender.value = true
+        }
+    } else {
+        // start shell collapse animation; keep list mounted until animation ends
+        inlineTocShellOpen.value = false
+        const shell = document.querySelector('.toc-list-shell') as HTMLElement
+        if (shell) {
+            const onEnd = (e: TransitionEvent) => {
+                if (e.propertyName === 'transform' || e.propertyName === 'opacity') {
+                    inlineTocRender.value = false
+                    inlineTocCollapsed.value = true
+                    shell.removeEventListener('transitionend', onEnd)
+                }
+            }
+            shell.addEventListener('transitionend', onEnd)
+            // safety fallback
+            setTimeout(() => { if (inlineTocRender.value) inlineTocRender.value = false; inlineTocCollapsed.value = true }, 300)
+        } else {
+            inlineTocRender.value = false
+            inlineTocCollapsed.value = true
+        }
+    }
 }
 
 function onScroll(e: Event) {
@@ -212,13 +260,13 @@ function slugify(text: string) {
     return s
 }
 
-function buildTocFromContent(content: string) {
+function buildTocFromBlocks(blocks: Array<{ id?: string, text?: string, level?: number, content?: string, type?: string }>) {
     const itemsRaw: Array<{ id: string, text: string, level: number }> = []
-    const blocks = parseMarkdown(content || '')
     const used = new Set<string>()
     blocks.forEach((b) => {
-        if (b.type === 'heading' && typeof b.content === 'string') {
-            const m = b.content.match(/^\s*(#{1,6})\s+(.*)$/)
+        if (b.type === 'heading') {
+            const content = (b.content || '').toString()
+            const m = content.match(/^\s*(#{1,6})\s+(.*)$/)
             if (m) {
                 const lvl = m[1].length
                 const rawText = m[2].replace(/<[^>]+>/g, '')
@@ -233,14 +281,11 @@ function buildTocFromContent(content: string) {
         }
     })
 
-    // Determine the smallest numeric heading level present (e.g., 3 if only h3/h4/h5 used)
     if (itemsRaw.length === 0) {
         toc.value = []
         return
     }
     const minLevel = Math.min(...itemsRaw.map(i => i.level))
-
-    // Convert to relative levels where minLevel becomes 1
     toc.value = itemsRaw.map(i => ({ id: i.id, text: i.text, level: i.level - minLevel + 1 }))
 }
 
@@ -353,6 +398,33 @@ function scrollToHeading(id: string) {
     activeId.value = id
 }
 
+function onMdRendered() {
+    // Ensure IDs assigned after MdParser finishes DOM work
+    nextTick(() => assignHeadingIds())
+    // Also ensure float TOC active item is visible
+    nextTick(() => ensureFloatActiveVisible())
+}
+
+function ensureFloatActiveVisible() {
+    const nav = document.querySelector('.toc-float') as HTMLElement
+    if (!nav) return
+    const activeEl = nav.querySelector('li.active') as HTMLElement
+    if (!activeEl) return
+
+    const navRect = nav.getBoundingClientRect()
+    const activeRect = activeEl.getBoundingClientRect()
+
+    // If active element is outside visible area, scroll it into view (centered)
+    if (activeRect.top < navRect.top || activeRect.bottom > navRect.bottom) {
+        const target = activeEl.offsetTop - (nav.clientHeight / 2) + (activeEl.clientHeight / 2)
+        try {
+            nav.scrollTo({ top: target, behavior: 'smooth' })
+        } catch (e) {
+            nav.scrollTop = target
+        }
+    }
+}
+
 const postStats = computed(() => {
     if (!post.value?.content) return null
     const s = getStats(post.value.content)
@@ -397,19 +469,35 @@ onMounted(async () => {
         loading.value = false
                 // build TOC when post content available
                 if (post.value && post.value.content) {
-                     buildTocFromContent(post.value.content)
-                     assignHeadingIds()
+                     // parse once and reuse blocks for TOC and MdParser
+                     const blocks = parseMarkdown(post.value.content)
+                     parsedBlocks.value = blocks
+                     buildTocFromBlocks(blocks)
+                     // wait for MdParser to render DOM, then assign ids
+                     nextTick(() => assignHeadingIds())
                 }
+    }
+})
+
+// When active heading changes while float TOC is collapsed, ensure the active
+// line is visible within the collapsed navigator.
+watch([() => activeId.value, () => floatCollapsed.value], ([id, collapsed]) => {
+    if (!id) return
+    if (collapsed) {
+        nextTick(() => ensureFloatActiveVisible())
     }
 })
 
 // rebuild TOC when post content changes (e.g., reloaded)
 watch(() => post.value && post.value.content, (v) => {
     if (v) {
-        buildTocFromContent(v as string)
-        assignHeadingIds()
+        const blocks = parseMarkdown(v as string)
+        parsedBlocks.value = blocks
+        buildTocFromBlocks(blocks)
+        nextTick(() => assignHeadingIds())
     } else {
         toc.value = []
+        parsedBlocks.value = []
     }
 })
 </script>
@@ -552,29 +640,37 @@ watch(() => post.value && post.value.content, (v) => {
 
 
 /* transition for inline TOC */
-.toc-expand-enter-active, .toc-expand-leave-active { transition: max-height 0.22s ease, opacity 0.18s ease }
-.toc-expand-enter-from, .toc-expand-leave-to { max-height: 0; opacity: 0 }
-.toc-expand-enter-to, .toc-expand-leave-from { max-height: 800px; opacity: 1 }
+.toc-expand-enter-active, .toc-expand-leave-active { transition: opacity 0.18s ease, transform 0.18s ease }
+.toc-expand-enter-from, .toc-expand-leave-to { opacity: 0; transform: translateY(-6px); }
+.toc-expand-enter-to, .toc-expand-leave-from { opacity: 1; transform: translateY(0); }
+
+/* Lightweight shell that animates first; avoids heavy DOM work during animation */
+.toc-list-shell { will-change: opacity, transform; transition: opacity 0.18s ease, transform 0.18s ease; overflow: hidden; }
+.toc-list-shell.open { opacity: 1; transform: translateY(0); max-height: 400px; }
+.toc-list-shell { opacity: 0; transform: translateY(-6px); max-height: 0; }
+.toc-list { will-change: opacity, transform; }
+.toc-list li { will-change: transform, opacity; }
 
 /* Floating collapsed visual */
 .toc-float { 
-    right: 20px; 
+    right: calc(10px + 2vw); 
     position: fixed; 
-    top: 180px; 
+    top: calc(10px + 20vh); 
+    bottom: 80px;
     z-index: 1200; 
-    overflow: hidden; 
+    overflow-x: hidden;
     transition: width 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), background-color 0.3s ease; 
     box-sizing: border-box; 
     border-radius: 8px;
 }
-.toc-float.collapsed { width: 32px;padding: 6px; border:none; background-color: transparent; border-radius: 10px; }
-.toc-float:not(.collapsed) { width: 220px; background-color: rgba(30, 30, 30, 0.95); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+.toc-float.collapsed { overflow-y: hidden; width: 32px; padding: 4px; border:none; background-color: transparent; border-radius: 10px; }
+.toc-float:not(.collapsed) { overflow-y: auto; width: 220px; background-color: rgba(30, 30, 30, 0.95); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
 
 .toc-float ul { padding: 4px; list-style: none; margin: 0; transition: padding 0.3s ease; }
 .toc-float.collapsed ul {padding: 0;}
 
-.toc-float li { display: flex; align-items: center; transition: justify-content 0.3s ease; min-height: 24px; position: relative; }
-.toc-float.collapsed li { justify-content: flex-end; }
+.toc-float li { display: flex; align-items: center; transition: justify-content 0.3s ease; min-height: 20px; position: relative; }
+.toc-float.collapsed li { justify-content: flex-end; margin: 0; }
 .toc-float:not(.collapsed) li { justify-content: flex-start; }
 
 .toc-link {
@@ -639,6 +735,11 @@ watch(() => post.value && post.value.content, (v) => {
     position: absolute; /* Take out of flow */
     pointer-events: none;
 }
+
+/* expanded scrollbar styling */
+.toc-float:not(.collapsed)::-webkit-scrollbar { width: 6px; }
+.toc-float:not(.collapsed)::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 3px; }
+.toc-float:not(.collapsed)::-webkit-scrollbar-track { background: transparent; }
 
 /* Expanded State: Show Text */
 .toc-float:not(.collapsed) .toc-text {

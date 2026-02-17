@@ -19,44 +19,33 @@
           @change="(code, lang) => updateCode(index, code, lang)"
         />
       </div>
-      <div v-else-if="block.type === 'quote'" class="content-block text-block" v-html="renderBlockHtml(block)"></div>
-      <div v-else class="content-block text-block">
+      <div v-else-if="block.type === 'quote'" class="content-block text-block" :data-block-index="index" v-html="renderBlockHtml(block)"></div>
+      <div v-else class="content-block text-block" :data-block-index="index">
         <div class="parsed-html-content" v-html="renderBlockHtml(block)"></div>
       </div>
     </template>
     
 
-    <!-- Math Interaction Popup -->
-    <div v-if="tooltip.visible" 
-         class="math-tooltip" 
-         :style="{ top: tooltip.y + 'px', left: tooltip.x + 'px' }"
-         @click.stop
-    >
-      <div class="math-tooltip-content">
-        <div class="math-tooltip-tex">{{ tooltip.tex }}</div>
-        <div class="math-tooltip-actions">
-           <button class="icon-btn square-btn" @click="copyTex" :title="tooltip.copied ? 'Copied' : 'Copy'">
-             <svg v-if="!tooltip.copied" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-             <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-           </button>
-        </div>
-      </div>
-    </div>
+    <!-- Math Interaction Popup moved to standalone component -->
+    <MathTooltip />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, toRaw, reactive, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, watch, toRaw, reactive, onMounted, onUnmounted, nextTick, computed } from 'vue'
+import katex from 'katex'
 import { parseMarkdown, convertToHtml, blocksToMarkdown, type ContentBlock } from '../utils/markdownParser'
 import { usePreview } from '../composables/usePreview'
 import { useImagePreview } from '../composables/useImagePreview'
 import MarkdownTable from './MarkdownTable.vue'
 import CodeChunk from './CodeChunk.vue'
+import AsyncHighlight from './AsyncHighlight.vue'
 
 const props = withDefaults(defineProps<{
   modelValue?: string
   readOnly?: boolean
   assetMap?: Record<string, string>
+  blocks?: ContentBlock[] | undefined
 }>(), {
   modelValue: '',
   readOnly: false,
@@ -65,6 +54,8 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void
+  (e: 'parsed-blocks', blocks: ContentBlock[]): void
+  (e: 'rendered'): void
 }>()
 
 const localBlocks = ref<ContentBlock[]>([])
@@ -72,15 +63,159 @@ const keyPrefix = ref('block-')
 const { openPreview } = usePreview()
 const { openImagePreview } = useImagePreview()
 
-// Latex Tooltip Logic
-const tooltip = reactive({
-  visible: false,
-  x: 0,
-  y: 0,
-  tex: '',
-  copied: false,
-  timer: null as any
-})
+import MathTooltip from './MathTooltip.vue'
+import useMathTooltip from '../composables/useMathTooltip'
+
+const mathTooltip = useMathTooltip()
+
+// Cache rendered KaTeX HTML by unique-id so if placeholders are re-inserted
+// (e.g. due to layout/resize or v-html rewrite) we can reuse rendered output
+// and avoid calling katex.renderToString again.
+const katexRenderCache = new Map<string, string>()
+
+// Handler called by MathTooltip when user saves edits.
+function handleTooltipSave(newTex: string, uniqueId: string, blockIndex: number) {
+  if (blockIndex === -1 || !localBlocks.value[blockIndex]) return
+
+  try {
+    if (newTex) katex.renderToString(newTex, { throwOnError: true, displayMode: true })
+  } catch (e) {
+    // validation should be handled in the tooltip component; block save if invalid
+    return
+  }
+
+  const block = localBlocks.value[blockIndex]
+  if (block.type === 'math') {
+    block.content = newTex
+    emit('update:modelValue', blocksToMarkdown(localBlocks.value))
+    // Update cache for this unique id if provided
+    if (uniqueId) {
+      try {
+        const html = katex.renderToString(newTex, { throwOnError: false, displayMode: true })
+        katexRenderCache.set(uniqueId, html)
+      } catch (e) {
+        katexRenderCache.set(uniqueId, newTex)
+      }
+    }
+    return
+  }
+
+  const text = block.content
+  const matches: { start: number, end: number, content: string, full: string }[] = []
+  let match: RegExpExecArray | null
+  const regexBlock = /\\\[([\s\S]+?)\\\]/g
+  while ((match = regexBlock.exec(text)) !== null) {
+    matches.push({ start: match.index, end: regexBlock.lastIndex, content: match[1], full: match[0] })
+  }
+  const regexDisplay = /\$\$((?:[^\n]|\n)+?)\$\$/g
+  while ((match = regexDisplay.exec(text)) !== null) {
+    if (!matches.some(m => match!.index >= m.start && match!.index < m.end)) {
+      matches.push({ start: match.index, end: regexDisplay.lastIndex, content: match[1], full: match[0] })
+    }
+  }
+  const regexInlineParen = /\\\(([\s\S]+?)\\\)/g
+  while ((match = regexInlineParen.exec(text)) !== null) {
+    if (!matches.some(m => match!.index >= m.start && match!.index < m.end)) {
+      matches.push({ start: match.index, end: regexInlineParen.lastIndex, content: match[1], full: match[0] })
+    }
+  }
+  const regexInline = /\$((?:[^$\n]|)+?)\$/g
+  while ((match = regexInline.exec(text)) !== null) {
+    if (!matches.some(m => match!.index >= m.start && match!.index < m.end)) {
+      if (match[1].trim()) {
+        matches.push({ start: match.index, end: regexInline.lastIndex, content: match[1], full: match[0] })
+      }
+    }
+  }
+
+  matches.sort((a, b) => a.start - b.start)
+
+  const container = document.querySelector(`.content-block[data-block-index="${blockIndex}"]`)
+  if (!container) return
+  const placeholders = Array.from(container.querySelectorAll('.katex-interactive'))
+  const targetIndex = placeholders.findIndex(el => el.getAttribute('data-unique-id') === uniqueId)
+
+  if (targetIndex !== -1 && matches[targetIndex]) {
+    const targetMatch = matches[targetIndex]
+    const contentStartOffset = targetMatch.full.indexOf(targetMatch.content)
+    if (contentStartOffset === -1) return
+    const absStart = targetMatch.start + contentStartOffset
+    const absEnd = absStart + targetMatch.content.length
+    const newBlockContent = text.substring(0, absStart) + newTex + text.substring(absEnd)
+    block.content = newBlockContent
+    emit('update:modelValue', blocksToMarkdown(localBlocks.value))
+    // Update cache for edited inline math
+    if (uniqueId) {
+      try {
+        const html = katex.renderToString(newTex, { throwOnError: false, displayMode: false })
+        katexRenderCache.set(uniqueId, html)
+      } catch (e) {
+        katexRenderCache.set(uniqueId, newTex)
+      }
+    }
+  }
+}
+
+
+// Async math rendering state
+let mathTimer: any = null
+const MATH_BATCH = 12
+function cancelRenderMath() {
+  if (mathTimer) clearTimeout(mathTimer)
+  mathTimer = null
+}
+
+function processMathBatch() {
+  const container = document.querySelector('.md-parser-rendered')
+  if (!container) return
+  const placeholders = Array.from(container.querySelectorAll('.katex-placeholder')) as HTMLElement[]
+  // filter to those not yet marked rendered to avoid touching rendered DOM
+  const pending = placeholders.filter(el => !el.classList.contains('katex-rendered')) as HTMLElement[]
+  if (!pending.length) return
+  const batch = pending.slice(0, MATH_BATCH)
+  for (const el of batch) {
+    const tex = el.getAttribute('data-tex') || ''
+    const type = el.getAttribute('data-type') || 'inline'
+    const uid = el.getAttribute('data-unique-id') || ''
+    // If we have cached rendered HTML for this unique id, reuse it.
+    if (uid && katexRenderCache.has(uid)) {
+      const cached = katexRenderCache.get(uid) as string
+      // If element already contains the same rendered HTML, avoid touching DOM to prevent reflow
+      if (el.innerHTML && el.innerHTML.trim() === cached.trim()) {
+        el.classList.add('katex-rendered')
+        continue
+      }
+      el.innerHTML = cached
+      el.classList.add('katex-rendered')
+      continue
+    }
+    try {
+      const html = katex.renderToString(tex, { displayMode: type === 'block', throwOnError: false })
+      el.innerHTML = html
+      el.classList.add('katex-rendered')
+      console.log(`Rendered math: ${tex}`)
+      if (uid) katexRenderCache.set(uid, html)
+    } catch (e) {
+      // fallback: show raw TeX
+      el.textContent = tex
+      el.classList.add('katex-rendered')
+      if (uid) katexRenderCache.set(uid, tex)
+    }
+  }
+  // schedule next batch if remaining
+  const remaining = container.querySelectorAll('.katex-placeholder:not(.katex-rendered)').length
+  if (remaining > 0) {
+    mathTimer = setTimeout(processMathBatch, 40)
+  } else {
+    mathTimer = null
+  }
+}
+
+function scheduleRenderMath() {
+  cancelRenderMath()
+  // let browser breathe a frame then start
+  mathTimer = setTimeout(processMathBatch, 8)
+}
 
 // Inline TOC logic moved to page-level (BlogPost.vue)
 
@@ -124,6 +259,15 @@ function renderBlockHtml(block: ContentBlock): string {
           return match
       })
   }
+  // If we have cached KaTeX renderings for some unique ids, replace
+  // the placeholder tags with the cached HTML so re-renders only affect
+  // the specific formula that changed.
+  html = html.replace(/<(span|div)\b([^>]*?)data-unique-id=["']([^"']+)["']([^>]*)>\s*<\/\1>/g, (match, tag, beforeAttrs, uid, afterAttrs) => {
+    if (katexRenderCache.has(uid)) {
+      return katexRenderCache.get(uid) as string
+    }
+    return match
+  })
   return html
 }
 
@@ -135,8 +279,15 @@ async function handleGlobalClick(e: MouseEvent) {
   if (mathWrapper) {
     e.stopPropagation()
     const tex = mathWrapper.getAttribute('data-tex')
+    const uniqueId = mathWrapper.getAttribute('data-unique-id') || ''
+    const contentBlock = mathWrapper.closest('.content-block') as HTMLElement
+    // blockIndex might be on the content-block or its parent depending on structure
+    // We added :data-block-index="index" to .content-block
+    const blockIndexStr = contentBlock?.getAttribute('data-block-index')
+    const blockIndex = blockIndexStr ? parseInt(blockIndexStr, 10) : -1
+
     if (tex) {
-      showTooltip(e, tex, mathWrapper)
+      mathTooltip.show({ x: e.clientX, y: e.clientY, tex, uniqueId, blockIndex, isEditing: !props.readOnly, onSave: handleTooltipSave })
       return
     }
   }
@@ -169,69 +320,11 @@ async function handleGlobalClick(e: MouseEvent) {
   }
 
   // Click elsewhere closes tooltip
-  if (tooltip.visible) {
-    tooltip.visible = false
-  }
+  mathTooltip.hide()
 }
 
 
-function showTooltip(e: MouseEvent, tex: string, targetEl: HTMLElement) {
-    tooltip.tex = tex
-    tooltip.copied = false
-    tooltip.visible = true
-    
-    // Position near the mouse click but keep inside viewport
-    nextTick(() => {
-        const el = document.querySelector('.math-tooltip') as HTMLElement
-        if (!el) return
-        
-        const rect = el.getBoundingClientRect()
-        let x = e.clientX
-        let y = e.clientY + 20 // Default below cursor
-
-        // Horizontal overflow adjustment
-        if (x + rect.width > window.innerWidth - 20) {
-             x = window.innerWidth - rect.width - 20
-        }
-        if (x < 20) x = 20
-
-        // Vertical overflow adjustment
-        // If it overflows bottom, try placing above
-        if (y + rect.height > window.innerHeight - 20) {
-             y = e.clientY - rect.height - 20
-        }
-        // If still fits top (or overflows top), clamp to view
-        if (y < 20) y = 20
-        
-        // Final vertical safety check: if y + height > window, just stick to bottom
-        if (y + rect.height > window.innerHeight - 20) {
-             y = window.innerHeight - rect.height - 20
-        }
-
-        tooltip.x = x
-        tooltip.y = y
-    })
-}
-
-function copyTex() {
-  navigator.clipboard.writeText(tooltip.tex).then(() => {
-    tooltip.copied = true
-    if (tooltip.timer) clearTimeout(tooltip.timer)
-    tooltip.timer = setTimeout(() => {
-      tooltip.copied = false
-    }, 2000)
-  })
-}
-
-// Global click listener to close tooltip if clicked outside (already partially handled by handleGlobalClick but for safety)
-function closeTooltipOutside(e: MouseEvent) {
-    if (tooltip.visible) {
-       const target = e.target as HTMLElement;
-       if (!target.closest('.math-tooltip') && !target.closest('.katex-interactive')) {
-           tooltip.visible = false;
-       }
-    }
-}
+// Tooltip UI moved to MathTooltip component which handles its own outside-click listeners
 
 // Handling Image Events (Capture phase)
 function handleImageError(e: Event) {
@@ -259,30 +352,55 @@ function handleImageLoad(e: Event) {
 }
 
 onMounted(() => {
-    document.addEventListener('click', closeTooltipOutside)
-    const container = document.querySelector('.md-parser-rendered')
-    if (container) {
-       container.addEventListener('error', handleImageError, true)
-       container.addEventListener('load', handleImageLoad, true)
-    }
+  const container = document.querySelector('.md-parser-rendered')
+  if (container) {
+     container.addEventListener('error', handleImageError, true)
+     container.addEventListener('load', handleImageLoad, true)
+  }
+
+  // If parent provided parsed blocks, use them instead of parsing modelValue
+  if (props.blocks && Array.isArray(props.blocks) && props.blocks.length) {
+    localBlocks.value = props.blocks as ContentBlock[]
+    nextTick(() => {
+      emit('rendered')
+      scheduleRenderMath()
+    })
+  }
 })
 onUnmounted(() => {
-    document.removeEventListener('click', closeTooltipOutside)
     const container = document.querySelector('.md-parser-rendered')
     if (container) {
        container.removeEventListener('error', handleImageError, true)
        container.removeEventListener('load', handleImageLoad, true)
     }
+  cancelRenderMath()
 })
 
 watch(() => props.modelValue, (newVal) => {
-  // ... existing watch logic
+  // If parent provided blocks (even empty array), assume parent controls content
+  if (props.blocks !== undefined) return
+
   if (newVal === blocksToMarkdown(toRaw(localBlocks.value))) {
     return
   }
   localBlocks.value = parseMarkdown(newVal || '')
-  // TOC is built at page level when needed
+  emit('parsed-blocks', toRaw(localBlocks.value))
+  nextTick(() => {
+    emit('rendered')
+    scheduleRenderMath()
+  })
 }, { immediate: true })
+
+// Watch for parent-updated blocks and adopt them
+watch(() => props.blocks, (b) => {
+  if (b && Array.isArray(b)) {
+    localBlocks.value = b as ContentBlock[]
+    nextTick(() => {
+      emit('rendered')
+      scheduleRenderMath()
+    })
+  }
+})
 // ... rest of script to follow
 
 function updateTable(index: number, header: string[], body: string[][]) {
@@ -346,27 +464,27 @@ defineExpose({
   max-width: 400px;
   color: #eee;
   font-size: 14px;
+  /* v-if handles visibility now, so we start visible */
+  opacity: 1;
+  transform: translateY(0);
+  animation: tooltipFadeIn 0.16s ease;
 }
-.math-tooltip-content {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+
+@keyframes tooltipFadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.math-tooltip.visible {
+  /* Deprecated: handled by v-if */
 }
 .math-tooltip-tex {
-  font-family: monospace;
-  background-color: #2a2a2a;
-  padding: 8px;
-  border-radius: 4px;
-  overflow-x: auto;
-  white-space: pre-wrap;
-  word-break: break-all;
-  color: #ccc;
-  border: 1px solid #333;
+  /* Deprecated, using editor structure instead */
+  display: none;
 }
-.math-tooltip-actions {
-  display: flex;
-  justify-content: flex-end;
-}
+/* Reused styles for content */
+.math-tooltip-content { display: none; } 
+
 .math-tooltip-actions .icon-btn {
   background: #333;
   border: 1px solid #444;
@@ -383,11 +501,212 @@ defineExpose({
   height: 28px;
   border-radius: 4px; /* Square with slight radius */
 }
+.math-tooltip-actions .save-btn:hover {
+    color: #2ea35f;
+    border-color: #2ea35f;
+}
+
+.validation-error {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #ff6b6b;
+    background: rgba(255, 107, 107, 0.1);
+    border: 1px solid rgba(255, 107, 107, 0.2);
+    border-radius: 4px;
+    padding: 6px 8px;
+    margin-top: 4px;
+}
+.validation-error svg {
+    flex-shrink: 0;
+}
+
 .math-tooltip-actions .icon-btn:hover {
   background-color: #444;
   border-color: #2ea35f;
   color: #fff;
 }
+
+/* Edit Mode Styles */
+.math-tooltip.editing {
+  min-width: 400px;
+  width: 400px;
+  max-width: 600px;
+}
+.math-tooltip-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 80vh;
+}
+
+.math-tooltip-editor .editor-wrapper {
+  position: relative;
+  min-height: 48px;
+  max-height: 200px; /* Limit max height */
+  background: #2b2b2b;
+  border: 1px solid #333;
+  border-radius: 4px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.math-tooltip-editor .editor-content {
+  position: relative;
+  width: 100%;
+}
+
+.math-tooltip-editor .syntax-highlight {
+  position: relative;
+  width: 100%;
+  margin: 0;
+  padding: 8px;
+  padding-bottom: 24px;
+  min-height: 48px; /* Should match wrapper min-height roughly */
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 13.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word; /* Ensure wrapping so it dictates height */
+  box-sizing: border-box;
+  color: #d4d4d4;
+  pointer-events: none;
+}
+
+.math-tooltip-editor .code-textarea {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 8px;
+  padding-bottom: 20px;
+  border: none;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 13.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  background: transparent;
+  color: transparent;
+  caret-color: #fff;
+  resize: none;
+  border: none;
+  outline: none;
+  z-index: 10;
+  overflow: hidden; /* Hide scrollbar, use wrapper's */
+  box-sizing: border-box;
+}
+
+/* Cleanup redundant styles */
+.math-tooltip-editor .editor-wrapper {
+   min-height: 42px;
+}
+.math-tooltip-editor .syntax-highlight {
+   padding-bottom: 20px;
+   min-height: 42px;
+}
+
+.math-tooltip-editor .code-textarea {
+  font-family: 'Consolas', 'Monaco', monospace; /* Force monospace */
+  font-size: 13.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word; /* Deprecated but useful fallback */
+  overflow-wrap: break-word;
+  background: transparent;
+  color: transparent;
+  caret-color: #fff;
+  resize: none;
+  border: none;
+  outline: none;
+  z-index: 10;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  padding: 8px;
+  padding-bottom: 20px; /* Consistent padding */
+  overflow: hidden; /* Prevent double scrollbars, rely on wrapper */
+  pointer-events: auto; /* Allow input */
+}
+
+.math-tooltip-editor .syntax-highlight {
+  position: relative;
+  margin: 0;
+  padding: 8px;
+  padding-bottom: 20px; /* Consistent padding */
+  pointer-events: none;
+  background: transparent;
+  width: 100%;
+  font-family: 'Consolas', 'Monaco', monospace; /* Force monospace */
+  font-size: 13.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word; /* Deprecated but useful fallback */
+  overflow-wrap: break-word;
+}
+
+/* The wrapper now scrolls if content exceeds its max-height */
+.math-tooltip-editor .editor-wrapper {
+  overflow-y: auto; /* Allow scrolling on wrapper */
+}
+
+.math-tooltip-editor .syntax-highlight {
+  pointer-events: none;
+  background: transparent;
+  color: #d4d4d4;
+  z-index: 0;
+  /* Override padding-bottom for the highlighter so it aligns with textarea but doesn't trap scroll */
+  /* Actually they must match exactly for alignment */
+}
+
+.math-tooltip-editor .code-textarea {
+  background: transparent;
+  color: transparent;
+  caret-color: #fff;
+  resize: none;
+  outline: none;
+  z-index: 1;
+}
+
+/* Ensure read-only highlight has proper scrolling if content is long */
+.syntax-highlight-readonly {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.math-tooltip-editor .math-tooltip-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+}
+
+.math-tooltip-actions .text-btn {
+  width: auto;
+  padding: 4px 12px;
+  font-size: 12px;
+  border: 1px solid #444;
+  background: #333;
+  color: #eee;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.math-tooltip-actions .text-btn:hover {
+  background-color: #444;
+  border-color: #2ea35f;
+  color: #fff;
+}
+
+
 </style>
 
 <style>

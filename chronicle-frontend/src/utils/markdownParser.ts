@@ -42,54 +42,29 @@ export function processEmphasis(text: string, isHeading = false): string {
   processed = processed.replace(/\\\\\[/g, PLACEHOLDER_ESCAPED_LBRACKET)
   processed = processed.replace(/\\\\\]/g, PLACEHOLDER_ESCAPED_RBRACKET)
 
-  // 1. Block Math \[ ... \] (inline occurrence) - Display Mode
+  // 1. Block Math \[ ... \] (inline occurrence) - produce a lightweight placeholder
   processed = processed.replace(/\\\[([\s\S]+?)\\\]/g, (_match, tex) => {
-    try {
-      // Restore HTML tags for tex? No, tex shouldn't contain HTML tags usually, but if it does, Katex might handle it or we need to restore?
-      // Actually strictly Tex shouldn't have arbitrary HTML.
-      // But if user typed \[ ... <br> ... \], we might have replaced <br> with placeholder.
-      // Katex renderToString takes string. If we feed it placeholder, it renders placeholder.
-      // We should probably NOT restore HTML tags inside math before passing to KaTex, unless we're sure.
-      // But wait, the math regex is simply matching, it definitely matched the placeholder string if it was inside.
-      // Let's restore strictly for the content passing to renderToString if necessary, but actually usually math mode ignores HTML tags anyway or treats as invalid.
-      // For safety, let's just proceed. The main goal is protecting text rendering.
-      
-      const html = katex.renderToString(tex, { displayMode: true, throwOnError: false })
-      return `<div class="katex-display-wrapper katex-interactive" data-tex="${escapeAttr(tex)}" data-type="block">${html}</div>`
-    } catch {
-      return _match
-    }
+    const uniqueId = `math-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    return `<div class="katex-placeholder katex-interactive" data-tex="${escapeAttr(tex)}" data-type="block" data-unique-id="${uniqueId}"></div>`
   })
 
-  // 2. Inline Math $$ ... $$ - class: inline-math-double
+  // 2. Inline Math $$ ... $$ - produce placeholder
   processed = processed.replace(/\$\$((?:[^\n]|\n)+?)\$\$/g, (_match, tex) => {
-    try {
-      const html = katex.renderToString(tex, { displayMode: false, throwOnError: false });
-      return `<span class="inline-math-double katex-interactive" data-tex="${escapeAttr(tex)}" data-type="inline">${html}</span>`
-    } catch {
-      return _match
-    }
+    const uniqueId = `math-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    return `<span class="katex-placeholder katex-interactive" data-tex="${escapeAttr(tex)}" data-type="inline" data-unique-id="${uniqueId}"></span>`
   })
 
-  // 3. Inline Math \( ... \) - class: inline-math-slash
+  // 3. Inline Math \( ... \) - produce placeholder
   processed = processed.replace(/\\\(([\s\S]+?)\\\)/g, (_match, tex) => {
-    try {
-      const html = katex.renderToString(tex, { displayMode: false, throwOnError: false });
-      return `<span class="inline-math-slash katex-interactive" data-tex="${escapeAttr(tex)}" data-type="inline">${html}</span>`
-    } catch {
-      return _match
-    }
+    const uniqueId = `math-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    return `<span class="katex-placeholder katex-interactive" data-tex="${escapeAttr(tex)}" data-type="inline" data-unique-id="${uniqueId}"></span>`
   })
 
-  // 4. Inline Math $ ... $ - class: inline-math-single
+  // 4. Inline Math $ ... $ - produce placeholder
   processed = processed.replace(/\$((?:[^$\n]|)+?)\$/g, (_match, tex) => {
     if (!tex.trim()) return _match;
-    try {
-      const html = katex.renderToString(tex, { displayMode: false, throwOnError: false });
-      return `<span class="inline-math-single katex-interactive" data-tex="${escapeAttr(tex)}" data-type="inline">${html}</span>`
-    } catch {
-      return _match
-    }
+    const uniqueId = `math-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    return `<span class="katex-placeholder katex-interactive" data-tex="${escapeAttr(tex)}" data-type="inline" data-unique-id="${uniqueId}"></span>`
   })
   
   // 5. Restore escaped dollars and brackets
@@ -545,8 +520,9 @@ export function convertToHtml(text: any): string {
     // Math Block
     if (block && block.type === 'math') {
       try {
+        const uniqueId = `math-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
         const html = katex.renderToString(block.content, { displayMode: true, throwOnError: false })
-        return `<div class="katex-display-wrapper katex-interactive" data-tex="${escapeAttr(block.content)}" data-type="block">${html}</div>`
+        return `<div class="katex-display-wrapper katex-interactive" data-tex="${escapeAttr(block.content)}" data-type="block" data-unique-id="${uniqueId}">${html}</div>`
       } catch {
         return `<pre>${block.content}</pre>`
       }

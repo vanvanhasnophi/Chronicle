@@ -19,6 +19,7 @@
             <option value="java">Java</option>
             <option value="javascript">JavaScript</option>
             <option value="json">JSON</option>
+            <option value="katex">KaTeX</option>
             <option value="kotlin">Kotlin</option>
             <option value="less">LESS</option>
             <option value="lua">Lua</option>
@@ -748,10 +749,14 @@ watch(() => props.language, (n) => {
 .syntax-highlight .keyword { color: #569cd6; font-weight: bold; }
 .syntax-highlight .string { color: #ce9178; }
 .syntax-highlight .comment { color: #6a9955; font-style: italic; }
+.syntax-highlight .katexcommand { color: #c9bf4e; }
 .syntax-highlight .number { color: #b5cea8; }
+.syntax-highlight .katexnumber { color: #b5cea8; }
 .syntax-highlight .boolean { color: #569cd6; }
 .syntax-highlight .operator { color: #d4d4d4; }
+.syntax-highlight .katexoperator { color: #d4d4d4a0; }
 .syntax-highlight .bracket { color: var(--featured); }
+.syntax-highlight .katexbracket { color: #d4d4d4a0; }
 .syntax-highlight .tag { color: #569cd6; }
 .syntax-highlight .attribute { color: #9cdcfe; }
 .syntax-highlight .property { color: #9cdcfe; }
@@ -956,20 +961,21 @@ watch(() => props.language, (n) => {
 /* 滚动条样式 */
 .syntax-highlight::-webkit-scrollbar,
 .code-textarea::-webkit-scrollbar {
+  cursor: default;
   width: 12px;
   height: 12px;
 }
 .syntax-highlight::-webkit-scrollbar-track,
 .code-textarea::-webkit-scrollbar-track {
-  background: #23272e;
+  background: transparent;
 }
 .syntax-highlight::-webkit-scrollbar-thumb,
 .code-textarea::-webkit-scrollbar-thumb {
-  background: #444a57;
+  background: #565656;
   border-radius: 6px;
 }
 .syntax-highlight::-webkit-scrollbar-thumb:hover,
 .code-textarea::-webkit-scrollbar-thumb:hover {
-  background: #555555;
+  background: #797979;
 }
 </style>
