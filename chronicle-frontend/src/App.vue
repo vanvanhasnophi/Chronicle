@@ -3,6 +3,7 @@ import { computed, ref, watch, onMounted, onBeforeUnmount, reactive, nextTick } 
 import { RouterLink, RouterView, useRoute ,useRouter } from 'vue-router'
 import { Icons } from './utils/icons'
 import { Globe } from 'lucide-vue-next'
+import { ensureNotoLoaded } from './utils/fontLoader'
 import FilePreviewModal from './components/FilePreviewModal.vue'
 import ImagePreviewModal from './components/ImagePreviewModal.vue'
 import Toast from './components/Toast.vue'
@@ -119,13 +120,16 @@ function applySettings() {
     // Apply Fonts
     try {
       if (s.frontendFont === 'serif') {
+        // ensure serif font loaded when requested
+        ensureNotoLoaded()
         document.documentElement.style.setProperty('--app-font-stack', "'Noto Serif SC', serif")
       } else {
         // default or sans
         document.documentElement.style.setProperty('--app-font-stack', 'var(--app-font-stack-inter)')
       }
-      
+
       if (s.backendFont === 'serif') {
+        ensureNotoLoaded()
         document.documentElement.style.setProperty('--backend-font-stack', "'Noto Serif SC', serif")
       } else {
         // default or sans
@@ -135,6 +139,9 @@ function applySettings() {
 
   }).catch(() => {})
 }
+
+// re-export helper from utils
+const ensureNotoLoadedLocal = ensureNotoLoaded
 
 function applyFrontendLocaleFromSelection() {
   if (!selectedLocale.value || selectedLocale.value === 'follow') {

@@ -9,4 +9,8 @@
   "devDependencies": {
     "@types/node": "^25.2.2"
   }
+  ,
+  "scripts": {
+    "migrate:posts": "node scripts/migrate_posts_dir.js"
+  }
 }

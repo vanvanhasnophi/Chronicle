@@ -148,7 +148,40 @@ const textareaHeight = computed(() => {
 })
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import mermaid from 'mermaid'
+
+// Lazy-load mermaid only when the editor requires it (preview/download).
+let mermaidModule: any = null
+let mermaidInitialized = false
+async function ensureMermaidLoaded() {
+  if (!mermaidModule) {
+    const mod = await import('mermaid')
+    mermaidModule = (mod && mod.default) || mod
+  }
+  if (!mermaidInitialized) {
+    try {
+      mermaidModule.initialize({
+        startOnLoad: false,
+        theme: 'base',
+        themeVariables: {
+          background: 'transparent',
+          nodeBkg: 'transparent',
+          clusterBkg: 'transparent',
+          primaryColor: 'transparent',
+          primaryTextColor: '#d4d4d4',
+          textColor: '#d4d4d4',
+          nodeBorder: '#e0e0e0',
+          clusterBorder: '#e0e0e0',
+          lineColor: '#ececec',
+          secondaryColor: '#0b7285',
+          fontFamily: 'var(--app-font-stack)'
+        }
+      })
+    } catch (e) {
+      console.warn('mermaid init failed', e)
+    }
+    mermaidInitialized = true
+  }
+}
 
 // Props 定义
 interface Props {
@@ -614,28 +647,8 @@ watch(code, (newVal) => {
 onMounted(() => {
   // 不自动聚焦，避免markdown编辑时跳焦点
   try {
-    // 使 mermaid 主题与页面代码块配色一致
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: 'base',
-      themeVariables: {
-        background: 'transparent',
-        nodeBkg: 'transparent',
-        clusterBkg: 'transparent',
-        primaryColor: 'transparent',
-        primaryTextColor: '#d4d4d4',
-        textColor: '#d4d4d4',
-        // 边框颜色，比文字略淡
-        nodeBorder: '#e0e0e0',
-        clusterBorder: '#e0e0e0',
-        // 连接线颜色，比边框再略淡
-        lineColor: '#ececec',
-        // 次要颜色
-        secondaryColor: '#0b7285',
-        // 字体
-        fontFamily: 'var(--app-font-stack)'
-      }
-    })
+    // initialize mermaid asynchronously (if used)
+    ensureMermaidLoaded().catch(e => console.warn('mermaid init failed', e))
   } catch (e) {
     console.warn('mermaid init failed', e)
   }
@@ -673,8 +686,9 @@ async function renderMermaid() {
   if (!mermaidContainer.value) return
   const codeText = code.value || ''
   try {
+    await ensureMermaidLoaded()
     const id = 'mermaid_' + Date.now()
-    const { svg } = await mermaid.render(id, codeText)
+    const { svg } = await mermaidModule.render(id, codeText)
     mermaidContainer.value.innerHTML = svg
     lastRenderedSvg.value = svg
   } catch (err) {

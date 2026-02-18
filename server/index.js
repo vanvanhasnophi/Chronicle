@@ -187,6 +187,90 @@ function stringifyFrontMatter(attributes, body) {
     return fm + body;
 }
 
+// Helper: get directory path for a post (supports legacy filename)
+function getPostDir(post) {
+    if (!post) return '';
+    const dirName = post.dir || (post.filename ? post.filename.replace(/\.md$/, '') : post.id);
+    return path.join(POSTS_DIR, String(dirName || ''));
+}
+
+function isValidId(id) {
+    return typeof id === 'string' && /^[0-9a-fA-F\-]+$/.test(id)
+}
+
+function readPostContentFromDisk(post) {
+    const dir = getPostDir(post)
+    const id = post.id
+    if (!isValidId(id)) return ''
+    const expectedName = `${id}-content.md`
+    const p = path.join(dir, expectedName)
+    if (fs.existsSync(p)) {
+        let raw = fs.readFileSync(p, 'utf-8')
+        try { raw = decrypt(raw) } catch(e) {}
+        const { body } = parseFrontMatter(raw)
+        return body
+    }
+    // Fallback to legacy filename if present and appears to match id
+    if (post.filename && post.filename.startsWith(id)) {
+        const legacy = path.join(POSTS_DIR, post.filename)
+        if (fs.existsSync(legacy)) {
+            let raw = fs.readFileSync(legacy, 'utf-8')
+            try { raw = decrypt(raw) } catch(e) {}
+            const { body } = parseFrontMatter(raw)
+            return body
+        }
+    }
+    return ''
+}
+
+function writePostContentToDisk(post, content, options = {}) {
+    // options: { draft: boolean }
+    const dir = getPostDir(post)
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+    const id = post.id
+    if (!isValidId(id)) throw new Error('Invalid post id')
+    const filename = options.draft ? `${id}-draft.md` : `${id}-content.md`
+    const full = stringifyFrontMatter({ title: post.title, date: post.date, updatedAt: post.updatedAt, tags: post.tags || [], font: post.font || 'sans' }, content || '')
+    const encrypted = encrypt(full)
+    fs.writeFileSync(path.join(dir, filename), encrypted)
+}
+
+function writeCompiledHtmlToDisk(post, html) {
+    const dir = getPostDir(post)
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+    const id = post.id
+    if (!isValidId(id)) throw new Error('Invalid post id')
+    fs.writeFileSync(path.join(dir, `${id}-compiled.html`), html || '')
+}
+
+function writeTocToDisk(post, toc) {
+    const dir = getPostDir(post)
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+    const id = post.id
+    if (!isValidId(id)) throw new Error('Invalid post id')
+    fs.writeFileSync(path.join(dir, `${id}-toc.json`), JSON.stringify(toc || []))
+}
+
+function readCompiledHtmlFromDisk(post) {
+    const dir = getPostDir(post)
+    const id = post.id
+    if (!isValidId(id)) return ''
+    const p = path.join(dir, `${id}-compiled.html`)
+    if (fs.existsSync(p)) return fs.readFileSync(p, 'utf-8')
+    return ''
+}
+
+function readTocFromDisk(post) {
+    const dir = getPostDir(post)
+    const id = post.id
+    if (!isValidId(id)) return []
+    const p = path.join(dir, `${id}-toc.json`)
+    if (fs.existsSync(p)) {
+        try { return JSON.parse(fs.readFileSync(p, 'utf-8')) } catch(e) { return [] }
+    }
+    return []
+}
+
 // Ensure Index Consistency on Startup
 function syncIndexWithFiles() {
     try {
@@ -195,8 +279,18 @@ function syncIndexWithFiles() {
         let modified = false;
 
         posts.forEach(post => {
-            const mdPath = path.join(POSTS_DIR, post.filename);
-            if (fs.existsSync(mdPath)) {
+            // Support new per-post directory layout: POSTS_DIR/<id>/<id>-content.md
+            const dirName = post.dir || (post.filename ? post.filename.replace(/\.md$/, '') : post.id);
+            const dirPath = path.join(POSTS_DIR, dirName || '')
+            const expected = path.join(dirPath, `${post.id}-content.md`)
+            let mdPath = ''
+            if (fs.existsSync(expected)) {
+                mdPath = expected
+            } else if (post.filename && fs.existsSync(path.join(POSTS_DIR, post.filename))) {
+                mdPath = path.join(POSTS_DIR, post.filename)
+            }
+
+            if (mdPath && fs.existsSync(mdPath)) {
                 let content = fs.readFileSync(mdPath, 'utf-8');
                 try { content = decrypt(content); } catch(e) {}
                 
@@ -206,7 +300,6 @@ function syncIndexWithFiles() {
                     modified = true;
                     console.log(`[Sync] Updated font for ${post.id} from file metadata: ${post.font}`);
                 }
-                // We could sync other fields too, but font is the request focus
             }
         });
 
@@ -879,6 +972,15 @@ app.get('/api/posts', (req, res) => {
             posts = posts.filter(p => p.status === 'published' || p.status === 'modifying' || !p.status);
         }
 
+        // Augment posts with hasHtml flag based on disk state
+        posts = posts.map(p => {
+            const html = readCompiledHtmlFromDisk(p)
+            const hasHtml = !!(html && html.length > 0)
+            // ensure dir field when possible
+            if (!p.dir) p.dir = p.filename ? p.filename.replace(/\.md$/, '') : p.id
+            return { ...p, hasHtml }
+        })
+
         posts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         res.json(posts);
     } catch(e) {
@@ -897,21 +999,32 @@ app.get('/api/post', (req, res) => {
 
         if (!post) return res.status(404).send('Post not found');
 
-        let targetFilename = post.filename;
-        if (mode === 'edit' && post.status === 'modifying' && post.draftFilename) {
-            targetFilename = post.draftFilename;
+        // legacy filename handling removed: content is read from per-post dir via helpers
+
+        // Read content from per-post directory or legacy filename
+        const content = readPostContentFromDisk(post)
+
+        // Read compiled html & toc from disk if available (validate id)
+        const html = readCompiledHtmlFromDisk(post) || ''
+        const toc = readTocFromDisk(post)
+        const hasHtml = !!(html && html.length > 0)
+
+        // If mode=edit and there's a draft file, prefer draft content for editing
+        if (mode === 'edit') {
+            const dir = getPostDir(post)
+            const draftPath = path.join(dir, `${post.id}-draft.md`)
+            if (fs.existsSync(draftPath)) {
+                let raw = fs.readFileSync(draftPath, 'utf-8')
+                try { raw = decrypt(raw) } catch(e) {}
+                const { body } = parseFrontMatter(raw)
+                // override content
+                // Note: do not promote draft to published unless saved as such
+                // return draft as content for editor
+                return res.json({ ...post, content: body, html, hasHtml, toc })
+            }
         }
 
-        const mdPath = path.join(POSTS_DIR, targetFilename);
-        let content = '';
-        if (fs.existsSync(mdPath)) {
-            const raw = fs.readFileSync(mdPath, 'utf-8');
-            try { content = decrypt(raw); } catch(err) { content = raw; }
-            // Strip front matter for frontend consumption
-            const { body } = parseFrontMatter(content);
-            content = body;
-        }
-        res.json({ ...post, content });
+        res.json({ ...post, content, html, hasHtml, toc });
     } catch(e) {
         res.status(500).send('Error');
     }
@@ -925,11 +1038,13 @@ app.post('/api/restore', (req, res) => {
         const posts = JSON.parse(indexContent || '[]');
         const post = posts.find(p => p.id === id);
 
-        if (post && post.status === 'modifying' && post.draftFilename) {
-            const draftPath = path.join(POSTS_DIR, post.draftFilename);
-            if (fs.existsSync(draftPath)) fs.unlinkSync(draftPath);
-            post.status = 'published';
-            delete post.draftFilename;
+        if (post && post.status === 'modifying') {
+            const dir = getPostDir(post)
+            const draftPath = path.join(dir, `${id}-draft.md`)
+            if (fs.existsSync(draftPath)) fs.unlinkSync(draftPath)
+            // remove legacy draftFilename field if present
+            if (post.draftFilename) delete post.draftFilename
+            post.status = 'published'
             fs.writeFileSync(INDEX_FILE, JSON.stringify(posts, null, 2));
         }
         res.json({ success: true });
@@ -958,16 +1073,15 @@ app.post('/api/post', (req, res) => {
                 if (content !== undefined) {
                     post.summary = content.slice(0, 200).replace(/[#*`\[\]]/g, '');
                 }
-                
+
+                // For directory-based storage, manage draft files instead of draftFilename
                 if (status === 'modifying') {
-                    if (!post.draftFilename) post.draftFilename = `${post.id}_draft.md`;
                     post.status = 'modifying';
                 } else if (status === 'published') {
-                    if (post.draftFilename) {
-                         const draftPath = path.join(POSTS_DIR, post.draftFilename);
-                         if (fs.existsSync(draftPath)) fs.unlinkSync(draftPath);
-                         delete post.draftFilename;
-                    }
+                    // Remove any draft file named <id>-draft.md if promoting to published
+                    const dir = getPostDir(post)
+                    const draftPath = path.join(dir, `${post.id}-draft.md`)
+                    if (fs.existsSync(draftPath)) fs.unlinkSync(draftPath)
                     post.status = 'published';
                 } else if (status) {
                     post.status = status;
@@ -975,6 +1089,8 @@ app.post('/api/post', (req, res) => {
                 if (data.tags) post.tags = sortTags(data.tags || []);
                 if (data.font) post.font = data.font;
                 post.updatedAt = now;
+                // Ensure post.dir exists for new/legacy posts
+                if (!post.dir) post.dir = post.id
             }
         }
 
@@ -987,6 +1103,7 @@ app.post('/api/post', (req, res) => {
                 date: now,
                 updatedAt: now,
                 filename,
+                dir: id,
                 summary: (content || '').slice(0, 200).replace(/[#*`\[\]]/g, ''),
                 tags: sortTags(data.tags || []),
                 font: data.font || 'sans',
@@ -997,36 +1114,32 @@ app.post('/api/post', (req, res) => {
         }
 
         if (content !== undefined || !data.id) {
-            // Attach source data (Front Matter) to file
-            const fullContent = stringifyFrontMatter({
-                title: post.title,
-                date: post.date,
-                updatedAt: post.updatedAt,
-                tags: post.tags || [],
-                font: post.font || 'sans'
-            }, content || '');
-
-            const encryptedContent = encrypt(fullContent);
-            const targetFilename = (post.status === 'modifying' && post.draftFilename) 
-                ? post.draftFilename 
-                : post.filename;
-            fs.writeFileSync(path.join(POSTS_DIR, targetFilename), encryptedContent);
+            // Write content to per-post directory (draft or content)
+            try {
+                if (post.status === 'modifying') {
+                    writePostContentToDisk(post, content || '', { draft: true })
+                } else {
+                    writePostContentToDisk(post, content || '', { draft: false })
+                }
+            } catch (e) {
+                console.error('[Post] Failed to write content to disk', e)
+            }
         } else {
              // If content wasn't sent but metadata was updated, we should update the file metadata too.
              // But reading, decrypting, updating FM, encrypting, saving is expensive.
              // Given BlogEditor always sends content, we might skip this edge case or handle it.
              // For robustness (user request: "ensure... linking"), allow metadata-only update to file:
-             const targetFilename = (post.status === 'modifying' && post.draftFilename) 
-                ? post.draftFilename 
-                : post.filename;
-             const mdPath = path.join(POSTS_DIR, targetFilename);
-             if (fs.existsSync(mdPath)) {
+             // metadata-only update: update front matter in existing content.md (or legacy file)
+             const dir = getPostDir(post)
+             const candidate1 = path.join(dir, `${post.id}-content.md`)
+             const candidate2 = path.join(dir, `${post.id}-draft.md`)
+             const existingPath = fs.existsSync(candidate1) ? candidate1 : (fs.existsSync(candidate2) ? candidate2 : (post.filename ? path.join(POSTS_DIR, post.filename) : null))
+             if (existingPath && fs.existsSync(existingPath)) {
                  try {
-                     const raw = fs.readFileSync(mdPath, 'utf-8');
+                     const raw = fs.readFileSync(existingPath, 'utf-8');
                      let currentContent = raw;
                      try { currentContent = decrypt(raw); } catch(e){}
                      const { body } = parseFrontMatter(currentContent);
-                     
                      const newContent = stringifyFrontMatter({
                         title: post.title,
                         date: post.date,
@@ -1034,9 +1147,25 @@ app.post('/api/post', (req, res) => {
                         tags: post.tags || [],
                         font: post.font || 'sans'
                     }, body);
-                    fs.writeFileSync(mdPath, encrypt(newContent));
-                 } catch(e) { console.error('Failed to update file metadata', e); }
+                    fs.writeFileSync(existingPath, encrypt(newContent));
+                } catch(e) { console.error('Failed to update file metadata', e); }
              }
+        }
+
+        // If frontend sent compiledHtml (static HTML) or html, sanitize and store it on disk
+        if (data.compiledHtml || data.html) {
+            try {
+                const sanitized = sanitizeHtml(data.compiledHtml || data.html);
+                post.html = sanitized; // keep in index for quick access
+                writeCompiledHtmlToDisk(post, sanitized);
+            } catch (e) {
+                post.html = '';
+            }
+        }
+
+        // Save toc if provided
+        if (data.toc) {
+            try { writeTocToDisk(post, data.toc) } catch(e) { }
         }
 
         fs.writeFileSync(INDEX_FILE, JSON.stringify(posts, null, 2));
@@ -1055,8 +1184,14 @@ app.delete('/api/post', (req, res) => {
         let posts = JSON.parse(fs.readFileSync(INDEX_FILE, 'utf-8') || '[]');
         const post = posts.find(p => p.id === id);
         if (post) {
-            const mdPath = path.join(POSTS_DIR, post.filename);
-            if (fs.existsSync(mdPath)) fs.unlinkSync(mdPath);
+            // Remove per-post directory if exists, otherwise remove legacy file
+            const dir = getPostDir(post)
+            if (fs.existsSync(dir)) {
+                try { fs.rmSync(dir, { recursive: true, force: true }) } catch(e) { console.error('[Delete] remove dir failed', e) }
+            } else if (post.filename) {
+                const mdPath = path.join(POSTS_DIR, post.filename);
+                if (fs.existsSync(mdPath)) fs.unlinkSync(mdPath);
+            }
             posts = posts.filter(p => p.id !== id);
             fs.writeFileSync(INDEX_FILE, JSON.stringify(posts, null, 2));
         }
@@ -1070,16 +1205,30 @@ app.post('/api/scan', (req, res) => {
     try {
         let posts = [];
         try { posts = JSON.parse(fs.readFileSync(INDEX_FILE, 'utf-8') || '[]'); } catch(e){}
-        
-        const files = fs.readdirSync(POSTS_DIR).filter(f => f.endsWith('.md'));
-        const fileSet = new Set(files);
-        
+        // Scan POSTS_DIR for per-post directories and legacy .md files
+        const entries = fs.readdirSync(POSTS_DIR, { withFileTypes: true });
+        const dirPosts = [];
+        const legacyFiles = [];
+        entries.forEach(e => {
+            if (e.isDirectory()) {
+                dirPosts.push(e.name)
+            } else if (e.isFile() && e.name.endsWith('.md')) {
+                legacyFiles.push(e.name)
+            }
+        })
+
         const originalCount = posts.length;
-        posts = posts.filter(p => fileSet.has(p.filename));
-        
-        const indexedFiles = new Set(posts.map(p => p.filename));
-        const orphans = files.filter(f => !indexedFiles.has(f));
-        
+
+        // Keep posts that still exist (either dir or legacy file)
+        posts = posts.filter(p => {
+            const dirName = p.dir || (p.filename ? p.filename.replace(/\.md$/, '') : p.id)
+            return dirPosts.includes(dirName) || legacyFiles.includes(p.filename)
+        })
+
+        // Find orphaned legacy files and recover them
+        const indexedFiles = new Set(posts.map(p => p.filename).filter(Boolean));
+        const orphans = legacyFiles.filter(f => !indexedFiles.has(f));
+
         let recoveredCount = 0;
         orphans.forEach(filename => {
             try {
@@ -1088,12 +1237,13 @@ app.post('/api/scan', (req, res) => {
                 try { content = decrypt(raw); } catch(e) {}
                 const stats = fs.statSync(path.join(POSTS_DIR, filename));
                 const id = filename.replace('.md', '');
-                
+
                 posts.push({
                     id,
                     title: `Recovered: ${id}`,
                     date: stats.birthtime || new Date(),
                     filename,
+                    dir: id,
                     summary: content.slice(0, 100).replace(/[#*`\[\]]/g, ''),
                     tags: ['recovered'],
                     status: 'draft'
@@ -1130,4 +1280,23 @@ function getDeviceTypeFromUA(ua) {
     if (ua.includes('linux')) return 'Linux';
     if (ua.includes('cros')) return 'ChromeOS';
     return 'Other';
+}
+
+// Very small sanitizer for compiled HTML saved from clients.
+// This is NOT a replacement for a proper HTML sanitizer like DOMPurify on the server side,
+// but helps prevent obvious script injections saved into index.json.
+function sanitizeHtml(html) {
+    if (!html) return '';
+    try {
+        // Remove <script>...</script>
+        let s = html.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '');
+        // Remove javascript: URIs
+        s = s.replace(/href\s*=\s*["']?javascript:[^"'>\s]*/gi, '');
+        s = s.replace(/src\s*=\s*["']?javascript:[^"'>\s]*/gi, '');
+        // Strip on* event handlers e.g. onclick, onerror
+        s = s.replace(/\son[a-z]+\s*=\s*(?:\"[^\"]*\"|\'[^\']*\'|[^\s>]+)/gi, '');
+        return s;
+    } catch (e) {
+        return '';
+    }
 }

@@ -802,6 +802,48 @@ async function doRestore() {
     }
 }
 
+// Render all ```mermaid ... ``` fenced blocks into inline SVGs.
+// This runs only in the editor (admin) environment before saving.
+async function renderMermaidBlocksInMarkdown(md: string) {
+    if (!md || !/```\s*mermaid\b/.test(md)) return md
+    let mod: any
+    try {
+        mod = await import('mermaid')
+    } catch (e) {
+        console.warn('Failed to load mermaid for rendering on save', e)
+        return md
+    }
+    const mermaid = (mod && mod.default) || mod
+    try {
+        mermaid.initialize({ startOnLoad: false, theme: 'base', themeVariables: { fontFamily: 'var(--app-font-stack)' } })
+    } catch (e) {
+        // ignore init errors
+    }
+
+    const regex = /```\s*mermaid\s*\n([\s\S]*?)\n```/g
+    let lastIndex = 0
+    let out = ''
+    let match: RegExpExecArray | null
+    let idx = 0
+    while ((match = regex.exec(md)) !== null) {
+        const full = match[0]
+        const code = match[1]
+        out += md.slice(lastIndex, match.index)
+        try {
+            const id = 'mermaid_' + Date.now() + '_' + (idx++)
+            const res = await mermaid.render(id, code)
+            const svg = res && (res.svg || res)
+            out += `<div class="mermaid-svg">${svg}</div>`
+        } catch (e) {
+            console.warn('mermaid render failed on save, leaving source block', e)
+            out += full
+        }
+        lastIndex = regex.lastIndex
+    }
+    out += md.slice(lastIndex)
+    return out
+}
+
 async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
     let status = forceStatus 
     if (!status) {
@@ -830,13 +872,15 @@ async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
             ? tempTitle.value
             : (isDefaultTitle.value ? t('editor.untitled') : postTitle.value)
 
+        // Convert mermaid blocks to SVG on save so frontend does not need mermaid runtime
+        const contentToSend = await renderMermaidBlocksInMarkdown(localValue.value)
         const res = await fetch('/api/post', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 id: postId.value,
                 title: titleToSend,
-                content: localValue.value,
+                content: contentToSend,
                 status: status,
                 tags: postTags.value,
                 font: postFont.value

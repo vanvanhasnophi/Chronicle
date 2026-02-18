@@ -27,21 +27,25 @@ function resolveMessage(key: string) {
     return key
   }
 }
-import TextEditor from '../pages/TextEditor.vue'
-import FileManager from '../pages/FileManager.vue'
-import BlogList from '../pages/BlogList.vue'
-import BlogPost from '../pages/BlogPost.vue'
-import PostManager from '../pages/PostManager.vue'
-import Search from '../pages/Search.vue'
-import Friends from '../pages/Friends.vue'
-import Home from '../pages/Home.vue'
-import Login from '../pages/Login.vue'
-import Security from '../pages/Security.vue'
-import Settings from '../pages/Settings.vue'
-import SettingsHome from '../pages/settings/SettingsHome.vue'
-import SettingsFriends from '../pages/settings/SettingsFriends.vue'
-import SettingsI18nFonts from '../pages/settings/SettingsI18nFonts.vue'
-import SettingsSecurity from '../pages/settings/SettingsSecurity.vue'
+// Pages are lazy-loaded per-route so only the visited page is fetched
+const Home = () => import(/* webpackChunkName: "home" */ '../pages/Home.vue')
+const BlogList = () => import(/* webpackChunkName: "blog-list" */ '../pages/BlogList.vue')
+const BlogPost = () => import(/* webpackChunkName: "blog-post" */ '../pages/BlogPost.vue')
+const Search = () => import(/* webpackChunkName: "search" */ '../pages/Search.vue')
+const Friends = () => import(/* webpackChunkName: "friends" */ '../pages/Friends.vue')
+const Login = () => import(/* webpackChunkName: "login" */ '../pages/Login.vue')
+// Security backend page lazy-loaded
+const Security = () => import(/* webpackChunkName: "security" */ '../pages/Security.vue')
+
+// Backend pages are lazy-loaded so frontend bundle doesn't include admin code
+const PostManager = () => import(/* webpackChunkName: "post-manager" */ '../pages/PostManager.vue')
+const FileManager = () => import(/* webpackChunkName: "file-manager" */ '../pages/FileManager.vue')
+const Settings = () => import(/* webpackChunkName: "settings" */ '../pages/Settings.vue')
+const SettingsHome = () => import(/* webpackChunkName: "settings-home" */ '../pages/settings/SettingsHome.vue')
+const SettingsFriends = () => import(/* webpackChunkName: "settings-friends" */ '../pages/settings/SettingsFriends.vue')
+const SettingsI18nFonts = () => import(/* webpackChunkName: "settings-i18n" */ '../pages/settings/SettingsI18nFonts.vue')
+const SettingsSecurity = () => import(/* webpackChunkName: "settings-security" */ '../pages/settings/SettingsSecurity.vue')
+const TextEditorLazy = () => import(/* webpackChunkName: "text-editor" */ '../pages/TextEditor.vue')
 
 const routes = [
   {
@@ -93,7 +97,7 @@ const routes = [
   {
     path: '/editor',
     name: 'TextEditor',
-    component: TextEditor,
+    component: TextEditorLazy,
     meta: { requiresAuth: true, title: 'editor.createNewPost' }
   },
   {

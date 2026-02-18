@@ -33,7 +33,6 @@
 
 <script setup lang="ts">
 import { ref, watch, toRaw, reactive, onMounted, onUnmounted, nextTick, computed } from 'vue'
-import katex from 'katex'
 import { parseMarkdown, convertToHtml, blocksToMarkdown, type ContentBlock } from '../utils/markdownParser'
 import { usePreview } from '../composables/usePreview'
 import { useImagePreview } from '../composables/useImagePreview'
@@ -68,16 +67,37 @@ import useMathTooltip from '../composables/useMathTooltip'
 
 const mathTooltip = useMathTooltip()
 
+// Lazy-load KaTeX on demand to avoid bundling it into the initial payload
+let katex: any = null
+let katexCssLoaded = false
+async function ensureKatexLoaded() {
+  if (!katex) {
+    const mod = await import('katex')
+    katex = (mod && (mod as any).default) || mod
+  }
+  if (!katexCssLoaded) {
+    const cssUrl = (await import('katex/dist/katex.min.css?url')).default
+    if (!document.getElementById('katex-css')) {
+      const l = document.createElement('link')
+      l.id = 'katex-css'
+      l.rel = 'stylesheet'
+      l.href = cssUrl
+      document.head.appendChild(l)
+    }
+    katexCssLoaded = true
+  }
+}
+
 // Cache rendered KaTeX HTML by unique-id so if placeholders are re-inserted
 // (e.g. due to layout/resize or v-html rewrite) we can reuse rendered output
 // and avoid calling katex.renderToString again.
 const katexRenderCache = new Map<string, string>()
 
 // Handler called by MathTooltip when user saves edits.
-function handleTooltipSave(newTex: string, uniqueId: string, blockIndex: number) {
+async function handleTooltipSave(newTex: string, uniqueId: string, blockIndex: number) {
   if (blockIndex === -1 || !localBlocks.value[blockIndex]) return
-
   try {
+    await ensureKatexLoaded()
     if (newTex) katex.renderToString(newTex, { throwOnError: true, displayMode: true })
   } catch (e) {
     // validation should be handled in the tooltip component; block save if invalid
@@ -165,7 +185,7 @@ function cancelRenderMath() {
   mathTimer = null
 }
 
-function processMathBatch() {
+async function processMathBatch() {
   const container = document.querySelector('.md-parser-rendered')
   if (!container) return
   const placeholders = Array.from(container.querySelectorAll('.katex-placeholder')) as HTMLElement[]
@@ -190,6 +210,7 @@ function processMathBatch() {
       continue
     }
     try {
+      await ensureKatexLoaded()
       const html = katex.renderToString(tex, { displayMode: type === 'block', throwOnError: false })
       el.innerHTML = html
       el.classList.add('katex-rendered')
@@ -205,7 +226,7 @@ function processMathBatch() {
   // schedule next batch if remaining
   const remaining = container.querySelectorAll('.katex-placeholder:not(.katex-rendered)').length
   if (remaining > 0) {
-    mathTimer = setTimeout(processMathBatch, 40)
+    mathTimer = setTimeout(() => { void processMathBatch() }, 40)
   } else {
     mathTimer = null
   }
@@ -214,7 +235,7 @@ function processMathBatch() {
 function scheduleRenderMath() {
   cancelRenderMath()
   // let browser breathe a frame then start
-  mathTimer = setTimeout(processMathBatch, 8)
+  mathTimer = setTimeout(() => { void processMathBatch() }, 8)
 }
 
 // Inline TOC logic moved to page-level (BlogPost.vue)
@@ -978,45 +999,6 @@ strong, b {
   flex-direction: column;
   overflow: hidden;
 }
-
-/* TOC styles */
-.markdown-toc {
-  margin: 12px 0 18px 0;
-  padding: 12px;
-  background: #222;
-  border: 1px solid #333;
-  border-radius: 8px;
-}
-.markdown-toc .toc-title {
-  font-weight: 600;
-  color: #d4d4d4;
-  margin-bottom: 8px;
-}
-.markdown-toc .toc-list { list-style: none; padding: 0; margin: 0; }
-.markdown-toc .toc-list li { margin: 4px 0; }
-.markdown-toc .toc-list li a { color: #cfd8dc; text-decoration: none; }
-.markdown-toc .toc-list .toc-level-2 { margin-left: 8px }
-.markdown-toc .toc-list .toc-level-3 { margin-left: 16px }
-.markdown-toc .toc-list .toc-level-4 { margin-left: 24px }
-.markdown-toc .toc-list .toc-level-5 { margin-left: 32px }
-.markdown-toc .toc-list .toc-level-6 { margin-left: 40px }
-
-.toc-float {
-  position: fixed;
-  right: 20px;
-  top: 120px;
-  width: 220px;
-  max-height: 60vh;
-  overflow: auto;
-  background: rgba(34,34,34,0.9);
-  border: 1px solid #333;
-  padding: 8px;
-  border-radius: 8px;
-  z-index: 1200;
-}
-.toc-float ul { list-style: none; margin: 0; padding: 4px }
-.toc-float li { margin: 6px 0 }
-.toc-float a { color: #cfd8dc; text-decoration: none }
 
 
 .file-name {

@@ -60,7 +60,7 @@
               </div>
 
             <!-- 悬浮目录导航（页面级） -->
-              <nav v-if="toc.length" class="toc-float" :class="{ collapsed: floatCollapsed }" aria-label="目录导航"
+              <nav v-if="toc.length" class="toc-float" :class="{ collapsed: floatCollapsed, visible: showTOCandBTT }" aria-label="目录导航"
                    @mouseenter="onFloatMouseEnter" @mouseleave="onFloatMouseLeave">
                         <ul>
                             <li v-for="item in toc" :key="item.id" 
@@ -74,7 +74,7 @@
                     </nav>
 
         <!-- Back to Top -->
-           <button class="back-to-top" :class="{ visible: showBackToTop }" @click="scrollToTop" :title="$t('misc.backToTop')">
+           <button class="back-to-top" :class="{ visible: showTOCandBTT }" @click="scrollToTop" :title="$t('misc.backToTop')">
              <span v-html="Icons.arrowUp"></span>
         </button>
     </div>
@@ -135,7 +135,7 @@ const inlineTocRender = ref(inlineTocShellOpen.value)
 const floatCollapsed = ref(true)
 let floatCollapseTimer: any = null
 const activeId = ref('')
-const showBackToTop = ref(false)
+const showTOCandBTT = ref(false)
 let observer: IntersectionObserver | null = null
 const suppressObserver = ref(false)
 let manualScrollTimer: any = null
@@ -187,7 +187,7 @@ function toggleInlineToc() {
 
 function onScroll(e: Event) {
     const target = e.target as HTMLElement
-    showBackToTop.value = target.scrollTop > 300
+    showTOCandBTT.value = target.scrollTop > 300
 
     // If we suppressed observer updates (due to clicking a TOC link),
     // debounce until scrolling stops and then re-enable observer updates.
@@ -616,7 +616,7 @@ watch(() => post.value && post.value.content, (v) => {
 .toc-float li { margin: 1px 0; }
 .toc-float a { text-decoration: none; display: block; box-sizing: border-box; }
 .toc-float .toc-text { display: block; width: 100%; padding: 3px 6px 3px 6px; padding-right: 10px; box-sizing: border-box; border-radius: 6px; transition: background 0.12s, color 0.12s; color: #eeeeee60; }
-.toc-float .toc-level-1 { padding-left: 0 !important; }
+.toc-float .toc-level-1 { padding-left: 1px !important; }
 .toc-float .toc-level-2 { padding-left: 6px !important; }
 .toc-float .toc-level-3 { padding-left: 12px !important; }
 .toc-float .toc-level-4 { padding-left: 18px !important; }
@@ -656,15 +656,19 @@ watch(() => post.value && post.value.content, (v) => {
     right: calc(10px + 2vw); 
     position: fixed; 
     top: calc(10px + 20vh); 
-    bottom: 80px;
+    /* remove fixed bottom so height can shrink to content; constrain via max-height */
     z-index: 1200; 
     overflow-x: hidden;
     transition: width 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), background-color 0.3s ease; 
     box-sizing: border-box; 
     border-radius: 8px;
+    /* Ensure toc grows to fit content but never extends past the visual bottom (80px)
+       calc(100vh - top - bottom) keeps its bottom <= previous bottom value */
+    max-height: calc(70vh - 80px);
+    height: auto;
 }
-.toc-float.collapsed { overflow-y: hidden; width: 32px; padding: 4px; border:none; background-color: transparent; border-radius: 10px; }
-.toc-float:not(.collapsed) { overflow-y: auto; width: 220px; background-color: rgba(30, 30, 30, 0.95); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+.toc-float.collapsed { overflow-y: hidden; width: 30px; padding: 4px; border:none; background-color: transparent; border-radius: 10px; }
+.toc-float:not(.collapsed) { overflow-y: auto; width: 220px; background-color: var(--component-bg-blur); box-shadow: 0 4px 12px rgba(0,0,0,0.3); border: 1px solid var(--border-color); }
 
 .toc-float ul { padding: 4px; list-style: none; margin: 0; transition: padding 0.3s ease; }
 .toc-float.collapsed ul {padding: 0;}

@@ -105,12 +105,15 @@ async function save() {
     if (frontendFont.value === 'sans') {
       document.documentElement.style.setProperty('--app-font-stack', 'var(--app-font-stack-inter)')
     } else if (frontendFont.value === 'serif') {
+      // load serif font on demand
+      try { (await import('../../utils/fontLoader')).ensureNotoLoaded() } catch(e) {}
       document.documentElement.style.setProperty('--app-font-stack', "'Noto Serif SC', serif")
     }
     // Also persist backend font into CSS var so backend UI (editor) can reflect immediately
     if (backendFont.value === 'sans') {
       document.documentElement.style.setProperty('--backend-font-stack', 'var(--app-font-stack-inter)')
     } else if (backendFont.value === 'serif') {
+      try { (await import('../../utils/fontLoader')).ensureNotoLoaded() } catch(e) {}
       document.documentElement.style.setProperty('--backend-font-stack', "'Noto Serif SC', serif")
     }
   } catch(e) {}
