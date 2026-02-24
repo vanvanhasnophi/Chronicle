@@ -36,7 +36,8 @@
   "home": {
     "title": "Chronicle for Eightyfor",
     "tagline": "Love what you wanna love, be what you wanna be.<br/>爱我所爱，自成一派。",
-    "viewBlogs": "查看博客"
+    "viewBlogs": "查看博客",
+    "viewThemePost": "阅读主题文章"
   },
   "file": {
     "library": "文件管理",
