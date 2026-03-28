@@ -41,8 +41,8 @@
             <div class="toc-list-shell" :class="{ open: inlineTocShellOpen }">
                 <transition name="toc-expand">
                     <ul v-if="inlineTocRender" :class="['toc-list']">
-                        <li v-for="(item, idx) in toc" :key="item.id" :class="`toc-level-${item.level}`">
-                            <a href="javascript:void(0)" @click.stop.prevent="scrollToHeading(item.id)"><span class="toc-text">{{ item.text }}</span></a>
+                        <li v-for="(item, idx) in toc" :key="item.id" :class="[ `toc-level-${item.level}`, { active: item.id === liveActiveId } ]">
+                            <a :href="`#${item.id}`" @click.prevent="onTocClick(item.id)"><span class="toc-text">{{ item.text }}</span></a>
                         </li>
                     </ul>
                 </transition>
@@ -60,24 +60,41 @@
               </div>
 
             <!-- 悬浮目录导航（页面级） -->
-              <nav v-if="toc.length" class="toc-float" :class="{ collapsed: floatCollapsed, visible: showTOCandBTT }" aria-label="目录导航"
+                    <nav v-if="toc.length" class="toc-float" :class="{ collapsed: floatCollapsed, visible: showTOCandBTT }" aria-label="目录导航"
                    @mouseenter="onFloatMouseEnter" @mouseleave="onFloatMouseLeave">
                         <ul>
                             <li v-for="item in toc" :key="item.id" 
-                                :class="[`toc-float-item`, `toc-level-${item.level}`, { active: item.id === activeId }]">
-                                <a href="javascript:void(0)" @click.stop.prevent="scrollToHeading(item.id)" class="toc-link">
-                                    <span class="toc-text">{{ item.text }}</span>
-                                    <span class="toc-line" :style="{ width: lineWidth(item.level) }"></span>
-                                </a>
+                                :class="[`toc-float-item`, `toc-level-${item.level}`, { active: item.id === liveActiveId }]">
+                                    <a :href="`#${item.id}`" @click.prevent="onTocClick(item.id)" class="toc-link">
+                                        <span class="toc-text">{{ item.text }}</span>
+                                        <span class="toc-line" :style="{ width: lineWidth(item.level) }"></span>
+                                    </a>
                             </li>
                         </ul>
                     </nav>
 
         <!-- Back to Top -->
-           <button class="back-to-top" :class="{ visible: showTOCandBTT }" @click="scrollToTop" :title="$t('misc.backToTop')">
-             <span v-html="Icons.arrowUp"></span>
-        </button>
+                       <button class="corner-button" :class="{ visible: showTOCandBTT }" @click="scrollToTop" :title="$t('misc.backToTop')">
+                                     <span v-html="Icons.arrowUp"></span>
+                       </button>
+
+                       <!-- Mobile: TOC popup trigger (left-bottom), symmetric to back-to-top -->
+                       <button v-if="toc.length" class="corner-button primary" @click="toggleMobileToc" :title="$t('inblog.toc-title')">
+                           <span v-html="Icons.menu"></span>
+                       </button>
+
+                       <!-- Mobile TOC panel -->
+                       <div v-if="mobileTocOpen && toc.length" :class="['mobile-toc-panel', { open: mobileTocOpen }]" role="dialog" aria-label="目录">
+                           <div class="mobile-toc-panel-inner">
+                               <ul class="mobile-toc-list">
+                                   <li v-for="item in toc" :key="item.id" :class="[`toc-level-${item.level}`, { active: item.id === liveActiveId }]">
+                                       <a href="#" @click.prevent="onMobileTocItemClick(item.id)"><span class="toc-text">{{ item.text }}</span></a>
+                                   </li>
+                               </ul>
+                           </div>
+                       </div>
     </div>
+    <span style="height:80px; width:100%; display:block;"/>
   </div>
 </template>
 
@@ -127,18 +144,78 @@ watch(post, (newPost) => {
 const toc = ref<Array<{ id: string, text: string, level: number }>>([])
 const parsedBlocks = ref<any[]>([])
 // UI state for collapsible TOC
-const inlineTocCollapsed = ref(false)
+// Default: collapsed (user requested)
+const inlineTocCollapsed = ref(true)
 // Shell open state controls the lightweight expand/collapse animation first
-const inlineTocShellOpen = ref(!inlineTocCollapsed.value)
+const inlineTocShellOpen = ref(false)
 // Control whether the inline TOC list is actually mounted (heavy nodes)
-const inlineTocRender = ref(inlineTocShellOpen.value)
+const inlineTocRender = ref(false)
 const floatCollapsed = ref(true)
 let floatCollapseTimer: any = null
 const activeId = ref('')
+// 实时滚动位置（悬浮 TOC 使用），与锚点导航的 `activeId` 分离
+const liveActiveId = ref('')
 const showTOCandBTT = ref(false)
 let observer: IntersectionObserver | null = null
 const suppressObserver = ref(false)
-let manualScrollTimer: any = null
+// 不进行滚动时的实时锚点同步（O-3-2 要求）
+const syncOnScroll = ref(false)
+
+// Mobile TOC popup state (appearance controlled by global mobile class in app)
+const mobileTocOpen = ref(false)
+
+function toggleMobileToc() {
+    mobileTocOpen.value = !mobileTocOpen.value
+    if (mobileTocOpen.value) computeLiveActiveFromBaseline()
+}
+
+function onMobileTocItemClick(id: string) {
+    mobileTocOpen.value = false
+    setTimeout(() => onTocClick(id), 0)
+}
+
+function onTocClick(id: string) {
+    try {
+        // mark the clicked item as the live active one immediately so it
+        // stays highlighted until the user scrolls or clicks another item
+        liveActiveId.value = id
+        const desired = `#${id}`
+        if (typeof window === 'undefined') return
+        // Use history.pushState to update the URL without causing the
+        // browser's instant jump-to-anchor. Then dispatch a hashchange
+        // so our centralized handler performs the smooth scroll.
+        const current = window.location.hash || ''
+        if (current !== desired) {
+            try { history.pushState(null, '', desired) } catch (e) { window.location.hash = desired }
+            setTimeout(() => { window.dispatchEvent(new Event('hashchange')) }, 0)
+        } else {
+            setTimeout(() => { window.dispatchEvent(new Event('hashchange')) }, 0)
+        }
+        // keep suppressing observer/live updates so the clicked item remains highlighted
+        suppressObserver.value = true
+        if (manualScrollTimer) clearTimeout(manualScrollTimer)
+        manualScrollTimer = setTimeout(() => {
+            suppressObserver.value = false
+            manualScrollTimer = null
+        }, 1200)
+    } catch (e) {}
+}
+
+function handleHashChange() {
+    try {
+        if (typeof window === 'undefined') return
+        const h = window.location.hash ? window.location.hash.replace(/^#/, '') : ''
+        if (!h) return
+        // ensure live highlight follows the hash navigation as well
+        liveActiveId.value = h
+        // suppress observer updates while we perform programmatic scroll
+        suppressObserver.value = true
+        scrollToHeading(h)
+        if (manualScrollTimer) clearTimeout(manualScrollTimer)
+        manualScrollTimer = setTimeout(() => { suppressObserver.value = false; manualScrollTimer = null }, 1200)
+    } catch (e) {}
+}
+    let manualScrollTimer: any = null
 
 const chevronIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>`
 
@@ -185,9 +262,70 @@ function toggleInlineToc() {
     }
 }
 
+function updateTocVisibilityBasedOnInline() {
+    const container = document.querySelector('main.main-content') as HTMLElement | null
+    const inline = document.querySelector('.markdown-toc') as HTMLElement | null
+    if (!container) return
+
+    // If no inline TOC present, fall back to previous behaviour
+    if (!inline) {
+        showTOCandBTT.value = container.scrollTop > 300
+        return
+    }
+
+    const cRect = container.getBoundingClientRect()
+    const iRect = inline.getBoundingClientRect()
+
+    // Consider inline TOC visible if any part of it intersects the container's visible area.
+    const inlineVisible = (iRect.bottom > cRect.top + 8) && (iRect.top < cRect.bottom - 8)
+
+    // Show floating TOC when inline TOC is not visible (scrolled past),
+    // or when user has scrolled a fair amount (>300px) as a fallback.
+    showTOCandBTT.value = !inlineVisible || container.scrollTop > 300
+}
+
+// Compute liveActiveId based on the baseline (top of visible area under nav)
+function computeLiveActiveFromBaseline() {
+    if (suppressObserver.value) return
+    const container = document.querySelector('main.main-content') as HTMLElement | null
+    if (!container) return
+
+    const containerRect = container.getBoundingClientRect()
+    // baseline just below the nav/header; offset should match scroll offset used elsewhere
+    const offset = 85 // same offset used in scrollToHeading
+    const baselineY = containerRect.top + offset
+
+    // Find heading whose top is the last one <= baselineY
+    let chosen: string | null = null
+    toc.value.forEach(item => {
+        const el = document.getElementById(item.id)
+        if (!el) return
+        const r = el.getBoundingClientRect()
+        if (r.top <= baselineY) {
+            chosen = item.id
+        }
+    })
+
+    // If none found, fallback to first heading if it is below baseline
+    if (!chosen && toc.value.length) {
+        const firstEl = document.getElementById(toc.value[0].id)
+        if (firstEl) {
+            const r = firstEl.getBoundingClientRect()
+            if (r.top > baselineY) chosen = toc.value[0].id
+        }
+    }
+
+    if (chosen) {
+        liveActiveId.value = chosen
+    }
+}
+
 function onScroll(e: Event) {
     const target = e.target as HTMLElement
-    showTOCandBTT.value = target.scrollTop > 300
+    // update by inline visibility
+    updateTocVisibilityBasedOnInline()
+    // update liveActiveId based on baseline, unless updates are suppressed
+    if (!suppressObserver.value) computeLiveActiveFromBaseline()
 
     // If we suppressed observer updates (due to clicking a TOC link),
     // debounce until scrolling stops and then re-enable observer updates.
@@ -225,7 +363,7 @@ function onFloatMouseLeave() {
 onBeforeUnmount(() => {
     if (floatCollapseTimer) clearTimeout(floatCollapseTimer)
     if (observer) observer.disconnect()
-    
+    if (typeof window !== 'undefined') window.removeEventListener('hashchange', handleHashChange)
     const container = document.querySelector('main.main-content')
     if (container) {
         container.removeEventListener('scroll', onScroll)
@@ -252,12 +390,17 @@ function lineWidth(level: number) {
 
 function slugify(text: string) {
     if (!text) return ''
-    let s = text.toLowerCase().trim()
+    // Keep the original heading text (trimmed) and remove HTML tags.
+    // Then percent-encode so it is safe to use as an ID and in URL hash.
+    let s = String(text).trim()
     s = s.replace(/<[^>]+>/g, '')
-    s = s.replace(/[\s]+/g, '-')
-    s = s.replace(/[^a-z0-9\-]/g, '')
     if (!s) s = 'heading'
-    return s
+    try {
+        return encodeURIComponent(s)
+    } catch (e) {
+        // Fallback: remove spaces and non-word chars
+        return s.replace(/\s+/g, '-').replace(/[^\w\-\u4E00-\u9FFF]/g, '')
+    }
 }
 
 function buildTocFromBlocks(blocks: Array<{ id?: string, text?: string, level?: number, content?: string, type?: string }>) {
@@ -356,10 +499,11 @@ function setupObserver() {
     }
 
     observer = new IntersectionObserver((entries) => {
-        // If suppressed (e.g. after clicking a TOC link), ignore observer events
+        // Keep observer reserved for optional syncOnScroll behaviour only.
+        // Do not update liveActiveId here; liveActiveId is computed from baseline on scroll.
         if (suppressObserver.value) return
+        if (!syncOnScroll.value) return
 
-        // find matched entries
         entries.forEach(entry => {
             if (entry.isIntersecting) {
                 activeId.value = entry.target.id
@@ -394,7 +538,7 @@ function scrollToHeading(id: string) {
     manualScrollTimer = setTimeout(() => {
         suppressObserver.value = false
         manualScrollTimer = null
-    }, 300)
+    }, 1200)
     activeId.value = id
 }
 
@@ -446,10 +590,17 @@ const formatDate = (isoStr: string) => {
 }
 
 onMounted(async () => {
+    // Mobile detection moved to global App; component no longer sets isMobile here
+
     // Attach scroll listener to main content
     const container = document.querySelector('main.main-content')
     if (container) {
         container.addEventListener('scroll', onScroll as EventListener)
+    }
+
+    // Register hashchange listener so anchors trigger scrollToHeading
+    if (typeof window !== 'undefined') {
+        window.addEventListener('hashchange', handleHashChange)
     }
 
     const id = route.params.id as string
@@ -474,14 +625,22 @@ onMounted(async () => {
                      parsedBlocks.value = blocks
                      buildTocFromBlocks(blocks)
                      // wait for MdParser to render DOM, then assign ids
-                     nextTick(() => assignHeadingIds())
+                     nextTick(() => {
+                         assignHeadingIds()
+                         // Update floating TOC visibility once DOM settled
+                         updateTocVisibilityBasedOnInline()
+                         // initial compute of liveActiveId as well
+                         computeLiveActiveFromBaseline()
+                         // Handle any initial hash via centralized handler
+                         try { handleHashChange() } catch (e) {}
+                     })
                 }
     }
 })
 
 // When active heading changes while float TOC is collapsed, ensure the active
 // line is visible within the collapsed navigator.
-watch([() => activeId.value, () => floatCollapsed.value], ([id, collapsed]) => {
+watch([() => liveActiveId.value, () => floatCollapsed.value], ([id, collapsed]) => {
     if (!id) return
     if (collapsed) {
         nextTick(() => ensureFloatActiveVisible())
@@ -507,17 +666,21 @@ watch(() => post.value && post.value.content, (v) => {
   max-width: 900px;
   margin: 0 auto;
 
-  padding: 0 20px;
+  padding: 0 40px;
   color: #e0e0e0;
   box-sizing: border-box;
 }
 
-.post-nav {
+html:not(.is-mobile) .post-nav {
     display: flex;
     justify-content: space-between;
     padding: 30px 0;
     margin-bottom: 20px;
     align-items: center;
+}
+
+html.is-mobile .post-nav{
+    padding: 15px 0!important;
 }
 
 .nav-back {
@@ -599,7 +762,7 @@ watch(() => post.value && post.value.content, (v) => {
 .toc-float-item:hover{
     color: #fff !important;
 }
-.markdown-toc {padding: 10px 16px;}
+.markdown-toc {padding: 10px 14px; border: 1px solid var(--border-color); background: var(--component-bg-blur); border-radius: 10px; margin-bottom: 24px;}
 .markdown-toc .toc-list { list-style: none; padding: 0; margin: 0; }
 .markdown-toc .toc-list li { margin: 1px 0; }
 .markdown-toc .toc-list li a { text-decoration: none; color: #cfd8dc; display: block; box-sizing: border-box; }
@@ -611,24 +774,31 @@ watch(() => post.value && post.value.content, (v) => {
 .markdown-toc .toc-list .toc-level-5 { padding-left: 32px; }
 .markdown-toc .toc-list .toc-level-6 { padding-left: 40px; }
 .markdown-toc .toc-list li:hover .toc-text { background: rgba(255,255,255,0.04); color: #fff; }
+.markdown-toc .toc-list li.active .toc-text { background: rgba(255,255,255,0.08); color: #fff; font-weight: 500; }
 
 .toc-float ul { list-style: none; margin: 0; padding: 4px }
 .toc-float li { margin: 1px 0; }
 .toc-float a { text-decoration: none; display: block; box-sizing: border-box; }
 .toc-float .toc-text { display: block; width: 100%; padding: 3px 6px 3px 6px; padding-right: 10px; box-sizing: border-box; border-radius: 6px; transition: background 0.12s, color 0.12s; color: #eeeeee60; }
-.toc-float .toc-level-1 { padding-left: 1px !important; }
-.toc-float .toc-level-2 { padding-left: 6px !important; }
-.toc-float .toc-level-3 { padding-left: 12px !important; }
-.toc-float .toc-level-4 { padding-left: 18px !important; }
-.toc-float .toc-level-5 { padding-left: 24px !important; }
-.toc-float .toc-level-6 { padding-left: 30px !important; }
+.toc-float:not(.collapsed) .toc-level-1 { padding-left: 1px !important; }
+.toc-float:not(.collapsed) .toc-level-2 { padding-left: 6px !important; }
+.toc-float:not(.collapsed) .toc-level-3 { padding-left: 12px !important; }
+.toc-float:not(.collapsed) .toc-level-4 { padding-left: 18px !important; }
+.toc-float:not(.collapsed) .toc-level-5 { padding-left: 24px !important; }
+.toc-float:not(.collapsed) .toc-level-6 { padding-left: 30px !important; }
+.toc-float.collapsed .toc-level-1 { padding-left: 0 !important; }
+.toc-float.collapsed .toc-level-2 { padding-left: 5px !important; }
+.toc-float.collapsed .toc-level-3 { padding-left: 8px !important; }
+.toc-float.collapsed .toc-level-4 { padding-left: 10px !important; }
+.toc-float.collapsed .toc-level-5 { padding-left: 11px !important; }
+.toc-float.collapsed .toc-level-6 { padding-left: 12px !important; }
 .toc-float li:hover .toc-text { background: rgba(255,255,255,0.04); color: #eee }
 .toc-float li:active .toc-text, .toc-float li:focus .toc-text { background: rgba(255,255,255,0.08); color: #fff; }
 .toc-float li.active .toc-text { background: rgba(255,255,255,0.08); color: #fff; }
 
 
 /* Collapsible inline TOC header */
-.toc-header { display:flex; justify-content:space-between; align-items:center; cursor:pointer; padding: 4px 0; border-radius: 6px; transition: background 0.2s }
+.toc-header { display:flex; justify-content:space-between; align-items:center; cursor:pointer; padding: 4px; border-radius: 6px; transition: background 0.2s }
 .toc-header:hover { background: rgba(255,255,255,0.03); }
 .toc-header.collapsed { justify-content: center; }
 .toc-header.collapsed .toc-title { margin-right: 8px; }
@@ -667,14 +837,14 @@ watch(() => post.value && post.value.content, (v) => {
     max-height: calc(70vh - 80px);
     height: auto;
 }
-.toc-float.collapsed { overflow-y: hidden; width: 30px; padding: 4px; border:none; background-color: transparent; border-radius: 10px; }
+.toc-float.collapsed { overflow-y: hidden; width: 38px; padding: 4px 8px; border:none; background-color: transparent; border-radius: 10px; }
 .toc-float:not(.collapsed) { overflow-y: auto; width: 220px; background-color: var(--component-bg-blur); box-shadow: 0 4px 12px rgba(0,0,0,0.3); border: 1px solid var(--border-color); }
 
 .toc-float ul { padding: 4px; list-style: none; margin: 0; transition: padding 0.3s ease; }
 .toc-float.collapsed ul {padding: 0;}
 
 .toc-float li { display: flex; align-items: center; transition: justify-content 0.3s ease; min-height: 20px; position: relative; }
-.toc-float.collapsed li { justify-content: flex-end; margin: 0; }
+.toc-float.collapsed li { justify-content: center; margin: 0; }
 .toc-float:not(.collapsed) li { justify-content: flex-start; }
 
 .toc-link {
@@ -687,6 +857,14 @@ watch(() => post.value && post.value.content, (v) => {
     justify-content: inherit; 
 }
 
+/* When the floating TOC is collapsed we want the link to size to its content
+   so the small horizontal bar can be placed at the far right via the parent
+   flex container. Override the default full width here. */
+.toc-float.collapsed .toc-link {
+    width: 100%;
+    padding: 0;
+}
+
 /* Line style (collapsed state) */
 .toc-float .toc-line { 
     display:block; 
@@ -696,6 +874,7 @@ watch(() => post.value && post.value.content, (v) => {
     transition: opacity 0.2s ease, transform 0.3s ease, background-color 0.3s ease; 
     position: absolute;
     right: 0;
+    width: 100% !important;
 }
 
 /* Expanded State: Hide Line */
@@ -710,10 +889,18 @@ watch(() => post.value && post.value.content, (v) => {
     opacity: 1;
     transform: translateX(0);
     position: relative; /* In flow when collapsed */
+    /* ensure the small bar hugs its content and doesn't stretch
+       or offset from the right due to the full-width link */
+    margin: 0;
 }
 
 /* Active State for Line */
-.toc-float li.active .toc-line { background: #fff; }
+.toc-float li.active .toc-line {
+    background: #fff;
+    box-shadow: 0 0 4px rgba(255,255,255,0.8), 0 0 8px rgba(255,255,255,0.15);
+    filter: drop-shadow(0 0 3px rgba(255,255,255,0.6));
+    transition: box-shadow 0.18s ease, background 0.18s ease, filter 0.18s ease;
+}
 .toc-float li:hover .toc-line { background: #eee; }
 
 
@@ -755,4 +942,5 @@ watch(() => post.value && post.value.content, (v) => {
 .toc-float:not(.collapsed) li:hover .toc-text { background: rgba(255,255,255,0.08); color: #fff }
 .toc-float:not(.collapsed) li.active .toc-text { background: rgba(255,255,255,0.12); color: #fff; font-weight: 500; }
 
+/* mobile TOC styles moved to global stylesheet */
 </style>

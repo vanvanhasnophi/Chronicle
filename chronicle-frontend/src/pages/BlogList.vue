@@ -61,7 +61,7 @@
         </main>
 
         <!-- Back to Top -->
-        <button class="back-to-top" :class="{ visible: showBackToTop }" @click="scrollToTop" title="Back to Top">
+        <button class="corner-button" :class="{ visible: showBackToTop }" @click="scrollToTop" title="Back to Top">
             <span v-html="Icons.arrowUp"></span>
         </button>
     </div>
@@ -192,7 +192,7 @@ onUnmounted(() => {
 .blog-container {
     max-width: 900px;
     margin: 0 auto;
-    padding: 40px 20px;
+    padding: 40px;
     color: #e0e0e0;
     box-sizing: border-box;
     scroll-behavior: smooth;

@@ -19,8 +19,9 @@ const isBackend = computed(() => {
   return ['/manage', '/files', '/settings', '/editor'].some(p => route.path.startsWith(p))
 })
 
-const { locale } = useI18n()
+const { locale, t } = useI18n()
 const selectedLocale = ref<string>(localStorage.getItem('locale') || 'follow')
+const isMobileRoot = ref(false)
 const showLocaleMenu = ref(false)
 const localeBtn = ref<HTMLElement | null>(null)
 const menuStyle = reactive<{ top?: string; left?: string; right?: string }>( { top: '0px', left: 'auto', right: '24px' })
@@ -163,6 +164,17 @@ onMounted(() => {
   // Always apply settings global (fonts)
   applySettings()
 
+  // Global mobile detection: set a root class (`is-mobile`) based on initial window width.
+  // This is done once at startup (per requirement) and does not follow subsequent resizes.
+  try {
+    const mobile = typeof window !== 'undefined' && window.innerWidth <= 720
+    if (mobile) document.documentElement.classList.add('is-mobile')
+    else document.documentElement.classList.remove('is-mobile')
+      // keep a component-local copy for template conditions
+      isMobileRoot.value = mobile
+  } catch (e) {}
+  
+
   // initial apply depending on area
   if (isBackend.value) {
     applyBackendLocaleIfNeeded()
@@ -283,6 +295,21 @@ const handleScroll = (e: Event) => {
     isScrolled.value = target.scrollTop > 30
 }
 
+// Compute the article title from document.title when on a blog post route.
+const articleTitle = computed(() => {
+  try {
+    if (!route.path.startsWith('/post')) return t('app.title')
+    if (typeof document === 'undefined') return t('app.title')
+    const dt = document.title || ''
+    if (!dt) return t('app.title')
+    // Common pattern: "Post Title - Chronicle"; prefer left side
+    const parts = dt.split(' - ')
+    return parts.length > 1 ? parts[0] : dt
+  } catch (e) {
+    return t('app.title')
+  }
+})
+
 watch(route, () => {
     isMenuOpen.value = false
 })
@@ -294,9 +321,21 @@ watch(route, () => {
          v-if="route.path !== '/editor' && route.path !== '/login'"
          :class="{ 'at-top': !isScrolled }"
     >
-      <div class="nav-content">
-        <div @click="router.push('/')" style="cursor: pointer !important;">
-          <h1 class="app-title" >{{ $t('app.title') }}</h1>
+        <div class="nav-content">
+        <div style="display:flex; align-items:center; cursor: default;">
+          <transition name="header-swap" mode="out-in">
+            <div v-if="! (isMobileRoot && route.path.startsWith('/post') && isScrolled)" key="site" class="site-header entering-up" @click="router.push('/')" style="cursor: pointer !important;">
+              <h1 class="app-title">{{ $t('app.title') }}</h1>
+            </div>
+            <div v-else key="reading" class="reading-header entering-down">
+              <button class="mobile-title-back" @click="router.back()" aria-label="Back">
+                <span v-html="Icons.arrowUp"></span>
+              </button>
+              <div class="reading-title" style="cursor: default; max-width: calc(100vw - 120px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                {{ articleTitle }}
+              </div>
+            </div>
+          </transition>
         </div>
 
         
@@ -306,18 +345,24 @@ watch(route, () => {
 
             <!-- Frontend Nav -->
             <div class="nav-links" :class="{ 'mobile-open': isMenuOpen }" v-if="!isBackend">
-              <RouterLink to="/" class="nav-link">{{ $t('nav.home') }}</RouterLink>
-              <RouterLink to="/blogs" class="nav-link">{{ $t('nav.blogs') }}</RouterLink>
-              <RouterLink to="/search" class="nav-link">{{ $t('nav.search') }}</RouterLink>
-              <RouterLink to="/friends" class="nav-link">{{ $t('nav.friends') }}</RouterLink>
+              <button v-if="isMenuOpen" class="nav-close" @click="isMenuOpen = false" aria-label="Close menu">
+                <span class="nav-close-icon" v-html="Icons.cross"></span>
+              </button>
+              <RouterLink to="/" class="nav-link" @click="isMenuOpen = false">{{ $t('nav.home') }}</RouterLink>
+              <RouterLink to="/blogs" class="nav-link" @click="isMenuOpen = false">{{ $t('nav.blogs') }}</RouterLink>
+              <RouterLink to="/search" class="nav-link" @click="isMenuOpen = false">{{ $t('nav.search') }}</RouterLink>
+              <RouterLink to="/friends" class="nav-link" @click="isMenuOpen = false">{{ $t('nav.friends') }}</RouterLink>
             </div>
 
             <!-- Backend Nav -->
             <div class="nav-links" :class="{ 'mobile-open': isMenuOpen }" v-else>
-              <RouterLink to="/manage" class="nav-link">{{ $t('nav.posts') }}</RouterLink>
-              <RouterLink to="/files" class="nav-link">{{ $t('nav.files') }}</RouterLink>
-              <RouterLink to="/settings/homepage" class="nav-link">{{ $t('nav.settings') }}</RouterLink>
-                <a href="#" @click.prevent="openNewEditor" class="nav-link new-post-btn">{{ $t('nav.newPost') }}</a>
+              <button v-if="isMenuOpen" class="nav-close" @click="isMenuOpen = false" aria-label="Close menu">
+                <span class="nav-close-icon" v-html="Icons.cross"></span>
+              </button>
+              <RouterLink to="/manage" class="nav-link" @click="isMenuOpen = false">{{ $t('nav.posts') }}</RouterLink>
+              <RouterLink to="/files" class="nav-link" @click="isMenuOpen = false">{{ $t('nav.files') }}</RouterLink>
+              <RouterLink to="/settings/homepage" class="nav-link" @click="isMenuOpen = false">{{ $t('nav.settings') }}</RouterLink>
+                <a href="#" @click.prevent="(openNewEditor(), isMenuOpen = false)" class="nav-link new-post-btn">{{ $t('nav.newPost') }}</a>
             </div>
 
             <!-- Locale globe menu (rightmost) -->
@@ -377,7 +422,7 @@ watch(route, () => {
   top: 0;
   left: 0;
   right: 0;
-  z-index: 100;
+  z-index: 400;
   height: 70px;
   box-sizing: border-box;
   transition: background 0.3s ease, border-color 0.3s ease, backdrop-filter 0.3s ease;
@@ -400,11 +445,52 @@ watch(route, () => {
   margin: 0 auto;
 }
 
+/* Mobile title back button (left of app title) */
+.mobile-title-back {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-right: 12px;
+  padding: 0;
+}
+.mobile-title-back span { display:inline-flex; transform: rotate(-90deg); width:24px; height:24px }
+
+
 .app-title {
   color: #ffffff;
   margin: 0;
   font-size: 1.6rem;
 }
+
+.reading-title {
+  color: #ffffff;
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.site-header { display:flex; align-items:center }
+.reading-header { display:flex; align-items:center }
+
+/* Unified header-swap transition: out-in mode ensures leave completes before enter starts.
+  Enter animations differ by element via .entering-up / .entering-down classes. Leave has no animation. */
+.header-swap-enter-from { opacity: 0 }
+.header-swap-enter-to { opacity: 1 }
+.header-swap-enter-active { transition: transform 190ms cubic-bezier(.2,.9,.3,1), opacity 160ms ease }
+.header-swap-leave-active { transition: none }
+
+/* entering-up: site title enters from slightly above */
+.entering-up.header-swap-enter-from { transform: translateY(-8px) }
+.entering-up.header-swap-enter-to { transform: translateY(0) }
+
+/* entering-down: reading header enters from slightly below */
+.entering-down.header-swap-enter-from { transform: translateY(8px) }
+.entering-down.header-swap-enter-to { transform: translateY(0) }
 
 .menu-toggle {
     display: none; /* hide on desktop, show on small screens via media query */
@@ -463,8 +549,27 @@ watch(route, () => {
         gap: 30px;
     }
 
+    .nav-links .nav-close {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: transparent;
+      border: none;
+      color: #fff;
+      width: 44px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 110;
+    }
+
+    .nav-links .nav-close .nav-close-icon { display: inline-flex; align-items: center; justify-content: center }
+    .nav-links .nav-close .nav-close-icon svg { width: 18px; height: 18px; display: block; stroke: currentColor }
+
     .nav-links.mobile-open {
         transform: translateY(0);
+        z-index: 999;
     }
 
     .nav-link {

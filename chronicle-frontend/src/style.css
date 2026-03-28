@@ -165,7 +165,7 @@ input, button, select, textarea {
   font-family: inherit;
 }
 
-button:hover {
+html:not(.is-mobile) button:hover {
   border-color: #2ea35f;
 }
 button:focus,
@@ -179,7 +179,7 @@ button.primary{
   transition: all 0.3s ease;
 }
 
-button.primary:hover {
+html:not(.is-mobile) button.primary:hover {
   background: var(--accent-color-dark);
 }
 button.secondary {
@@ -189,8 +189,8 @@ button.secondary {
 }
 
 
-/* Back to Top */
-.back-to-top {
+/* Corner buttons (used by back-to-top and mobile TOC) */
+.corner-button {
     position: fixed;
     bottom: 30px;
     right: 30px;
@@ -199,6 +199,7 @@ button.secondary {
     border-radius: 50%;
     background: var(--component-bg-blur-alt);
     border: 1px solid var(--border-color-blur);
+    -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
     color: white;
     padding: 0;
@@ -206,7 +207,7 @@ button.secondary {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     opacity: 0;
     pointer-events: none;
-    transition: all 0.3s ease;
+    transition: all 0.2s ease-out;
     transform: translateY(20px);
     z-index: 200;
     display: flex;
@@ -215,23 +216,73 @@ button.secondary {
     line-height: 0;
 }
 
-.back-to-top span {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
+.corner-button span { display: flex; align-items: center; justify-content: center; }
 
-.back-to-top.visible {
-    opacity: 1;
-    pointer-events: auto;
-    transform: translateY(0);
-}
+.corner-button.visible { opacity: 1; pointer-events: auto; transform: translateY(0); }
 
-.back-to-top:hover {
+/* Hover only when the app root is NOT in mobile mode (global class 'is-mobile') */
+html:not(.is-mobile) .corner-button:hover {
   background: rgba(255, 255, 255, 0.2);
   transform: scale(1.1);
   border-color: rgba(255, 255, 255, 0.2);
 }
+
+html.is-mobile .corner-button:active {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.2);
+  border-color: rgba(255, 255, 255, 0.2);
+  filter: brightness(4);
+}
+
+/* Primary variant (used for mobile TOC button): semi-transparent accent background */
+.corner-button.primary {
+    background: rgba(46,163,95,0.14); /* semi-transparent --accent-color */
+    border: 1px solid rgba(46,163,95,0.22);
+}
+
+/* Pressed state visual for primary (works on mobile via :active) */
+html.is-mobile .corner-button.primary:active { transform: scale(1.2); border-color: rgba(255,255,255,0.18); background: rgba(46,163,95,0.22); }
+html:not(.is-mobile) .corner-button.primary:hover { transform: scale(1.1); background: rgba(46,163,95,0.18); border-color: rgba(255,255,255,0.18); }
+
+/* When running in mobile mode, ensure the primary corner button is visible on the left */
+html.is-mobile .corner-button.primary {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+  left: 30px;
+  right: auto;
+  z-index: 300;
+}
+
+/* Hide desktop inline/floating TOC on mobile (app has html.is-mobile) */
+html.is-mobile .markdown-toc { display: none !important; }
+html.is-mobile .toc-float { display: none !important; }
+
+
+/* Mobile TOC fly-in animation and fixed header */
+.mobile-toc-panel {
+  transform-origin: left bottom;
+  opacity: 0;
+  transform: translateY(10px) scale(0.96);
+  transition: opacity 220ms ease, transform 260ms cubic-bezier(.22,.9,.36,1);
+}
+.mobile-toc-panel.open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  /* ensure panel is above corner button */
+  z-index: 1400;
+}
+
+.mobile-toc-panel.open { animation: mobileTocFlyIn 140ms ease-out both; }
+
+@keyframes mobileTocFlyIn {
+  from { opacity: 0; transform: translateY(18px) scale(0.5); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Make header sticky inside the panel so it stays visible while the list scrolls */
+.mobile-toc-panel-inner { padding: 0; }
+.mobile-toc-panel .mobile-toc-list { padding: 8px; max-height: calc(60vh - 56px); overflow: auto; }
 
 .card {
   padding: 2em;
@@ -256,6 +307,29 @@ button.secondary {
 }
 .modern-select:hover { border-color: #ffffff90; background: #ffffff09; }
 .modern-select:focus { outline: none; background-color: #ffffff10; box-shadow: 0 4px 12px rgba(0,0,0,0.25); border-color: var(--accent-color);}
+
+/* Mobile TOC panel styles (moved from component) */
+.mobile-toc-panel {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: 80px;
+    z-index: 1400;
+    background: var(--component-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    max-height: 60vh;
+    overflow: auto;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+.mobile-toc-panel-inner { padding: 8px }
+.mobile-toc-header { display:flex; align-items:center; justify-content:space-between; padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.02) }
+.mobile-toc-title { font-weight:600 }
+.mobile-toc-close { background: transparent; border: none; color: inherit; padding: 6px }
+.mobile-toc-list { list-style:none; margin:0; padding:6px }
+.mobile-toc-list li { padding: 6px 4px; border-radius: 6px }
+.mobile-toc-list li.active { background: rgba(255,255,255,0.06); }
+.mobile-toc-list li a { color: inherit; text-decoration: none; display:block }
 
 /* Hide native IE arrow */
 .modern-select::-ms-expand { display: none; }
