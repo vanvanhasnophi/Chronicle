@@ -18,6 +18,13 @@ function openNewEditor() {
 const isBackend = computed(() => {
   return ['/manage', '/files', '/settings', '/editor'].some(p => route.path.startsWith(p))
 })
+document.body.addEventListener('touchstart', (e) => {
+  const target = e.target as Element | null;
+  if (!target || !target.closest('button, a , select, .btn, .nav-link')) {
+    // allow tapping non-interactive elements without delay
+    return;
+  } 
+}, { passive: true }) // improve mobile click responsiveness
 
 const { locale, t } = useI18n()
 const selectedLocale = ref<string>(localStorage.getItem('locale') || 'follow')
@@ -255,6 +262,21 @@ onMounted(() => {
     })
     selectObserver.observe(document.body, { childList: true, subtree: true })
   } catch (e) {}
+
+  // Observe <title> changes so `docTitle` stays in sync and UI reacts.
+  try {
+    if (typeof document !== 'undefined') {
+      const titleEl = document.querySelector('title')
+      // initial sync
+      docTitle.value = document.title || ''
+      if (titleEl) {
+        titleObserver = new MutationObserver(() => {
+          try { docTitle.value = document.title || '' } catch (e) {}
+        })
+        titleObserver.observe(titleEl, { characterData: true, childList: true, subtree: true })
+      }
+    }
+  } catch (e) {}
 })
 
 onBeforeUnmount(() => {
@@ -262,6 +284,7 @@ onBeforeUnmount(() => {
   try { if (onWindowResize) window.removeEventListener('resize', onWindowResize) } catch (e) {}
   try { if (onWindowScroll) window.removeEventListener('scroll', onWindowScroll, true) } catch (e) {}
   try { if (selectObserver) selectObserver.disconnect() } catch (e) {}
+  try { if (titleObserver) titleObserver.disconnect() } catch (e) {}
 })
 
 // when selectedLocale changes (frontend language chooser)
@@ -289,18 +312,22 @@ watch(route, () => {
 const isScrolled = ref(false)
 const isMenuOpen = ref(false)
 
+// Reactive mirror of document.title so Vue can react to title changes
+import { onMounted as _onMounted } from 'vue'
+const docTitle = ref(typeof document !== 'undefined' ? document.title : '')
+let titleObserver: MutationObserver | null = null
+
 const handleScroll = (e: Event) => {
     const target = e.target as HTMLElement
     // User requested ~30px
     isScrolled.value = target.scrollTop > 30
 }
 
-// Compute the article title from document.title when on a blog post route.
+// Compute the article title from reactive `docTitle` when on a blog post route.
 const articleTitle = computed(() => {
   try {
     if (!route.path.startsWith('/post')) return t('app.title')
-    if (typeof document === 'undefined') return t('app.title')
-    const dt = document.title || ''
+    const dt = docTitle.value || ''
     if (!dt) return t('app.title')
     // Common pattern: "Post Title - Chronicle"; prefer left side
     const parts = dt.split(' - ')
@@ -331,7 +358,7 @@ watch(route, () => {
               <button class="mobile-title-back" @click="router.back()" aria-label="Back">
                 <span v-html="Icons.arrowUp"></span>
               </button>
-              <div class="reading-title" style="cursor: default; max-width: calc(100vw - 120px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              <div class="reading-title">
                 {{ articleTitle }}
               </div>
             </div>
@@ -476,6 +503,18 @@ watch(route, () => {
 
 .site-header { display:flex; align-items:center }
 .reading-header { display:flex; align-items:center }
+
+/* Ensure reading-title shrinks in flex layout and shows ellipsis when too long */
+.reading-header { gap: 8px }
+.reading-title {
+  cursor: default;
+  flex: 1 1 auto;
+  min-width: 0; /* allow flex children to shrink below content width */
+  max-width: calc(100vw - 220px); /* prevent overflow beyond viewport (accounting for back button and padding) */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* Unified header-swap transition: out-in mode ensures leave completes before enter starts.
   Enter animations differ by element via .entering-up / .entering-down classes. Leave has no animation. */
@@ -632,9 +671,11 @@ watch(route, () => {
   display: flex;
   align-items: center;
   justify-content: center;
+  border: none; /* remove border on hover */
 }
 .locale-btn:hover {
   background: transparent; /* hover background should not change */
+  border: none; /* remove border on hover */
   color: var(--text-primary);
 }
 .locale-menu {

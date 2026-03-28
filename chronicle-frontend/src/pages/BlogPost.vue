@@ -590,6 +590,8 @@ const formatDate = (isoStr: string) => {
 }
 
 onMounted(async () => {
+    // Show a temporary loading title while post data is being fetched.
+    try { if (typeof document !== 'undefined') document.title = `Chronicle - Loading…` } catch (e) {}
     // Mobile detection moved to global App; component no longer sets isMobile here
 
     // Attach scroll listener to main content

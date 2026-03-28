@@ -167,8 +167,10 @@ router.afterEach((to) => {
   } else if (to.meta && to.meta.title) {
     const titleText = resolveMessage(String(to.meta.title))
     document.title = `${titleText} - ${appName}`
-  } else if (to.name !== 'BlogPost') {
-    // Default fallback if no title set and not a dynamic page handled elsewhere
+  } else {
+    // Default fallback if no title set. For dynamic pages like BlogPost
+    // the component will overwrite document.title once data is ready,
+    // but we should avoid leaving the previous route's title visible.
     document.title = appName
   }
 })

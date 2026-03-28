@@ -29,4 +29,14 @@ const i18n = createI18n({
 const app = createApp(App)
 app.use(router)
 app.use(i18n)
+// Set a CSS variable --vh equal to 1% of the window innerHeight.
+// Useful as a fallback for mobile browsers where 100vh is unstable.
+function setVh() {
+	if (typeof window !== 'undefined' && window.innerHeight) {
+		document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+	}
+}
+setVh();
+window.addEventListener('resize', setVh);
+
 app.mount('#app')
