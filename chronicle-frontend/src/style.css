@@ -121,8 +121,8 @@ body[data-backend-theme="light"] {
   --app-bg-secondary: #eef2f6;
   --component-bg: #ffffff;
   --component-bg-alt: #f5f7fa;
-  --component-bg-blur: rgba(255, 255, 255, 0.92);
-  --component-bg-blur-alt: rgba(248, 250, 253, 0.85);
+  --component-bg-blur: rgba(255, 255, 255, 0.7);
+  --component-bg-blur-alt: rgba(248, 250, 253, 0.4);
   --component-bg-accent: rgba(46, 163, 95, 0.15);
   --component-bg-accent-blur: rgba(46, 163, 95, 0.24);
 
@@ -217,8 +217,8 @@ body[data-backend-theme="dark"] {
   --app-bg-secondary: #eef2f6;
   --component-bg: #ffffff;
   --component-bg-alt: #f5f7fa;
-  --component-bg-blur: rgba(255, 255, 255, 0.92);
-  --component-bg-blur-alt: rgba(248, 250, 253, 0.85);
+  --component-bg-blur: rgba(255, 255, 255, 0.7);
+  --component-bg-blur-alt: rgba(248, 250, 253, 0.4);
   --component-bg-accent: rgba(46, 163, 95, 0.15);
   --component-bg-accent-blur: rgba(46, 163, 95, 0.24);
 
@@ -276,8 +276,8 @@ body[data-backend-theme="dark"] {
     --app-bg-secondary: #eef2f6;
     --component-bg: #ffffff;
     --component-bg-alt: #f5f7fa;
-    --component-bg-blur: rgba(255, 255, 255, 0.92);
-    --component-bg-blur-alt: rgba(248, 250, 253, 0.85);
+    --component-bg-blur: rgba(255, 255, 255, 0.7);
+    --component-bg-blur-alt: rgba(248, 250, 253, 0.4);
     --component-bg-accent: rgba(46, 163, 95, 0.15);
     --component-bg-accent-blur: rgba(46, 163, 95, 0.24);
     --app-bg-primary-hover: rgba(0, 0, 0, 0.03);
@@ -300,6 +300,9 @@ body[data-backend-theme="dark"] {
     --app-bg: var(--app-bg-primary);
     --bg-primary: var(--app-bg-primary);
     --bg-secondary: var(--app-bg-secondary);
+    /* Ensure follow-system light maps overlay to light variant */
+    --frontend-bg-overlay: var(--frontend-bg-overlay-light);
+    --backend-bg-overlay: var(--backend-bg-overlay-light);
     --text-primary: var(--app-text-primary);
     --text-secondary: var(--app-text-secondary);
     --text-inactive: var(--app-text-secondary);

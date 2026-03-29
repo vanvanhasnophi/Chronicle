@@ -7,11 +7,15 @@
       </div>
       <div class="bg-editor-body">
         <div class="preview-area">
-          <div class="preview" :style="previewStyle">
-            <div class="overlay" :style="overlayStyle"></div>
-          </div>
-        </div>
-        <div class="controls">
+                <div class="preview" :style="previewStyle">
+                  <div class="overlay" :style="overlayStyle"></div>
+                  <div class="preview-theme-toggle">
+                    <button :class="{'active': previewTheme==='light'}" @click.prevent="previewTheme='light'">Light</button>
+                    <button :class="{'active': previewTheme==='dark'}" @click.prevent="previewTheme='dark'">Dark</button>
+                  </div>
+                </div>
+              </div>
+              <div class="controls">
           <div class="control-row">
             <label>Position X</label>
             <input type="range" min="0" max="100" v-model.number="meta.posX" />
@@ -33,16 +37,24 @@
             <span>{{ meta.blur }}px</span>
           </div>
           <div class="control-row">
-            <label>Overlay color</label>
-            <input type="color" v-model="meta.overlayColor" />
+            <label>Overlay (Light)</label>
+            <input type="color" v-model="meta.overlayLightColor" />
             <label class="small">Opacity</label>
-            <input type="range" min="0" max="100" v-model.number="meta.overlayOpacity" />
-            <span>{{ meta.overlayOpacity }}%</span>
+            <input type="range" min="0" max="100" v-model.number="meta.overlayLightOpacity" />
+            <span>{{ meta.overlayLightOpacity }}%</span>
+          </div>
+          <div class="control-row">
+            <label>Overlay (Dark)</label>
+            <input type="color" v-model="meta.overlayDarkColor" />
+            <label class="small">Opacity</label>
+            <input type="range" min="0" max="100" v-model.number="meta.overlayDarkOpacity" />
+            <span>{{ meta.overlayDarkOpacity }}%</span>
           </div>
         </div>
       </div>
       <div class="bg-editor-actions">
         <button class="secondary" @click="close">Cancel</button>
+        <button class="secondary" @click.prevent="openPicker">Choose Image</button>
         <button class="primary" @click="save">Save</button>
       </div>
     </div>
@@ -50,21 +62,30 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, toRefs, watch, computed } from 'vue'
+import { reactive, toRefs, watch, computed, ref } from 'vue'
 import { Icons } from '../utils/icons';
+import { hexToRgbString } from '../utils/colorUtils'
 const props = defineProps<{ url: string; initial?: any }>()
 const emit = defineEmits<{
   (e: 'save', meta: any): void
   (e: 'close'): void
+  (e: 'open-picker'): void
 }>()
+
 
 const defaultMeta = {
   posX: 50,
   posY: 50,
   size: 100,
   blur: 0,
-  overlayColor: '#000000',
-  overlayOpacity: 0
+  // new: support separate light/dark overlay
+  overlayLightColor: '#000000',
+  overlayLightOpacity: 0,
+  overlayDarkColor: '#000000',
+  overlayDarkOpacity: 0,
+  // backward compat
+  overlayColor: undefined,
+  overlayOpacity: undefined
 }
 
 const meta = reactive(Object.assign({}, defaultMeta, props.initial || {}))
@@ -81,11 +102,18 @@ function save() {
     posY: Number(meta.posY),
     size: Number(meta.size),
     blur: Number(meta.blur),
-    overlayColor: meta.overlayColor || '#000000',
-    overlayOpacity: Number(meta.overlayOpacity || 0)
+    // emit both new light/dark and legacy fields for compatibility
+    overlayLightColor: meta.overlayLightColor || '#000000',
+    overlayLightOpacity: Number(meta.overlayLightOpacity || 0),
+    overlayDarkColor: meta.overlayDarkColor || '#000000',
+    overlayDarkOpacity: Number(meta.overlayDarkOpacity || 0),
+    overlayColor: meta.overlayDarkColor || meta.overlayLightColor || undefined,
+    overlayOpacity: Number(meta.overlayDarkOpacity || meta.overlayLightOpacity || 0)
   }
   emit('save', out)
 }
+
+function openPicker() { emit('open-picker') }
 
 const previewStyle = computed(() => {
   const url = props.url ? `url(${props.url})` : 'none'
@@ -100,32 +128,28 @@ const previewStyle = computed(() => {
   }
 })
 
+const previewTheme = ref<'light'|'dark'>('light')
+
 const overlayStyle = computed(() => {
-  const c = meta.overlayColor || '#000'
-  const o = (meta.overlayOpacity || 0) / 100
-  return { background: `rgba(${hexToRgb(c)}, ${o})` }
+  const c = (previewTheme.value === 'light') ? (meta.overlayLightColor || '#000') : (meta.overlayDarkColor || '#000')
+  const o = (previewTheme.value === 'light') ? ((meta.overlayLightOpacity || 0) / 100) : ((meta.overlayDarkOpacity || 0) / 100)
+  return { background: `rgba(${hexToRgbString(c)}, ${o})` }
 })
 
-function hexToRgb(hex: string) {
-  try {
-    let h = hex.replace('#', '')
-    if (h.length === 3) h = h.split('').map(c => c + c).join('')
-    const r = parseInt(h.substring(0,2),16)
-    const g = parseInt(h.substring(2,4),16)
-    const b = parseInt(h.substring(4,6),16)
-    return `${r}, ${g}, ${b}`
-  } catch (e) { return '0,0,0' }
-}
+// use shared helper
 </script>
 
 <style scoped>
-.bg-editor-overlay { position: fixed; inset:0; display:flex; align-items:center; justify-content:center; background: rgba(0,0,0,0.45); z-index:1400 }
+.bg-editor-overlay { position: fixed; inset:0; display:flex; align-items:center; justify-content:center; background: rgba(0,0,0,0.45); z-index:10050 }
 .bg-editor-modal { width: 92%; max-width: 900px; background: var(--component-bg); border: 1px solid var(--border-color); border-radius:10px; overflow:hidden; display:flex; flex-direction:column }
 .bg-editor-header { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--border-color) }
 .bg-editor-body { display:flex; gap:12px; padding:12px }
 .preview-area { flex: 1 1 40%; display:flex; align-items:center; justify-content:center }
 .preview { width:100%; height:320px; border-radius:8px; overflow:hidden; background-size:cover; background-position:center center; position:relative; box-shadow: var(--shadow-elev-1) }
 .overlay { position:absolute; inset:0; pointer-events:none }
+.preview-theme-toggle { position:absolute; right:12px; top:12px; display:flex; gap:6px }
+.preview-theme-toggle button { background: rgba(0,0,0,0.12); border: none; color: var(--text-primary); padding:6px 8px; border-radius:6px; cursor:pointer }
+.preview-theme-toggle button.active { background: var(--accent-color); color: var(--text-on-accent) }
 .controls { flex:1 1 60%; display:flex; flex-direction:column; gap:10px }
 .control-row { display:flex; align-items:center; gap:8px }
 .control-row label { width:120px }

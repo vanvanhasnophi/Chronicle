@@ -273,8 +273,8 @@ onMounted(async () => {
 .search-box {
     display: flex;
     align-items: center;
-    background: var(--component-bg);
-    border: 1px solid var(--border-color);
+    background: var(--component-bg-blur-alt);
+    border: 1px solid var(--border-color-blur);
     border-radius: 12px;
     padding: 4px;
     transition: box-shadow 0.3s ease;
@@ -398,7 +398,7 @@ onMounted(async () => {
     flex: 1;
 }
 .tag-cloud-item {
-    background: var(--component-bg-alt);
+    background: var(--component-bg-blur);
     color: var(--component-text-secondary);
     border: 1px solid var(--border-color);
     padding: 6px 14px;

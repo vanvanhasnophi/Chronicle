@@ -309,24 +309,30 @@ onUnmounted(() => {
 .post-card {
     /* Default styles for featured cards still rely on this */
     padding: 16px;
-    background: var(--app-bg-secondary);
-    border: 1px solid var(--border-color);
+    background: var(--component-bg-blur-alt);
+    border: 1px solid var(--border-color-blur);
     border-radius: 8px;
     cursor: pointer;
     transition: transform 0.2s, border-color 0.2s;
 }
 
+.post-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--component-text-primary-hover);
+}
+
 .compact-card {
     padding: 14px 16px;
     margin-bottom: 0;
-    border: 1px solid var(--border-color);
-    background: transparent;
+    border: 1px solid var(--border-color-blur);
+    background: var(--component-bg-blur-alt);
     border-radius: 4px;
+    transition: all 0.2s;
 }
 
 .compact-card:hover {
-    background: var(--app-bg-secondary-hover);
-    border-color: var(--border-color-blur);
+    background: var(--component-bg-hover);
+    border-color: var(--component-text-primary-hover);
     transform: none;
 }
 

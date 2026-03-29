@@ -4,6 +4,7 @@ import { RouterLink, RouterView, useRoute ,useRouter } from 'vue-router'
 import { Icons } from './utils/icons'
 import { Settings } from 'lucide-vue-next'
 import { ensureNotoLoaded } from './utils/fontLoader'
+import { hexToRgbString } from './utils/colorUtils'
 import FilePreviewModal from './components/FilePreviewModal.vue'
 import ImagePreviewModal from './components/ImagePreviewModal.vue'
 import Toast from './components/Toast.vue'
@@ -46,6 +47,9 @@ const menuStyle = reactive<{ top?: string; left?: string; right?: string }>( { t
 let onWindowResize: (() => void) | null = null
 let onWindowScroll: (() => void) | null = null
 let selectObserver: MutationObserver | null = null
+let themeAttrObserver: MutationObserver | null = null
+let backendThemeAttrObserver: MutationObserver | null = null
+let colorSchemeMQL: MediaQueryList | null = null
 
 function applyLocale(val: string) {
   selectedLocale.value = val
@@ -105,6 +109,39 @@ function applyTheme(val: string) {
   // apply immediately
   try { applySettings() } catch(e) {}
   showSettingsMenu.value = false
+}
+
+// Resolve and write the effective overlay CSS vars so body::after always reads a concrete rgba value
+function updateResolvedOverlays() {
+  try {
+    // frontend
+    try {
+      const light = getComputedStyle(document.documentElement).getPropertyValue('--frontend-bg-overlay-light') || ''
+      const dark = getComputedStyle(document.documentElement).getPropertyValue('--frontend-bg-overlay-dark') || ''
+      let chosen = ''
+      const dt = document.documentElement.getAttribute('data-theme')
+      if (dt === 'light') chosen = light
+      else if (dt === 'dark') chosen = dark
+      else {
+        try { chosen = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? dark : light } catch(e) { chosen = light }
+      }
+      if (chosen && chosen.trim()) document.documentElement.style.setProperty('--frontend-bg-overlay', chosen)
+    } catch(e) {}
+
+    // backend
+    try {
+      const light = getComputedStyle(document.documentElement).getPropertyValue('--backend-bg-overlay-light') || ''
+      const dark = getComputedStyle(document.documentElement).getPropertyValue('--backend-bg-overlay-dark') || ''
+      let chosen = ''
+      const bt = document.body.getAttribute('data-backend-theme')
+      if (bt === 'light') chosen = light
+      else if (bt === 'dark') chosen = dark
+      else {
+        try { chosen = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? dark : light } catch(e) { chosen = light }
+      }
+      if (chosen && chosen.trim()) document.documentElement.style.setProperty('--backend-bg-overlay', chosen)
+    } catch(e) {}
+  } catch(e) {}
 }
 
 async function getSettings() {
@@ -243,6 +280,8 @@ async function applySettings() {
         } catch(e) {}
         }
 
+    
+
         // Apply background images: prefer local settings, fall back to server values
         try {
           const fb = (localCfg && localCfg.frontendBackground) ? localCfg.frontendBackground : s.frontendBackground
@@ -286,16 +325,34 @@ async function applySettings() {
                 document.documentElement.style.setProperty('--frontend-bg-pos', `${fm.posX || 50}% ${fm.posY || 50}%`)
                 document.documentElement.style.setProperty('--frontend-bg-size', `${fm.size || 100}%`)
                 document.documentElement.style.setProperty('--frontend-bg-blur', `${fm.blur || 0}px`)
-                const overlay = fm.overlayColor || 'transparent'
-                const opa = (fm.overlayOpacity || 0) / 100
-                if (overlay === 'transparent') {
-                  document.documentElement.style.setProperty('--frontend-bg-overlay-dark', 'transparent')
+                // prefer new light/dark fields; fall back to legacy overlayColor
+                const overlayLight = fm.overlayLightColor || fm.overlayColor || 'transparent'
+                const overlayLightOpa = (fm.overlayLightOpacity != null) ? ((fm.overlayLightOpacity || 0) / 100) : ((fm.overlayOpacity || 0) / 100)
+                const overlayDark = fm.overlayDarkColor || fm.overlayColor || 'transparent'
+                const overlayDarkOpa = (fm.overlayDarkOpacity != null) ? ((fm.overlayDarkOpacity || 0) / 100) : ((fm.overlayOpacity || 0) / 100)
+                if (overlayLight === 'transparent') {
                   document.documentElement.style.setProperty('--frontend-bg-overlay-light', 'transparent')
                 } else {
-                  const rgb = (function(){ try { let h=overlay.replace('#',''); if(h.length===3) h=h.split('').map((c:any)=>c+c).join(''); const r=parseInt(h.substring(0,2),16); const g=parseInt(h.substring(2,4),16); const b=parseInt(h.substring(4,6),16); return `${r}, ${g}, ${b}` } catch(e) { return '0,0,0' } })()
-                  document.documentElement.style.setProperty('--frontend-bg-overlay-dark', `rgba(${rgb}, ${opa})`)
-                  document.documentElement.style.setProperty('--frontend-bg-overlay-light', `rgba(${rgb}, ${opa})`)
+                  const rgbL = hexToRgbString(overlayLight)
+                  document.documentElement.style.setProperty('--frontend-bg-overlay-light', `rgba(${rgbL}, ${overlayLightOpa})`)
                 }
+                if (overlayDark === 'transparent') {
+                  document.documentElement.style.setProperty('--frontend-bg-overlay-dark', 'transparent')
+                } else {
+                  const rgbD = hexToRgbString(overlayDark)
+                  document.documentElement.style.setProperty('--frontend-bg-overlay-dark', `rgba(${rgbD}, ${overlayDarkOpa})`)
+                }
+                // Also set resolved --frontend-bg-overlay to the correct light/dark variant
+                try {
+                  let chosen = ''
+                  const dt = document.documentElement.getAttribute('data-theme')
+                  if (dt === 'light') chosen = getComputedStyle(document.documentElement).getPropertyValue('--frontend-bg-overlay-light')
+                  else if (dt === 'dark') chosen = getComputedStyle(document.documentElement).getPropertyValue('--frontend-bg-overlay-dark')
+                  else {
+                    try { chosen = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? getComputedStyle(document.documentElement).getPropertyValue('--frontend-bg-overlay-dark') : getComputedStyle(document.documentElement).getPropertyValue('--frontend-bg-overlay-light') } catch(e) { chosen = getComputedStyle(document.documentElement).getPropertyValue('--frontend-bg-overlay-light') }
+                  }
+                  if (chosen && chosen.trim()) document.documentElement.style.setProperty('--frontend-bg-overlay', chosen)
+                } catch(e) {}
               } catch(e) {}
 
               // Also update DOM layer if present for immediate render
@@ -310,20 +367,14 @@ async function applySettings() {
                     imgEl.style.filter = `blur(${fm.blur || 0}px)`
                   }
                   if (overlayEl) {
-                    if (fm.overlayColor) {
-                      const opa = (fm.overlayOpacity || 0) / 100
-                      try {
-                        let h = fm.overlayColor.replace('#','')
-                        if (h.length === 3) h = h.split('').map((c:any)=>c+c).join('')
-                        const r = parseInt(h.substring(0,2),16)
-                        const g = parseInt(h.substring(2,4),16)
-                        const b = parseInt(h.substring(4,6),16)
-                        overlayEl.style.background = `rgba(${r}, ${g}, ${b}, ${opa})`
-                      } catch(e) { overlayEl.style.background = 'transparent' }
-                    }
+                    try {
+                      // Read the mapped overlay variable; CSS maps this to light/dark based on data-theme/media
+                      overlayEl.style.background = getComputedStyle(document.documentElement).getPropertyValue('--frontend-bg-overlay') || 'transparent'
+                    } catch(e) { overlayEl.style.background = 'transparent' }
                   }
-                }
-              } catch(e) {}
+                  }
+                } catch(e) {}
+              
             }
           } catch(e) {}
           try {
@@ -335,16 +386,34 @@ async function applySettings() {
                 document.documentElement.style.setProperty('--backend-bg-pos', `${bm.posX || 50}% ${bm.posY || 50}%`)
                 document.documentElement.style.setProperty('--backend-bg-size', `${bm.size || 100}%`)
                 document.documentElement.style.setProperty('--backend-bg-blur', `${bm.blur || 0}px`)
-                const overlay = bm.overlayColor || 'transparent'
-                const opa = (bm.overlayOpacity || 0) / 100
-                if (overlay === 'transparent') {
-                  document.documentElement.style.setProperty('--backend-bg-overlay-dark', 'transparent')
+                // prefer new light/dark fields; fall back to legacy overlayColor
+                const overlayLight = bm.overlayLightColor || bm.overlayColor || 'transparent'
+                const overlayLightOpa = (bm.overlayLightOpacity != null) ? ((bm.overlayLightOpacity || 0) / 100) : ((bm.overlayOpacity || 0) / 100)
+                const overlayDark = bm.overlayDarkColor || bm.overlayColor || 'transparent'
+                const overlayDarkOpa = (bm.overlayDarkOpacity != null) ? ((bm.overlayDarkOpacity || 0) / 100) : ((bm.overlayOpacity || 0) / 100)
+                if (overlayLight === 'transparent') {
                   document.documentElement.style.setProperty('--backend-bg-overlay-light', 'transparent')
                 } else {
-                  const rgb = (function(){ try { let h=overlay.replace('#',''); if(h.length===3) h=h.split('').map((c:any)=>c+c).join(''); const r=parseInt(h.substring(0,2),16); const g=parseInt(h.substring(2,4),16); const b=parseInt(h.substring(4,6),16); return `${r}, ${g}, ${b}` } catch(e) { return '0,0,0' } })()
-                  document.documentElement.style.setProperty('--backend-bg-overlay-dark', `rgba(${rgb}, ${opa})`)
-                  document.documentElement.style.setProperty('--backend-bg-overlay-light', `rgba(${rgb}, ${opa})`)
+                  const rgbL = hexToRgbString(overlayLight)
+                  document.documentElement.style.setProperty('--backend-bg-overlay-light', `rgba(${rgbL}, ${overlayLightOpa})`)
                 }
+                if (overlayDark === 'transparent') {
+                  document.documentElement.style.setProperty('--backend-bg-overlay-dark', 'transparent')
+                } else {
+                  const rgbD = hexToRgbString(overlayDark)
+                  document.documentElement.style.setProperty('--backend-bg-overlay-dark', `rgba(${rgbD}, ${overlayDarkOpa})`)
+                }
+                // Also set resolved --backend-bg-overlay to the correct light/dark variant
+                try {
+                  let chosen = ''
+                  const bt = document.body.getAttribute('data-backend-theme')
+                  if (bt === 'light') chosen = getComputedStyle(document.documentElement).getPropertyValue('--backend-bg-overlay-light')
+                  else if (bt === 'dark') chosen = getComputedStyle(document.documentElement).getPropertyValue('--backend-bg-overlay-dark')
+                  else {
+                    try { chosen = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? getComputedStyle(document.documentElement).getPropertyValue('--backend-bg-overlay-dark') : getComputedStyle(document.documentElement).getPropertyValue('--backend-bg-overlay-light') } catch(e) { chosen = getComputedStyle(document.documentElement).getPropertyValue('--backend-bg-overlay-light') }
+                  }
+                  if (chosen && chosen.trim()) document.documentElement.style.setProperty('--backend-bg-overlay', chosen)
+                } catch(e) {}
               } catch(e) {}
 
               // Also update DOM layer if present for immediate render
@@ -359,17 +428,9 @@ async function applySettings() {
                     imgEl.style.filter = `blur(${bm.blur || 0}px)`
                   }
                   if (overlayEl) {
-                    if (bm.overlayColor) {
-                      const opa = (bm.overlayOpacity || 0) / 100
-                      try {
-                        let h = bm.overlayColor.replace('#','')
-                        if (h.length === 3) h = h.split('').map((c:any)=>c+c).join('')
-                        const r = parseInt(h.substring(0,2),16)
-                        const g = parseInt(h.substring(2,4),16)
-                        const b = parseInt(h.substring(4,6),16)
-                        overlayEl.style.background = `rgba(${r}, ${g}, ${b}, ${opa})`
-                      } catch(e) { overlayEl.style.background = 'transparent' }
-                    }
+                    try {
+                      overlayEl.style.background = getComputedStyle(document.documentElement).getPropertyValue('--backend-bg-overlay') || 'transparent'
+                    } catch(e) { overlayEl.style.background = 'transparent' }
                   }
                 }
               } catch(e) {}
@@ -424,6 +485,30 @@ onMounted(async () => {
 
   // Always apply settings global (fonts)
   await applySettings()
+
+  // Ensure resolved overlay vars are written after initial settings applied
+  try { updateResolvedOverlays() } catch(e) {}
+
+  // Observe attribute changes on <html> and <body> so we can re-resolve overlay vars
+  try {
+    if (typeof MutationObserver !== 'undefined') {
+      themeAttrObserver = new MutationObserver(() => { try { updateResolvedOverlays() } catch(e) {} })
+      themeAttrObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+      backendThemeAttrObserver = new MutationObserver(() => { try { updateResolvedOverlays() } catch(e) {} })
+      backendThemeAttrObserver.observe(document.body, { attributes: true, attributeFilter: ['data-backend-theme'] })
+    }
+  } catch(e) {}
+
+  // Listen to system color-scheme changes and re-resolve overlays
+  try {
+    if (window.matchMedia) {
+      colorSchemeMQL = window.matchMedia('(prefers-color-scheme: dark)')
+      const handler = () => { try { updateResolvedOverlays() } catch(e) {} }
+      // modern API
+      if (typeof colorSchemeMQL.addEventListener === 'function') colorSchemeMQL.addEventListener('change', handler)
+      else if (typeof colorSchemeMQL.addListener === 'function') colorSchemeMQL.addListener(handler)
+    }
+  } catch(e) {}
 
   // Global mobile detection: set a root class (`is-mobile`) based on initial window width.
   // This is done once at startup (per requirement) and does not follow subsequent resizes.
@@ -550,6 +635,14 @@ onBeforeUnmount(() => {
   try { if (onWindowScroll) window.removeEventListener('scroll', onWindowScroll, true) } catch (e) {}
   try { if (selectObserver) selectObserver.disconnect() } catch (e) {}
   try { if (titleObserver) titleObserver.disconnect() } catch (e) {}
+  try { if (themeAttrObserver) themeAttrObserver.disconnect() } catch (e) {}
+  try { if (backendThemeAttrObserver) backendThemeAttrObserver.disconnect() } catch (e) {}
+  try {
+    if (colorSchemeMQL) {
+      if (typeof colorSchemeMQL.removeEventListener === 'function') colorSchemeMQL.removeEventListener('change', updateResolvedOverlays as any)
+      else if (typeof colorSchemeMQL.removeListener === 'function') colorSchemeMQL.removeListener(updateResolvedOverlays as any)
+    }
+  } catch (e) {}
 })
 
 // when selectedLocale changes (frontend language chooser)

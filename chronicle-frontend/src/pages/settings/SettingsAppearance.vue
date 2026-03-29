@@ -77,9 +77,8 @@
             <label>Frontend background</label>
             <div style="display:flex; gap:8px; align-items:center;">
               <div v-if="uiFrontendBackground" class="bg-preview" :style="{ backgroundImage: `url(${uiFrontendBackground})` }"></div>
-              <button class="secondary" @click.prevent="(bgPickerTarget='frontend', bgPickerOpen=true, fetchServerImages())">Choose from uploads</button>
-              <button class="secondary" @click.prevent="(uiFrontendBackground='')">Clear</button>
-              <button v-if="uiFrontendBackground" class="secondary" @click.prevent="openBackgroundEditor('frontend')">Edit</button>
+              <button class="secondary" @click.prevent="handleEditBackground('frontend')">{{ uiFrontendBackground ? 'Edit' : 'Add' }}</button>
+              <button v-if="uiFrontendBackground" class="secondary" @click.prevent="(uiFrontendBackground='')">Clear</button>
             </div>
           </div>
 
@@ -87,9 +86,8 @@
             <label>Backend background</label>
             <div style="display:flex; gap:8px; align-items:center;">
               <div v-if="uiBackendBackground" class="bg-preview" :style="{ backgroundImage: `url(${uiBackendBackground})` }"></div>
-              <button class="secondary" @click.prevent="(bgPickerTarget='backend', bgPickerOpen=true, fetchServerImages())">Choose from uploads</button>
-              <button class="secondary" @click.prevent="(uiBackendBackground='')">Clear</button>
-              <button v-if="uiBackendBackground" class="secondary" @click.prevent="openBackgroundEditor('backend')">Edit</button>
+              <button class="secondary" @click.prevent="handleEditBackground('backend')">{{ uiBackendBackground ? 'Edit' : 'Add' }}</button>
+              <button v-if="uiBackendBackground" class="secondary" @click.prevent="(uiBackendBackground='')">Clear</button>
             </div>
           </div>
         </div>
@@ -131,7 +129,7 @@
     <div class="modal-content large-modal">
       <div class="modal-header">
         <h3>Choose background image</h3>
-        <button class="close-btn" @click="bgPickerOpen = false">×</button>
+        <button class="close-btn"  @click="bgPickerOpen = false"><span class="icon-svg" v-html="Icons.close"></span></button>
       </div>
       <div class="modal-body">
         <div class="library-section">
@@ -155,6 +153,7 @@
       :initial="(bgEditorTarget === 'frontend' ? uiFrontendBackgroundMeta : uiBackendBackgroundMeta)"
       @save="(m) => { if (bgEditorTarget === 'frontend') uiFrontendBackgroundMeta = m; else uiBackendBackgroundMeta = m; bgEditorOpen = false }"
       @close="bgEditorOpen = false"
+      @open-picker="handleOpenPickerFromEditor"
     />
 </template>
 
@@ -163,6 +162,8 @@ import { computed, ref, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import useToast from '../../composables/useToast'
 import BackgroundEditorModal from '../../components/BackgroundEditorModal.vue'
+import { hexToRgbString } from '../../utils/colorUtils'
+import { Icons } from '../../utils/icons'
 
 const { locale } = useI18n()
 const key = 'chronicle.settings'
@@ -249,6 +250,72 @@ onMounted(() => {
       .catch(() => {})
   } catch(e) {}
 })
+// Live-apply theme changes so preview updates immediately when user changes selection
+try {
+  watch(uiThemeMode, (val) => {
+    try {
+      if (val === 'follow') document.documentElement.removeAttribute('data-theme')
+      else if (val === 'light') document.documentElement.setAttribute('data-theme', 'light')
+      else if (val === 'dark') document.documentElement.setAttribute('data-theme', 'dark')
+      // update existing bg layer overlay to match selected theme
+      try {
+        const layer = document.getElementById('chronicle-bg-layer')
+        if (layer) {
+          const overlayEl = layer.querySelector('.bg-overlay') as HTMLElement | null
+            if (overlayEl) {
+              try {
+                // Choose explicit overlay variable to avoid unresolved var() references.
+                let overlayVar = '--frontend-bg-overlay'
+                if (val === 'light') overlayVar = '--frontend-bg-overlay-light'
+                else if (val === 'dark') overlayVar = '--frontend-bg-overlay-dark'
+                else {
+                  // follow -> detect system preference
+                  try {
+                    overlayVar = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? '--frontend-bg-overlay-dark' : '--frontend-bg-overlay-light'
+                  } catch(e) { overlayVar = '--frontend-bg-overlay-light' }
+                }
+                const v = getComputedStyle(document.documentElement).getPropertyValue(overlayVar)
+                const resolved = v && v.trim() ? v : 'transparent'
+                overlayEl.style.background = resolved
+                try { document.documentElement.style.setProperty('--frontend-bg-overlay', resolved) } catch(e) {}
+              } catch(e) { overlayEl.style.background = 'transparent' }
+            }
+        }
+      } catch(e) {}
+    } catch(e) {}
+  })
+
+  watch(uiBackendTheme, (val) => {
+    try {
+      if (val === 'follow') document.body.removeAttribute('data-backend-theme')
+      else if (val === 'light') document.body.setAttribute('data-backend-theme', 'light')
+      else if (val === 'dark') document.body.setAttribute('data-backend-theme', 'dark')
+      // update bg overlay for backend if present
+      try {
+        const layer = document.getElementById('chronicle-bg-layer')
+        if (layer) {
+          const overlayEl = layer.querySelector('.bg-overlay') as HTMLElement | null
+          if (overlayEl) {
+              try {
+                let overlayVar = '--backend-bg-overlay'
+                if (val === 'light') overlayVar = '--backend-bg-overlay-light'
+                else if (val === 'dark') overlayVar = '--backend-bg-overlay-dark'
+                else {
+                  try {
+                    overlayVar = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? '--backend-bg-overlay-dark' : '--backend-bg-overlay-light'
+                  } catch(e) { overlayVar = '--backend-bg-overlay-light' }
+                }
+                const v = getComputedStyle(document.documentElement).getPropertyValue(overlayVar)
+                const resolved = v && v.trim() ? v : 'transparent'
+                overlayEl.style.background = resolved
+                try { document.documentElement.style.setProperty('--backend-bg-overlay', resolved) } catch(e) {}
+              } catch(e) { overlayEl.style.background = 'transparent' }
+          }
+        }
+      } catch(e) {}
+    } catch(e) {}
+  })
+} catch(e) {}
 // apply meta changes live for immediate preview
 try {
   watch(uiFrontendBackgroundMeta, (m) => {
@@ -363,9 +430,9 @@ try {
           document.documentElement.style.setProperty('--frontend-bg-overlay-dark', 'transparent')
           document.documentElement.style.setProperty('--frontend-bg-overlay-light', 'transparent')
         } else {
-          const rgb = (function(){ try { let h=overlay.replace('#',''); if(h.length===3) h=h.split('').map((c:any)=>c+c).join(''); const r=parseInt(h.substring(0,2),16); const g=parseInt(h.substring(2,4),16); const b=parseInt(h.substring(4,6),16); return `${r}, ${g}, ${b}` } catch(e) { return '0,0,0' } })()
-          document.documentElement.style.setProperty('--frontend-bg-overlay-dark', `rgba(${rgb}, ${opa})`)
-          document.documentElement.style.setProperty('--frontend-bg-overlay-light', `rgba(${rgb}, ${opa})`)
+            const rgb = hexToRgbString(overlay)
+            document.documentElement.style.setProperty('--frontend-bg-overlay-dark', `rgba(${rgb}, ${opa})`)
+            document.documentElement.style.setProperty('--frontend-bg-overlay-light', `rgba(${rgb}, ${opa})`)
         }
       }
     } catch(e) {}
@@ -381,7 +448,7 @@ try {
           document.documentElement.style.setProperty('--backend-bg-overlay-dark', 'transparent')
           document.documentElement.style.setProperty('--backend-bg-overlay-light', 'transparent')
         } else {
-          const rgb = (function(){ try { let h=overlay.replace('#',''); if(h.length===3) h=h.split('').map((c:any)=>c+c).join(''); const r=parseInt(h.substring(0,2),16); const g=parseInt(h.substring(2,4),16); const b=parseInt(h.substring(4,6),16); return `${r}, ${g}, ${b}` } catch(e) { return '0,0,0' } })()
+          const rgb = hexToRgbString(overlay)
           document.documentElement.style.setProperty('--backend-bg-overlay-dark', `rgba(${rgb}, ${opa})`)
           document.documentElement.style.setProperty('--backend-bg-overlay-light', `rgba(${rgb}, ${opa})`)
         }
@@ -391,7 +458,7 @@ try {
             const imgEl = layer.querySelector('.bg-image') as HTMLElement | null
             const overlayEl = layer.querySelector('.bg-overlay') as HTMLElement | null
             if (imgEl) imgEl.style.backgroundImage = uiBackendBackground.value ? `url(${uiBackendBackground.value})` : 'none'
-            if (overlayEl) overlayEl.style.background = (overlay === 'transparent') ? 'transparent' : (function(){ try { let h=overlay.replace('#',''); if(h.length===3) h=h.split('').map((c:any)=>c+c).join(''); const r=parseInt(h.substring(0,2),16); const g=parseInt(h.substring(2,4),16); const b=parseInt(h.substring(4,6),16); return `rgba(${r}, ${g}, ${b}, ${opa})` } catch(e){ return 'transparent' } })()
+              if (overlayEl) overlayEl.style.background = (overlay === 'transparent') ? 'transparent' : `rgba(${hexToRgbString(overlay)}, ${opa})`
           }
         } catch(e) {}
       }
@@ -418,7 +485,9 @@ function chooseBackgroundImage(img: any) {
   if (bgPickerTarget.value === 'frontend') uiFrontendBackground.value = img.path || img.url
   else uiBackendBackground.value = img.path || img.url
   ensureMetaForTarget(bgPickerTarget.value)
+  // close picker then open editor so selection is merged into edit flow
   bgPickerOpen.value = false
+  try { openBackgroundEditor(bgPickerTarget.value) } catch(e) {}
   try {
     const layer = document.getElementById('chronicle-bg-layer')
       if (layer) {
@@ -432,6 +501,35 @@ function chooseBackgroundImage(img: any) {
           try { surfaceEl.style.background = getComputedStyle(document.documentElement).getPropertyValue('--app-bg-primary') || 'transparent' } catch(e) {}
         }
       }
+  } catch(e) {}
+}
+
+// When user clicks unified Edit button: if image exists open editor, otherwise open picker
+function handleEditBackground(target:'frontend'|'backend') {
+  if (target === 'frontend') {
+    if (uiFrontendBackground.value) openBackgroundEditor('frontend')
+    else {
+      bgPickerTarget.value = 'frontend'
+      bgPickerOpen.value = true
+      fetchServerImages()
+    }
+  } else {
+    if (uiBackendBackground.value) openBackgroundEditor('backend')
+    else {
+      bgPickerTarget.value = 'backend'
+      bgPickerOpen.value = true
+      fetchServerImages()
+    }
+  }
+}
+
+function handleOpenPickerFromEditor() {
+  try {
+    // close editor then open picker
+    bgEditorOpen.value = false
+    bgPickerTarget.value = bgEditorTarget.value
+    bgPickerOpen.value = true
+    fetchServerImages()
   } catch(e) {}
 }
 
@@ -534,7 +632,7 @@ async function save() {
             document.documentElement.style.setProperty('--frontend-bg-overlay-dark', 'transparent')
             document.documentElement.style.setProperty('--frontend-bg-overlay-light', 'transparent')
           } else {
-            const rgb = (() => { try { let h=overlay.replace('#',''); if(h.length===3) h=h.split('').map(c=>c+c).join(''); const r=parseInt(h.substring(0,2),16); const g=parseInt(h.substring(2,4),16); const b=parseInt(h.substring(4,6),16); return `${r}, ${g}, ${b}` } catch(e) { return '0,0,0' } })()
+            const rgb = hexToRgbString(overlay)
             document.documentElement.style.setProperty('--frontend-bg-overlay-dark', `rgba(${rgb}, ${opa})`)
             document.documentElement.style.setProperty('--frontend-bg-overlay-light', `rgba(${rgb}, ${opa})`)
           }
@@ -551,7 +649,10 @@ async function save() {
               }
               if (overlayEl) {
                 if (overlay === 'transparent') overlayEl.style.background = 'transparent'
-                else overlayEl.style.background = `rgba(${rgb}, ${opa})`
+                else {
+                  const rgb = hexToRgbString(overlay)
+                  overlayEl.style.background = `rgba(${rgb}, ${opa})`
+                }
               }
               if (surfaceEl) {
                 try { surfaceEl.style.background = getComputedStyle(document.documentElement).getPropertyValue('--app-bg-primary') || 'transparent' } catch(e) {}
@@ -572,7 +673,7 @@ async function save() {
             document.documentElement.style.setProperty('--backend-bg-overlay-dark', 'transparent')
             document.documentElement.style.setProperty('--backend-bg-overlay-light', 'transparent')
           } else {
-            const rgb = (() => { try { let h=overlay.replace('#',''); if(h.length===3) h=h.split('').map(c=>c+c).join(''); const r=parseInt(h.substring(0,2),16); const g=parseInt(h.substring(2,4),16); const b=parseInt(h.substring(4,6),16); return `${r}, ${g}, ${b}` } catch(e) { return '0,0,0' } })()
+            const rgb = hexToRgbString(overlay)
             document.documentElement.style.setProperty('--backend-bg-overlay-dark', `rgba(${rgb}, ${opa})`)
             document.documentElement.style.setProperty('--backend-bg-overlay-light', `rgba(${rgb}, ${opa})`)
           }
@@ -589,7 +690,10 @@ async function save() {
               }
               if (overlayEl) {
                 if (overlay === 'transparent') overlayEl.style.background = 'transparent'
-                else overlayEl.style.background = `rgba(${rgb}, ${opa})`
+                else {
+                  const rgb = hexToRgbString(overlay)
+                  overlayEl.style.background = `rgba(${rgb}, ${opa})`
+                }
               }
               if (surfaceEl) {
                 try { surfaceEl.style.background = getComputedStyle(document.documentElement).getPropertyValue('--app-bg-primary') || 'transparent' } catch(e) {}
@@ -784,15 +888,44 @@ function reset() {
 
 .bg-preview { width: 72px; height: 44px; background-size: cover; background-position: center; border-radius: 6px; border: 1px solid var(--border-color); }
 
-.modal-overlay { position: fixed; inset: 0; display:flex; align-items:center; justify-content:center; background: rgba(0,0,0,0.4); z-index:1200 }
-.modal-content { background: var(--component-bg); border: 1px solid var(--border-color); border-radius: 10px; width: 90%; max-width: 900px; max-height: 80vh; overflow:auto }
-.modal-header { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom: 1px solid var(--border-color) }
+.modal-overlay { position: fixed; inset: 0; display:flex; align-items:center; justify-content:center; background: rgba(0,0,0,0.4); z-index:10050 }
+.modal-content { z-index:1199; background: var(--component-bg); border: 1px solid var(--border-color); border-radius: 10px; width: 90%; max-width: 900px; max-height: 80vh; overflow:auto }
+.modal-header { 
+  padding: 0px 16px;
+    border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+    background: var(--component-bg-primary);
+  flex-shrink: 0;
+  height: 48px;
+}
 .modal-body { padding:12px }
 .image-grid { display:grid; grid-template-columns: repeat(auto-fill,minmax(120px,1fr)); gap:12px }
 .library-item { cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:8px; padding:8px; border-radius:8px; transition:all .12s }
 .library-item:hover { background: var(--component-bg-hover) }
 .img-thumb { width:100%; padding-top:66%; background-size:cover; background-position:center; border-radius:6px }
 .img-name { font-size:0.85rem; color:var(--text-secondary); text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; width:100% }
+.modal-header h3{
+  margin: 0;
+  font-size: 16px;
+    color: var(--component-text-primary);
+}
+.close-btn {
+  background: none;
+  border: none;
+    color: var(--component-text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  display: flex; 
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+.close-btn:hover {
+  background: transparent;
+  color: var(--text-primary);
+}
 @media (max-width: 980px) {
   .appearance-layout {
     grid-template-columns: 1fr;
