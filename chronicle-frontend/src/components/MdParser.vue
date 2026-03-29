@@ -470,20 +470,20 @@ defineExpose({
   border-radius: 4px;
 }
 .katex-interactive:hover, .katex-interactive-block:hover {
-  background-color: rgba(255, 255, 255, 0.15); /* Lightening effect */
+  background-color: var(--component-bg-hover);
 }
 
 .math-tooltip {
   position: fixed;
   z-index: 9999;
-  background-color: #1e1e1e; /* Match body bg */
-  border: 1px solid #333;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  box-shadow: var(--shadow-elev-2);
   padding: 8px;
   min-width: 200px;
   max-width: 400px;
-  color: #eee;
+  color: var(--component-text-primary);
   font-size: 14px;
   /* v-if handles visibility now, so we start visible */
   opacity: 1;
@@ -496,9 +496,6 @@ defineExpose({
     to { opacity: 1; transform: translateY(0); }
 }
 
-.math-tooltip.visible {
-  /* Deprecated: handled by v-if */
-}
 .math-tooltip-tex {
   /* Deprecated, using editor structure instead */
   display: none;
@@ -507,9 +504,9 @@ defineExpose({
 .math-tooltip-content { display: none; } 
 
 .math-tooltip-actions .icon-btn {
-  background: #333;
-  border: 1px solid #444;
-  color: #eee;
+  background: var(--component-bg-hover);
+  border: 1px solid var(--border-color);
+  color: var(--component-text-primary);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -523,8 +520,8 @@ defineExpose({
   border-radius: 4px; /* Square with slight radius */
 }
 .math-tooltip-actions .save-btn:hover {
-    color: #2ea35f;
-    border-color: #2ea35f;
+  color: var(--accent-color);
+  border-color: var(--accent-color);
 }
 
 .validation-error {
@@ -532,9 +529,9 @@ defineExpose({
     align-items: center;
     gap: 6px;
     font-size: 12px;
-    color: #ff6b6b;
-    background: rgba(255, 107, 107, 0.1);
-    border: 1px solid rgba(255, 107, 107, 0.2);
+    color: var(--status-error);
+    background: var(--component-bg-hover);
+    border: 1px solid var(--status-error);
     border-radius: 4px;
     padding: 6px 8px;
     margin-top: 4px;
@@ -544,9 +541,9 @@ defineExpose({
 }
 
 .math-tooltip-actions .icon-btn:hover {
-  background-color: #444;
-  border-color: #2ea35f;
-  color: #fff;
+  background-color: var(--component-bg-active);
+  border-color: var(--accent-color);
+  color: var(--text-primary);
 }
 
 /* Edit Mode Styles */
@@ -566,8 +563,8 @@ defineExpose({
   position: relative;
   min-height: 48px;
   max-height: 200px; /* Limit max height */
-  background: #2b2b2b;
-  border: 1px solid #333;
+  background: var(--component-bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   overflow-y: auto;
   overflow-x: hidden;
@@ -592,7 +589,7 @@ defineExpose({
   word-wrap: break-word;
   overflow-wrap: break-word; /* Ensure wrapping so it dictates height */
   box-sizing: border-box;
-  color: #d4d4d4;
+  color: var(--component-text-primary);
   pointer-events: none;
 }
 
@@ -614,7 +611,7 @@ defineExpose({
   overflow-wrap: break-word;
   background: transparent;
   color: transparent;
-  caret-color: #fff;
+  caret-color: var(--text-primary);
   resize: none;
   border: none;
   outline: none;
@@ -641,7 +638,7 @@ defineExpose({
   overflow-wrap: break-word;
   background: transparent;
   color: transparent;
-  caret-color: #fff;
+  caret-color: var(--text-primary);
   resize: none;
   border: none;
   outline: none;
@@ -681,7 +678,7 @@ defineExpose({
 .math-tooltip-editor .syntax-highlight {
   pointer-events: none;
   background: transparent;
-  color: #d4d4d4;
+  color: var(--component-text-primary);
   z-index: 0;
   /* Override padding-bottom for the highlighter so it aligns with textarea but doesn't trap scroll */
   /* Actually they must match exactly for alignment */
@@ -690,7 +687,7 @@ defineExpose({
 .math-tooltip-editor .code-textarea {
   background: transparent;
   color: transparent;
-  caret-color: #fff;
+  caret-color: var(--text-primary);
   resize: none;
   outline: none;
   z-index: 1;
@@ -713,18 +710,18 @@ defineExpose({
   width: auto;
   padding: 4px 12px;
   font-size: 12px;
-  border: 1px solid #444;
-  background: #333;
-  color: #eee;
+  border: 1px solid var(--border-color);
+  background: var(--component-bg-hover);
+  color: var(--component-text-primary);
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .math-tooltip-actions .text-btn:hover {
-  background-color: #444;
-  border-color: #2ea35f;
-  color: #fff;
+  background-color: var(--component-bg-active);
+  border-color: var(--accent-color);
+  color: var(--text-primary);
 }
 
 
@@ -738,8 +735,8 @@ defineExpose({
   margin: 1em 0;
 }
 .md-quote-block {
-  background: #8585851d;
-  border-left: 4px solid #2ea35f;
+  background: var(--component-bg-hover);
+  border-left: 4px solid var(--accent-color);
   padding: 0.5em 1em;
   margin: 0.5em 0;
   border-radius: 4px;
@@ -757,13 +754,13 @@ defineExpose({
 }
 .md-quote-block .backslash {
   font-family: 'Consolas', 'Menlo', 'Monaco', monospace;
-  color: #b8b8b8;
+  color: var(--component-text-secondary);
   padding: 0 0.1em;
 }
 
 code {
-  background: rgba(255, 0, 0, 0.12);
-  color: #ff8585;
+  background: var(--code-bg);
+  color:  var(--code-text);
   border-radius: 5px;
   padding: 0.2em 0.5em;
   font-size: 0.85em;
@@ -808,7 +805,7 @@ strong, b {
 .md-image-wrapper.loading,
 .md-image-wrapper.error,
 .md-image-wrapper.placeholder {
-  background-color: #2b2b2b;
+  background-color: var(--component-bg-primary);
   min-width: 200px;
   min-height: 120px;
   display: flex !important;
@@ -822,7 +819,7 @@ strong, b {
 .md-placeholder-text {
   font-family: var(--app-font-stack);
   font-size: 14px;
-  color: #ccc;
+  color: var(--component-text-primary);
   pointer-events: none;
   text-align: center;
   white-space: nowrap;
@@ -830,7 +827,7 @@ strong, b {
 
 /* Error State Specifics */
 .md-image-wrapper.error .md-placeholder-text {
-  color: #ff4d4f; /* Red text for error */
+  color: var(--status-error);
 }
 
 /* Hide the actual image element in non-loaded states */
@@ -853,7 +850,7 @@ strong, b {
   display: block;
   margin-top: 8px;
   font-size: 0.9em;
-  color: #999;
+  color: var(--component-text-secondary);
   text-align: center;
   font-family: var(--app-font-stack);
   width: 100%; /* Ensure it spans the container's width */
@@ -870,14 +867,14 @@ strong, b {
 }
 
 .md-link {
-  color: #2ea35f;
+  color: var(--accent-color);
   text-decoration: underline;
   text-underline-offset: 4px;
   transition: color 0.2s;
 }
 
 .md-link:hover {
-  color: #24804a;
+  color: var(--accent-color-hover);
 }
 
 /* Image Preview Modal */
@@ -887,7 +884,7 @@ strong, b {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(0, 0, 0, 0.9);
+  background: var(--component-bg-blur);
   z-index: 10000;
   display: flex;
   justify-content: center;
@@ -900,9 +897,9 @@ strong, b {
   position: absolute;
   top: 30px;
   right: 30px;
-  background: rgba(0, 0, 0, 0.5); /* #2b2b2b ish but semi-transparent */
+  background: var(--component-bg-blur-alt);
   border: none;
-  color: #fff;
+  color: var(--text-primary);
   width: 48px;
   height: 48px;
   min-width: 48px;
@@ -915,10 +912,10 @@ strong, b {
   z-index: 10001;
   transition: background 0.2s, transform 0.1s;
   padding: 0;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  box-shadow: var(--shadow-elev-1);
 }
 .preview-close-btn:hover {
-  background: rgba(0, 0, 0, 0.8);
+  background: var(--component-bg-blur);
   transform: scale(1.05);
 }
 .preview-close-btn svg {
@@ -926,7 +923,7 @@ strong, b {
   height: 24px;
 }
 .preview-close-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--component-bg-hover);
 }
 
 .image-preview-container {
@@ -942,7 +939,7 @@ strong, b {
   max-height: 90%;
   object-fit: contain;
   border-radius: 4px;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+  box-shadow: var(--shadow-elev-3);
   cursor: grab;
   transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
   will-change: transform;
@@ -963,8 +960,8 @@ strong, b {
 .file-card {
   display: inline-flex;
   align-items: center;
-  background-color: #2b2b2b;
-  border: 1px solid #3d3d3d;
+  background-color: var(--component-bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 8px 12px;
   margin: 4px;
@@ -975,10 +972,10 @@ strong, b {
 }
 
 .file-card:hover {
-  background-color: #383838;
-  border-color: #2ea35f;
+  background-color: var(--component-bg-hover);
+  border-color: var(--accent-color);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  box-shadow: var(--shadow-elev-1);
 }
 
 .file-card-icon {
@@ -988,10 +985,10 @@ strong, b {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ccc;
+  color: var(--component-text-primary);
 }
 .file-card:hover .file-card-icon {
-    color: #2ea35f;
+    color: var(--accent-color);
 }
 
 .file-card-info {
@@ -1003,7 +1000,7 @@ strong, b {
 
 .file-name {
   font-size: 14px;
-  color: #eee;
+  color: var(--component-text-primary);
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
@@ -1012,7 +1009,7 @@ strong, b {
 
 .file-type {
   font-size: 11px;
-  color: #999;
+  color: var(--component-text-secondary);
   margin-top: 2px;
 }
 </style>

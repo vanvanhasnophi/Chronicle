@@ -172,7 +172,7 @@ watch(() => state.file, () => {
 
 .file-action-btn.primary {
     background: #2ea35f;
-    color: #fff;
+    color: var(--text-primary);
 }
 .file-action-btn.primary:hover {
     background: #24804a;
@@ -184,7 +184,7 @@ watch(() => state.file, () => {
 }
 .file-action-btn.close:hover {
     background: #444;
-    color: #fff;
+    color: var(--text-primary);
 }
 
 .file-preview-body {
@@ -248,7 +248,7 @@ watch(() => state.file, () => {
   white-space: pre;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 14px;
-  color: #e0e0e0;
+  color: var(--text-primary);
   line-height: 1.6;
   overflow: visible;
   background: transparent;

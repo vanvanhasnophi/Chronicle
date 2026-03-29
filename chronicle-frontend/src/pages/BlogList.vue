@@ -193,7 +193,7 @@ onUnmounted(() => {
     max-width: 900px;
     margin: 0 auto;
     padding: 40px;
-    color: #e0e0e0;
+    color: var(--text-primary);
     box-sizing: border-box;
     scroll-behavior: smooth;
 }
@@ -207,14 +207,14 @@ onUnmounted(() => {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 24px;
-    border-bottom: 2px solid #2ea35f;
+    border-bottom: 2px solid var(--accent-color);
     padding-bottom: 10px;
 }
 
 .section-title {
     font-size: 1.8em;
     margin: 0;
-    color: #fff;
+    color: var(--text-primary);
     padding-bottom: 0px;
     border-bottom: none;
     display: inline-block;
@@ -222,8 +222,8 @@ onUnmounted(() => {
 
 .toggle-btn {
     background: transparent;
-    border: 1px solid #444;
-    color: #888;
+    border: 1px solid var(--border-color);
+    color: var(--component-text-secondary);
     padding: 4px 10px;
     border-radius: 4px;
     cursor: pointer;
@@ -231,8 +231,8 @@ onUnmounted(() => {
 }
 
 .toggle-btn:hover {
-    color: #2ea35f;
-    border-color: #2ea35f;
+    color: var(--component-text-primary-hover);
+    border-color: var(--accent-color);
 }
 
 /* Featured Grid */
@@ -243,8 +243,8 @@ onUnmounted(() => {
 }
 
 .featured-card {
-    background: linear-gradient(145deg, #252526, #1e1e1e);
-    border: 1px solid #3e3e42;
+    background:  var(--app-bg-secondary);
+    border: 1px solid var(--border-color);
     padding: 16px;
     margin-bottom: 0;
 }
@@ -273,11 +273,12 @@ onUnmounted(() => {
 
 .year-header {
     font-size: 3em;
-    font-weight: 800;
-    color: #444;
+    font-weight: 800 !important;
+    font-variation-settings: 'wght' 800;
+    color: var(--component-text-secondary);
     opacity: 0.3;
     margin-bottom: 20px;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--border-color);
     line-height: 1;
 }
 
@@ -294,7 +295,7 @@ onUnmounted(() => {
     padding-top: 14px;
     /* Align with first card text */
     font-weight: bold;
-    color: #2ea35f;
+    color: var(--accent-color);
     font-size: 1.1em;
 }
 
@@ -308,8 +309,8 @@ onUnmounted(() => {
 .post-card {
     /* Default styles for featured cards still rely on this */
     padding: 16px;
-    background: #1e1e1e;
-    border: 1px solid #333;
+    background: var(--app-bg-secondary);
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     cursor: pointer;
     transition: transform 0.2s, border-color 0.2s;
@@ -318,14 +319,14 @@ onUnmounted(() => {
 .compact-card {
     padding: 14px 16px;
     margin-bottom: 0;
-    border: 1px solid #2d2d30;
+    border: 1px solid var(--border-color);
     background: transparent;
     border-radius: 4px;
 }
 
 .compact-card:hover {
-    background: #252526;
-    border-color: #555;
+    background: var(--app-bg-secondary-hover);
+    border-color: var(--border-color-blur);
     transform: none;
 }
 
@@ -340,12 +341,12 @@ onUnmounted(() => {
     font-size: 1.1em;
     margin: 0;
     font-weight: 500;
-    color: #ddd;
+    color: var(--component-text-primary);
 }
 
 .compact-card .post-day {
     font-size: 0.85em;
-    color: #666;
+    color: var(--component-text-secondary);
     font-family: monospace;
     margin-left: 10px;
     flex-shrink: 0;
@@ -360,22 +361,22 @@ onUnmounted(() => {
 /* Shared */
 .post-meta {
     font-size: 0.85em;
-    color: #888;
+    color: var(--component-text-secondary);
     margin-bottom: 8px;
 }
 
 .post-summary {
-    color: #aaa;
+    color: var(--component-text-secondary);
     line-height: 1.6;
     font-size: 0.95em;
 }
 
 .tag {
-    background: #2d2d30;
+    background: var(--accent-color-bg);
     padding: 2px 6px;
     border-radius: 4px;
     font-size: 0.75em;
-    color: #2ea35f;
+    color: var(--accent-color);
 }
 
 .tag.featured {
@@ -388,7 +389,7 @@ onUnmounted(() => {
 .empty {
     text-align: center;
     padding: 60px;
-    color: #666;
+    color: var(--component-text-secondary);
 }
 
 

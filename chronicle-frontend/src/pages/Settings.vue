@@ -3,7 +3,7 @@
     <aside class="settings-nav">
       <router-link to="/settings/homepage">{{ $t('settings.home') }}</router-link>
       <router-link to="/settings/friends">{{ $t('settings.friends') }}</router-link>
-      <router-link to="/settings/i18n">{{ $t('settings.i18n') }}</router-link>
+      <router-link to="/settings/appearance">{{ $t('settings.appearance') }}</router-link>
       <router-link to="/settings/security">{{ $t('settings.security') }}</router-link>
     </aside>
 

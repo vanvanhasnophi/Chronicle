@@ -13,7 +13,7 @@
     max-width: 900px;
     margin: 0 auto;
     padding: 100px 20px;
-    color: #fff;
+    color: var(--text-primary);
     text-align: center;
 }
 .hero h1 {

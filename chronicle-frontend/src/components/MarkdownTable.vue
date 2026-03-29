@@ -503,7 +503,7 @@ function autoResize(e: Event) {
   min-width: 2em;
   max-width: 100%;
   background: none;
-  color: #fff;
+  color: var(--text-primary);
   border: none;
   outline: none;
   font: inherit;
@@ -548,6 +548,7 @@ function autoResize(e: Event) {
 .readonly-table th {
   background: rgba(255, 255, 255, 0.05);
   font-weight: 600;
+  font-variation-settings: 'wght' 600;
 }
 .readonly-table tr:nth-child(2n) {
   background: rgba(255, 255, 255, 0.02);

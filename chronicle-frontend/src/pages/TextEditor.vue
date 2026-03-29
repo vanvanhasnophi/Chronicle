@@ -25,7 +25,7 @@ const AsyncEditor = defineAsyncComponent(() => import('../components/BlogEditor.
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  background: #1e1e1e;
+  background: var(--bg-primary);
 }
 .full-height-editor {
   flex: 1;
@@ -40,11 +40,11 @@ const AsyncEditor = defineAsyncComponent(() => import('../components/BlogEditor.
   height: calc(100vh - 0px);
 }
 .skeleton-box {
-  background: rgba(255,255,255,0.03);
-  color: #ddd;
+  background: var(--component-bg-hover);
+  color: var(--component-text-primary);
   padding: 18px 24px;
   border-radius: 8px;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.6);
+  box-shadow: var(--shadow-elev-3);
   font-size: 16px;
 }
 </style>

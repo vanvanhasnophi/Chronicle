@@ -195,13 +195,13 @@ onMounted(() => {
 .file-manager {
     display: flex;
     height: 100%;
-    background: #1e1e1e;
-    color: #e0e0e0;
+    background: var(--bg-primary);
+    color: var(--text-primary);
 }
 .sidebar {
     width: 200px;
-    background: #252526;
-    border-right: 1px solid #333;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border-color);
     padding: 10px;
     overflow-y: auto;
 }
@@ -214,17 +214,17 @@ onMounted(() => {
     align-items: center;
 }
 .folder-item:hover {
-    background: #2a2d2e;
+    background: var(--component-bg-hover);
 }
 .folder-item.active {
-    background: #2ea35f;
-    color: white;
+    background: var(--accent-color);
+    color: var(--text-on-accent);
 }
 .sidebar-header {
     padding: 10px 12px;
     font-size: 11px;
     text-transform: uppercase;
-    color: #888;
+    color: var(--component-text-secondary);
     font-weight: 600;
 }
 .cat-icon {
@@ -243,15 +243,15 @@ onMounted(() => {
     align-items: center;
     margin-bottom: 20px;
     padding-bottom: 10px;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--border-color);
 }
 .actions {
     display: flex;
     gap: 10px;
 }
 button, .upload-btn {
-    background: #2ea35f;
-    color: white;
+    background: var(--accent-color);
+    color: var(--text-on-accent);
     border: none;
     padding: 6px 12px;
     border-radius: 2px;
@@ -260,7 +260,7 @@ button, .upload-btn {
     display: inline-block;
 }
 button:hover, .upload-btn:hover {
-    background: #24804a;
+    background: var(--accent-color-hover);
 }
 .icon-btn {
     padding: 6px 10px;
@@ -271,8 +271,8 @@ button:hover, .upload-btn:hover {
     gap: 15px;
 }
 .grid-item {
-    background: #252526;
-    border: 1px solid #3e3e42;
+    background: var(--component-bg-primary);
+    border: 1px solid var(--border-color);
     border-radius: 4px;
     padding: 10px;
     text-align: center;
@@ -281,7 +281,7 @@ button:hover, .upload-btn:hover {
     transition: background 0.2s;
 }
 .grid-item:hover {
-    background: #2a2d2e;
+    background: var(--component-bg-hover);
 }
 .preview {
     height: 100px;
@@ -290,7 +290,7 @@ button:hover, .upload-btn:hover {
     justify-content: center;
     margin-bottom: 8px;
     overflow: hidden;
-    background: #1e1e1e;
+    background: var(--component-bg-secondary);
     border-radius: 2px;
 }
 .preview img {
@@ -301,7 +301,7 @@ button:hover, .upload-btn:hover {
 .preview .icon {
     width: 48px;
     height: 48px;
-    color: #555;
+    color: var(--component-text-secondary);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -317,13 +317,13 @@ button:hover, .upload-btn:hover {
     overflow: hidden;
     text-overflow: ellipsis;
     margin-bottom: 6px;
-    color: #ccc;
+    color: var(--component-text-primary);
 }
 .delete-btn {
     position: absolute;
     top: 5px;
     right: 5px;
-    background: rgba(0,0,0,0.5);
+    background: var(--component-bg-secondary);
     width: 24px;
     height: 24px;
     padding: 0;
@@ -333,7 +333,7 @@ button:hover, .upload-btn:hover {
     border-radius: 50%;
     opacity: 0;
     transition: opacity 0.2s;
-    color: white;
+    color: var(--text-on-accent);
 }
 .delete-btn :deep(svg) {
     width: 14px;
@@ -343,7 +343,7 @@ button:hover, .upload-btn:hover {
     opacity: 1;
 }
 .delete-btn:hover {
-    background: #cc3333;
+    background: var(--status-error);
 }
 .actions-row {
     display: flex;
@@ -352,14 +352,14 @@ button:hover, .upload-btn:hover {
 }
 .copy-btn {
     padding: 4px;
-    background: #333;
+    background: var(--component-bg-secondary);
     display: flex;
     align-items: center;
     justify-content: center;
     width: 24px;
     height: 24px;
     border-radius: 4px;
-    color: #ccc;
+    color: var(--component-text-primary);
 }
 .copy-btn :deep(svg) {
     width: 14px;
@@ -387,7 +387,7 @@ button:hover, .upload-btn:hover {
 .loading, .empty {
     grid-column: 1 / -1;
     text-align: center;
-    color: #888;
+    color: var(--component-text-secondary);
     padding: 40px;
 }
 </style>

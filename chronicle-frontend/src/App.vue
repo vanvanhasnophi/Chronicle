@@ -2,7 +2,7 @@
 import { computed, ref, watch, onMounted, onBeforeUnmount, reactive, nextTick } from 'vue'
 import { RouterLink, RouterView, useRoute ,useRouter } from 'vue-router'
 import { Icons } from './utils/icons'
-import { Globe } from 'lucide-vue-next'
+import { Settings } from 'lucide-vue-next'
 import { ensureNotoLoaded } from './utils/fontLoader'
 import FilePreviewModal from './components/FilePreviewModal.vue'
 import ImagePreviewModal from './components/ImagePreviewModal.vue'
@@ -16,7 +16,18 @@ function openNewEditor() {
   router.push('/editor?id=new')
 }
 const isBackend = computed(() => {
-  return ['/manage', '/files', '/settings', '/editor'].some(p => route.path.startsWith(p))
+  // Explicit frontend routes: Home, BlogList, BlogPost, Search, Friends
+  const frontendPrefixes = ['/', '/blogs', '/post', '/search', '/friends']
+  const p = route.path || ''
+  // Root is frontend
+  if (p === '/') return false
+  // If path starts with any frontend prefix (except root), treat as frontend
+  for (const pref of frontendPrefixes) {
+    if (pref === '/') continue
+    if (p.startsWith(pref)) return false
+  }
+  // Otherwise treat as backend
+  return true
 })
 document.body.addEventListener('touchstart', (e) => {
   const target = e.target as Element | null;
@@ -29,8 +40,8 @@ document.body.addEventListener('touchstart', (e) => {
 const { locale, t } = useI18n()
 const selectedLocale = ref<string>(localStorage.getItem('locale') || 'follow')
 const isMobileRoot = ref(false)
-const showLocaleMenu = ref(false)
-const localeBtn = ref<HTMLElement | null>(null)
+const showSettingsMenu = ref(false)
+const navSettingBtn = ref<HTMLElement | null>(null)
 const menuStyle = reactive<{ top?: string; left?: string; right?: string }>( { top: '0px', left: 'auto', right: '24px' })
 let onWindowResize: (() => void) | null = null
 let onWindowScroll: (() => void) | null = null
@@ -38,24 +49,24 @@ let selectObserver: MutationObserver | null = null
 
 function applyLocale(val: string) {
   selectedLocale.value = val
-  showLocaleMenu.value = false
+  showSettingsMenu.value = false
 }
 
 function onDocClick(e: MouseEvent) {
   const path = (e.composedPath && e.composedPath()) || (e as any).path || []
-  const hit = path.some((el: any) => el && el.classList && (el.classList.contains('locale-menu') || el.classList.contains('locale-btn')))
-  if (!hit) showLocaleMenu.value = false
+  const hit = path.some((el: any) => el && el.classList && (el.classList.contains('nav-settings-menu') || el.classList.contains('nav-setting-btn')))
+  if (!hit) showSettingsMenu.value = false
 }
 
-function positionLocaleMenu() {
-  if (!localeBtn.value) return
-  const btnRect = localeBtn.value.getBoundingClientRect()
+function positionSettingsMenu() {
+  if (!navSettingBtn.value) return
+  const btnRect = navSettingBtn.value.getBoundingClientRect()
   // default menu dims
   const margin = 12
   const preferredTop = Math.round(btnRect.bottom + 8 + window.scrollY)
   // we will measure the menu after it's rendered
   nextTick(() => {
-    const menuEl = document.querySelector('.locale-menu') as HTMLElement | null
+    const menuEl = document.querySelector('.nav-settings-menu') as HTMLElement | null
     if (!menuEl) return
     const menuRect = menuEl.getBoundingClientRect()
     let left = Math.round(btnRect.left + window.scrollX)
@@ -77,6 +88,25 @@ function positionLocaleMenu() {
   })
 }
 
+// selected theme for the nav menu (frontend theme control)
+const selectedTheme = ref('follow')
+
+function applyTheme(val: string) {
+  selectedTheme.value = val
+  // merge into chronicle.settings in localStorage
+  try {
+    const key = 'chronicle.settings'
+    const raw = localStorage.getItem(key)
+    let cfg: any = {}
+    if (raw) cfg = JSON.parse(raw)
+    cfg.frontendTheme = val
+    localStorage.setItem(key, JSON.stringify(cfg))
+  } catch(e) {}
+  // apply immediately
+  try { applySettings() } catch(e) {}
+  showSettingsMenu.value = false
+}
+
 async function getSettings() {
   try {
     let settings: any = {}
@@ -89,7 +119,8 @@ async function getSettings() {
       const resp = await fetch('/api/settings')
       if (resp.ok) {
         const s = await resp.json()
-        settings = Object.assign(settings, s)
+        // 保持本地设置优先：先以服务器设置为基础，再让本地设置覆盖它
+        settings = Object.assign({}, s, settings)
       }
     } catch(e) {}
     
@@ -99,8 +130,9 @@ async function getSettings() {
   }
 }
 
-function applySettings() {
-  getSettings().then(s => {
+async function applySettings() {
+  try {
+    const s = await getSettings()
     // Apply Languages
     if (isBackend.value) {
       if (s.backendLocale && s.backendLocale !== 'follow') {
@@ -145,7 +177,208 @@ function applySettings() {
       }
     } catch(e) {}
 
-  }).catch(() => {})
+    // Apply Theme & Accent (if provided by server settings)
+    try {
+      // Respect local user settings stored in chronicle.settings first (mirror locale logic)
+      let localCfg: any = null
+      try {
+        const raw = localStorage.getItem('chronicle.settings')
+        if (raw) localCfg = JSON.parse(raw)
+      } catch(e) { localCfg = null }
+
+      // Frontend theme: only apply server-provided frontendTheme if user has no local frontendTheme
+      if (!localCfg || !localCfg.frontendTheme) {
+        if (s.frontendTheme) {
+          if (s.frontendTheme === 'follow' || s.frontendTheme === 'system') {
+            document.documentElement.removeAttribute('data-theme')
+          } else if (s.frontendTheme === 'light') {
+            document.documentElement.setAttribute('data-theme', 'light')
+          } else if (s.frontendTheme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark')
+          }
+        }
+      } else {
+        // local preference exists -> apply it
+        const lf = String(localCfg.frontendTheme)
+        if (lf === 'follow' || lf === 'system') document.documentElement.removeAttribute('data-theme')
+        else if (lf === 'light') document.documentElement.setAttribute('data-theme', 'light')
+        else if (lf === 'dark') document.documentElement.setAttribute('data-theme', 'dark')
+      }
+
+      // Backend theme: prefer local setting, otherwise use server value when in backend area
+      if (isBackend.value) {
+        const backendThemeToApply = (localCfg && localCfg.backendTheme) ? localCfg.backendTheme : s.backendTheme
+        if (backendThemeToApply) {
+          if (backendThemeToApply === 'follow' || backendThemeToApply === 'system') {
+            document.body.removeAttribute('data-backend-theme')
+          } else if (backendThemeToApply === 'light') {
+            document.body.setAttribute('data-backend-theme', 'light')
+          } else if (backendThemeToApply === 'dark') {
+            document.body.setAttribute('data-backend-theme', 'dark')
+          }
+        }
+      }
+
+      if (s.frontendAccent) {
+        const accent = String(s.frontendAccent)
+        document.documentElement.style.setProperty('--accent-color', accent)
+        // compute a darker variant for hover/active states
+        try {
+          const dark = (h => {
+            // simple hex -> RGB darken by 14% (works for #rgb, #rrggbb)
+            try {
+              let hex = h.replace('#','')
+              if (hex.length === 3) hex = hex.split('').map(c=>c+c).join('')
+              const r = parseInt(hex.substring(0,2),16)
+              const g = parseInt(hex.substring(2,4),16)
+              const b = parseInt(hex.substring(4,6),16)
+              const factor = 0.86
+              const rr = Math.max(0,Math.min(255,Math.round(r*factor)))
+              const gg = Math.max(0,Math.min(255,Math.round(g*factor)))
+              const bb = Math.max(0,Math.min(255,Math.round(b*factor)))
+              return `rgb(${rr}, ${gg}, ${bb})`
+            } catch(e) { return accent }
+          })(accent)
+          document.documentElement.style.setProperty('--accent-color-dark', dark)
+        } catch(e) {}
+        }
+
+        // Apply background images: prefer local settings, fall back to server values
+        try {
+          const fb = (localCfg && localCfg.frontendBackground) ? localCfg.frontendBackground : s.frontendBackground
+          const bb = (localCfg && localCfg.backendBackground) ? localCfg.backendBackground : s.backendBackground
+          // Always write CSS vars for background images (so they persist on <html> and survive refresh)
+          try {
+            if (fb) document.documentElement.style.setProperty('--frontend-bg-image', `url(${fb})`)
+            else document.documentElement.style.setProperty('--frontend-bg-image', 'none')
+            if (bb) document.documentElement.style.setProperty('--backend-bg-image', `url(${bb})`)
+            else document.documentElement.style.setProperty('--backend-bg-image', 'none')
+          } catch(e) {}
+
+          // If a dedicated bg layer exists, also update its children directly (ensures it's the lowest DOM layer)
+          try {
+            const layer = document.getElementById('chronicle-bg-layer')
+            if (layer) {
+              const imgEl = layer.querySelector('.bg-image') as HTMLElement | null
+              const surfaceEl = layer.querySelector('.bg-surface') as HTMLElement | null
+              const overlayEl = layer.querySelector('.bg-overlay') as HTMLElement | null
+              if (imgEl) {
+                const useImg = (isBackend.value) ? bb : fb
+                imgEl.style.backgroundImage = useImg ? `url(${useImg})` : 'none'
+              }
+              if (overlayEl) overlayEl.style.background = 'transparent'
+              if (surfaceEl) {
+                try {
+                  const root = getComputedStyle(document.documentElement).getPropertyValue('--app-bg-primary') || ''
+                  surfaceEl.style.background = root || 'transparent'
+                } catch(e) {}
+              }
+            }
+          } catch(e) {}
+
+          // Apply background meta (position/size/blur/overlay) if present
+          try {
+            const fmRaw = (localCfg && localCfg.frontendBackgroundMeta) ? localCfg.frontendBackgroundMeta : s.frontendBackgroundMeta
+            if (fmRaw) {
+              const fm = typeof fmRaw === 'string' ? JSON.parse(fmRaw) : fmRaw
+              // Always set CSS vars so they appear on <html> and persist across refresh
+              try {
+                document.documentElement.style.setProperty('--frontend-bg-pos', `${fm.posX || 50}% ${fm.posY || 50}%`)
+                document.documentElement.style.setProperty('--frontend-bg-size', `${fm.size || 100}%`)
+                document.documentElement.style.setProperty('--frontend-bg-blur', `${fm.blur || 0}px`)
+                const overlay = fm.overlayColor || 'transparent'
+                const opa = (fm.overlayOpacity || 0) / 100
+                if (overlay === 'transparent') {
+                  document.documentElement.style.setProperty('--frontend-bg-overlay-dark', 'transparent')
+                  document.documentElement.style.setProperty('--frontend-bg-overlay-light', 'transparent')
+                } else {
+                  const rgb = (function(){ try { let h=overlay.replace('#',''); if(h.length===3) h=h.split('').map((c:any)=>c+c).join(''); const r=parseInt(h.substring(0,2),16); const g=parseInt(h.substring(2,4),16); const b=parseInt(h.substring(4,6),16); return `${r}, ${g}, ${b}` } catch(e) { return '0,0,0' } })()
+                  document.documentElement.style.setProperty('--frontend-bg-overlay-dark', `rgba(${rgb}, ${opa})`)
+                  document.documentElement.style.setProperty('--frontend-bg-overlay-light', `rgba(${rgb}, ${opa})`)
+                }
+              } catch(e) {}
+
+              // Also update DOM layer if present for immediate render
+              try {
+                const layer = document.getElementById('chronicle-bg-layer')
+                if (layer) {
+                  const imgEl = layer.querySelector('.bg-image') as HTMLElement | null
+                  const overlayEl = layer.querySelector('.bg-overlay') as HTMLElement | null
+                  if (imgEl) {
+                    imgEl.style.backgroundPosition = `${fm.posX || 50}% ${fm.posY || 50}%`
+                    imgEl.style.backgroundSize = `${fm.size || 100}%`
+                    imgEl.style.filter = `blur(${fm.blur || 0}px)`
+                  }
+                  if (overlayEl) {
+                    if (fm.overlayColor) {
+                      const opa = (fm.overlayOpacity || 0) / 100
+                      try {
+                        let h = fm.overlayColor.replace('#','')
+                        if (h.length === 3) h = h.split('').map((c:any)=>c+c).join('')
+                        const r = parseInt(h.substring(0,2),16)
+                        const g = parseInt(h.substring(2,4),16)
+                        const b = parseInt(h.substring(4,6),16)
+                        overlayEl.style.background = `rgba(${r}, ${g}, ${b}, ${opa})`
+                      } catch(e) { overlayEl.style.background = 'transparent' }
+                    }
+                  }
+                }
+              } catch(e) {}
+            }
+          } catch(e) {}
+          try {
+            const bmRaw = (localCfg && localCfg.backendBackgroundMeta) ? localCfg.backendBackgroundMeta : s.backendBackgroundMeta
+            if (bmRaw) {
+              const bm = typeof bmRaw === 'string' ? JSON.parse(bmRaw) : bmRaw
+              // Always set CSS vars for backend meta
+              try {
+                document.documentElement.style.setProperty('--backend-bg-pos', `${bm.posX || 50}% ${bm.posY || 50}%`)
+                document.documentElement.style.setProperty('--backend-bg-size', `${bm.size || 100}%`)
+                document.documentElement.style.setProperty('--backend-bg-blur', `${bm.blur || 0}px`)
+                const overlay = bm.overlayColor || 'transparent'
+                const opa = (bm.overlayOpacity || 0) / 100
+                if (overlay === 'transparent') {
+                  document.documentElement.style.setProperty('--backend-bg-overlay-dark', 'transparent')
+                  document.documentElement.style.setProperty('--backend-bg-overlay-light', 'transparent')
+                } else {
+                  const rgb = (function(){ try { let h=overlay.replace('#',''); if(h.length===3) h=h.split('').map((c:any)=>c+c).join(''); const r=parseInt(h.substring(0,2),16); const g=parseInt(h.substring(2,4),16); const b=parseInt(h.substring(4,6),16); return `${r}, ${g}, ${b}` } catch(e) { return '0,0,0' } })()
+                  document.documentElement.style.setProperty('--backend-bg-overlay-dark', `rgba(${rgb}, ${opa})`)
+                  document.documentElement.style.setProperty('--backend-bg-overlay-light', `rgba(${rgb}, ${opa})`)
+                }
+              } catch(e) {}
+
+              // Also update DOM layer if present for immediate render
+              try {
+                const layer = document.getElementById('chronicle-bg-layer')
+                if (layer) {
+                  const imgEl = layer.querySelector('.bg-image') as HTMLElement | null
+                  const overlayEl = layer.querySelector('.bg-overlay') as HTMLElement | null
+                  if (imgEl) {
+                    imgEl.style.backgroundPosition = `${bm.posX || 50}% ${bm.posY || 50}%`
+                    imgEl.style.backgroundSize = `${bm.size || 100}%`
+                    imgEl.style.filter = `blur(${bm.blur || 0}px)`
+                  }
+                  if (overlayEl) {
+                    if (bm.overlayColor) {
+                      const opa = (bm.overlayOpacity || 0) / 100
+                      try {
+                        let h = bm.overlayColor.replace('#','')
+                        if (h.length === 3) h = h.split('').map((c:any)=>c+c).join('')
+                        const r = parseInt(h.substring(0,2),16)
+                        const g = parseInt(h.substring(2,4),16)
+                        const b = parseInt(h.substring(4,6),16)
+                        overlayEl.style.background = `rgba(${r}, ${g}, ${b}, ${opa})`
+                      } catch(e) { overlayEl.style.background = 'transparent' }
+                    }
+                  }
+                }
+              } catch(e) {}
+            }
+          } catch(e) {}
+        } catch(e) {}
+    } catch(e) {}
+
+  } catch(e) {}
 }
 
 // re-export helper from utils
@@ -167,9 +400,30 @@ function applyBackendLocaleIfNeeded() {
   applySettings()
 }
 
-onMounted(() => {
+onMounted(async () => {
+  // Ensure a global background layer element exists at the lowest z-index (create early)
+  try {
+    let layer = document.getElementById('chronicle-bg-layer')
+    if (!layer) {
+      layer = document.createElement('div')
+      layer.id = 'chronicle-bg-layer'
+      const img = document.createElement('div')
+      img.className = 'bg-image'
+      const surface = document.createElement('div')
+      surface.className = 'bg-surface'
+      const overlay = document.createElement('div')
+      overlay.className = 'bg-overlay'
+      layer.appendChild(img)
+      layer.appendChild(surface)
+      layer.appendChild(overlay)
+      // insert as first child of body so it's under everything
+      if (document.body.firstChild) document.body.insertBefore(layer, document.body.firstChild)
+      else document.body.appendChild(layer)
+    }
+  } catch(e) {}
+
   // Always apply settings global (fonts)
-  applySettings()
+  await applySettings()
 
   // Global mobile detection: set a root class (`is-mobile`) based on initial window width.
   // This is done once at startup (per requirement) and does not follow subsequent resizes.
@@ -200,9 +454,20 @@ onMounted(() => {
     try { document.body.classList.remove('backend') } catch(e) {}
   }
 
+  // initialize selectedTheme from local settings if available
+  try {
+    const raw = localStorage.getItem('chronicle.settings')
+    if (raw) {
+      const cfg = JSON.parse(raw)
+      if (cfg && cfg.frontendTheme) selectedTheme.value = cfg.frontendTheme
+    }
+  } catch(e) {}
+
+  
+
   document.addEventListener('click', onDocClick)
-  onWindowResize = () => { if (showLocaleMenu.value) positionLocaleMenu() }
-  onWindowScroll = () => { if (showLocaleMenu.value) positionLocaleMenu() }
+  onWindowResize = () => { if (showSettingsMenu.value) positionSettingsMenu() }
+  onWindowScroll = () => { if (showSettingsMenu.value) positionSettingsMenu() }
   window.addEventListener('resize', onWindowResize)
   window.addEventListener('scroll', onWindowScroll, true)
   // apply modern-select class to existing select elements site-wide
@@ -293,8 +558,8 @@ watch(selectedLocale, (v) => {
 })
 
 // when menu opens, position it
-watch(showLocaleMenu, (open) => {
-  if (open) positionLocaleMenu()
+watch(showSettingsMenu, (open) => {
+  if (open) positionSettingsMenu()
 })
 
 // when route changes, switch between frontend/backend locale policies
@@ -392,12 +657,33 @@ watch(route, () => {
                 <a href="#" @click.prevent="(openNewEditor(), isMenuOpen = false)" class="nav-link new-post-btn">{{ $t('nav.newPost') }}</a>
             </div>
 
-            <!-- Locale globe menu (rightmost) -->
+            <!-- Nav settings menu (theme + language) -->
             <div style="margin-left:0.2rem; position:relative;">
-              <button ref="localeBtn" class="locale-btn" v-if="!isBackend" @click.stop="showLocaleMenu = !showLocaleMenu" :aria-expanded="showLocaleMenu" aria-label="Language">
-                <Globe class="locale-icon" stroke-width="1.4" style="height:18px; width:18px;"/>
+              <button ref="navSettingBtn" class="nav-setting-btn" v-if="!isBackend" @click.stop="showSettingsMenu = !showSettingsMenu" :aria-expanded="showSettingsMenu" aria-label="Settings">
+                <Settings class="locale-icon" stroke-width="1.4" style="height:18px; width:18px;"/>
               </button>
-              <div v-if="showLocaleMenu" class="locale-menu" @click.stop :style="menuStyle">
+              <div v-if="showSettingsMenu" class="nav-settings-menu" @click.stop :style="menuStyle">
+                <!-- Theme controls (top) -->
+                <button class="locale-item" @click="applyTheme('follow')">
+                  <span class="locale-label">Follow System</span>
+                  <span class="locale-check" v-if="selectedTheme === 'follow'">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </span>
+                </button>
+                <button class="locale-item" @click="applyTheme('light')">
+                  <span class="locale-label">Light</span>
+                  <span class="locale-check" v-if="selectedTheme === 'light'">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </span>
+                </button>
+                <button class="locale-item" @click="applyTheme('dark')">
+                  <span class="locale-label">Dark</span>
+                  <span class="locale-check" v-if="selectedTheme === 'dark'">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </span>
+                </button>
+                <hr style="margin:6px 0; border:none; border-top:1px solid var(--border-color);" />
+                <!-- Language controls (below) -->
                 <button class="locale-item" @click="applyLocale('follow')">
                   <span class="locale-label">{{ $t('settings.locale.follow') }}</span>
                   <span class="locale-check" v-if="selectedLocale === 'follow'">
@@ -441,15 +727,15 @@ watch(route, () => {
 }
 
 .nav-header {
-  background: rgba(45, 45, 48, 0.8);
+  background: var(--component-bg-blur);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(62, 62, 66, 0.5);
+  border-bottom: 1px solid var(--border-color-blur);
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  z-index: 400;
+  z-index: 9999;
   height: 70px;
   box-sizing: border-box;
   transition: background 0.3s ease, border-color 0.3s ease, backdrop-filter 0.3s ease;
@@ -489,13 +775,13 @@ watch(route, () => {
 
 
 .app-title {
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0;
   font-size: 1.6rem;
 }
 
 .reading-title {
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 1.15rem;
   font-weight: 600;
   line-height: 1;
@@ -535,7 +821,7 @@ watch(route, () => {
     display: none; /* hide on desktop, show on small screens via media query */
     background: transparent;
     border: none;
-    color: #fff;
+    color: var(--text-primary);
     cursor: pointer;
     align-items: center;
     justify-content: center;
@@ -578,7 +864,7 @@ watch(route, () => {
         right: 0;
         bottom: 0;
         height: 100vh;
-        background: #1e1e1e; /* Solid background for menu */
+        background: var(--app-bg-secondary); /* Solid background for menu */
         flex-direction: column;
         justify-content: center;
         align-items: center;
@@ -594,7 +880,7 @@ watch(route, () => {
       right: 12px;
       background: transparent;
       border: none;
-      color: #fff;
+      color: var(--text-primary);
       width: 44px;
       height: 44px;
       display: flex;
@@ -625,22 +911,22 @@ watch(route, () => {
 }
 
 .nav-link.router-link-active {
-  background: rgba(128,128,128, 0.2);
-  color: #ffffff;
+  background: var(--component-bg-hover);
+  color: var(--component-text-primary-hover);
 }
 
 .new-post-btn {
-    background: #2ea35f;
+    background: var(--accent-color);
     color: white !important;
     font-weight: 600;
 }
 .new-post-btn:hover {
-    background: #24804a !important;
+    background: var(--accent-color-hover) !important;
 }
 
 .nav-link:hover {
-  background: #3c3c3c;
-  color: #ffffff;
+  background: var(--component-bg-hover);
+  color: var(--component-text-primary-hover);
 }
 
 
@@ -656,10 +942,10 @@ watch(route, () => {
 .main-content.no-nav {
   padding-top: 0;
   overflow: hidden; /* Restore hidden for editor */
+  z-index: 0;
 }
 
-/* Locale menu styles */
-.locale-btn {
+.nav-setting-btn {
   background: transparent;
   border: 1px solid transparent;
   padding: 0 8px;
@@ -673,19 +959,19 @@ watch(route, () => {
   justify-content: center;
   border: none; /* remove border on hover */
 }
-.locale-btn:hover {
+.nav-setting-btn:hover {
   background: transparent; /* hover background should not change */
   border: none; /* remove border on hover */
   color: var(--text-primary);
 }
-.locale-menu {
+.nav-settings-menu {
       /* reduce opacity to make blur more visible */
       background: var(--component-bg);
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
       /* Use fixed so the menu overlays page content — allows backdrop-filter to blur underlying page */
       position: fixed;
-      color: var(--text-inactive);
+      color: var(--component-text-secondary);
       top: 70px; /* immediately under the header */
       right: 24px; /* align near the nav padding on desktop */
       left: auto;
@@ -706,7 +992,7 @@ watch(route, () => {
       font-size: 0.9rem;
   }
 .locale-item { display:flex; justify-content:space-between; align-items:center; text-align:left; padding:6px 10px; background:transparent; border:none; color:var(--text-primary); cursor:pointer; border-radius:6px }
-.locale-item:hover { background: rgba(255,255,255,0.04) }
+.locale-item:hover { background: var(--component-bg-hover); color: var(--component-text-primary-hover); }
 .locale-label { flex:1; text-align:left }
 .locale-check { color: var(--accent); display:inline-flex; align-items:center }
 

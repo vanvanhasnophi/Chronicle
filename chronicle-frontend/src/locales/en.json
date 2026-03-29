@@ -73,6 +73,8 @@
     "homeHint": "Edit the HTML content of your homepage (stored in local config)",
     "friends": "Friends Page",
     "friendsHint": "Edit the HTML content of your friends page (stored in local config)",
+    "appearance": "Appearance",
+    "appearanceHint": "Configure language, typography and theme colors for frontend/backend with a live preview.",
     "i18n": "Language & Fonts",
     "i18nHint": "Set default language and font preferences for frontend/backend (UI only, does not affect post content)",
     "security": "Security",

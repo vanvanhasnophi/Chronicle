@@ -234,7 +234,7 @@ onMounted(async () => {
   max-height: calc(100vh - 70px);
   margin: 0 auto;
   padding: 15vh 20px 0;
-  color: #e0e0e0;
+  color: var(--text-primary);
   height: 100vh;
   display: flex;
   flex-direction: column;
@@ -273,15 +273,15 @@ onMounted(async () => {
 .search-box {
     display: flex;
     align-items: center;
-    background: #252526;
-    border: 1px solid #3e3e42;
+    background: var(--component-bg);
+    border: 1px solid var(--border-color);
     border-radius: 12px;
     padding: 4px;
     transition: box-shadow 0.3s ease;
 }
 .search-box:focus-within {
-    border-color: #2ea35f;
-    box-shadow: 0 0 0 2px rgba(46, 163, 95, 0.2);
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px var(--component-bg-accent-blur);
 }
 
 .tag-trigger {
@@ -289,17 +289,17 @@ onMounted(async () => {
     border: none;
     cursor: pointer;
     padding: 8px 12px;
-    color: #555; /* Faint default */
+    color: var(--component-text-secondary);
     display: flex;
     align-items: center;
     transition: color 0.3s ease;
     flex-shrink: 0;
 }
 .tag-trigger.active {
-    color: #2ea35f; /* Green if active */
+    color: var(--accent-color);
 }
 .tag-trigger:hover {
-    color: #2ea35f;
+    color: var(--accent-color);
 }
 
 .input-area {
@@ -315,8 +315,8 @@ onMounted(async () => {
 .selected-tag-chip {
     display: inline-flex;
     align-items: center;
-    background: rgba(46, 163, 95, 0.2);
-    color: #2ea35f;
+    background: var(--component-bg-accent-blur);
+    color: var(--accent-color);
     padding: 2px 8px;
     border-radius: 4px;
     font-size: 0.9rem;
@@ -330,7 +330,7 @@ onMounted(async () => {
 .chip-remove {
     background: transparent;
     border: none;
-    color: #2ea35f;
+    color: var(--component-text-primary-hover);
     cursor: pointer;
     padding: 0;
     margin-left: 6px;
@@ -350,7 +350,7 @@ onMounted(async () => {
     min-width: 120px;
     background: transparent;
     border: none;
-    color: #fff;
+    color: var(--text-primary);
     font-size: 1rem;
     padding: 6px 0;
     outline: none;
@@ -398,9 +398,9 @@ onMounted(async () => {
     flex: 1;
 }
 .tag-cloud-item {
-    background: #2d2d30;
-    color: #a9a9a9;
-    border: 1px solid #3e3e42;
+    background: var(--component-bg-alt);
+    color: var(--component-text-secondary);
+    border: 1px solid var(--border-color);
     padding: 6px 14px;
     border-radius: 20px;
     cursor: pointer;
@@ -410,23 +410,29 @@ onMounted(async () => {
     gap: 6px;
 }
 .tag-cloud-item:hover {
-    background: #3e3e42;
-    color: #fff;
+    background: var(--component-bg-hover);
+    color: var(--component-text-primary-hover);
 }
 .tag-cloud-item.selected {
-    background: #2ea35f;
-    color: #fff;
-    border-color: #2ea35f;
+    background: var(--accent-color);
+    color: var(--recommended-accent-text);
+    border-color: var(--component-bg-accent);
 }
 .tag-cloud-item.featured {
     color: var(--featured);
     font-weight: 600;
 }
 
+.tag-cloud-item.featured:hover {
+    background: var(--featured-bg);
+    color: var(--featured);
+    border-color: var(--featured);
+}
+
 .tag-cloud-item.featured.selected {
     background: var(--featured);
     border-color: var(--featured);
-    color: #000;
+    color: var(--app-bg-primary);
 }
 
 .tag-count {
@@ -446,17 +452,18 @@ onMounted(async () => {
     padding-bottom: 1rem;
 }
 .close-cloud-btn {
-    background: #2ea35f;
-    color: #fff;
+    background: var(--accent-color);
+    color: var(--recommended-accent-text);
     border: none;
     padding: 8px 24px;
     border-radius: 4px;
     margin-bottom: 20px;
     cursor: pointer;
     font-weight: 600;
+    transition: background 0.2s ease;
 }
 .close-cloud-btn:hover {
-    background: #25824c;
+    background: var(--component-bg-accent-hover);
 }
 
 /* Results */
@@ -466,15 +473,15 @@ onMounted(async () => {
     gap: 16px;
 }
 .result-card {
-    background: #252526;
-    border: 1px solid #2d2d30;
+    background: var(--component-bg);
+    border: 1px solid var(--border-color);
     padding: 16px;
     border-radius: 8px;
     cursor: pointer;
     transition: background 0.2s ease;
 }
 .result-card:hover {
-    background: #2d2d30;
+    background: var(--app-bg-secondary-hover);
 }
 .post-header {
     display: flex;
@@ -485,26 +492,27 @@ onMounted(async () => {
 .post-title {
     margin: 0;
     font-size: 1.2rem;
-    color: #fff;
+    color: var(--text-primary);
 }
 .post-date {
     font-size: 0.9rem;
-    color: #888;
+    color: var(--component-text-secondary);
 }
 .post-tags {
     margin-bottom: 8px;
 }
 .tag-display {
-    color: #2ea35f;
+    color: var(--accent-color);
     font-size: 0.85rem;
     margin-right: 10px;
 }
 .post-summary {
-    color: #aaa;
+    color: var(--component-text-secondary);
     font-size: 0.95rem;
     line-height: 1.5;
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
@@ -527,7 +535,7 @@ onMounted(async () => {
 
 .empty, .loading {
     text-align: center;
-    color: #666;
+    color: var(--component-text-secondary);
     padding: 2rem;
 }
 
@@ -535,7 +543,7 @@ onMounted(async () => {
 .divider {
   width: 1px;
   height: 28px;
-  background-color: rgba(70,70,70,0.4);
+    background-color: var(--border-color-blur);
   margin: 0 2px;
 }
 

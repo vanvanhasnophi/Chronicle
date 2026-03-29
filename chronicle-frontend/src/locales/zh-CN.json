@@ -72,6 +72,8 @@
     "homeHint": "编辑首页自定义 HTML（将保存在本地配置中）",
     "friends": "朋友页设置",
     "friendsHint": "编辑朋友页自定义 HTML（将保存在本地配置中）",
+    "appearance": "外观",
+    "appearanceHint": "配置前台/后台语言、字体与主题配色，并实时预览界面效果。",
     "i18n": "语言与字体",
     "i18nHint": "设置前台/后台默认语言与字体偏好（仅调整 UI，不影响文章内容）",
     "security": "安全",

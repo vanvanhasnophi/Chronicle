@@ -307,7 +307,7 @@ onMounted(() => {
   margin-bottom: 2rem;
 }
 .hint {
-    color: #888;
+  color: var(--component-text-secondary);
     font-size: 0.9em;
     margin-bottom: 1rem;
 }
@@ -315,14 +315,14 @@ onMounted(() => {
     width: 100%;
     padding: 0.8rem;
     background: transparent;
-    border: 1px solid #2ea35f;
-    color: #2ea35f;
+    border: 1px solid var(--accent-color);
+    color: var(--accent-color);
     border-radius: 4px;
     cursor: pointer;
     font-weight: bold;
 }
 .secondary-btn:hover {
-    background: rgba(46, 163, 95, 0.1);
+  background: var(--component-bg-hover);
 }
 .passkey-list {
     margin-top: 2rem;
@@ -335,7 +335,7 @@ onMounted(() => {
     align-items: center;
     padding: 0.8rem;
     border-bottom: 1px solid var(--border-color);
-    background: rgba(0,0,0,0.2);
+    background: var(--component-bg-primary);
     margin-bottom: 8px;
     border-radius: 4px;
 }
@@ -349,7 +349,7 @@ onMounted(() => {
 }
 .pk-date {
     font-size: 0.8rem;
-    color: #888;
+  color: var(--component-text-secondary);
 }
 .pk-actions {
     display: flex;
@@ -370,16 +370,16 @@ onMounted(() => {
     height: 1.2rem;
 }
 .icon-btn:hover {
-    background: rgba(255,255,255,0.1);
+  background: var(--component-bg-hover);
 }
 .delete-btn {
-    color: #ff4444;
+  color: var(--status-error);
 }
 .delete-btn:hover {
-    background: #ff222230;
+  background: var(--component-bg-hover);
 }
 .edit-btn {
-    color: #ffffffc0;
+  color: var(--component-text-secondary);
 }
 
 .form-group {
@@ -402,7 +402,7 @@ input {
 button {
   padding: 0.8rem 1.5rem;
   background: var(--accent-color);
-  color: white;
+  color: var(--text-on-accent);
   border: none;
   border-radius: 4px;
   cursor: pointer;
@@ -414,10 +414,10 @@ button:disabled {
 .message {
   margin-top: 1rem;
 }
-.success { color: #44ff44; }
-.error { color: #ff4444; }
+.success { color: var(--status-success); }
+.error { color: var(--status-error); }
 .logout-btn {
-  background: #ff4444;
+  background: var(--status-error);
 }
 
 .code.code-display {
@@ -425,6 +425,7 @@ button:disabled {
     font-size: 3em;
     letter-spacing: 0.2em;
     font-weight: bold;
+    font-variation-settings: 'wght' 700;
     margin-bottom: 0.5em;
     color: var(--accent-color);
 }
@@ -432,7 +433,7 @@ button:disabled {
 .timer.expire-timer {
     text-align: center;
     font-size: 1em;
-    color: #888;
+  color: var(--component-text-secondary);
 }
 
 </style>

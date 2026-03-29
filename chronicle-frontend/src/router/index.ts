@@ -43,7 +43,7 @@ const FileManager = () => import(/* webpackChunkName: "file-manager" */ '../page
 const Settings = () => import(/* webpackChunkName: "settings" */ '../pages/Settings.vue')
 const SettingsHome = () => import(/* webpackChunkName: "settings-home" */ '../pages/settings/SettingsHome.vue')
 const SettingsFriends = () => import(/* webpackChunkName: "settings-friends" */ '../pages/settings/SettingsFriends.vue')
-const SettingsI18nFonts = () => import(/* webpackChunkName: "settings-i18n" */ '../pages/settings/SettingsI18nFonts.vue')
+const SettingsAppearance = () => import(/* webpackChunkName: "settings-appearance" */ '../pages/settings/SettingsAppearance.vue')
 const SettingsSecurity = () => import(/* webpackChunkName: "settings-security" */ '../pages/settings/SettingsSecurity.vue')
 const TextEditorLazy = () => import(/* webpackChunkName: "text-editor" */ '../pages/TextEditor.vue')
 
@@ -68,7 +68,8 @@ const routes = [
     children: [
       { path: 'homepage', name: 'SettingsHome', component: SettingsHome, meta: { title: 'settings.home' } },
       { path: 'friends', name: 'SettingsFriends', component: SettingsFriends, meta: { title: 'settings.friends' } },
-      { path: 'i18n', name: 'SettingsI18n', component: SettingsI18nFonts, meta: { title: 'settings.i18n' } },
+      { path: 'i18n', redirect: 'appearance' },
+      { path: 'appearance', name: 'SettingsAppearance', component: SettingsAppearance, meta: { title: 'settings.appearance' } },
       { path: 'security', name: 'SettingsSecurity', component: SettingsSecurity, meta: { requiresAuth: true, title: 'settings.security' } }
     ]
   },

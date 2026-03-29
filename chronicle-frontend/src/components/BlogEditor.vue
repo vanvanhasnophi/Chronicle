@@ -443,7 +443,7 @@
         
         <!-- Restore Body -->
         <div v-if="activeModal === 'restore'" class="modal-body">
-            <p style="color: #ccc; margin-bottom: 20px;">
+            <p class="confirm-text">
                 {{ t('editor.confirmRestoreBody') }}
             </p>
             <div class="modal-actions">
@@ -454,12 +454,12 @@
 
         <!-- Unsaved Body -->
         <div v-if="activeModal === 'unsaved'" class="modal-body">
-            <p style="color: #ccc; margin-bottom: 20px;">
+            <p class="confirm-text">
                 {{ t('editor.unsavedBody', { title: postTitle }) }}
             </p>
             <div class="modal-actions">
                 <button class="secondary-btn" @click="closeModals">{{ t('editor.cancel') }}</button>
-                <button class="secondary-btn" style="border-color:#d9534f; color:#d9534f" @click="handleUnsavedOption('discard')">{{ t('editor.discard') }}</button>
+                <button class="secondary-btn danger-outline" @click="handleUnsavedOption('discard')">{{ t('editor.discard') }}</button>
                 <button class="primary-btn" @click="handleUnsavedOption('save')">{{ t('editor.saveContinue') }}</button>
             </div>
         </div>
@@ -1604,7 +1604,7 @@ const fontClass = computed(() => {
     flex-direction: column;
     height: 100vh; /* ensure editor fills viewport so internal panes scroll, not the page */
     border: none;
-    background: #1e1e1e;
+    background: var(--bg-primary);
 }
 
 .editor-toolbar {
@@ -1612,8 +1612,8 @@ const fontClass = computed(() => {
     flex-direction: column;
     gap: 0;
     padding: 0 12px;
-    background: #252526;
-    border-bottom: 1px solid #333;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
     position: sticky; /* keep toolbar fixed inside editor viewport */
     top: 0;
     z-index: 30;
@@ -1628,14 +1628,14 @@ const fontClass = computed(() => {
 
 .toolbar-row.row-meta {
   justify-content: space-between;
-  border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--border-color);
   margin-bottom: 0;
   padding-bottom: 8px;
 }
 
 .toolbar-row.row-tools {
   justify-content: space-between;
-  border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--border-color);
   margin-top: 0;
 }
 
@@ -1669,7 +1669,7 @@ const fontClass = computed(() => {
     flex-direction: column;
     font-size: 11px;
     line-height: 1.2;
-    color: #888;
+    color: var(--component-text-secondary);
     overflow: hidden;
 }
 
@@ -1682,7 +1682,7 @@ const fontClass = computed(() => {
     gap: 4px;
 }
 .date-item.faded {
-    color: #555;
+    color: var(--component-text-secondary);
     font-size: 10px;
 }
 
@@ -1696,7 +1696,8 @@ const fontClass = computed(() => {
     margin: 0;
     font-size: 16px;
     font-weight: 700;
-    color: #e0e0e0;
+    font-variation-settings: 'wght' 700;
+    color: var(--text-primary);
     max-width: 200px; /* Reduced to allow space for dates */
     white-space: nowrap;
     overflow: hidden;
@@ -1704,9 +1705,9 @@ const fontClass = computed(() => {
 }
 
 .stats-display {
-    background-color: var(--app-bg-dark);
+    background-color: transparent;
     font-size: 12px;
-    color: #666;
+    color: var(--component-text-secondary);
     border: none;
 }
 
@@ -1715,6 +1716,7 @@ const fontClass = computed(() => {
     padding: 2px 6px;
     border-radius: 4px;
     font-weight: 600;
+    font-variation-settings: 'wght' 600;
     letter-spacing: 0.5px;
     text-transform: uppercase;
     border: 1px solid currentColor;
@@ -1724,7 +1726,7 @@ const fontClass = computed(() => {
 .divider {
   width: 1px;
   height: 16px;
-  background-color: #444;
+    background-color: var(--border-color);
   margin: 0 6px;
 }
 
@@ -1735,7 +1737,7 @@ const fontClass = computed(() => {
   gap: 6px;
   background: transparent;
   border: 1px solid transparent;
-  color: #ccc;
+    color: var(--component-text-primary);
   cursor: pointer;
   padding: 4px 8px;
   border-radius: 4px;
@@ -1744,20 +1746,20 @@ const fontClass = computed(() => {
   font-size:14px;
 }
 .toolbar-btn:hover:not(:disabled) {
-  background: #333;
+    background: var(--component-bg-hover);
 }
 .toolbar-btn.active {
-  background: rgba(46, 163, 95, 0.2);
-  border: 1px solid rgba(46, 163, 95, 0.4);
+    background: var(--component-bg-accent-blur);
+    border: 1px solid var(--component-bg-accent);
 }
 
 .toolbar-btn.active:hover {
-  background: rgba(46, 163, 95, 0.4);
+    background: var(--component-bg-accent);
 }
 .toolbar-btn:disabled {
   opacity: 0.3;
   cursor: not-allowed;
-  color: #555;
+    color: var(--component-text-secondary-disabled);
   pointer-events: none;
 }
 
@@ -1782,7 +1784,7 @@ const fontClass = computed(() => {
 }
 
 .editor-pane {
-  border-right: 1px solid #333;
+    border-right: 1px solid var(--border-color);
   overflow: hidden;
 }
 
@@ -1790,8 +1792,8 @@ const fontClass = computed(() => {
   display: block;
   width: 100%;
   height: 100%;
-  background: #1e1e1e;
-  color: #d4d4d4;
+    background: var(--bg-primary);
+    color: var(--text-primary);
   border: none;
   padding: 16px;
   font-family: 'Consolas', monospace;
@@ -1802,7 +1804,7 @@ const fontClass = computed(() => {
 }
 
 .preview-pane {
-  background: #1e1e1e;
+    background: var(--bg-primary);
   padding: 16px;
   box-sizing: border-box;
 }
@@ -1822,7 +1824,7 @@ const fontClass = computed(() => {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.5);
+    background: var(--component-bg-blur-alt);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -1830,8 +1832,8 @@ const fontClass = computed(() => {
 }
 
 .modal-content {
-  background: #252526;
-  border: 1px solid #444;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
   border-radius: 6px;
   
   /* Adaptive Size */
@@ -1843,7 +1845,7 @@ const fontClass = computed(() => {
   
   display: flex;
   flex-direction: column;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    box-shadow: var(--shadow-elev-2);
   overflow: hidden;
 }
 
@@ -1868,11 +1870,11 @@ const fontClass = computed(() => {
 
 .modal-header {
   padding: 0px 16px;
-  border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #2d2d30;
+    background: var(--component-bg-primary);
   flex-shrink: 0;
   height: 48px;
 }
@@ -1880,13 +1882,13 @@ const fontClass = computed(() => {
 .modal-header h3 {
   margin: 0;
   font-size: 16px;
-  color: #eee;
+    color: var(--component-text-primary);
 }
 
 .close-btn {
   background: none;
   border: none;
-  color: #ccc;
+    color: var(--component-text-secondary);
   cursor: pointer;
   padding: 4px;
   display: flex; 
@@ -1896,7 +1898,7 @@ const fontClass = computed(() => {
 }
 .close-btn:hover {
   background: transparent;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .modal-body {
@@ -1915,8 +1917,8 @@ const fontClass = computed(() => {
 /* Sidebar */
 .modal-sidebar {
     width: 200px;
-    background: #252526;
-    border-right: 1px solid #333;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border-color);
     padding: 10px;
     overflow-y: auto;
     flex-shrink: 0;
@@ -1929,27 +1931,27 @@ const fontClass = computed(() => {
     margin-bottom: 2px;
     display: flex;
     align-items: center;
-    color: #ccc;
+    color: var(--component-text-primary);
     font-size: 14px;
 }
 .modal-sidebar-item:hover {
-    background: #2a2d2e;
+        background: var(--component-bg-hover);
 }
 .modal-sidebar-item.active {
-  background: rgba(46, 163, 95, 0.2);
-  border: 1px solid rgba(46, 163, 95, 0.4);
+    background: var(--component-bg-accent-blur);
+    border: 1px solid var(--component-bg-accent);
 }
 
 .modal-sidebar-item.active:hover {
-  background: rgba(46, 163, 95, 0.4);
+    background: var(--component-bg-accent);
 }
 
 .toolbar-btn.primary-action {
-    background: #2ea35f;
-    color: white;
+    background: var(--accent-color);
+    color: var(--text-on-accent);
 }
 .toolbar-btn.primary-action:hover {
-    background: #43cd7c;
+    background: var(--accent-color-hover);
 }
 
 .media-cat-icon {
@@ -1971,7 +1973,7 @@ const fontClass = computed(() => {
     display: flex;
     flex-direction: column;
     padding: 20px;
-    background: #1e1e1e;
+    background: var(--bg-primary);
     overflow: hidden;
 }
 
@@ -1989,7 +1991,7 @@ const fontClass = computed(() => {
 .library-section h4 {
   margin-top: 0;
   margin-bottom: 12px;
-  color: #ccc;
+    color: var(--component-text-primary);
 }
 
 .upload-section {
@@ -2004,15 +2006,15 @@ const fontClass = computed(() => {
 }
 
 .primary-btn {
-  background: #2ea35f;
-  color: white;
+    background: var(--accent-color);
+    color: var(--text-on-accent);
   border: none;
   padding: 8px 16px;
   border-radius: 4px;
   cursor: pointer;
 }
 .primary-btn:hover {
-  background: #24804a;
+    background: var(--accent-color-hover);
 }
 
 .hidden-input {
@@ -2021,18 +2023,18 @@ const fontClass = computed(() => {
 
 .library-item {
   cursor: pointer;
-  border: 1px solid #333;
+    border: 1px solid var(--border-color);
   border-radius: 4px;
   overflow: hidden;
   transition: border-color 0.2s;
-  background: #252526;
+    background: var(--bg-secondary);
   aspect-ratio: 1;
   display: flex;
   flex-direction: column;
 }
 .library-item:hover {
-  border-color: #2ea35f;
-  background: #2a2d2e;
+    border-color: var(--accent-color);
+    background: var(--component-bg-hover);
 }
 
 .img-thumb {
@@ -2048,18 +2050,18 @@ const fontClass = computed(() => {
   display: block;
   padding: 6px;
   font-size: 11px;
-  color: #ccc;
+    color: var(--component-text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   text-align: center;
-  background: #252526;
-  border-top: 1px solid #333;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
 }
 
 .empty-library {
   text-align: center;
-  color: #666;
+    color: var(--component-text-secondary);
   padding: 20px;
 }
 .img-thumb.icon-thumb {
@@ -2067,8 +2069,8 @@ const fontClass = computed(() => {
     align-items: center;
     justify-content: center;
     font-size: 24px;
-    background: #333;
-    color: #888;
+    background: var(--component-bg-hover);
+    color: var(--component-text-secondary);
 }
 
 .scalable-icon {
@@ -2083,7 +2085,7 @@ const fontClass = computed(() => {
 }
 
 .dataset-control button:hover {
-    background: #444;
+    background: var(--component-bg-hover);
 }
 
 .icon-svg {
@@ -2111,26 +2113,26 @@ const fontClass = computed(() => {
 
 
 .status-chip.draft {
-    color: #aaa;
-    border-color: #555;
-    background: #333;
+    color: var(--component-text-secondary);
+    border-color: var(--border-color);
+    background: var(--component-bg-hover);
 }
 .status-chip.published {
-    color: #2ea35f;
-    border-color: #2ea35f;
-    background: rgba(46, 163, 95, 0.1);
+    color: var(--accent-color);
+    border-color: var(--accent-color);
+    background: var(--accent-color-bg);
 }
 .status-chip.modifying {
     color: var(--featured);
     border-color: var(--featured);
-    background: rgba(255, 215, 0, 0.1);
+    background: var(--featured-bg);
 }
 .toolbar-btn.danger-btn {
-    color: #fa5252;
+    color: var(--status-error);
 }
 .toolbar-btn.danger-btn:hover:not(:disabled) {
-    background: rgba(250, 82, 82, 0.15);
-    color: #ff8787;
+    background: var(--component-bg-hover);
+    color: var(--status-error);
 }
 
 .small-modal {
@@ -2139,10 +2141,10 @@ const fontClass = computed(() => {
 }
 
 .modal-content {
-    background: #252526;
-    border: 1px solid #454545;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
     border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    box-shadow: var(--shadow-elev-2);
     padding: 0;
     width: 80%;
     max-width: 900px;
@@ -2158,7 +2160,7 @@ const fontClass = computed(() => {
     display: block;
     margin-bottom: 8px;
     font-size: 14px;
-    color: #ccc;
+    color: var(--component-text-primary);
 }
 
 .modal-input {
@@ -2167,14 +2169,14 @@ const fontClass = computed(() => {
     box-sizing: border-box;
     padding: 10px;
     font-size: 16px;
-    background: #252526;
-    border: 1px solid #3c3c3c;
-    color: #fff;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
     border-radius: 4px;
     outline: none;
 }
 .modal-input:focus {
-    border-color: #2ea35f;
+    border-color: var(--accent-color);
 }
 
 .modal-actions {
@@ -2185,14 +2187,14 @@ const fontClass = computed(() => {
 
 .secondary-btn {
     background: transparent;
-    border: 1px solid #3c3c3c;
-    color: #ccc;
+    border: 1px solid var(--border-color);
+    color: var(--component-text-primary);
     padding: 8px 16px;
     border-radius: 4px;
     cursor: pointer;
 }
 .secondary-btn:hover {
-    background: #333;
+    background: var(--component-bg-hover);
 }
 
 /* Table Grid Styles */
@@ -2208,29 +2210,30 @@ const fontClass = computed(() => {
     grid-template-columns: repeat(8, 24px);
     gap: 4px;
     padding: 10px;
-    background: #252526;
-    border: 1px solid #333;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
     border-radius: 4px;
 }
 .grid-cell {
     width: 24px;
     height: 24px;
-    border: 1px solid #555;
-    background: #333;
+    border: 1px solid var(--border-color);
+    background: var(--component-bg-hover);
     cursor: pointer;
     border-radius: 2px;
 }
 .grid-cell:hover {
-    border-color: rgba(67, 194, 120, 0.4); 
+        border-color: var(--component-bg-accent); 
 }
 .grid-cell.active {
-  background: rgba(46, 163, 95, 0.2);
-  border-color: rgba(46, 163, 95, 0.4);
+    background: var(--component-bg-accent-blur);
+    border-color: var(--component-bg-accent);
 }
 .grid-info {
     font-size: 13px;
-    color: #ccc;
+    color: var(--component-text-primary);
     font-weight: 500;
+    font-variation-settings: 'wght' 500;
 }
 .manual-inputs {
     display: flex;
@@ -2253,10 +2256,10 @@ const fontClass = computed(() => {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    background: #333;
+    background: var(--component-bg-hover);
     padding: 8px;
     border-radius: 4px;
-    border: 1px solid #444;
+    border: 1px solid var(--border-color);
 }
 
 .tags-list {
@@ -2267,15 +2270,15 @@ const fontClass = computed(() => {
 }
 
 .tag-badge {
-    background: #444;
-    color: #eee;
+    background: var(--component-bg-secondary);
+    color: var(--component-text-primary);
     font-size: 12px;
     padding: 2px 6px;
     border-radius: 6px;
     display: flex;
     align-items: center;
     gap: 4px;
-    border: 1px solid #555;
+    border: 1px solid var(--border-color);
     user-select: none;
 }
 .tag-badge.featured {
@@ -2287,7 +2290,7 @@ const fontClass = computed(() => {
 .tag-remove {
     background: none;
     border: none;
-    color: #aaa;
+    color: var(--component-text-secondary);
     cursor: pointer;
     padding: 0;
     display: flex;
@@ -2296,7 +2299,7 @@ const fontClass = computed(() => {
     height: 14px;
 }
 .tag-remove:hover {
-    color: #fff;
+    color: var(--text-primary);
 }
 .tag-remove .icon-svg {
     width: 12px;
@@ -2323,10 +2326,11 @@ const fontClass = computed(() => {
 }
 
 .primary-btn.danger-action {
-    background: #d9534f;
+    background: var(--status-error);
 }
 .primary-btn.danger-action:hover {
-    background: #c9302c;
+    background: var(--status-error);
+    filter: brightness(0.92);
 }
 /* File Menu Specifics */
 .modal-content.file-menu-modal {
@@ -2336,8 +2340,8 @@ const fontClass = computed(() => {
 
 .sidebar {
     width: 200px;
-    background: #252526;
-    border-right: 1px solid #333;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border-color);
     padding: 14px;
     display: flex;
     flex-direction: column;
@@ -2350,19 +2354,19 @@ const fontClass = computed(() => {
     margin-bottom: 4px;
     display: flex;
     align-items: center;
-    color: #ccc;
+    color: var(--component-text-primary);
     font-size: 14px;
 }
 .sidebar-btn:hover {
-    background: #2a2d2e;
-    color: #fff;
+    background: var(--component-bg-hover);
+    color: var(--text-primary);
 }
 .sidebar-btn.active {
-  background: rgba(46, 163, 95, 0.2);
-  border: 1px solid rgba(46, 163, 95, 0.4);
+    background: var(--component-bg-accent-blur);
+    border: 1px solid var(--component-bg-accent);
 }
 .sidebar-btn.active:hover {
-  background: rgba(46, 163, 95, 0.4);
+    background: var(--component-bg-accent);
 }
 .main-area {
     flex: 1;
@@ -2376,35 +2380,35 @@ const fontClass = computed(() => {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 20px;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--border-color);
     padding-bottom: 15px;
 }
-.header h3 { margin: 0; color: #fff; font-size: 18px; }
+.header h3 { margin: 0; color: var(--text-primary); font-size: 18px; }
 .content-body { flex: 1; overflow-y: auto; }
 
 .warning-box {
-    background: rgba(255, 165, 0, 0.1);
-    border-left: 3px solid orange;
+    background: var(--featured-bg);
+    border-left: 3px solid var(--featured);
     padding: 10px;
     margin: 15px 0;
-    color: #ddd;
+    color: var(--component-text-primary);
     font-size: 13px;
 }
 
 .post-list { display: flex; flex-direction: column; gap: 8px; }
 .post-item {
     padding: 12px;
-    background: #333;
-    border: 1px solid #444;
+    background: var(--component-bg-hover);
+    border: 1px solid var(--border-color);
     border-radius: 4px;
     cursor: pointer;
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
-.post-item:hover { background: #3c3c3c; }
-.post-title { font-weight: bold; color: #e0e0e0; flex: 1; margin-right: 10px; }
-.post-date { color: #888; font-size: 0.85em; margin-right: 10px; }
+.post-item:hover { background: var(--component-bg-secondary); }
+.post-title { font-weight: bold; color: var(--text-primary); flex: 1; margin-right: 10px; }
+.post-date { color: var(--component-text-secondary); font-size: 0.85em; margin-right: 10px; }
 .post-status {
     font-size: 0.75em; border-radius: 3px;
     padding: 2px 6px; text-transform: uppercase;
@@ -2412,15 +2416,15 @@ const fontClass = computed(() => {
 }
 
 .file-drop-area {
-    border: 2px dashed #444;
+    border: 2px dashed var(--border-color);
     padding: 40px;
     text-align: center;
-    color: #888;
+    color: var(--component-text-secondary);
     margin: 20px 0;
     cursor: pointer;
     border-radius: 6px;
 }
-.file-drop-area:hover { border-color: #666; color: #aaa; }
+.file-drop-area:hover { border-color: var(--accent-color); color: var(--component-text-primary); }
 
 .stats-grid {
     display: grid;
@@ -2437,11 +2441,11 @@ const fontClass = computed(() => {
     border-radius: 4px;
 }
 .stat-label {
-    color: #aeaeae;
+    color: var(--component-text-secondary);
     font-size: 0.9em;
 }
 .stat-value {
-    color: #2ea35f;
+    color: var(--accent-color);
     font-weight: bold;
     font-family: monospace;
     font-size: 1.2em;
@@ -2451,14 +2455,14 @@ const fontClass = computed(() => {
     border: none;
     cursor: pointer;
     font-size: 12px;
-    color: #666;
+    color: var(--component-text-secondary);
     padding: 4px 8px;
     border-radius: 4px;
     transition: color 0.2s, background 0.2s;
 }
 .stats-display:hover {
-    color: #e0e0e0;
-    background: #333;
+    color: var(--text-primary);
+    background: var(--component-bg-hover);
 }
 
 /* Font Selector */
@@ -2473,7 +2477,7 @@ const fontClass = computed(() => {
     gap: 5px;
     cursor: pointer;
     font-size: 0.9em;
-    color: #ccc;
+    color: var(--component-text-primary);
 }
 .radio-label input {
     margin: 0;
@@ -2485,27 +2489,27 @@ const fontClass = computed(() => {
     bottom: 24px;
     right: 24px;
     width: 320px;
-    background: #252526;
-    border: 1px solid #454545;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
     border-radius: 4px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    box-shadow: var(--shadow-elev-1);
     z-index: 2000;
     overflow: hidden;
     animation: slideIn 0.3s ease-out;
-    color: #cccccc;
+    color: var(--component-text-primary);
     font-size: 13px;
 }
 
 .upload-toast.error {
-    border-left: 4px solid #f48771;
+    border-left: 4px solid var(--status-error);
 }
 
 .upload-toast.success {
-    border-left: 4px solid #89d185;
+    border-left: 4px solid var(--status-success);
 }
 
 .upload-toast.uploading, .upload-toast.processing {
-    border-left: 4px solid #007acc;
+    border-left: 4px solid var(--accent-color);
 }
 
 .toast-content {
@@ -2521,14 +2525,14 @@ const fontClass = computed(() => {
 
 .toast-title {
     font-weight: 600;
-    color: #e0e0e0;
+    color: var(--text-primary);
 }
 
 .toast-close {
     background: none;
     border: none;
     cursor: pointer;
-    color: #aaa;
+    color: var(--component-text-secondary);
     padding: 0;
     line-height: 0;
     display: flex;
@@ -2536,7 +2540,7 @@ const fontClass = computed(() => {
     justify-content: center;
 }
 .toast-close:hover {
-    color: #fff;
+    color: var(--text-primary);
 }
 .toast-close .icon-svg {
     width: 14px;
@@ -2545,7 +2549,7 @@ const fontClass = computed(() => {
 }
 
 .toast-message {
-    color: #aaa;
+    color: var(--component-text-secondary);
     margin-bottom: 12px;
     white-space: nowrap;
     overflow: hidden;
@@ -2554,15 +2558,25 @@ const fontClass = computed(() => {
 
 .toast-progress-bg {
     height: 4px;
-    background: #3c3c3c;
+    background: var(--component-bg-secondary);
     border-radius: 2px;
     overflow: hidden;
 }
 
 .toast-progress-bar {
     height: 100%;
-    background: #007acc;
+        background: var(--accent-color);
     transition: width 0.2s ease;
+}
+
+.confirm-text {
+    color: var(--component-text-primary);
+    margin-bottom: 20px;
+}
+
+.danger-outline {
+    border-color: var(--status-error);
+    color: var(--status-error);
 }
 
 @keyframes slideIn {

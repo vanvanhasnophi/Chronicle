@@ -169,8 +169,8 @@ async function ensureMermaidLoaded() {
           primaryColor: 'transparent',
           primaryTextColor: '#d4d4d4',
           textColor: '#d4d4d4',
-          nodeBorder: '#e0e0e0',
-          clusterBorder: '#e0e0e0',
+          nodeBorder: 'var(--text-primary)',
+          clusterBorder: 'var(--text-primary)',
           lineColor: '#ececec',
           secondaryColor: '#0b7285',
           fontFamily: 'var(--app-font-stack)'
@@ -693,7 +693,7 @@ async function renderMermaid() {
     lastRenderedSvg.value = svg
   } catch (err) {
     // render error -> show as preformatted text
-    mermaidContainer.value.innerHTML = '<pre style="color:#f88;background:transparent;white-space:pre-wrap;">' + escapeHtml(String(err)) + '\n---\n' + escapeHtml(codeText) + '</pre>'
+    mermaidContainer.value.innerHTML = '<pre style="color:var(--status-error);background:transparent;white-space:pre-wrap;">' + escapeHtml(String(err)) + '\n---\n' + escapeHtml(codeText) + '</pre>'
     lastRenderedSvg.value = null
   }
 }
@@ -714,7 +714,7 @@ watch(() => props.language, (n) => {
 <style>
 .icon-btn {
   background: transparent;
-  color: #b8b8b8;
+  color: var(--component-text-secondary);
   border: none;
   padding: 0.1rem 0.3rem;
   border-radius: 4px;
@@ -727,7 +727,7 @@ watch(() => props.language, (n) => {
 .transparent-select {
   background: transparent !important;
   border: none;
-  color: #d4d4d4;
+  color: var(--component-text-primary);
   font-size: 0.95em;
   font-family: var(--app-font-stack);
   outline: none;
@@ -744,8 +744,8 @@ watch(() => props.language, (n) => {
   box-shadow: none;
 }
 .transparent-select option {
-  background: #23252b;
-  color: #d4d4d4;
+  background: var(--component-bg-primary);
+  color: var(--component-text-primary);
 }
 .toolbar {
   align-items: center;
@@ -754,7 +754,7 @@ watch(() => props.language, (n) => {
   font-family: var(--app-font-stack);
   font-size: 0.8rem;
   font-weight: 500;
-  color: #d4d4d4;
+  color: var(--component-text-primary);
   letter-spacing: 0.01em;
 }
 .editor-header, .editor-footer {
@@ -768,9 +768,9 @@ watch(() => props.language, (n) => {
 .syntax-highlight .katexnumber { color: #b5cea8; }
 .syntax-highlight .boolean { color: #569cd6; }
 .syntax-highlight .operator { color: #d4d4d4; }
-.syntax-highlight .katexoperator { color: #d4d4d4a0; }
+.syntax-highlight .katexoperator { color: var(--component-text-secondary); }
 .syntax-highlight .bracket { color: var(--featured); }
-.syntax-highlight .katexbracket { color: #d4d4d4a0; }
+.syntax-highlight .katexbracket { color: var(--component-text-secondary); }
 .syntax-highlight .tag { color: #569cd6; }
 .syntax-highlight .attribute { color: #9cdcfe; }
 .syntax-highlight .property { color: #9cdcfe; }
@@ -786,10 +786,10 @@ watch(() => props.language, (n) => {
 .syntax-highlight .date { color: #b5cea8; }
 .syntax-highlight .quote { color: #6a9955; font-style: italic; border-left: 4px solid #6a9955; padding-left: 0.5rem; margin-left: 0.5rem; }
 .syntax-highlight .header { color: #569cd6; font-weight: bold; }
-.syntax-highlight .bold { font-weight: bold; color: #ffffff; }
-.syntax-highlight .italic { font-style: italic; color: #d4d4d4; }
-.syntax-highlight .inline-code { background: #2d2d30; color: #ce9178; padding: 0.2rem 0.4rem; border-radius: 3px; }
-.syntax-highlight .code-block { background: #2d2d30; color: #d4d4d4; padding: 0.5rem; border-radius: 4px; border-left: 4px solid #007acc; }
+.syntax-highlight .bold { font-weight: bold; color: var(--text-primary); }
+.syntax-highlight .italic { font-style: italic; color: var(--component-text-primary); }
+.syntax-highlight .inline-code { background: var(--component-bg-hover); color: #ce9178; padding: 0.2rem 0.4rem; border-radius: 3px; }
+.syntax-highlight .code-block { background: var(--component-bg-hover); color: var(--component-text-primary); padding: 0.5rem; border-radius: 4px; border-left: 4px solid var(--accent-color); }
 .syntax-highlight .link { color: #569cd6; }
 .syntax-highlight .list { color: var(--featured); }
 
@@ -798,9 +798,9 @@ watch(() => props.language, (n) => {
 .code-chunk-container {
   display: flex;
   flex-direction: column;
-  background: #2b2b2b;
-  border: 1px solid #333;
-  color: #d4d4d4;
+  background: var(--component-bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--component-text-primary);
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   border-radius: 8px;
   overflow: hidden;
@@ -832,7 +832,7 @@ watch(() => props.language, (n) => {
   left: 0;
   width: 100%;
   background: transparent;
-  caret-color: #ffffff;
+  caret-color: var(--text-primary);
   border: none;
   outline: none;
   resize: none;
@@ -855,37 +855,37 @@ watch(() => props.language, (n) => {
   transition: background 0.2s, color 0.2s;
 }
 .icon-btn:hover {
-  color: #fff;
+  color: var(--text-primary);
 }
 .icon-btn.active {
-  background: #80808080;
-  color: #fff;
+  background: var(--component-bg-active);
+  color: var(--text-primary);
 }
 .mermaid-preview {
-  background: #2b2b2b;
-  border-top: 1px solid #333;
+  background: var(--component-bg-primary);
+  border-top: 1px solid var(--border-color);
   max-height: 420px;
   overflow: auto;
 }
 .mermaid-preview svg {
-  background: #2b2b2b;
+  background: var(--component-bg-primary);
 }
 .mermaid-preview svg rect {
-  fill: #2b2b2b !important;
-  stroke: #e0e0e0 !important;
+  fill: var(--component-bg-primary) !important;
+  stroke: var(--text-primary) !important;
 }
 .mermaid-preview svg path {
-  stroke: #ececec !important;
+  stroke: var(--component-text-primary) !important;
 }
 .mermaid-preview svg text {
-  fill: #d4d4d4 !important;
+  fill: var(--component-text-primary) !important;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif !important;
 }
 
 .toolbar-divider {
   width: 1px;
   height: 20px;
-  background: #3b3b3b;
+  background: var(--border-color);
   margin: 0 0.45rem;
 }
 .mermaid-group { display:flex; gap:0.2rem; align-items:center }
@@ -907,11 +907,11 @@ watch(() => props.language, (n) => {
 .line-number {
   height: 1.2em;
   line-height: 1.2em;
-  color: #444a57;
+  color: var(--component-text-secondary);
   font-size: 0.9rem;
 }
 .line-number.active {
-  color: #d4d4d4;
+  color: var(--component-text-primary);
   font-weight: bold;
 }
 .editor-content {
@@ -928,7 +928,7 @@ watch(() => props.language, (n) => {
   margin: 0;
   padding: 1rem 1rem 1rem 0.5rem;
   background: transparent;
-  color: #d4d4d4;
+  color: var(--component-text-primary);
   font-family: inherit;
   font-size: 13.5px;
   line-height: 1.3em;
@@ -948,7 +948,7 @@ watch(() => props.language, (n) => {
   padding: 1rem 1rem 1rem 0.5rem;
   background: transparent;
   color: transparent;
-  caret-color: #ffffff;
+  caret-color: var(--text-primary);
   border: none;
   outline: none;
   resize: none;
@@ -965,7 +965,7 @@ watch(() => props.language, (n) => {
   cursor: default;
 }
 .editor-footer {
-  color: #b8b8b8;
+  color: var(--component-text-secondary);
   padding: 0.1rem 1rem 0.2rem 1rem;
   font-size: 0.8rem;
   display: flex;
@@ -985,11 +985,11 @@ watch(() => props.language, (n) => {
 }
 .syntax-highlight::-webkit-scrollbar-thumb,
 .code-textarea::-webkit-scrollbar-thumb {
-  background: #565656;
+  background: var(--component-bg-active);
   border-radius: 6px;
 }
 .syntax-highlight::-webkit-scrollbar-thumb:hover,
 .code-textarea::-webkit-scrollbar-thumb:hover {
-  background: #797979;
+  background: var(--component-text-secondary);
 }
 </style>

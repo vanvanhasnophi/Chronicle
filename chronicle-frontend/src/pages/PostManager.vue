@@ -186,7 +186,7 @@ onMounted(() => {
   max-width: 1000px;
   margin: 0 auto;
   padding: 40px 20px;
-  color: #e0e0e0;
+  color: var(--text-primary);
 }
 
 .manager-header {
@@ -194,19 +194,19 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 30px;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid var(--border-color);
   padding-bottom: 15px;
 }
 
 .page-title {
   margin: 0;
   font-size: 2em;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .new-post-btn {
-  background: #2ea35f;
-  color: white;
+  background: var(--accent-color);
+  color: var(--text-on-accent);
   border: none;
   padding: 8px 16px;
   border-radius: 4px;
@@ -217,13 +217,13 @@ onMounted(() => {
   gap: 6px;
 }
 .new-post-btn:hover {
-  background: #24804a;
+  background: var(--accent-color-hover);
 }
 
 .table-wrapper {
-  background: #1e1e1e;
+  background: var(--bg-primary);
   border-radius: 8px;
-  border: 1px solid #333;
+  border: 1px solid var(--border-color);
   overflow: hidden;
 }
 
@@ -235,18 +235,18 @@ onMounted(() => {
 .posts-table th, .posts-table td {
   padding: 16px;
   text-align: left;
-  border-bottom: 1px solid #2d2d30;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .posts-table th {
-  background: #252526;
-  color: #aaa;
+  background: var(--bg-secondary);
+  color: var(--component-text-secondary);
   font-weight: 600;
   font-size: 0.9em;
 }
 
 .posts-table tr:hover {
-  background: #2d2d30;
+  background: var(--component-bg-hover);
 }
 .posts-table tr:last-child td {
   border-bottom: none;
@@ -258,12 +258,12 @@ onMounted(() => {
 .title-text {
   display: inline-block;
   font-size: 1.1em;
-  color: #fff;
+  color: var(--text-primary);
   font-weight: 500;
   cursor: pointer;
 }
 .title-container:hover .title-text {
-  color: #2ea35f;
+  color: var(--accent-color);
   text-decoration: underline;
 }
 .edit-icon-hint {
@@ -271,16 +271,16 @@ onMounted(() => {
     margin-left: 8px;
     cursor: pointer;
     font-size: 12px;
-    color: #888;
+    color: var(--component-text-secondary);
 }
 .title-container:hover .edit-icon-hint {
     opacity: 1;
 }
 
 .rename-input {
-    background: #1e1e1e;
-    border: 1px solid #2ea35f;
-    color: #fff;
+  background: var(--bg-primary);
+  border: 1px solid var(--accent-color);
+    color: var(--text-primary);
     padding: 4px 8px;
     border-radius: 4px;
     font-size: 1.1em;
@@ -295,10 +295,10 @@ onMounted(() => {
 }
 .tag-badge {
   font-size: 0.75em;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--component-bg-hover);
   padding: 2px 6px;
   border-radius: 3px;
-  color: #888;
+  color: var(--component-text-secondary);
 }
 
 .status-badge {
@@ -311,25 +311,25 @@ onMounted(() => {
   letter-spacing: 0.5px;
 }
 .status-badge.draft {
-  background: #3e3e42;
-  color: #aaa;
-  border: 1px solid #555;
+  background: var(--component-bg-secondary);
+  color: var(--component-text-secondary);
+  border: 1px solid var(--border-color);
 }
 .status-badge.published {
-  background: rgba(46, 163, 95, 0.2);
-  color: #2ea35f;
-  border: 1px solid #2ea35f;
+  background: var(--component-bg-hover);
+  color: var(--accent-color);
+  border: 1px solid var(--accent-color);
 }
 .status-badge.modifying {
-  background: rgba(255, 215, 0, 0.2);
+  background: var(--component-bg-hover);
   color: var(--featured);
   border: 1px solid var(--featured);
 }
 
 .action-btn {
   background: transparent;
-  border: 1px solid #555;
-  color: #ccc;
+  border: 1px solid var(--border-color);
+  color: var(--component-text-primary);
   padding: 4px 10px;
   border-radius: 3px;
   cursor: pointer;
@@ -337,23 +337,23 @@ onMounted(() => {
   transition: all 0.2s;
 }
 .action-btn:hover {
-  border-color: #2ea35f;
-  color: #2ea35f;
+  border-color: var(--accent-color);
+  color: var(--accent-color);
 }
 
 .delete-btn {
     margin-left: 8px;
-    border-color: #555;
-    color: #888;
+    border-color: var(--border-color);
+    color: var(--component-text-secondary);
 }
 .delete-btn:hover {
-    border-color: #d9534f;
-    color: #d9534f;
+    border-color: var(--status-error);
+    color: var(--status-error);
 }
 
 .loading, .empty {
   text-align: center;
   padding: 40px;
-  color: #666;
+  color: var(--component-text-secondary);
 }
 </style>

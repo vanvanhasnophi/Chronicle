@@ -70,7 +70,7 @@ onBeforeUnmount(() => {
     background: var(--component-bg-blur-alt);
     border: 1px solid var(--border-color-blur);
     backdrop-filter: blur(10px);
-    color: white;
+    color: var(--component-text-primary);
     padding: 10px 24px;
     border-radius: 8px;
     text-decoration: none;
@@ -80,9 +80,8 @@ onBeforeUnmount(() => {
 }
 
 .cta-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
+  filter: brightness(1.5);
   transform: scale(1.05);
-  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .ink-minimal {

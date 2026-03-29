@@ -206,7 +206,7 @@ input {
   width: 100%;
   padding: 0.8rem;
   background: var(--accent-color);
-  color: white;
+  color: var(--text-on-accent);
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -223,11 +223,11 @@ input {
   margin-top: 10px;
 }
 .passkey-btn:hover {
-    background: rgba(46, 163, 95, 0.1);
+  background: var(--component-bg-hover);
 }
 .divider {
     margin: 15px 0;
-    color: #666;
+  color: var(--component-text-secondary);
     font-size: 0.8em;
     position: relative;
 }
@@ -237,7 +237,7 @@ input {
     top: 50%;
     width: 40%;
     height: 1px;
-    background: #444;
+    background: var(--border-color);
 }
 .divider::before { left: 0; }
 .divider::after { right: 0; }
@@ -245,7 +245,7 @@ button {
   width: 100%;
   padding: 0.8rem;
   background: var(--accent-color);
-  color: white;
+  color: var(--text-on-accent);
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -256,7 +256,7 @@ button:disabled {
   opacity: 0.7;
 }
 .error {
-  color: #ff4444;
+  color: var(--code-text);
   margin-top: 1rem;
 }
 
@@ -287,7 +287,7 @@ button:disabled {
     font-weight: bold;
 }
 .secondary-btn:hover {
-    background: rgba(46, 163, 95, 0.1);
+  background: var(--component-bg-hover);
 }
 .text-btn {
     background: none;

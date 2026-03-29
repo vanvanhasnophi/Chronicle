@@ -16,6 +16,6 @@
   max-width: 800px;
   margin: 0 auto;
   padding: 40px 20px;
-  color: #e0e0e0;
+  color: var(--text-primary);
 }
 </style>

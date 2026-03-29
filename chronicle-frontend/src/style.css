@@ -16,39 +16,84 @@
   --app-text-wght: 400;
   --app-heading-wght: 570; /* 比正文略粗，避免 700 的过粗带来的闪烁与布局抖动 */
 
-  color-scheme: light dark;
-  --app-bg-light: #f8f9fa;
-  --app-bg-dark: #141414;
-  --app-text-light: #222;
-  --app-text-dark: rgba(255,255,255,0.87);
-  --glow-light: rgba(0, 0, 0, 0.678);
-  --glow-dark: rgba(255, 255, 255, 0.644);
+  color-scheme: dark;
 
-  --component-bg: rgb(34,34,34);
-  --component-bg-blur:rgba(34,34,34,0.9);
-  --component-bg-blur-alt: rgba(72, 72, 72, 0.5);
-
-  --featured: #ffd700;
-  --featured-bg: rgba(255, 215, 0, 0.15);
-
-  --text-inactive: #a9a9a9;
-  
-  --accent-color: #2ea35f;
+  /* Core brand */
+  --accent-color-default: #2ea35f;
+  --accent-color: var(--accent-color-default);
   --accent-color-dark: #24804a;
+  --accent-color-bg: color-mix(in srgb, var(--accent-color) 15%, transparent);
+  --accent-color-hover: color-mix(in srgb, var(--accent-color) 80%, transparent);
+  --recommended-accent-text: #fff;
+  --featured: #ffd700;
+  --featured-bg: color-mix(in srgb, var(--featured) 15%, transparent);
+  
+  --code-bg: rgba(255, 0, 0, 0.12);
+  --code-text: #ff8585;
+
+  --status-error: #d9534f;
+
+  /* Background hierarchy */
+  --app-bg-primary: #141414;
+  --app-bg-secondary: #1e1e1e;
+  --component-bg: #222222;
+  --component-bg-alt: #2a2a2a;
+  --component-bg-blur: rgba(34, 34, 34, 0.9);
+  --component-bg-blur-alt: rgba(72, 72, 72, 0.5);
+  --component-bg-accent: color-mix(in srgb, var(--accent-color) 40%, transparent);
+  --component-bg-accent-blur: color-mix(in srgb, var(--accent-color) 22%, transparent);
+
+  /* Background highlight states */
+  --app-bg-primary-hover: rgba(255, 255, 255, 0.04);
+  --app-bg-primary-active: rgba(255, 255, 255, 0.08);
+  --app-bg-secondary-hover: rgba(255, 255, 255, 0.06);
+  --app-bg-secondary-active: rgba(255, 255, 255, 0.12);
+  --component-bg-hover: rgba(255, 255, 255, 0.08);
+  --component-bg-active: rgba(255, 255, 255, 0.14);
+  --component-bg-accent-hover: var(--accent-color-dark);
+  --component-bg-accent-active: var(--accent-color-dark);
+
+  /* Foreground hierarchy */
+  --app-text-primary: #e0e0e0;
+  --app-text-secondary: #a9a9a9;
+  --component-text-primary: #d4d4d4;
+  --component-text-secondary: #a5a5a5;
+  --component-text-primary-disabled: rgba(212, 212, 212, 0.45);
+  --component-text-secondary-disabled: rgba(165, 165, 165, 0.45);
+
+  /* Foreground highlight states */
+  --component-text-primary-hover: var(--app-text-primary);
+  --component-text-secondary-hover: var(--app-text-secondary);
+  --component-text-primary-active: var(--component-text-primary-hover);
+  --component-text-secondary-active: var(--component-text-secondary-hover);
+  --component-text-accent-hover: #ffffff;
+  --component-text-accent-active: #ffffff;
+
   --border-color: #333;
   --border-color-blur: rgba(113, 113, 113, 0.2);
-
-  /* Aliases for legacy variable names used across components */
-  --bg-primary: var(--app-bg-dark);
-  --bg-secondary: #1e1e1e;
-  --text-primary: var(--app-text-dark);
-  --text-secondary: #888;
-  --accent: var(--accent-color);
-  --text-on-accent: #fff;
+  --glow-light: rgba(0, 0, 0, 0.678);
+  --glow-dark: rgba(255, 255, 255, 0.644);
   --select-arrow-color: #bbbbbb;
 
-  color: var(--app-text-dark);
-  background-color: var(--app-bg-dark);
+  /* Legacy aliases for existing components */
+  --app-bg: var(--app-bg-primary);
+  --bg-primary: var(--app-bg-primary);
+  --bg-secondary: var(--app-bg-secondary);
+  --app-text-light: #222;
+  --app-text-dark: var(--app-text-primary);
+  --text-primary: var(--app-text-primary);
+  --text-secondary: var(--app-text-secondary);
+  --text-inactive: var(--app-text-secondary);
+  --accent: var(--accent-color);
+  --text-on-accent: #fff;
+  --shadow-elev-1: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-elev-2: 0 4px 12px rgba(0, 0, 0, 0.25);
+  --shadow-elev-3: 0 10px 30px rgba(0, 0, 0, 0.5);
+  --toc-divider-color: rgba(255, 255, 255, 0.02);
+  --select-option-border-color: var(--border-color);
+
+  color: var(--app-text-primary);
+  background-color: transparent;
 
   /* font-synthesis: none; */
   text-rendering: optimizeLegibility;
@@ -56,24 +101,239 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+
+/* Backend-specific theme overrides
+   When backend area requests a separate theme, we apply the same
+   variable set scoped to the body so frontend and backend can differ.
+*/
+body[data-backend-theme="light"] {
+  color-scheme: light;
+  --app-text-wght: 430;
+
+  --code-bg: rgba(255, 0, 0, 0.12);
+  --code-text: #c7254e;
+
+  --recommended-accent-text: #fff;
+
+  --app-bg-primary: #f8f9fb;
+  /* Backend light-mode should use light overlay variant */
+  --backend-bg-overlay: var(--backend-bg-overlay-light);
+  --app-bg-secondary: #eef2f6;
+  --component-bg: #ffffff;
+  --component-bg-alt: #f5f7fa;
+  --component-bg-blur: rgba(255, 255, 255, 0.92);
+  --component-bg-blur-alt: rgba(248, 250, 253, 0.85);
+  --component-bg-accent: rgba(46, 163, 95, 0.15);
+  --component-bg-accent-blur: rgba(46, 163, 95, 0.24);
+
+  --app-bg-primary-hover: rgba(0, 0, 0, 0.03);
+  --app-bg-primary-active: rgba(0, 0, 0, 0.06);
+  --app-bg-secondary-hover: rgba(0, 0, 0, 0.05);
+  --app-bg-secondary-active: rgba(0, 0, 0, 0.08);
+  --component-bg-hover: color-mix(in srgb, var(--accent-color) 12%, transparent);
+  --component-bg-active: color-mix(in srgb, var(--accent-color) 18%, transparent);
+  --component-bg-accent-hover: var(--accent-color-dark);
+  --component-bg-accent-active: var(--accent-color-dark);
+
+  --app-text-primary: #1f2a36;
+  --app-text-secondary: #5f6b78;
+  --component-text-primary: #2a3745;
+  --component-text-secondary: #66768a;
+  --component-text-primary-disabled: rgba(61, 61, 61, 0.42);
+  --component-text-secondary-disabled: rgba(129, 129, 129, 0.42);
+
+  --component-text-primary-hover: var(--accent-color);
+  --component-text-secondary-hover: color-mix(in srgb, var(--accent-color) 75%, #334155);
+  --component-text-primary-active: var(--component-text-primary-hover);
+  --component-text-secondary-active: var(--component-text-secondary-hover);
+  --component-text-accent-hover: #ffffff;
+  --component-text-accent-active: #ffffff;
+
+  --featured: #c58f00;
+  --featured-bg: rgba(197, 143, 0, 0.12);
+  --border-color: #d8e0ea;
+  --border-color-blur: rgba(15, 23, 42, 0.12);
+  --select-arrow-color: #738297;
+
+  /* Legacy aliases */
+  --app-bg: var(--app-bg-primary);
+  --bg-primary: var(--app-bg-primary);
+  --bg-secondary: var(--app-bg-secondary);
+  --app-text-dark: var(--app-text-primary);
+  --text-primary: var(--app-text-primary);
+  --text-secondary: var(--app-text-secondary);
+  --text-inactive: var(--app-text-secondary);
+  --shadow-elev-1: 0 4px 12px rgba(15, 23, 42, 0.12);
+  --shadow-elev-2: 0 4px 12px rgba(15, 23, 42, 0.14);
+  --shadow-elev-3: 0 10px 30px rgba(15, 23, 42, 0.16);
+  --toc-divider-color: rgba(15, 23, 42, 0.08);
+
+  color: var(--app-text-primary);
+  background-color: transparent;
+}
+
+body[data-backend-theme="dark"] {
+  /* Explicitly apply dark tokens (matches default :root values) */
+  color-scheme: dark;
+  --app-text-wght: 400;
+  --app-bg-primary: #141414;
+  --app-bg-secondary: #1e1e1e;
+  --component-bg: #222222;
+  --component-bg-alt: #2a2a2a;
+  --component-bg-blur: rgba(34, 34, 34, 0.9);
+  --component-bg-blur-alt: rgba(72, 72, 72, 0.5);
+  --app-text-primary: #e0e0e0;
+  --app-text-secondary: #a9a9a9;
+  --component-text-primary: #d4d4d4;
+  --component-text-secondary: #a5a5a5;
+  --border-color: #333;
+  --border-color-blur: rgba(113, 113, 113, 0.2);
+  --select-arrow-color: #bbbbbb;
+  --app-bg: var(--app-bg-primary);
+  --bg-primary: var(--app-bg-primary);
+  /* Backend dark-mode should use dark overlay variant */
+  --backend-bg-overlay: var(--backend-bg-overlay-dark);
+  --bg-secondary: var(--app-bg-secondary);
+  --text-primary: var(--app-text-primary);
+  --text-secondary: var(--app-text-secondary);
+  color: var(--app-text-primary);
+  background-color: transparent;
+}
+
+
+/* Explicit light theme tokens */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --app-text-wght: 430;
+
+  --code-bg: rgba(255, 0, 0, 0.12);
+  --code-text: #c7254e;
+
+  --recommended-accent-text: #fff;
+
+  --app-bg-primary: #f8f9fb;
+  /* Light-mode background overlay should use the light variant when provided */
+  --frontend-bg-overlay: var(--frontend-bg-overlay-light);
+  --app-bg-secondary: #eef2f6;
+  --component-bg: #ffffff;
+  --component-bg-alt: #f5f7fa;
+  --component-bg-blur: rgba(255, 255, 255, 0.92);
+  --component-bg-blur-alt: rgba(248, 250, 253, 0.85);
+  --component-bg-accent: rgba(46, 163, 95, 0.15);
+  --component-bg-accent-blur: rgba(46, 163, 95, 0.24);
+
+  --app-bg-primary-hover: rgba(0, 0, 0, 0.03);
+  --app-bg-primary-active: rgba(0, 0, 0, 0.06);
+  --app-bg-secondary-hover: rgba(0, 0, 0, 0.05);
+  --app-bg-secondary-active: rgba(0, 0, 0, 0.08);
+  --component-bg-hover: color-mix(in srgb, var(--accent-color) 12%, transparent);
+  --component-bg-active: color-mix(in srgb, var(--accent-color) 18%, transparent);
+  --component-bg-accent-hover: var(--accent-color-dark);
+  --component-bg-accent-active: var(--accent-color-dark);
+
+  --app-text-primary: #1f2a36;
+  --app-text-secondary: #5f6b78;
+  --component-text-primary: #2a3745;
+  --component-text-secondary: #66768a;
+  --component-text-primary-disabled: rgba(61, 61, 61, 0.42);
+  --component-text-secondary-disabled: rgba(129, 129, 129, 0.42);
+
+  --component-text-primary-hover: var(--accent-color);
+  --component-text-secondary-hover: color-mix(in srgb, var(--accent-color) 75%, #334155);
+  --component-text-primary-active: var(--component-text-primary-hover);
+  --component-text-secondary-active: var(--component-text-secondary-hover);
+  --component-text-accent-hover: #ffffff;
+  --component-text-accent-active: #ffffff;
+
+  --featured: #c58f00;
+  --featured-bg: rgba(197, 143, 0, 0.12);
+  --border-color: #d8e0ea;
+  --border-color-blur: rgba(15, 23, 42, 0.12);
+  --select-arrow-color: #738297;
+
+  /* Legacy aliases */
+  --app-bg: var(--app-bg-primary);
+  --bg-primary: var(--app-bg-primary);
+  --bg-secondary: var(--app-bg-secondary);
+  --app-text-dark: var(--app-text-primary);
+  --text-primary: var(--app-text-primary);
+  --text-secondary: var(--app-text-secondary);
+  --text-inactive: var(--app-text-secondary);
+  --shadow-elev-1: 0 4px 12px rgba(15, 23, 42, 0.12);
+  --shadow-elev-2: 0 4px 12px rgba(15, 23, 42, 0.14);
+  --shadow-elev-3: 0 10px 30px rgba(15, 23, 42, 0.16);
+  --toc-divider-color: rgba(15, 23, 42, 0.08);
+}
+
+/* Follow-system light mode when no explicit dark override is set */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --app-text-wght: 430;
+    --code-bg: rgba(255, 0, 0, 0.12);
+    --code-text: #c7254e;
+    --app-bg-primary: #f8f9fb;
+    --app-bg-secondary: #eef2f6;
+    --component-bg: #ffffff;
+    --component-bg-alt: #f5f7fa;
+    --component-bg-blur: rgba(255, 255, 255, 0.92);
+    --component-bg-blur-alt: rgba(248, 250, 253, 0.85);
+    --component-bg-accent: rgba(46, 163, 95, 0.15);
+    --component-bg-accent-blur: rgba(46, 163, 95, 0.24);
+    --app-bg-primary-hover: rgba(0, 0, 0, 0.03);
+    --app-bg-primary-active: rgba(0, 0, 0, 0.06);
+    --app-bg-secondary-hover: rgba(0, 0, 0, 0.05);
+    --app-bg-secondary-active: rgba(0, 0, 0, 0.08);
+    --component-bg-hover: rgba(46, 163, 95, 0.12);
+    --component-bg-active: rgba(46, 163, 95, 0.18);
+    --app-text-primary: #1f2a36;
+    --app-text-secondary: #5f6b78;
+    --component-text-primary: #2a3745;
+    --component-text-secondary: #66768a;
+    --component-text-primary-hover: var(--accent-color);
+    --component-text-secondary-hover: color-mix(in srgb, var(--accent-color) 75%, #334155);
+    --featured: #c58f00;
+    --featured-bg: rgba(197, 143, 0, 0.12);
+    --border-color: #d8e0ea;
+    --border-color-blur: rgba(15, 23, 42, 0.12);
+    --select-arrow-color: #738297;
+    --app-bg: var(--app-bg-primary);
+    --bg-primary: var(--app-bg-primary);
+    --bg-secondary: var(--app-bg-secondary);
+    --text-primary: var(--app-text-primary);
+    --text-secondary: var(--app-text-secondary);
+    --text-inactive: var(--app-text-secondary);
+    --shadow-elev-1: 0 4px 12px rgba(15, 23, 42, 0.12);
+    --shadow-elev-2: 0 4px 12px rgba(15, 23, 42, 0.14);
+    --shadow-elev-3: 0 10px 30px rgba(15, 23, 42, 0.16);
+    --toc-divider-color: rgba(15, 23, 42, 0.08);
+  }
+}
+
+
+
 i, em {
   font-style: italic;
 }
 
 a {
   font-weight: 500;
-  color: #2ea35f;
+  color: var(--accent-color);
   text-decoration: inherit;
 }
 a:hover {
-  color: #24804a;
+  color: var(--accent-color-dark);
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: #1e1e1e;
+  background: transparent; /* moved solid background into bg-surface lowest layer */
+  color: var(--app-text-primary);
+  font-weight: var(--app-text-wght, 400);
+  /* For variable fonts (e.g. InterVariable), keep正文在可配置字重 */
+  font-variation-settings: 'wght' var(--app-text-wght, 400);
 }
 
 /* Respect iOS safe-area (notch / status bar) */
@@ -162,8 +422,8 @@ button {
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  background-color: #1a1a1a;
-  color: rgba(255, 255, 255, 0.87);
+  background-color: var(--component-bg-alt);
+  color: var(--component-text-primary);
   cursor: pointer;
   transition: border-color 0.25s;
   touch-action: manipulation;
@@ -178,7 +438,7 @@ input, button, select, textarea {
 }
 
 html:not(.is-mobile) button:hover {
-  border-color: #2ea35f;
+  border-color: var(--accent-color);
 }
 button:focus,
 button:focus-visible {
@@ -187,7 +447,7 @@ button:focus-visible {
 
 button.primary{
   background: var(--accent-color);
-  color: white;
+  color: var(--text-on-accent);
   transition: all 0.3s ease;
 }
 
@@ -213,10 +473,10 @@ button.secondary {
     border: 1px solid var(--border-color-blur);
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
-    color: white;
+    color: var(--component-text-primary);
     padding: 0;
     cursor: pointer;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--shadow-elev-1);
     opacity: 0;
     pointer-events: none;
     transition: all 0.2s ease-out;
@@ -234,27 +494,28 @@ button.secondary {
 
 /* Hover only when the app root is NOT in mobile mode (global class 'is-mobile') */
 html:not(.is-mobile) .corner-button:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--component-bg-hover);
   transform: scale(1.1);
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: var(--border-color-blur);
 }
 
 html.is-mobile .corner-button:active {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--component-bg-active);
   transform: scale(1.3);
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: var(--border-color-blur);
   filter: brightness(3);
 }
 
 /* Primary variant (used for mobile TOC button): semi-transparent accent background */
 .corner-button.primary {
-    background: rgba(46,163,95,0.4); /* semi-transparent --accent-color */
-    border: 1px solid rgba(46,163,95,0.3);
+  background: var(--component-bg-accent-blur);
+  border: 1px solid var(--component-bg-accent);
+  color: var(--component-text-primary);
 }
 
 /* Pressed state visual for primary (works on mobile via :active) */
-html.is-mobile .corner-button.primary:active { transform: scale(1.3); border-color: rgba(255,255,255,0.18); background: rgba(46,163,95,0.22); }
-html:not(.is-mobile) .corner-button.primary:hover { transform: scale(1.1); background: rgba(46,163,95,0.18); border-color: rgba(255,255,255,0.18); }
+html.is-mobile .corner-button.primary:active { transform: scale(1.3); border-color: var(--component-bg-accent-blur); background: var(--component-bg-accent-blur); }
+html:not(.is-mobile) .corner-button.primary:hover { transform: scale(1.1); background: var(--component-bg-accent-hover); border-color: var(--component-bg-accent-hover); color: var(--component-text-accent-hover); }
 
 /* When running in mobile mode, ensure the primary corner button is visible on the left */
 html.is-mobile .corner-button.primary {
@@ -317,8 +578,8 @@ html.is-mobile .toc-float { display: none !important; }
   background-size: 20px;
   padding-right: 48px; /* reserve more space for larger arrow */
 }
-.modern-select:hover { border-color: #ffffff90; background: #ffffff09; }
-.modern-select:focus { outline: none; background-color: #ffffff10; box-shadow: 0 4px 12px rgba(0,0,0,0.25); border-color: var(--accent-color);}
+.modern-select:hover { border-color: var(--border-color-blur); background: var(--component-bg-hover); }
+.modern-select:focus { outline: none; background-color: var(--component-bg-active); box-shadow: var(--shadow-elev-2); border-color: var(--accent-color);}
 
 /* Mobile TOC panel styles (moved from component) */
 .mobile-toc-panel {
@@ -332,15 +593,15 @@ html.is-mobile .toc-float { display: none !important; }
     border-radius: 10px;
     max-height: 60vh;
     overflow: auto;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    box-shadow: var(--shadow-elev-3);
 }
 .mobile-toc-panel-inner { padding: 8px }
-.mobile-toc-header { display:flex; align-items:center; justify-content:space-between; padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.02) }
+  .mobile-toc-header { display:flex; align-items:center; justify-content:space-between; padding: 6px 8px; border-bottom: 1px solid var(--toc-divider-color) }
 .mobile-toc-title { font-weight:600 }
 .mobile-toc-close { background: transparent; border: none; color: inherit; padding: 6px }
 .mobile-toc-list { list-style:none; margin:0; padding:6px }
 .mobile-toc-list li { padding: 6px 4px; border-radius: 6px }
-.mobile-toc-list li.active { background: rgba(255,255,255,0.06); }
+.mobile-toc-list li.active { background: var(--component-bg-hover); }
 .mobile-toc-list li a { color: inherit; text-decoration: none; display:block }
 
 /* Hide native IE arrow */
@@ -353,7 +614,7 @@ html.is-mobile .toc-float { display: none !important; }
   -moz-appearance: none;
 
   
-  border: 2px solid #ddd;
+  border: 2px solid var(--select-option-border-color);
   border-radius: 8px;
   padding: 8px 12px;
   background: var(--component-bg);
@@ -380,7 +641,9 @@ html.is-mobile .toc-float { display: none !important; }
 }
 
 .modern-select[disabled] {
-  background-image: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(0,0,0,0.01)), url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23777777' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-image: none;
+  border-color: var(--border-color-blur);
+  color: var(--component-text-secondary-disabled);
 }
 
 /* Wrapper for select so we can draw arrow via pseudo-element (select doesn't support ::after) */
@@ -391,7 +654,6 @@ html.is-mobile .toc-float { display: none !important; }
 .select-wrap .modern-select {
   display: block; /* fill the wrapper */
   width: 100%;
-  vertical-align: middle;
   position: relative;
   z-index: 1; /* keep select below the arrow pseudo-element */
   box-sizing: border-box;
@@ -407,7 +669,7 @@ html.is-mobile .toc-float { display: none !important; }
   width: 22px;
   height: 18px;
   pointer-events: none;
-  background-color: var(--select-arrow-color, #bbbbbb);
+  background-color: var(--select-arrow-color);
   -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M6 9 L12 15 L18 9' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>") no-repeat center;
   -webkit-mask-size: 18px 18px;
   mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M6 9 L12 15 L18 9' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>") no-repeat center;
@@ -429,18 +691,6 @@ html.is-mobile .toc-float { display: none !important; }
   box-sizing: border-box;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
-}
 
 /* Article Fonts */
 .font-serif {
@@ -452,6 +702,111 @@ html.is-mobile .toc-float { display: none !important; }
 }
 .font-sans {
   font-family: var(--app-font-stack-inter) !important;
+}
+
+/* Background image variables used by SettingsAppearance */
+:root {
+  --frontend-bg-image: none;
+  --backend-bg-image: none;
+  /* Background editor vars */
+  --frontend-bg-pos: center center;
+  --frontend-bg-size: cover;
+  --frontend-bg-blur: 0px;
+  --frontend-bg-overlay-dark: transparent;
+  --frontend-bg-overlay-light: transparent;
+  --frontend-bg-overlay: var(--frontend-bg-overlay-dark);
+  --backend-bg-pos: center center;
+  --backend-bg-size: cover;
+  --backend-bg-blur: 0px;
+  --backend-bg-overlay-dark: transparent;
+  --backend-bg-overlay-light: transparent;
+  --backend-bg-overlay: var(--backend-bg-overlay-dark);
+}
+
+/* Use frontend background by default, backend overrides when body.backend is set */
+body {
+  position: relative;
+  background-color: var(--app-bg-primary);
+  background-repeat: no-repeat;
+}
+
+body.backend {
+  /* backend will be handled by body::before pseudo to allow blur/overlay */
+}
+
+/* Background layer (frontend / backend) using pseudo-element so we can blur without affecting content */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--frontend-bg-image);
+  background-size: var(--frontend-bg-size, cover);
+  background-position: var(--frontend-bg-pos, center center);
+  background-repeat: no-repeat;
+  filter: blur(var(--frontend-bg-blur, 0px));
+  transition: background-image 0.25s ease, filter 0.25s ease, background-position 0.25s ease, background-size 0.25s ease;
+}
+
+body.backend::before {
+  background-image: var(--backend-bg-image);
+  background-size: var(--backend-bg-size, cover);
+  background-position: var(--backend-bg-pos, center center);
+  filter: blur(var(--backend-bg-blur, 0px));
+}
+
+/* Overlay color layer on top of background but beneath content */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--frontend-bg-overlay, transparent);
+  transition: background 0.2s ease;
+}
+
+body.backend::after {
+  background: var(--backend-bg-overlay, transparent);
+}
+
+/* Dedicated DOM background layer (lowest z-index) */
+#chronicle-bg-layer {
+  position: fixed;
+  inset: 0;
+  z-index: -9999;
+  pointer-events: none;
+  display: block;
+}
+/* Order inside layer (lower z => behind): image -> solid surface -> overlay */
+#chronicle-bg-layer .bg-image {
+  position: absolute;
+  inset: 0;
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: cover;
+  filter: none;
+  z-index: -3;
+  transition: background-image 0.25s ease, filter 0.25s ease, background-position 0.25s ease, background-size 0.25s ease;
+}
+#chronicle-bg-layer .bg-surface {
+  position: absolute;
+  inset: 0;
+  background: var(--app-bg-primary);
+  z-index: -2;
+}
+#chronicle-bg-layer .bg-overlay {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  z-index: -1;
+}
+
+/* Ensure app content sits above the background layer */
+#app {
+  position: relative;
+  z-index: 1;
 }
 
 html {
