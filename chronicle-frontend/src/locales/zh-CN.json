@@ -10,7 +10,8 @@
     "posts": "文章",
     "files": "文件管理",
     "settings": "设置",
-    "newPost": "写文章"
+    "newPost": "写文章",
+    "about": "关于"
   },
   "inblog": {
     "toc-title": "目录",
@@ -259,6 +260,9 @@
       "edit": "仅编辑",
       "preview": "仅预览"
     }
+  },
+  "formula": {
+    "copied": "公式已复制"
   }
     
 }

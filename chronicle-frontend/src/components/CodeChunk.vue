@@ -167,8 +167,8 @@ async function ensureMermaidLoaded() {
           nodeBkg: 'transparent',
           clusterBkg: 'transparent',
           primaryColor: 'transparent',
-          primaryTextColor: '#d4d4d4',
-          textColor: '#d4d4d4',
+          primaryTextColor: 'var(--component-text-primary)',
+          textColor: 'var(--component-text-primary)',
           nodeBorder: 'var(--text-primary)',
           clusterBorder: 'var(--text-primary)',
           lineColor: '#ececec',
@@ -760,37 +760,37 @@ watch(() => props.language, (n) => {
 .editor-header, .editor-footer {
   font-family: var(--app-font-stack);
 }
-.syntax-highlight .keyword { color: #569cd6; font-weight: bold; }
-.syntax-highlight .string { color: #ce9178; }
-.syntax-highlight .comment { color: #6a9955; font-style: italic; }
-.syntax-highlight .katexcommand { color: #c9bf4e; }
-.syntax-highlight .number { color: #b5cea8; }
-.syntax-highlight .katexnumber { color: #b5cea8; }
-.syntax-highlight .boolean { color: #569cd6; }
-.syntax-highlight .operator { color: #d4d4d4; }
+.syntax-highlight .keyword { color: var(--code-keyword); font-weight: bold; }
+.syntax-highlight .string { color: var(--code-string); }
+.syntax-highlight .comment { color: var(--code-comment); font-style: italic; }
+.syntax-highlight .katexcommand { color: var(--code-katexcommand); }
+.syntax-highlight .number { color: var(--code-number); }
+.syntax-highlight .katexnumber { color: var(--code-number); }
+.syntax-highlight .boolean { color: var(--code-boolean); }
+.syntax-highlight .operator { color: var(--code-operator); }
 .syntax-highlight .katexoperator { color: var(--component-text-secondary); }
 .syntax-highlight .bracket { color: var(--featured); }
 .syntax-highlight .katexbracket { color: var(--component-text-secondary); }
-.syntax-highlight .tag { color: #569cd6; }
-.syntax-highlight .attribute { color: #9cdcfe; }
-.syntax-highlight .property { color: #9cdcfe; }
-.syntax-highlight .selector { color: #d7ba7d; }
-.syntax-highlight .type { color: #4ec9b0; }
-.syntax-highlight .variable { color: #9cdcfe; }
-.syntax-highlight .parameter { color: #9cdcfe; }
-.syntax-highlight .cmdlet { color: #569cd6; font-weight: bold; }
-.syntax-highlight .directive { color: #c586c0; }
-.syntax-highlight .preprocessor { color: #c586c0; }
-.syntax-highlight .color { color: #ce9178; font-weight: bold; }
-.syntax-highlight .section { color: #569cd6; font-weight: bold; }
-.syntax-highlight .date { color: #b5cea8; }
-.syntax-highlight .quote { color: #6a9955; font-style: italic; border-left: 4px solid #6a9955; padding-left: 0.5rem; margin-left: 0.5rem; }
-.syntax-highlight .header { color: #569cd6; font-weight: bold; }
+.syntax-highlight .tag { color: var(--code-tag); }
+.syntax-highlight .attribute { color: var(--code-attribute); }
+.syntax-highlight .property { color: var(--code-property); }
+.syntax-highlight .selector { color: var(--code-selector); }
+.syntax-highlight .type { color: var(--code-type); }
+.syntax-highlight .variable { color: var(--code-variable); }
+.syntax-highlight .parameter { color: var(--code-parameter); }
+.syntax-highlight .cmdlet { color: var(--code-cmdlet); font-weight: bold; }
+.syntax-highlight .directive { color: var(--code-directive); }
+.syntax-highlight .preprocessor { color: var(--code-preprocessor); }
+.syntax-highlight .color { color: var(--code-color); font-weight: bold; }
+.syntax-highlight .section { color: var(--code-section); font-weight: bold; }
+.syntax-highlight .date { color: var(--code-date); }
+.syntax-highlight .quote { color: var(--code-quote); font-style: italic; border-left: 4px solid var(--code-quote); padding-left: 0.5rem; margin-left: 0.5rem; }
+.syntax-highlight .header { color: var(--code-header); font-weight: bold; }
 .syntax-highlight .bold { font-weight: bold; color: var(--text-primary); }
 .syntax-highlight .italic { font-style: italic; color: var(--component-text-primary); }
-.syntax-highlight .inline-code { background: var(--component-bg-hover); color: #ce9178; padding: 0.2rem 0.4rem; border-radius: 3px; }
+.syntax-highlight .inline-code { background: var(--component-bg-hover); color: var(--code-inline); padding: 0.2rem 0.4rem; border-radius: 3px; }
 .syntax-highlight .code-block { background: var(--component-bg-hover); color: var(--component-text-primary); padding: 0.5rem; border-radius: 4px; border-left: 4px solid var(--accent-color); }
-.syntax-highlight .link { color: #569cd6; }
+.syntax-highlight .link { color: var(--code-link); }
 .syntax-highlight .list { color: var(--featured); }
 
 /* 代码块主体统一深灰色 */
@@ -798,9 +798,9 @@ watch(() => props.language, (n) => {
 .code-chunk-container {
   display: flex;
   flex-direction: column;
-  background: var(--component-bg-primary);
+  background: var(--component-bg-blur-alt);
   border: 1px solid var(--border-color);
-  color: var(--component-text-primary);
+  color: var(--app-text-primary);
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   border-radius: 8px;
   overflow: hidden;
@@ -862,16 +862,16 @@ watch(() => props.language, (n) => {
   color: var(--text-primary);
 }
 .mermaid-preview {
-  background: var(--component-bg-primary);
+  background: var(--component-bg-blur-alt);
   border-top: 1px solid var(--border-color);
   max-height: 420px;
   overflow: auto;
 }
 .mermaid-preview svg {
-  background: var(--component-bg-primary);
+  background: var(--component-bg-blur-alt) !important;
 }
 .mermaid-preview svg rect {
-  fill: var(--component-bg-primary) !important;
+  fill: var(--component-bg-blur-alt) !important;
   stroke: var(--text-primary) !important;
 }
 .mermaid-preview svg path {

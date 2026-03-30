@@ -101,6 +101,62 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Syntax highlighting color tokens (dark theme defaults) */
+:root {
+  --code-keyword: #569cd6;
+  --code-string: #ce9178;
+  --code-comment: #6a9955;
+  --code-katexcommand: #c9bf4e;
+  --code-number: #b5cea8;
+  --code-boolean: #569cd6;
+  --code-operator: #d4d4d4;
+  --code-tag: #569cd6;
+  --code-attribute: #9cdcfe;
+  --code-property: #9cdcfe;
+  --code-selector: #d7ba7d;
+  --code-type: #4ec9b0;
+  --code-variable: #9cdcfe;
+  --code-parameter: #9cdcfe;
+  --code-cmdlet: #569cd6;
+  --code-directive: #c586c0;
+  --code-preprocessor: #c586c0;
+  --code-color: #ce9178;
+  --code-section: #569cd6;
+  --code-date: #b5cea8;
+  --code-quote: #6a9955;
+  --code-header: #569cd6;
+  --code-inline: #ce9178;
+  --code-link: #569cd6;
+}
+
+/* Light theme overrides for syntax highlighting */
+[data-theme="light"] {
+  --code-keyword: #0000ff;
+  --code-string: #a31515;
+  --code-comment: #008000;
+  --code-katexcommand: #8a6f2f;
+  --code-number: #098658;
+  --code-boolean: #0000ff;
+  --code-operator: #333333;
+  --code-tag: #800000;
+  --code-attribute: #795e26;
+  --code-property: #001080;
+  --code-selector: #800000;
+  --code-type: #267f99;
+  --code-variable: #001080;
+  --code-parameter: #001080;
+  --code-cmdlet: #0000ff;
+  --code-directive: #0451a5;
+  --code-preprocessor: #0451a5;
+  --code-color: #a31515;
+  --code-section: #0000ff;
+  --code-date: #098658;
+  --code-quote: #008000;
+  --code-header: #0000ff;
+  --code-inline: #a31515;
+  --code-link: #0000ff;
+}
+
 
 /* Backend-specific theme overrides
    When backend area requests a separate theme, we apply the same
@@ -715,12 +771,14 @@ html.is-mobile .toc-float { display: none !important; }
   --frontend-bg-pos: center center;
   --frontend-bg-size: cover;
   --frontend-bg-blur: 0px;
+  --frontend-bg-opacity: 0;
   --frontend-bg-overlay-dark: transparent;
   --frontend-bg-overlay-light: transparent;
   --frontend-bg-overlay: var(--frontend-bg-overlay-dark);
   --backend-bg-pos: center center;
   --backend-bg-size: cover;
   --backend-bg-blur: 0px;
+  --backend-bg-opacity: 0;
   --backend-bg-overlay-dark: transparent;
   --backend-bg-overlay-light: transparent;
   --backend-bg-overlay: var(--backend-bg-overlay-dark);
@@ -729,49 +787,22 @@ html.is-mobile .toc-float { display: none !important; }
 /* Use frontend background by default, backend overrides when body.backend is set */
 body {
   position: relative;
-  background-color: var(--app-bg-primary);
+  /* Keep body background transparent so dedicated DOM background layer
+     (#chronicle-bg-layer) can render the surface and image without being
+     occluded by the body's own background color. */
+  background-color: transparent;
   background-repeat: no-repeat;
 }
 
 body.backend {
-  /* backend will be handled by body::before pseudo to allow blur/overlay */
 }
 
-/* Background layer (frontend / backend) using pseudo-element so we can blur without affecting content */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background-image: var(--frontend-bg-image);
-  background-size: var(--frontend-bg-size, cover);
-  background-position: var(--frontend-bg-pos, center center);
-  background-repeat: no-repeat;
-  filter: blur(var(--frontend-bg-blur, 0px));
-  transition: background-image 0.25s ease, filter 0.25s ease, background-position 0.25s ease, background-size 0.25s ease;
-}
-
-body.backend::before {
-  background-image: var(--backend-bg-image);
-  background-size: var(--backend-bg-size, cover);
-  background-position: var(--backend-bg-pos, center center);
-  filter: blur(var(--backend-bg-blur, 0px));
-}
-
-/* Overlay color layer on top of background but beneath content */
-body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background: var(--frontend-bg-overlay, transparent);
-  transition: background 0.2s ease;
-}
-
+/* Disabled on purpose: all background media/overlay now render only via #chronicle-bg-layer. */
+body::before,
+body.backend::before,
+body::after,
 body.backend::after {
-  background: var(--backend-bg-overlay, transparent);
+  content: none !important;
 }
 
 /* Dedicated DOM background layer (lowest z-index) */
@@ -790,14 +821,18 @@ body.backend::after {
   background-position: center center;
   background-size: cover;
   filter: none;
-  z-index: -3;
-  transition: background-image 0.25s ease, filter 0.25s ease, background-position 0.25s ease, background-size 0.25s ease;
+  opacity: 0;
+  z-index: -2;
+  transition: opacity 0.32s ease, background-image 0.25s ease, filter 0.25s ease, background-position 0.25s ease, background-size 0.25s ease;
+}
+#chronicle-bg-layer.is-ready .bg-image {
+  opacity: 1;
 }
 #chronicle-bg-layer .bg-surface {
   position: absolute;
   inset: 0;
   background: var(--app-bg-primary);
-  z-index: -2;
+  z-index: -3;
 }
 #chronicle-bg-layer .bg-overlay {
   position: absolute;

@@ -1,6 +1,23 @@
 import { reactive } from 'vue'
 
-const state = reactive({
+export type MathTooltipOnSave = (tex: string, uniqueId: string, blockIndex: number) => void
+
+export interface MathTooltipState {
+  visible: boolean
+  x: number
+  y: number
+  tex: string
+  originalTex: string
+  uniqueId: string
+  blockIndex: number
+  copied: boolean
+  timer: number | null
+  isEditing: boolean
+  error: string
+  onSave: MathTooltipOnSave | null
+}
+
+const state = reactive<MathTooltipState>({
   visible: false,
   x: 0,
   y: 0,
@@ -9,21 +26,32 @@ const state = reactive({
   uniqueId: '',
   blockIndex: -1,
   copied: false,
-  timer: null as any,
+  timer: null,
   isEditing: false,
   error: '',
-  onSave: null as null | ((tex: string, uniqueId: string, blockIndex: number) => void)
+  onSave: null
 })
 
-function show(opts: Partial<typeof state> & { onSave?: typeof state.onSave }) {
-  if (opts.tex !== undefined) state.tex = opts.tex as string
-  if (opts.originalTex !== undefined) state.originalTex = opts.originalTex as string
-  if (opts.uniqueId !== undefined) state.uniqueId = opts.uniqueId as string
-  if (opts.blockIndex !== undefined) state.blockIndex = opts.blockIndex as number
-  if (opts.x !== undefined) state.x = opts.x as number
-  if (opts.y !== undefined) state.y = opts.y as number
-  if (opts.isEditing !== undefined) state.isEditing = opts.isEditing as boolean
-  if (opts.onSave !== undefined) state.onSave = opts.onSave as any
+export interface MathTooltipShowOpts {
+  x?: number
+  y?: number
+  tex?: string
+  originalTex?: string
+  uniqueId?: string
+  blockIndex?: number
+  isEditing?: boolean
+  onSave?: MathTooltipOnSave | null
+}
+
+function show(opts: MathTooltipShowOpts = {}) {
+  if (opts.tex !== undefined) state.tex = opts.tex
+  if (opts.originalTex !== undefined) state.originalTex = opts.originalTex
+  if (opts.uniqueId !== undefined) state.uniqueId = opts.uniqueId
+  if (opts.blockIndex !== undefined) state.blockIndex = opts.blockIndex
+  if (opts.x !== undefined) state.x = opts.x
+  if (opts.y !== undefined) state.y = opts.y
+  if (opts.isEditing !== undefined) state.isEditing = opts.isEditing
+  if (opts.onSave !== undefined) state.onSave = opts.onSave
   state.copied = false
   state.error = ''
   state.visible = true

@@ -2,23 +2,24 @@
   <div class="md-parser-rendered" @click="handleGlobalClick">
     <!-- Inline TOC removed; handled at page level (BlogPost.vue) -->
     <template v-for="(block, index) in localBlocks" :key="keyPrefix + index">
-      <div v-if="block.type === 'table'" class="content-block">
-        <MarkdownTable
-          :header="block.header || []"
-          :body="block.body || []"
-          :readOnly="readOnly"
-          @change="(h, b) => updateTable(index, h, b)"
-        />
+      <div v-if="block.type === 'table'" class="content-block" :data-block-index="index">
+        <template v-if="!heavyLoaded">
+          <div class="table-placeholder md-placeholder">表格内容正在加载…</div>
+        </template>
+        <template v-else>
+          <component :is="MarkdownTableComp" :header="block.header || []" :body="block.body || []" :readOnly="readOnly" @change="(h: string[], b: string[][]) => updateTable(index, h, b)" />
+        </template>
       </div>
-      <div v-else-if="block.type === 'code'" class="content-block">
-        <CodeChunk
-          v-model="block.content"
-          :language="block.language || 'plain'"
-          :readonly="readOnly"
-          :title="readOnly ? '' : ''/*`Code Block ${index + 1}`*/"
-          @change="(code, lang) => updateCode(index, code, lang)"
-        />
+
+      <div v-else-if="block.type === 'code'" class="content-block" :data-block-index="index">
+        <template v-if="!heavyLoaded">
+          <pre class="code-placeholder md-placeholder">{{ block.content.substring(0, 200) }}</pre>
+        </template>
+        <template v-else>
+          <component v-if="CodeChunkComp" :is="CodeChunkComp" v-model="block.content" :language="block.language || 'plain'" :readonly="readOnly" :title="readOnly ? '' : ''" @change="(code: string, lang: string) => updateCode(index, code, lang)" />
+        </template>
       </div>
+
       <div v-else-if="block.type === 'quote'" class="content-block text-block" :data-block-index="index" v-html="renderBlockHtml(block)"></div>
       <div v-else class="content-block text-block" :data-block-index="index">
         <div class="parsed-html-content" v-html="renderBlockHtml(block)"></div>
@@ -26,8 +27,8 @@
     </template>
     
 
-    <!-- Math Interaction Popup moved to standalone component -->
-    <MathTooltip />
+    <!-- Math Interaction Popup moved to standalone component (loaded after heavy components) -->
+    <component v-if="heavyLoaded && MathTooltipComp" :is="MathTooltipComp" />
   </div>
 </template>
 
@@ -36,10 +37,8 @@ import { ref, watch, toRaw, reactive, onMounted, onUnmounted, nextTick, computed
 import { parseMarkdown, convertToHtml, blocksToMarkdown, type ContentBlock } from '../utils/markdownParser'
 import { usePreview } from '../composables/usePreview'
 import { useImagePreview } from '../composables/useImagePreview'
-import MarkdownTable from './MarkdownTable.vue'
-import CodeChunk from './CodeChunk.vue'
-import AsyncHighlight from './AsyncHighlight.vue'
-
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n();
 const props = withDefaults(defineProps<{
   modelValue?: string
   readOnly?: boolean
@@ -62,10 +61,80 @@ const keyPrefix = ref('block-')
 const { openPreview } = usePreview()
 const { openImagePreview } = useImagePreview()
 
-import MathTooltip from './MathTooltip.vue'
 import useMathTooltip from '../composables/useMathTooltip'
+import useToast from '../composables/useToast'
 
 const mathTooltip = useMathTooltip()
+const isMobile = ref(false)
+const { show: showToast } = useToast()
+
+// Heavy components will be dynamically imported to avoid blocking initial render.
+const MarkdownTableComp = ref<any>(null)
+const CodeChunkComp = ref<any>(null)
+const AsyncHighlightComp = ref<any>(null)
+const MathTooltipComp = ref<any>(null)
+const heavyLoaded = ref(false)
+
+async function loadHeavyComponents() {
+  try {
+    const isReadingMode = !!props.readOnly
+
+    const loadParallel = async () => {
+      // Always load table/code/highlight. Skip MathTooltip on mobile to save payload.
+      const imports: Promise<any>[] = [
+        import('./MarkdownTable.vue'),
+        import('./CodeChunk.vue'),
+        import('./AsyncHighlight.vue')
+      ]
+      if (!isMobile.value) imports.push(import('./MathTooltip.vue'))
+      const results = await Promise.all(imports)
+      const mt = results[0]
+      const cc = results[1]
+      const ah = results[2]
+      const mtp = results[3]
+      MarkdownTableComp.value = (mt && (mt as any).default) ? (mt as any).default : mt
+      CodeChunkComp.value = (cc && (cc as any).default) ? (cc as any).default : cc
+      AsyncHighlightComp.value = (ah && (ah as any).default) ? (ah as any).default : ah
+      if (!isMobile.value && mtp) MathTooltipComp.value = (mtp && (mtp as any).default) ? (mtp as any).default : mtp
+      heavyLoaded.value = true
+      try { nextTick(() => { scheduleRenderMath(); emit('rendered') }) } catch(e) {}
+    }
+
+    const loadSerial = async () => {
+      // Load in strict priority: MarkdownTable -> CodeChunk -> AsyncHighlight -> MathTooltip
+      try {
+        const mt = await import('./MarkdownTable.vue')
+        MarkdownTableComp.value = (mt && (mt as any).default) ? (mt as any).default : mt
+        // allow DOM to replace table placeholders immediately
+        try { await nextTick(); } catch (e) {}
+
+        const cc = await import('./CodeChunk.vue')
+        CodeChunkComp.value = (cc && (cc as any).default) ? (cc as any).default : cc
+        try { await nextTick(); } catch (e) {}
+
+        const ah = await import('./AsyncHighlight.vue')
+        AsyncHighlightComp.value = (ah && (ah as any).default) ? (ah as any).default : ah
+        try { await nextTick(); } catch (e) {}
+
+        if (!isMobile.value) {
+          const mtp = await import('./MathTooltip.vue')
+          MathTooltipComp.value = (mtp && (mtp as any).default) ? (mtp as any).default : mtp
+        }
+        // mark as fully loaded
+        heavyLoaded.value = true
+        try { nextTick(() => { scheduleRenderMath(); emit('rendered') }) } catch(e) {}
+      } catch (e) {
+        // ignore individual failures; components will remain as placeholders
+      }
+    }
+
+    const runner = isReadingMode ? loadSerial : loadParallel
+    if ((window as any).requestIdleCallback) (window as any).requestIdleCallback(() => { void runner() }, { timeout: 500 })
+    else setTimeout(() => { void runner() }, 200)
+  } catch (e) {
+    // ignore
+  }
+}
 
 // Lazy-load KaTeX on demand to avoid bundling it into the initial payload
 let katex: any = null
@@ -308,6 +377,28 @@ async function handleGlobalClick(e: MouseEvent) {
     const blockIndex = blockIndexStr ? parseInt(blockIndexStr, 10) : -1
 
     if (tex) {
+        if (isMobile.value) {
+        // On mobile just copy TeX source to clipboard instead of opening editor tooltip
+        let copied = false
+        try {
+          if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(tex)
+            copied = true
+          } else {
+            // fallback: create temporary textarea
+            const t = document.createElement('textarea')
+            t.value = tex
+            document.body.appendChild(t)
+            t.select()
+            try { copied = document.execCommand('copy') } catch (e) { copied = false }
+            t.remove()
+          }
+        } catch (e) {
+          copied = false
+        }
+        if (copied) showToast(t('formula.copied'),{status: 'success', position: 'bottom-center', shape: 'capsule'} )
+        return
+      }
       mathTooltip.show({ x: e.clientX, y: e.clientY, tex, uniqueId, blockIndex, isEditing: !props.readOnly, onSave: handleTooltipSave })
       return
     }
@@ -373,6 +464,12 @@ function handleImageLoad(e: Event) {
 }
 
 onMounted(() => {
+  // prefer site-level class `is-mobile` set on <html>; fallback to UA/touch probe
+  try {
+    if (typeof document !== 'undefined' && document.documentElement) {
+      isMobile.value = document.documentElement.classList.contains('is-mobile')
+    }
+  } catch (e) {}
   const container = document.querySelector('.md-parser-rendered')
   if (container) {
      container.addEventListener('error', handleImageError, true)
@@ -387,6 +484,8 @@ onMounted(() => {
       scheduleRenderMath()
     })
   }
+  // Start loading heavy components in background
+  try { void loadHeavyComponents() } catch(e) {}
 })
 onUnmounted(() => {
     const container = document.querySelector('.md-parser-rendered')
@@ -409,6 +508,8 @@ watch(() => props.modelValue, (newVal) => {
   nextTick(() => {
     emit('rendered')
     scheduleRenderMath()
+    // start loading heavy components after initial text render
+    try { void loadHeavyComponents() } catch(e) {}
   })
 }, { immediate: true })
 

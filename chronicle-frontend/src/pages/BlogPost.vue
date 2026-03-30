@@ -50,13 +50,8 @@
                         </div>
 
               <div class="markdown-body" :class="fontClass">
-                  <MdParser 
-                        v-if="post.content"
-                        :blocks="parsedBlocks"
-                        :modelValue="post.content"
-                        :readOnly="true"
-                    @rendered="onMdRendered"
-                  />
+                  <div v-if="showPlain" v-html="plainHtml"></div>
+                  <component v-else-if="showFullParser && post.content" :is="MdParserAsync" :blocks="parsedBlocks" :modelValue="post.content" :readOnly="true" @rendered="onMdRendered" />
               </div>
 
             <!-- 悬浮目录导航（页面级） -->
@@ -99,11 +94,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, nextTick, watch, onBeforeUnmount } from 'vue'
+import { ref, onMounted, computed, nextTick, watch, onBeforeUnmount, defineAsyncComponent } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import MdParser from '../components/MdParser.vue'
-import { getStats } from '../utils/markdownParser'
+// load full parser lazily to avoid blocking navigation
+const MdParserAsync = defineAsyncComponent(() => import('../components/MdParser.vue'))
+import { getStats, convertToHtml, hydrateKatexIn } from '../utils/markdownParser'
+import { formatDate as formatDateUtil } from '../utils/dateUtils'
 import { sortTags } from '../utils/tagUtils'
 import { parseMarkdown } from '../utils/markdownParser'
 import { Icons } from '../utils/icons'
@@ -124,6 +121,10 @@ interface PostDetail {
 const route = useRoute()
 const post = ref<PostDetail | null>(null)
 const loading = ref(true)
+// staged rendering flags
+const showPlain = ref(true)
+const showFullParser = ref(false)
+const plainHtml = ref('')
 
 const fontClass = computed(() => {
     if (!post.value?.font) return 'font-sans'
@@ -547,6 +548,8 @@ function onMdRendered() {
     nextTick(() => assignHeadingIds())
     // Also ensure float TOC active item is visible
     nextTick(() => ensureFloatActiveVisible())
+    // Hydrate KaTeX placeholders asynchronously (if any)
+    try { nextTick(() => { try { hydrateKatexIn(document.querySelector('.markdown-body')) } catch(e) {} }) } catch(e) {}
 }
 
 function ensureFloatActiveVisible() {
@@ -580,14 +583,8 @@ const postStats = computed(() => {
     }
 })
 
-const formatDate = (isoStr: string) => {
-  if (!isoStr) return ''
-  return new Date(isoStr).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  })
-}
+const { locale } = useI18n()
+const formatDate = (isoStr: string) => formatDateUtil(isoStr, locale.value)
 
 onMounted(async () => {
     // Show a temporary loading title while post data is being fetched.
@@ -624,8 +621,15 @@ onMounted(async () => {
                 if (post.value && post.value.content) {
                      // parse once and reuse blocks for TOC and MdParser
                      const blocks = parseMarkdown(post.value.content)
-                     parsedBlocks.value = blocks
-                     buildTocFromBlocks(blocks)
+                                         parsedBlocks.value = blocks
+                                         // Render lightweight HTML immediately (no KaTeX hydration)
+                                         try { plainHtml.value = convertToHtml(blocks) } catch(e) { plainHtml.value = '' }
+                                         // schedule async mount of full MdParser at low priority
+                                         try {
+                                             const schedule = (cb: any) => { if ((window as any).requestIdleCallback) (window as any).requestIdleCallback(cb, { timeout: 300 }); else setTimeout(cb, 120) }
+                                             schedule(() => { showPlain.value = false; showFullParser.value = true })
+                                         } catch(e) { setTimeout(() => { showPlain.value = false; showFullParser.value = true }, 120) }
+                                         buildTocFromBlocks(blocks)
                      // wait for MdParser to render DOM, then assign ids
                      nextTick(() => {
                          assignHeadingIds()
@@ -654,6 +658,8 @@ watch(() => post.value && post.value.content, (v) => {
     if (v) {
         const blocks = parseMarkdown(v as string)
         parsedBlocks.value = blocks
+        try { plainHtml.value = convertToHtml(blocks) } catch(e) { plainHtml.value = '' }
+        try { const schedule = (cb: any) => { if ((window as any).requestIdleCallback) (window as any).requestIdleCallback(cb, { timeout: 300 }); else setTimeout(cb, 120) }; schedule(() => { showPlain.value = false; showFullParser.value = true }) } catch(e) { setTimeout(() => { showPlain.value = false; showFullParser.value = true }, 120) }
         buildTocFromBlocks(blocks)
         nextTick(() => assignHeadingIds())
     } else {
@@ -764,7 +770,7 @@ html.is-mobile .post-nav{
 .toc-float-item:hover{
     color: var(--text-primary) !important;
 }
-.markdown-toc {padding: 10px 14px; border: 1px solid var(--border-color); background: var(--component-bg-blur); border-radius: 10px; margin-bottom: 24px;}
+.markdown-toc {padding: 10px 14px; border: 1px solid var(--border-color); background: transparent; border-radius: 10px; margin-bottom: 24px;}
 .markdown-toc .toc-list { list-style: none; padding: 0; margin: 0; }
 .markdown-toc .toc-list li { margin: 1px 0; }
 .markdown-toc .toc-list li a { text-decoration: none; color: var(--component-text-primary); display: block; box-sizing: border-box; }

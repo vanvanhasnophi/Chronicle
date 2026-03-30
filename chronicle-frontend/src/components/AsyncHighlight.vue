@@ -327,7 +327,7 @@ watch(() => [props.code, props.language], async () => {
   height: 100%;
   margin: 0;
   background: transparent;
-  color: #d4d4d4;
+  color: var(--component-text-primary);
   font-family: inherit;
   font-size: 13.5px;
   line-height: 1.3em;

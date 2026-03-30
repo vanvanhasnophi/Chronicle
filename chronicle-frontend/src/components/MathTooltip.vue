@@ -1,6 +1,6 @@
 <template>
   <teleport to="body">
-    <div class="math-tooltip" v-if="isMounted" :class="{ leaving: leaving, editing: state.isEditing }" :style="{ top: state.y + 'px', left: state.x + 'px' }" @click.stop>
+    <div class="math-tooltip" ref="rootEl" v-if="isMounted" :class="{ leaving: leaving, editing: state.isEditing }" :style="{ top: posY + 'px', left: posX + 'px' }" @click.stop>
       <div class="math-tooltip-editor" ref="tooltipEditor">
         <div class="editor-wrapper" ref="editorWrapper" @scroll="onWrapperScroll">
             <div class="editor-content">
@@ -35,6 +35,7 @@ import AsyncHighlight from './AsyncHighlight.vue'
 import useMathTooltip from '../composables/useMathTooltip'
 
 const { state, hide } = useMathTooltip()
+const rootEl = ref<HTMLElement | null>(null)
 const tooltipEditor = ref<HTMLElement | null>(null)
 const editorWrapper = ref<HTMLElement | null>(null)
 const textareaEl = ref<HTMLTextAreaElement | null>(null)
@@ -42,6 +43,8 @@ const isMounted = ref<boolean>(state.visible)
 const leaving = ref(false)
 let leaveTimer: any = null
 let idleHandle: any = null
+const posX = ref(0)
+const posY = ref(0)
 
 watch(() => state.visible, (v) => {
   if (v) {
@@ -49,6 +52,8 @@ watch(() => state.visible, (v) => {
     if (idleHandle && (window as any).cancelIdleCallback) { (window as any).cancelIdleCallback(idleHandle); idleHandle = null }
     leaving.value = false
     isMounted.value = true
+    // compute position when shown
+    nextTick(() => { updatePosition() })
   } else {
     // start leave animation then schedule unmount during idle period
     leaving.value = true
@@ -73,6 +78,8 @@ watch(() => state.visible, (v) => {
 onUnmounted(() => {
   if (leaveTimer) clearTimeout(leaveTimer)
   if (idleHandle && (window as any).cancelIdleCallback) (window as any).cancelIdleCallback(idleHandle)
+  window.removeEventListener('resize', onWindowChange)
+  window.removeEventListener('scroll', onWindowChange, true)
 })
 
 function syncScroll(e: Event) {
@@ -102,6 +109,49 @@ function onWrapperScroll(e: Event) {
     textareaEl.value.scrollTop = scrollTop
     textareaEl.value.scrollLeft = scrollLeft
   }
+}
+
+function onWindowChange() {
+  if (state.visible) {
+    // throttle with rAF
+    requestAnimationFrame(() => updatePosition())
+  }
+}
+
+function updatePosition() {
+  const el = rootEl.value || document.querySelector('.math-tooltip') as HTMLElement | null
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const margin = 8
+
+  // desired anchor point from state.x/state.y (client coordinates)
+  let x = Math.round(state.x)
+  let y = Math.round(state.y)
+
+  // default put below anchor
+  let left = x
+  let top = y + margin
+
+  // if would overflow right, shift left
+  if (left + rect.width + margin > vw) {
+    left = Math.max(margin, vw - rect.width - margin)
+  }
+
+  // if would overflow bottom, attempt above anchor
+  if (top + rect.height + margin > vh) {
+    const altTop = y - rect.height - margin
+    if (altTop > margin) top = altTop
+    else top = Math.max(margin, vh - rect.height - margin)
+  }
+
+  // avoid negative
+  left = Math.max(margin, left)
+  top = Math.max(margin, top)
+
+  posX.value = left
+  posY.value = top
 }
 
 watch(() => state.tex, (newVal) => {
@@ -154,6 +204,9 @@ onUnmounted(() => {
 .math-tooltip {
   min-width: 400px;
   width: 400px;
+  font-family: monospace;
+  background: var(--component-bg-blur);
+  backdrop-filter: blur(10px);
 }
 .math-tooltip.editing {
   min-width: 400px;
@@ -177,6 +230,7 @@ onUnmounted(() => {
   width: 100%;
   min-height: 100px;
   max-height: 200px;
+  background: var(--component-bg-blur-alt);
 }
 .math-tooltip-editor .editor-content {
   position: relative;
@@ -192,7 +246,7 @@ onUnmounted(() => {
   margin: 0;
   padding: 8px;
   background: transparent;
-  color: #d4d4d4;
+  color: var(--component-text-primary);
   font-size: 13.5px;
   line-height: 1.5;
   overflow: auto; /* show scrollbar on highlight layer */

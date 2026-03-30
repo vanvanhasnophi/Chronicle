@@ -73,6 +73,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Icons } from '../utils/icons'
 import { sortTags } from '../utils/tagUtils'
+import { formatDate as formatDateUtil, formatMonthName } from '../utils/dateUtils'
 
 interface Post {
     id: string
@@ -83,7 +84,7 @@ interface Post {
 }
 
 const router = useRouter()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const posts = ref<Post[]>([])
 const loading = ref(true)
 const scrollContainer = ref<HTMLElement | null>(null)
@@ -112,7 +113,7 @@ const groupedPosts = computed(() => {
         // Format Month as "1月", "2月" or "Jan", "Feb" depending on locale.
         // User is using Chinese UI ("精选", "全部"). Let's use Chinese month if possible or numbers.
         // d.getMonth() is 0-indexed.
-        const m = `${d.getMonth() + 1}月`
+        const m = formatMonthName(post.date, locale.value, { month: 'short' })
 
         let yGroup = groups.find(g => g.year === y)
         if (!yGroup) {
@@ -132,14 +133,7 @@ const groupedPosts = computed(() => {
     return groups
 })
 
-const formatDate = (isoStr: string) => {
-    if (!isoStr) return ''
-    return new Date(isoStr).toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-    })
-}
+const formatDate = (isoStr: string) => formatDateUtil(isoStr, locale.value)
 
 const openPost = (id: string) => {
     router.push(`/post/${id}`)

@@ -10,7 +10,8 @@
     "posts": "Posts",
     "files": "Files",
     "settings": "Settings",
-    "newPost": "New Post"
+    "newPost": "New Post",
+    "about": "About"
   },
   "inblog": {
     "toc-title": "Table of Contents",
@@ -258,6 +259,9 @@
       "edit": "Editor Only",
       "preview": "Preview Only"
     }
-  }
+  },
+    "formula": {
+      "copied": "Formula copied"
+    }
     
 }

@@ -1,4 +1,5 @@
-import katex from 'katex'
+// Defer importing KaTeX to runtime to avoid blocking initial bundle parsing.
+let _katex: any = null
 import { Icons } from './icons'
 
 function escapeAttr(s: string) {
@@ -519,13 +520,10 @@ export function convertToHtml(text: any): string {
   function renderBlock(block: any): string {
     // Math Block
     if (block && block.type === 'math') {
-      try {
-        const uniqueId = `math-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-        const html = katex.renderToString(block.content, { displayMode: true, throwOnError: false })
-        return `<div class="katex-display-wrapper katex-interactive" data-tex="${escapeAttr(block.content)}" data-type="block" data-unique-id="${uniqueId}">${html}</div>`
-      } catch {
-        return `<pre>${block.content}</pre>`
-      }
+      // Return a lightweight placeholder. Actual KaTeX rendering will be
+      // performed later via `hydrateKatex` to avoid blocking initial loads.
+      const uniqueId = `math-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      return `<div class="katex-placeholder katex-interactive" data-tex="${escapeAttr(block.content)}" data-type="block" data-unique-id="${uniqueId}"></div>`
     }
     // 递归渲染quote类型
     if (block && block.type === 'quote' && Array.isArray(block.content)) {
@@ -589,6 +587,41 @@ export function convertToHtml(text: any): string {
     parsedBlocks = [text]
   }
   return parsedBlocks.map(renderBlock).join('\n')
+}
+
+// Asynchronously hydrate KaTeX placeholders inside a container element.
+export async function hydrateKatexIn(container: HTMLElement | null) {
+  if (!container) return
+  try {
+    if (!_katex) {
+      const mod = await import('katex')
+      _katex = (mod && (mod as any).default) ? (mod as any).default : mod
+    }
+  } catch (e) {
+    return
+  }
+
+  const placeholders = Array.from(container.querySelectorAll('.katex-placeholder')) as HTMLElement[]
+  for (const ph of placeholders) {
+    try {
+      const tex = ph.getAttribute('data-tex') || ''
+      const type = ph.getAttribute('data-type') || 'inline'
+      const display = type === 'block'
+      let html = ''
+      try {
+        html = _katex.renderToString(tex, { displayMode: display, throwOnError: false })
+      } catch (err) {
+        html = `<pre>${tex}</pre>`
+      }
+      const wrapper = document.createElement(display ? 'div' : 'span')
+      if (display) wrapper.className = 'katex-display-wrapper katex-interactive'
+      else wrapper.className = 'katex-inline-wrapper katex-interactive'
+      wrapper.setAttribute('data-tex', tex)
+      wrapper.setAttribute('data-type', type)
+      wrapper.innerHTML = html
+      ph.replaceWith(wrapper)
+    } catch (e) {}
+  }
 }
 
 export function blocksToMarkdown(blocks: ContentBlock[]): string {

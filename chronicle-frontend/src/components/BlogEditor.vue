@@ -7,14 +7,14 @@
            <h4 class="post-title-display">{{ postTitle }}</h4>
            <span :class="['status-chip', postStatus]">{{ $t('status.' + (postStatus || 'published')) }}</span>
            <div class="meta-dates">
-             <span class="date-item" v-if="postUpdated" title="Last Edited">
-                <span class="icon-svg tiny" v-html="Icons.edit"></span>
-                {{ new Date(postUpdated).toLocaleString() }}
-             </span>
-             <span class="date-item faded" v-if="postDate" title="Created On">
-                <span class="icon-svg tiny" v-html="Icons.clock"></span>
-                {{ new Date(postDate).toLocaleString() }}
-             </span>
+                 <span class="date-item" v-if="postUpdated" title="Last Edited">
+                     <span class="icon-svg tiny" v-html="Icons.edit"></span>
+                     {{ formatDateTime(postUpdated, locale) }}
+                 </span>
+                 <span class="date-item faded" v-if="postDate" title="Created On">
+                     <span class="icon-svg tiny" v-html="Icons.clock"></span>
+                     {{ formatDateTime(postDate, locale) }}
+                 </span>
            </div>
         </div>
         <div class="actions-right">
@@ -225,7 +225,7 @@
                             >
                                 <span class="post-title">{{ post.title }}</span>
                                 <span class="post-status status-chip" :class="post.status || 'draft'">{{ $t('status.' + (post.status || 'draft')) }}</span>
-                                <span class="post-date">{{ new Date(post.date).toLocaleDateString() }}</span>
+                                <span class="post-date">{{ formatDateUtil(post.date, locale) }}</span>
                             </div>
                         </div>
                     </div>
@@ -518,6 +518,7 @@ import { Icons } from '../utils/icons'
 import { getStats } from '../utils/markdownParser'
 import { sortTags } from '../utils/tagUtils'
 import { useI18n } from 'vue-i18n'
+import { formatDate as formatDateUtil, formatDateTime } from '../utils/dateUtils'
 
 const route = useRoute()
 const router = useRouter()

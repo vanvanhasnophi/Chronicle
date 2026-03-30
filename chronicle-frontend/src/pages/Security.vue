@@ -57,7 +57,7 @@
         <div v-for="pk in passkeys" :key="pk.id" class="passkey-item">
             <div class="pk-info">
             <span class="pk-name">{{ pk.name || $t('security.unnamedKey') }}</span>
-            <span class="pk-date">{{ $t('security.added') }}: {{ new Date(pk.createdAt).toLocaleDateString() }}</span>
+            <span class="pk-date">{{ $t('security.added') }}: {{ formatDateUtil(pk.createdAt, locale.value) }}</span>
           </div>
             <div class="pk-actions">
                 <button class="icon-btn edit-btn" @click="renamePasskey(pk.id, pk.name || $t('security.unnamedKey'))" :title="$t('security.rename')" v-html="Icons.edit"></button>
@@ -78,11 +78,12 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { formatDate as formatDateUtil } from '../utils/dateUtils'
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser'
 import { Icons } from '../utils/icons'
 
 const router = useRouter()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const oldPassword = ref('')
 const newPassword = ref('')
 const confirmPassword = ref('')
