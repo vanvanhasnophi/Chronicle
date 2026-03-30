@@ -57,7 +57,7 @@
         <div v-for="pk in passkeys" :key="pk.id" class="passkey-item">
             <div class="pk-info">
             <span class="pk-name">{{ pk.name || $t('security.unnamedKey') }}</span>
-            <span class="pk-date">{{ $t('security.added') }}: {{ formatDateUtil(pk.createdAt, locale.value) }}</span>
+            <span class="pk-date">{{ $t('security.added') }}: {{ formatDateUtil(String(pk.createdAt), getLocaleStr()) }}</span>
           </div>
             <div class="pk-actions">
                 <button class="icon-btn edit-btn" @click="renamePasskey(pk.id, pk.name || $t('security.unnamedKey'))" :title="$t('security.rename')" v-html="Icons.edit"></button>
@@ -84,6 +84,15 @@ import { Icons } from '../utils/icons'
 
 const router = useRouter()
 const { t, locale } = useI18n()
+
+function getLocaleStr(): string {
+  try {
+    // locale may be a Ref<string> or a plain string depending on context
+    if (typeof locale === 'string') return locale
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (locale as any)?.value || 'en-US'
+  } catch (e) { return 'en-US' }
+}
 const oldPassword = ref('')
 const newPassword = ref('')
 const confirmPassword = ref('')
