@@ -82,7 +82,9 @@
       "follow": "跟随浏览器",
       "zh": "中文（简体）",
       "en": "英文"
-    }
+    },
+    "copy_to_light": "复制到浅色模式",
+    "copy_to_dark": "复制到深色模式"
   },
   "post": {
     "manageTitle": "文章管理",
@@ -186,6 +188,7 @@
     "draft": "存草稿",
     "publish": "发布",
     "fileUpload": "文件上传",
+    "loading": "正在挂载编辑器...",
     "file": {
       "new": "新建文章",
       "open": "打开...",

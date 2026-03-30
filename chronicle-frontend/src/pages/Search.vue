@@ -75,7 +75,7 @@
                     <span class="post-date">{{ formatDate(post.date) }}</span>
                 </div>
                 <div class="post-tags" v-if="post.tags && post.tags.length">
-                    <span v-for="tag in sortTags(post.tags)" :key="tag" class="tag-display">#{{ tag === 'featured' ? t('tag.featured') : tag }}</span>
+                    <span v-for="tag in sortTags(post.tags)" :key="tag" class="tag-display" :class="{ featured: tag === 'featured' }">#{{ tag === 'featured' ? t('tag.featured') : tag }}</span>
                 </div>
                 <div class="post-summary">{{ post.summary }}</div>
               </article>
@@ -473,7 +473,7 @@ onMounted(async () => {
     gap: 16px;
 }
 .result-card {
-    background: var(--component-bg);
+    background: var(--component-bg-blur-alt);
     border: 1px solid var(--border-color);
     padding: 16px;
     border-radius: 8px;
@@ -481,7 +481,8 @@ onMounted(async () => {
     transition: background 0.2s ease;
 }
 .result-card:hover {
-    background: var(--app-bg-secondary-hover);
+    background: var(--component-bg-hover);
+    border-color: var(--component-text-primary-hover);
 }
 .post-header {
     display: flex;
@@ -505,6 +506,9 @@ onMounted(async () => {
     color: var(--accent-color);
     font-size: 0.85rem;
     margin-right: 10px;
+}
+.tag-display.featured {
+    color: var(--featured);
 }
 .post-summary {
     color: var(--component-text-secondary);

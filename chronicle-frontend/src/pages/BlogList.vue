@@ -356,6 +356,7 @@ onUnmounted(() => {
     margin-top: 4px;
     display: flex;
     gap: 8px;
+    flex-wrap: wrap;
 }
 
 /* Shared */
@@ -377,6 +378,11 @@ onUnmounted(() => {
     border-radius: 4px;
     font-size: 0.75em;
     color: var(--accent-color);
+    display: inline-block;
+    line-height: 1;
+    /* allow long tag text to wrap without stretching card */
+    overflow-wrap: break-word;
+    word-break: break-word;
 }
 
 .tag.featured {

@@ -1,512 +1,416 @@
 <template>
-  <div class="blog-editor" :class="[`layout-${layout}`, { 'is-mobile': isMobile }]">
-    <div class="editor-toolbar">
-      <!-- ROW 1: Meta & Main Actions -->
-      <div class="toolbar-row row-meta">
-        <div class="meta-left">
-           <h4 class="post-title-display">{{ postTitle }}</h4>
-           <span :class="['status-chip', postStatus]">{{ $t('status.' + (postStatus || 'published')) }}</span>
-           <div class="meta-dates">
-                 <span class="date-item" v-if="postUpdated" title="Last Edited">
-                     <span class="icon-svg tiny" v-html="Icons.edit"></span>
-                     {{ formatDateTime(postUpdated, locale) }}
-                 </span>
-                 <span class="date-item faded" v-if="postDate" title="Created On">
-                     <span class="icon-svg tiny" v-html="Icons.clock"></span>
-                     {{ formatDateTime(postDate, locale) }}
-                 </span>
-           </div>
-        </div>
-        <div class="actions-right">
-            <button 
-                            v-if="postStatus === 'modifying'"
-                            class="toolbar-btn danger-btn"
-                            @click="restorePost"
-                            :disabled="isSaving"
-                            :title="t('editor.restore')"
-            >
-              <span class="icon-svg" v-html="Icons.undo"></span>
-              <span v-if="!isMobile" class="btn-label">{{ t('editor.restore') }}</span>
-            </button>
-
-            <button 
-              class="toolbar-btn"
-              @click="openSaveModal('draft')"
-              :disabled="isSaving"
-            >
-              <span class="icon-svg" v-html="Icons.save"></span>
-              <span v-if="!isMobile" class="btn-label">{{ t('editor.draft') }}</span>
-            </button>
-            
-            <button 
-              class="toolbar-btn primary-action"
-              @click="openSaveModal('publish')"
-              :disabled="isSaving"
-            >
-               <span class="icon-svg" v-html="Icons.publish"></span>
-               <span v-if="!isMobile" class="btn-label">{{ t('editor.publish') }}</span>
-            </button>
-        </div>
-      </div>
-
-      <!-- ROW 2: Editing Tools -->
-      <div class="toolbar-row row-tools">
-        <div class="tool-group">
-            <button 
-                class="toolbar-btn"
-                @click="openFileMenu"
-                :title="t('editor.fileLabel')"
-            >
-                <span class="icon-svg" v-html="Icons.file"></span>
-                <span>{{ t('editor.fileLabel') }}</span>
-            </button>
-            <span class="divider"></span>
-            
-            <button 
-                class="toolbar-btn" 
-                @click="undo" 
-                :disabled="historyIndex <= 0"
-                :title="t('editor.undo')"
-            >
-                <span class="icon-svg" v-html="Icons.undo"></span>
-            </button>
-            <button 
-                class="toolbar-btn" 
-                @click="redo" 
-                :disabled="historyIndex >= history.length - 1"
-                :title="t('editor.redo')"
-            >
-                <span class="icon-svg" v-html="Icons.redo"></span>
-            </button>
-            <span class="divider"></span>
-                        <button 
-                            class="toolbar-btn" 
-                            @click="openImageModal"
-                            :title="t('editor.media')"
-                        >
-                            <span class="icon-svg" v-html="Icons.media"></span>
-                            <span>{{ t('editor.media') }}</span>
-                        </button>
-                        <button 
-                            class="toolbar-btn" 
-                            @click="openLinkModal"
-                            :title="t('editor.link')"
-                        >
-                <span class="icon-svg" v-html="Icons.link"></span>
-                <span>{{ t('editor.link') }}</span>
-            </button>
-                        <button 
-                            class="toolbar-btn" 
-                            @click="openTableModal"
-                            :title="t('editor.table')"
-                        >
-              <span class="icon-svg" v-html="Icons.table"></span>
-              <span>{{ t('editor.table') }}</span>
-            </button>
-
-            <span class="divider"></span>
-
-            <button 
-              v-for="font in fontOptions" 
-              :key="font.value"
-              class="toolbar-btn"
-              :class="{ active: postFont === font.value , ['font-' + font.value]: true }"
-              @click="postFont = font.value"
-              :title="font.label"
-            >
-              <span class="icon-svg" v-html="font.icon"></span>
-            </button>
-        </div>
-        <button class="stats-display" @click="activeModal = 'stats'">
-            {{ wordCountLabel }}
-        </button>
-      </div>
-
-      <!-- ROW 3: View Settings -->
-      <div class="toolbar-row row-view">
-         <div class="tool-group">
-            <button 
-              class="toolbar-btn"
-              :class="{ active: previewReadOnly }"
-              @click="previewReadOnly = !previewReadOnly"
-              :title="previewReadOnly ? t('editor.unlock') : t('editor.lock')"
-            >
-              <span class="icon-svg" v-html="previewReadOnly ? Icons.lock : Icons.unlock"></span>
-              <span class="btn-label">{{ previewReadOnly ? t('editor.locked') : t('editor.editable') }}</span>
-            </button>
-            <span class="divider"></span>
-            <button 
-              v-for="mode in displayModes" 
-              :key="mode.value"
-              class="toolbar-btn"
-              :class="{ active: layout === mode.value }"
-              @click="layout = mode.value"
-              :title="mode.label"
-            >
-              <span class="icon-svg" v-html="mode.icon"></span>
-            </button>
-         </div>
-      </div>
-    </div>
-
-    <div class="editor-workspace">
-      <!-- Editor Pane -->
-      <div v-show="showEditor" class="pane editor-pane">
-                <textarea
-                    ref="editorRef"
-                    v-model="localValue"
-                    class="markdown-input"
-                    :placeholder="t('editor.placeholder')"
-                    @scroll="syncScroll('editor')"
-                    @mouseover="activeScroll = 'editor'"
-                ></textarea>
-      </div>
-
-      <!-- Preview Pane -->
-      <div 
-        v-show="showPreview" 
-        class="pane preview-pane"
-        :class="fontClass"
-        ref="previewRef"
-        @scroll="syncScroll('preview')"
-        @mouseover="activeScroll = 'preview'"
-      >
-        <MdParser 
-          v-model="localValue" 
-          :readOnly="previewReadOnly" 
-          :assetMap="assetMap"
-          class="preview-content"
-        />
-      </div>
-    </div>
-
-    <!-- Group 1: File Menu Modal -->
-    <div v-if="activeModal === 'file'" class="modal-overlay" @click.self="activeModal = 'none'">
-        <div class="modal-content file-menu-modal">
-            <div class="sidebar">
-                <button 
-                v-for="tab in fileTabs" 
-                :key="tab.id"
-                class="sidebar-btn" 
-                :class="{ active: fileTab === tab.id }"
-                @click="handleFileTabChange(tab.id)"
-                >
-                <span class="icon-svg sidebar-icon" v-html="tab.icon" ></span>
-                {{ tab.label }}
-                </button>
-            </div>
-            <div class="main-area">
-                <div class="header">
-                    <h3>{{ currentFileTabTitle }}</h3>
-                    <button class="close-btn" @click="activeModal = 'none'">
-                        <span class="icon-svg" v-html="Icons.close"></span>
-                    </button>
-                </div>
-                
-                <div class="content-body">
-                    <!-- New Post -->
-                    <div v-if="fileTab === 'new'" class="tab-pane">
-                        <p>{{ t('editor.file.createNew') }}</p>
-                        <div class="warning-box">
-                            <strong>{{ t('editor.file.note').split(':')[0] }}</strong> {{ t('editor.file.note').split(':').slice(1).join(':') }}
-                        </div>
-                        <button class="primary-btn" @click="executeFileAction">{{ t('editor.createNewPost') }}</button>
-                    </div>
-
-                    <!-- Open Post -->
-                    <div v-if="fileTab === 'open'" class="tab-pane">
-                        <div v-if="fileLoading" class="loading">{{ t('post.loadingPosts') }}</div>
-                        <div v-else class="post-list">
-                            <div 
-                                v-for="post in filePosts" 
-                                :key="post.id" 
-                                class="post-item"
-                                @click="handlePostOpen(post.id)"
-                            >
-                                <span class="post-title">{{ post.title }}</span>
-                                <span class="post-status status-chip" :class="post.status || 'draft'">{{ $t('status.' + (post.status || 'draft')) }}</span>
-                                <span class="post-date">{{ formatDateUtil(post.date, locale) }}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Import -->
-                    <div v-if="fileTab === 'import'" class="tab-pane">
-                        <p>{{ t('editor.file.importInstruction') }}</p>
-                        <div class="file-drop-area" @click="triggerImportInput">
-                            <span v-if="!selectedImportFile">{{ t('editor.file.clickToSelect') }}</span>
-                            <span v-else>{{ selectedImportFile.name }}</span>
-                        </div>
-                        <input type="file" ref="fileInput" @change="handleImportSelect" accept=".md,.txt" style="display:none" />
-                        <button class="primary-btn" :disabled="!selectedImportFile" @click="executeFileAction">{{ t('editor.file.import') }}</button>
-                    </div>
-
-                    <!-- Export -->
-                    <div v-if="fileTab === 'export'" class="tab-pane">
-                        <p>{{ t('editor.file.exportasMarkdown') }}</p>
-                        <button class="primary-btn" @click="executeFileAction">{{ t('editor.file.export') }}</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Group 2: Insert Modals (Media, Link, Table) -->
-    <div v-if="['media', 'link', 'table'].includes(activeModal)" class="modal-overlay" @click.self="activeModal = 'none'">
-      <div class="modal-content" :class="activeModal === 'media' ? 'large-modal' : 'small-modal'">
-        <div class="modal-header">
-            <h3>{{ activeModal === 'media' ? t('editor.media') : (activeModal === 'link' ? t('editor.link') : t('editor.table')) }}</h3>
-            <button class="close-btn" @click="activeModal = 'none'">
-                <span class="icon-svg" v-html="Icons.close"></span>
-            </button>
-        </div>
-        
-        <!-- Media Body -->
-        <div v-if="activeModal === 'media'" class="modal-body media-manager-layout">
-            <div class="modal-sidebar">
-                <div v-for="cat in mediaCategories" 
-                     :key="cat.id"
-                     class="modal-sidebar-item"
-                     :class="{ active: selectedCategory === cat.id }"
-                     @click="selectedCategory = cat.id">
-                     <span class="media-cat-icon" v-html="cat.icon"></span>
-                     {{ cat.label }}
-                </div>
-            </div>
-            <div class="media-content-area">
-                <div class="media-toolbar">
-                    <button class="primary-btn" @click="triggerFileUpload">
-                        <span>{{ t('editor.file.uploadNewFile') }}</span>
-                    </button>
-                    <input 
-                        type="file" 
-                        ref="fileInputRef" 
-                        class="hidden-input" 
-                        multiple
-                        @change="handleFileSelect"
-                    />
-                </div>
-                <div class="library-section">
-                    <div v-if="uploadedImages.length > 0" class="image-grid">
-                        <div 
-                            v-for="(img, idx) in uploadedImages" 
-                            :key="idx" 
-                            class="library-item"
-                            @click="insertMediaMarkdown(img.name, img.path)"
-                            :title="img.name"
-                        >
-                            <div class="img-thumb" v-if="['pic'].includes(selectedCategory)" :style="{ backgroundImage: `url(${img.thumb || img.url})` }"></div>
-                            <div class="img-thumb icon-thumb" v-else>
-                                <span class="scalable-icon" v-html="getIconForFile(img.name)"></span>
-                            </div>
-                            <span class="img-name">{{ img.name }}</span>
-                        </div>
-                    </div>
-                    <div v-else class="empty-library">
-                        <p>No files found.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Link Body -->
-        <div v-if="activeModal === 'link'" class="modal-body">
-            <div class="form-group">
-                <label>{{ t('editor.linktext') }}</label>
-                <input v-model="linkText" class="modal-input" :placeholder="t('editor.texttoDisplay')" autofocus />
-            </div>
-            <div class="form-group">
-                <label>URL</label>
-                <input v-model="linkUrl" class="modal-input" placeholder="https://" @keyup.enter="insertLink" />
-            </div>
-            <div class="modal-actions">
-                <button class="secondary-btn" @click="activeModal = 'none'">{{ t('editor.cancel') }}</button>
-                <button class="primary-btn" @click="insertLink">{{ t('editor.insert') }}</button>
-            </div>
-        </div>
-
-        <!-- Table Body -->
-        <div v-if="activeModal === 'table'" class="modal-body">
-            <div class="table-grid-container">
-                <div class="table-grid" @mouseleave="tableGridHover(tblRows, tblCols)">
-                    <div 
-                        v-for="i in 64" 
-                        :key="i"
-                        :class="['grid-cell', { active: ((i-1)%8 < tblHoverC) && (Math.floor((i-1)/8) < tblHoverR) }]"
-                        @mouseover="tableGridHover(Math.floor((i-1)/8)+1, (i-1)%8+1)"
-                        @click="tableGridClick(Math.floor((i-1)/8)+1, (i-1)%8+1)"
-                    ></div>
-                </div>
-                <div class="grid-info">{{ tblHoverR }} x {{ tblHoverC }} {{ t('editor.table') }}</div>
-            </div>
-            <div class="manual-inputs">
-                 <div class="form-group">
-                    <label>{{ t('editor.rows') }}</label>
-                    <input type="number" v-model="tblRows" min="1" class="modal-input" />
-                 </div>
-                 <div class="form-group">
-                    <label>{{ t('editor.cols') }}</label>
-                    <input type="number" v-model="tblCols" min="1" class="modal-input" />
-                 </div>
-            </div>
-            <div class="modal-actions">
-                <button class="secondary-btn" @click="activeModal = 'none'">{{ t('editor.cancel') }}</button>
-                <button class="primary-btn" @click="insertTable">{{ t('editor.insert') }}</button>
-            </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Group 3: Save/Publish Modals -->
-    <div v-if="['draft', 'publish'].includes(activeModal)" class="modal-overlay" @click.self="activeModal = 'none'">
-      <div class="modal-content small-modal">
-        <div class="modal-header">
-            <h3>{{ activeModal === 'draft' ? t('editor.saveDraft') : t('editor.publishNow') }}</h3>
-                    <button class="close-btn" @click="activeModal = 'none'">
-                        <span class="icon-svg" v-html="Icons.close"></span>
-                    </button>
-        </div>
-                        <div class="modal-body">
-                                <div class="form-group">
-                                        <label>{{ t('editor.postTitle') }}</label>
-                                        <input 
-                                            v-model="tempTitle" 
-                                            class="modal-input" 
-                                            :placeholder="t('editor.titlePlaceholder')"
-                                            @keyup.enter="doSave()"
-                                            autofocus
-                                        />
-                                </div>
-
-            <div v-if="activeModal === 'publish'" class="form-group">
-                <label>{{ t('editor.tagsLabel') }}</label>
-                <div class="tags-input-container">
-                    <div class="tags-list">
-                        <span 
-                            class="tag-badge" 
-                            v-for="tag in sortTags(postTags)" 
-                            :key="tag"
-                            :class="{ featured: tag === 'featured' }"
-                        >
-                            {{ tag === 'featured' ? $t('tag.featured') : tag }}
-                            <button class="tag-remove" @click="removeTag(tag)">
-                                <span class="icon-svg" v-html="Icons.close"></span>
-                            </button>
+    <div class="blog-editor" :class="[`layout-${layout}`, { 'is-mobile': isMobile }]">
+        <div class="editor-toolbar">
+            <!-- ROW 1: Meta & Main Actions -->
+            <div class="toolbar-row row-meta">
+                <div class="meta-left">
+                    <h4 class="post-title-display">{{ postTitle }}</h4>
+                    <span :class="['status-chip', postStatus]">{{ $t('status.' + (postStatus || 'published')) }}</span>
+                    <div class="meta-dates">
+                        <span class="date-item" v-if="postUpdated" title="Last Edited">
+                            <span class="icon-svg tiny" v-html="Icons.edit"></span>
+                            {{ formatDateTime(postUpdated, locale) }}
+                        </span>
+                        <span class="date-item faded" v-if="postDate" title="Created On">
+                            <span class="icon-svg tiny" v-html="Icons.clock"></span>
+                            {{ formatDateTime(postDate, locale) }}
                         </span>
                     </div>
-                    <div class="tag-controls">
-                                 <input 
-                                     v-model="tagInput" 
-                                     class="modal-input small-input" 
-                                     :placeholder="t('editor.addTagPlaceholder')" 
-                                     @keyup.enter="addTag"
-                                 />
-                                 <button class="secondary-btn small-btn" @click="addTag">{{ t('editor.addTag') }}</button>
-                                 <button 
-                                     class="secondary-btn small-btn" 
-                                     :class="{ active: postTags.includes('featured') }"
-                                     @click="toggleFeatured"
-                                     :title="$t('tag.featured')"
-                                 >
-                                     ★ {{ $t('tag.featured') }}
-                                 </button>
+                </div>
+                <div class="actions-right">
+                    <button v-if="postStatus === 'modifying'" class="toolbar-btn danger-btn" @click="restorePost"
+                        :disabled="isSaving" :title="t('editor.restore')">
+                        <span class="icon-svg" v-html="Icons.undo"></span>
+                        <span v-if="!isMobile" class="btn-label">{{ t('editor.restore') }}</span>
+                    </button>
+
+                    <button class="toolbar-btn" @click="openSaveModal('draft')" :disabled="isSaving">
+                        <span class="icon-svg" v-html="Icons.save"></span>
+                        <span v-if="!isMobile" class="btn-label">{{ t('editor.draft') }}</span>
+                    </button>
+
+                    <button class="toolbar-btn primary-action" @click="openSaveModal('publish')" :disabled="isSaving">
+                        <span class="icon-svg" v-html="Icons.publish"></span>
+                        <span v-if="!isMobile" class="btn-label">{{ t('editor.publish') }}</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- ROW 2: Editing Tools -->
+            <div class="toolbar-row row-tools">
+                <div class="tool-group">
+                    <button class="toolbar-btn" @click="openFileMenu" :title="t('editor.fileLabel')">
+                        <span class="icon-svg" v-html="Icons.file"></span>
+                        <span>{{ t('editor.fileLabel') }}</span>
+                    </button>
+                    <span class="divider"></span>
+
+                    <button class="toolbar-btn" @click="undo" :disabled="historyIndex <= 0" :title="t('editor.undo')">
+                        <span class="icon-svg" v-html="Icons.undo"></span>
+                    </button>
+                    <button class="toolbar-btn" @click="redo" :disabled="historyIndex >= history.length - 1"
+                        :title="t('editor.redo')">
+                        <span class="icon-svg" v-html="Icons.redo"></span>
+                    </button>
+                    <span class="divider"></span>
+                    <button class="toolbar-btn" @click="openImageModal" :title="t('editor.media')">
+                        <span class="icon-svg" v-html="Icons.media"></span>
+                        <span>{{ t('editor.media') }}</span>
+                    </button>
+                    <button class="toolbar-btn" @click="openLinkModal" :title="t('editor.link')">
+                        <span class="icon-svg" v-html="Icons.link"></span>
+                        <span>{{ t('editor.link') }}</span>
+                    </button>
+                    <button class="toolbar-btn" @click="openTableModal" :title="t('editor.table')">
+                        <span class="icon-svg" v-html="Icons.table"></span>
+                        <span>{{ t('editor.table') }}</span>
+                    </button>
+
+                    <span class="divider"></span>
+
+                    <button v-for="font in fontOptions" :key="font.value" class="toolbar-btn"
+                        :class="{ active: postFont === font.value, ['font-' + font.value]: true }"
+                        @click="postFont = font.value" :title="font.label">
+                        <span class="icon-svg" v-html="font.icon"></span>
+                    </button>
+                </div>
+                <button class="stats-display" @click="activeModal = 'stats'">
+                    {{ wordCountLabel }}
+                </button>
+            </div>
+
+            <!-- ROW 3: View Settings -->
+            <div class="toolbar-row row-view">
+                <div class="tool-group">
+                    <button class="toolbar-btn" :class="{ active: previewReadOnly }"
+                        @click="previewReadOnly = !previewReadOnly"
+                        :title="previewReadOnly ? t('editor.unlock') : t('editor.lock')">
+                        <span class="icon-svg" v-html="previewReadOnly ? Icons.lock : Icons.unlock"></span>
+                        <span class="btn-label">{{ previewReadOnly ? t('editor.locked') : t('editor.editable') }}</span>
+                    </button>
+                    <span class="divider"></span>
+                    <button v-for="mode in displayModes" :key="mode.value" class="toolbar-btn"
+                        :class="{ active: layout === mode.value }" @click="layout = mode.value" :title="mode.label">
+                        <span class="icon-svg" v-html="mode.icon"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="editor-workspace">
+            <!-- Editor Pane -->
+            <div v-show="showEditor" class="pane editor-pane">
+                <textarea ref="editorRef" v-model="localValue" class="markdown-input"
+                    :placeholder="t('editor.placeholder')" @scroll="syncScroll('editor')"
+                    @mouseover="activeScroll = 'editor'"></textarea>
+            </div>
+
+            <!-- Preview Pane -->
+            <div v-show="showPreview" class="pane preview-pane" :class="fontClass" ref="previewRef"
+                @scroll="syncScroll('preview')" @mouseover="activeScroll = 'preview'">
+                <MdParser v-model="localValue" :readOnly="previewReadOnly" :assetMap="assetMap"
+                    class="preview-content" />
+            </div>
+        </div>
+
+        <!-- Group 1: File Menu Modal -->
+        <div v-if="activeModal === 'file'" class="modal-overlay" @click.self="activeModal = 'none'">
+            <div class="modal-content file-menu-modal">
+                <div class="sidebar">
+                    <button v-for="tab in fileTabs" :key="tab.id" class="sidebar-btn"
+                        :class="{ active: fileTab === tab.id }" @click="handleFileTabChange(tab.id)">
+                        <span class="icon-svg sidebar-icon" v-html="tab.icon"></span>
+                        {{ tab.label }}
+                    </button>
+                </div>
+                <div class="main-area">
+                    <div class="header">
+                        <h3>{{ currentFileTabTitle }}</h3>
+                        <button class="close-btn" @click="activeModal = 'none'">
+                            <span class="icon-svg" v-html="Icons.close"></span>
+                        </button>
+                    </div>
+
+                    <div class="content-body">
+                        <!-- New Post -->
+                        <div v-if="fileTab === 'new'" class="tab-pane">
+                            <p>{{ t('editor.file.createNew') }}</p>
+                            <div class="warning-box">
+                                <strong>{{ t('editor.file.note').split(':')[0] }}</strong> {{
+                                    t('editor.file.note').split(':').slice(1).join(':') }}
+                            </div>
+                            <button class="primary-btn" @click="executeFileAction">{{ t('editor.createNewPost')
+                                }}</button>
+                        </div>
+
+                        <!-- Open Post -->
+                        <div v-if="fileTab === 'open'" class="tab-pane">
+                            <div v-if="fileLoading" class="loading">{{ t('post.loadingPosts') }}</div>
+                            <div v-else class="post-list">
+                                <div v-for="post in filePosts" :key="post.id" class="post-item"
+                                    @click="handlePostOpen(post.id)">
+                                    <span class="post-title">{{ post.title }}</span>
+                                    <span class="post-status status-chip" :class="post.status || 'draft'">{{
+                                        $t('status.' + (post.status || 'draft')) }}</span>
+                                    <span class="post-date">{{ formatDateUtil(post.date, locale) }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Import -->
+                        <div v-if="fileTab === 'import'" class="tab-pane">
+                            <p>{{ t('editor.file.importInstruction') }}</p>
+                            <div class="file-drop-area" @click="triggerImportInput">
+                                <span v-if="!selectedImportFile">{{ t('editor.file.clickToSelect') }}</span>
+                                <span v-else>{{ selectedImportFile.name }}</span>
+                            </div>
+                            <input type="file" ref="fileInput" @change="handleImportSelect" accept=".md,.txt"
+                                style="display:none" />
+                            <button class="primary-btn" :disabled="!selectedImportFile" @click="executeFileAction">{{
+                                t('editor.file.import') }}</button>
+                        </div>
+
+                        <!-- Export -->
+                        <div v-if="fileTab === 'export'" class="tab-pane">
+                            <p>{{ t('editor.file.exportasMarkdown') }}</p>
+                            <button class="primary-btn" @click="executeFileAction">{{ t('editor.file.export')
+                                }}</button>
+                        </div>
                     </div>
                 </div>
             </div>
+        </div>
 
-                        <div class="modal-actions">
-                                <button class="secondary-btn" @click="activeModal = 'none'">{{ t('editor.cancel') }}</button>
-                                <button 
-                                    class="primary-btn" 
-                                    @click="doSave()"
-                                    :disabled="isSaving || !tempTitle.trim()"
-                                >
-                                    {{ isSaving ? t('editor.saving') : (activeModal === 'draft' ? t('editor.saveDraft') : t('editor.publishNow')) }}
-                                </button>
+        <!-- Group 2: Insert Modals (Media, Link, Table) -->
+        <div v-if="['media', 'link', 'table'].includes(activeModal)" class="modal-overlay"
+            @click.self="activeModal = 'none'">
+            <div class="modal-content" :class="activeModal === 'media' ? 'large-modal' : 'small-modal'">
+                <div class="modal-header">
+                    <h3>{{ activeModal === 'media' ? t('editor.media') : (activeModal === 'link' ? t('editor.link') :
+                        t('editor.table')) }}</h3>
+                    <button class="close-btn" @click="activeModal = 'none'">
+                        <span class="icon-svg" v-html="Icons.close"></span>
+                    </button>
+                </div>
+
+                <!-- Media Body -->
+                <div v-if="activeModal === 'media'" class="modal-body media-manager-layout">
+                    <div class="modal-sidebar">
+                        <div v-for="cat in mediaCategories" :key="cat.id" class="modal-sidebar-item"
+                            :class="{ active: selectedCategory === cat.id }" @click="selectedCategory = cat.id">
+                            <span class="media-cat-icon" v-html="cat.icon"></span>
+                            {{ cat.label }}
                         </div>
+                    </div>
+                    <div class="media-content-area">
+                        <div class="media-toolbar">
+                            <button class="primary-btn" @click="triggerFileUpload">
+                                <span>{{ t('editor.file.uploadNewFile') }}</span>
+                            </button>
+                            <input type="file" ref="fileInputRef" class="hidden-input" multiple
+                                @change="handleFileSelect" />
+                        </div>
+                        <div class="library-section">
+                            <div v-if="uploadedImages.length > 0" class="image-grid">
+                                <div v-for="(img, idx) in uploadedImages" :key="idx" class="library-item"
+                                    @click="insertMediaMarkdown(img.name, img.path)" :title="img.name">
+                                    <div class="img-thumb" v-if="['pic'].includes(selectedCategory)"
+                                        :style="{ backgroundImage: `url(${img.thumb || img.url})` }"></div>
+                                    <div class="img-thumb icon-thumb" v-else>
+                                        <span class="scalable-icon" v-html="getIconForFile(img.name)"></span>
+                                    </div>
+                                    <span class="img-name">{{ img.name }}</span>
+                                </div>
+                            </div>
+                            <div v-else class="empty-library">
+                                <p>No files found.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Link Body -->
+                <div v-if="activeModal === 'link'" class="modal-body">
+                    <div class="form-group">
+                        <label>{{ t('editor.linktext') }}</label>
+                        <input v-model="linkText" class="modal-input" :placeholder="t('editor.texttoDisplay')"
+                            autofocus />
+                    </div>
+                    <div class="form-group">
+                        <label>URL</label>
+                        <input v-model="linkUrl" class="modal-input" placeholder="https://" @keyup.enter="insertLink" />
+                    </div>
+                    <div class="modal-actions">
+                        <button class="secondary-btn" @click="activeModal = 'none'">{{ t('editor.cancel') }}</button>
+                        <button class="primary-btn" @click="insertLink">{{ t('editor.insert') }}</button>
+                    </div>
+                </div>
+
+                <!-- Table Body -->
+                <div v-if="activeModal === 'table'" class="modal-body">
+                    <div class="table-grid-container">
+                        <div class="table-grid" @mouseleave="tableGridHover(tblRows, tblCols)">
+                            <div v-for="i in 64" :key="i"
+                                :class="['grid-cell', { active: ((i - 1) % 8 < tblHoverC) && (Math.floor((i - 1) / 8) < tblHoverR) }]"
+                                @mouseover="tableGridHover(Math.floor((i - 1) / 8) + 1, (i - 1) % 8 + 1)"
+                                @click="tableGridClick(Math.floor((i - 1) / 8) + 1, (i - 1) % 8 + 1)"></div>
+                        </div>
+                        <div class="grid-info">{{ tblHoverR }} x {{ tblHoverC }} {{ t('editor.table') }}</div>
+                    </div>
+                    <div class="manual-inputs">
+                        <div class="form-group">
+                            <label>{{ t('editor.rows') }}</label>
+                            <input type="number" v-model="tblRows" min="1" class="modal-input" />
+                        </div>
+                        <div class="form-group">
+                            <label>{{ t('editor.cols') }}</label>
+                            <input type="number" v-model="tblCols" min="1" class="modal-input" />
+                        </div>
+                    </div>
+                    <div class="modal-actions">
+                        <button class="secondary-btn" @click="activeModal = 'none'">{{ t('editor.cancel') }}</button>
+                        <button class="primary-btn" @click="insertTable">{{ t('editor.insert') }}</button>
+                    </div>
+                </div>
+            </div>
         </div>
-      </div>
+
+        <!-- Group 3: Save/Publish Modals -->
+        <div v-if="['draft', 'publish'].includes(activeModal)" class="modal-overlay" @click.self="activeModal = 'none'">
+            <div class="modal-content small-modal">
+                <div class="modal-header">
+                    <h3>{{ activeModal === 'draft' ? t('editor.saveDraft') : t('editor.publishNow') }}</h3>
+                    <button class="close-btn" @click="activeModal = 'none'">
+                        <span class="icon-svg" v-html="Icons.close"></span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>{{ t('editor.postTitle') }}</label>
+                        <input v-model="tempTitle" class="modal-input" :placeholder="t('editor.titlePlaceholder')"
+                            @keyup.enter="doSave()" autofocus />
+                    </div>
+
+                    <div v-if="activeModal === 'publish'" class="form-group">
+                        <label>{{ t('editor.tagsLabel') }}</label>
+                        <div class="tags-input-container">
+                            <div class="tags-list">
+                                <span class="tag-badge" v-for="tag in sortTags(postTags)" :key="tag"
+                                    :class="{ featured: tag === 'featured' }">
+                                    {{ tag === 'featured' ? $t('tag.featured') : tag }}
+                                    <button class="tag-remove" @click="removeTag(tag)">
+                                        <span class="icon-svg" v-html="Icons.close"></span>
+                                    </button>
+                                </span>
+                            </div>
+                            <div class="tag-controls">
+                                <input v-model="tagInput" class="modal-input small-input"
+                                    :placeholder="t('editor.addTagPlaceholder')" @keyup.enter="addTag" />
+                                <button class="secondary-btn small-btn" @click="addTag">{{ t('editor.addTag')
+                                    }}</button>
+                                <button class="secondary-btn small-btn"
+                                    :class="{ active: postTags.includes('featured') }" @click="toggleFeatured"
+                                    :title="$t('tag.featured')">
+                                    ★ {{ $t('tag.featured') }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button class="secondary-btn" @click="activeModal = 'none'">{{ t('editor.cancel') }}</button>
+                        <button class="primary-btn" @click="doSave()" :disabled="isSaving || !tempTitle.trim()">
+                            {{ isSaving ? t('editor.saving') : (activeModal === 'draft' ? t('editor.saveDraft') :
+                            t('editor.publishNow')) }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Group 4: Confirmation Modals (Restore, Unsaved) -->
+        <div v-if="['restore', 'unsaved', 'stats'].includes(activeModal)" class="modal-overlay"
+            @click.self="activeModal = 'none'">
+            <div class="modal-content small-modal">
+                <div class="modal-header">
+                    <h3 v-if="activeModal === 'restore'">{{ t('editor.confirmRestoreTitle') }}</h3>
+                    <h3 v-else-if="activeModal === 'unsaved'">{{ t('editor.unsavedTitle') }}</h3>
+                    <h3 v-else>{{ t('editor.statsTitle') }}</h3>
+
+                    <button class="close-btn" @click="activeModal = 'none'">
+                        <span class="icon-svg" v-html="Icons.close"></span>
+                    </button>
+                </div>
+
+                <!-- Restore Body -->
+                <div v-if="activeModal === 'restore'" class="modal-body">
+                    <p class="confirm-text">
+                        {{ t('editor.confirmRestoreBody') }}
+                    </p>
+                    <div class="modal-actions">
+                        <button class="secondary-btn" @click="activeModal = 'none'">{{ t('editor.cancel') }}</button>
+                        <button class="primary-btn danger-action" @click="doRestore">{{ t('editor.confirmRestoreAction')
+                            }}</button>
+                    </div>
+                </div>
+
+                <!-- Unsaved Body -->
+                <div v-if="activeModal === 'unsaved'" class="modal-body">
+                    <p class="confirm-text">
+                        {{ t('editor.unsavedBody', { title: postTitle }) }}
+                    </p>
+                    <div class="modal-actions">
+                        <button class="secondary-btn" @click="closeModals">{{ t('editor.cancel') }}</button>
+                        <button class="secondary-btn danger-outline" @click="handleUnsavedOption('discard')">{{
+                            t('editor.discard') }}</button>
+                        <button class="primary-btn" @click="handleUnsavedOption('save')">{{ t('editor.saveContinue')
+                            }}</button>
+                    </div>
+                </div>
+
+                <!-- Stats Body -->
+                <div v-if="activeModal === 'stats'" class="modal-body">
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-label">{{ t('editor.stats.words') }}</span>
+                            <span class="stat-value">{{ editorStats.wordCount }}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">{{ t('editor.stats.charsWithSpaces') }}</span>
+                            <span class="stat-value">{{ editorStats.charCount }}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">{{ t('editor.stats.charsNoSpaces') }}</span>
+                            <span class="stat-value">{{ editorStats.charCountNoSpaces }}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">{{ t('editor.stats.nonWestern') }}</span>
+                            <span class="stat-value">{{ editorStats.nonWesternCount }}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">{{ t('editor.stats.markdownChars') }}</span>
+                            <span class="stat-value">{{ editorStats.markdownCount }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Upload Toast -->
+        <div v-if="uploadState.show" class="upload-toast" :class="uploadState.status">
+            <div class="toast-content">
+                <div class="toast-header-row">
+                    <span class="toast-title">{{ t('editor.fileUpload') }}</span>
+                    <button class="toast-close" @click="uploadState.show = false">
+                        <span class="icon-svg" v-html="Icons.close"></span>
+                    </button>
+                </div>
+                <div class="toast-message">{{ uploadState.message }}</div>
+                <div v-if="['uploading', 'processing'].includes(uploadState.status)" class="toast-progress-bg">
+                    <div class="toast-progress-bar" :style="{ width: uploadState.progress + '%' }"></div>
+                </div>
+            </div>
+        </div>
     </div>
-
-    <!-- Group 4: Confirmation Modals (Restore, Unsaved) -->
-    <div v-if="['restore', 'unsaved', 'stats'].includes(activeModal)" class="modal-overlay" @click.self="activeModal = 'none'">
-      <div class="modal-content small-modal">
-            <div class="modal-header">
-            <h3 v-if="activeModal === 'restore'">{{ t('editor.confirmRestoreTitle') }}</h3>
-            <h3 v-else-if="activeModal === 'unsaved'">{{ t('editor.unsavedTitle') }}</h3>
-            <h3 v-else>{{ t('editor.statsTitle') }}</h3>
-
-            <button class="close-btn" @click="activeModal = 'none'">
-                <span class="icon-svg" v-html="Icons.close"></span>
-            </button>
-        </div>
-        
-        <!-- Restore Body -->
-        <div v-if="activeModal === 'restore'" class="modal-body">
-            <p class="confirm-text">
-                {{ t('editor.confirmRestoreBody') }}
-            </p>
-            <div class="modal-actions">
-                <button class="secondary-btn" @click="activeModal = 'none'">{{ t('editor.cancel') }}</button>
-                <button class="primary-btn danger-action" @click="doRestore">{{ t('editor.confirmRestoreAction') }}</button>
-            </div>
-        </div>
-
-        <!-- Unsaved Body -->
-        <div v-if="activeModal === 'unsaved'" class="modal-body">
-            <p class="confirm-text">
-                {{ t('editor.unsavedBody', { title: postTitle }) }}
-            </p>
-            <div class="modal-actions">
-                <button class="secondary-btn" @click="closeModals">{{ t('editor.cancel') }}</button>
-                <button class="secondary-btn danger-outline" @click="handleUnsavedOption('discard')">{{ t('editor.discard') }}</button>
-                <button class="primary-btn" @click="handleUnsavedOption('save')">{{ t('editor.saveContinue') }}</button>
-            </div>
-        </div>
-
-        <!-- Stats Body -->
-        <div v-if="activeModal === 'stats'" class="modal-body">
-            <div class="stats-grid">
-                <div class="stat-item">
-                    <span class="stat-label">{{ t('editor.stats.words') }}</span>
-                    <span class="stat-value">{{ editorStats.wordCount }}</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">{{ t('editor.stats.charsWithSpaces') }}</span>
-                    <span class="stat-value">{{ editorStats.charCount }}</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">{{ t('editor.stats.charsNoSpaces') }}</span>
-                    <span class="stat-value">{{ editorStats.charCountNoSpaces }}</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">{{ t('editor.stats.nonWestern') }}</span>
-                    <span class="stat-value">{{ editorStats.nonWesternCount }}</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">{{ t('editor.stats.markdownChars') }}</span>
-                    <span class="stat-value">{{ editorStats.markdownCount }}</span>
-                </div>
-            </div>
-        </div>
-      </div>
-    </div>
-    <!-- Upload Toast -->
-    <div v-if="uploadState.show" class="upload-toast" :class="uploadState.status">
-        <div class="toast-content">
-            <div class="toast-header-row">
-                <span class="toast-title">{{ t('editor.fileUpload') }}</span>
-                <button class="toast-close" @click="uploadState.show = false">
-                    <span class="icon-svg" v-html="Icons.close"></span>
-                </button>
-            </div>
-            <div class="toast-message">{{ uploadState.message }}</div>
-            <div v-if="['uploading', 'processing'].includes(uploadState.status)" class="toast-progress-bg">
-                <div class="toast-progress-bar" :style="{ width: uploadState.progress + '%' }"></div>
-            </div>
-        </div>
-    </div>
-  </div>
 </template>
 
 <script setup lang="ts">
@@ -545,13 +449,13 @@ function redirectToRandomNew() {
 }
 
 const props = withDefaults(defineProps<{
-  modelValue?: string
+    modelValue?: string
 }>(), {
-  modelValue: ''
+    modelValue: ''
 })
 
 const emit = defineEmits<{
-  (e: 'update:modelValue', value: string): void
+    (e: 'update:modelValue', value: string): void
 }>()
 
 const localValue = ref(props.modelValue)
@@ -581,8 +485,8 @@ const tempTitle = ref('')
 const fileTab = ref('new')
 const filePosts = ref<any[]>([])
 const fileLoading = ref(false)
-const fileInput = ref<HTMLInputElement|null>(null)
-const selectedImportFile = ref<File|null>(null)
+const fileInput = ref<HTMLInputElement | null>(null)
+const selectedImportFile = ref<File | null>(null)
 
 const fileTabs = computed(() => [
     { id: 'new', label: t('editor.file.new'), icon: Icons.plus },
@@ -669,21 +573,21 @@ function executeFileAction() {
     if (fileTab.value === 'import' && selectedImportFile.value) {
         const file = selectedImportFile.value
         const doImport = () => {
-             const reader = new FileReader()
-             reader.onload = (e) => {
-                 if (e.target?.result) {
-                     localValue.value = e.target.result as string
-                     postTitle.value = file.name.replace(/\.[^/.]+$/, "")
-                     activeModal.value = 'none'
-                     postId.value = null 
-                     postStatus.value = 'draft'
-                     
-                     // Clear selection
-                     selectedImportFile.value = null
-                     if (fileInput.value) fileInput.value.value = ''
-                 }
-             }
-             reader.readAsText(file)
+            const reader = new FileReader()
+            reader.onload = (e) => {
+                if (e.target?.result) {
+                    localValue.value = e.target.result as string
+                    postTitle.value = file.name.replace(/\.[^/.]+$/, "")
+                    activeModal.value = 'none'
+                    postId.value = null
+                    postStatus.value = 'draft'
+
+                    // Clear selection
+                    selectedImportFile.value = null
+                    if (fileInput.value) fileInput.value.value = ''
+                }
+            }
+            reader.readAsText(file)
         }
         if (isDirty.value) handleUnsavedCheck(doImport)
         else doImport()
@@ -709,12 +613,12 @@ function handleUnsavedCheck(callback: () => void) {
 function resetEditor() {
     router.push({ query: { id: 'new' } }) // Update URL
     setTimeout(() => {
-         initLoad() // Will read 'new' from query
+        initLoad() // Will read 'new' from query
     }, 50)
 }
 
 function loadPost(id: string) {
-    if (id === postId.value) return 
+    if (id === postId.value) return
     router.push({ query: { id } })
 }
 const savedContent = ref('')
@@ -741,7 +645,7 @@ const draftKey = computed(() => {
 })
 const historyKey = computed(() => {
     const qId = route.query.id as string
-    if (postId.value) return `chronicle_history_${postId.value}` 
+    if (postId.value) return `chronicle_history_${postId.value}`
     if (qId && qId.startsWith('new')) return `chronicle_history_${qId}`
     return 'chronicle_history_new'
 })
@@ -783,13 +687,13 @@ async function restorePost() {
 
 async function doRestore() {
     if (!postId.value) return
-    
+
     try {
         const res = await fetch(`/api/restore?id=${postId.value}`, { method: 'POST' })
         if (res.ok) {
             // clear local draft too
             localStorage.removeItem(draftKey.value)
-            
+
             // Also clear history
             sessionStorage.removeItem(historyKey.value)
 
@@ -798,7 +702,7 @@ async function doRestore() {
         } else {
             alert('Failed to restore')
         }
-    } catch(e) {
+    } catch (e) {
         alert('Error restoring')
     }
 }
@@ -846,26 +750,26 @@ async function renderMermaidBlocksInMarkdown(md: string) {
 }
 
 async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
-    let status = forceStatus 
+    let status = forceStatus
     if (!status) {
-         // Determine intent based on modal
-         const intent = activeModal.value 
-         
-         if (intent === 'publish') {
-             status = 'published'
-         } else if (intent === 'draft') {
-             // If we are currently published or modifying, we stay in modifying state (draft of published)
-             if (postStatus.value === 'published' || postStatus.value === 'modifying') {
-                 status = 'modifying'
-             } else {
-                 status = 'draft'
-             }
-         } else if (intent === 'unsaved') {
-             // Default to keeping current status
-             status = postStatus.value
-         }
+        // Determine intent based on modal
+        const intent = activeModal.value
+
+        if (intent === 'publish') {
+            status = 'published'
+        } else if (intent === 'draft') {
+            // If we are currently published or modifying, we stay in modifying state (draft of published)
+            if (postStatus.value === 'published' || postStatus.value === 'modifying') {
+                status = 'modifying'
+            } else {
+                status = 'draft'
+            }
+        } else if (intent === 'unsaved') {
+            // Default to keeping current status
+            status = postStatus.value
+        }
     }
-    
+
     isSaving.value = true
     try {
         // Ensure title sent to server reflects client locale when it's still the default
@@ -898,17 +802,17 @@ async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
 
                 postId.value = data.id
                 postTitle.value = tempTitle.value
-                if(status) postStatus.value = status
+                if (status) postStatus.value = status
                 postUpdated.value = new Date().toISOString()
-                if (!postDate.value) postDate.value = postUpdated.value 
-                
+                if (!postDate.value) postDate.value = postUpdated.value
+
                 // Update baseline
                 savedContent.value = localValue.value
                 savedTitle.value = tempTitle.value
 
                 // Update history to include this save point if not already
                 // But usually save doesn't change content, just persists.
-                
+
                 // Clear draft for current ID since it's saved
                 localStorage.removeItem(draftKey.value)
             }
@@ -918,7 +822,7 @@ async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
         } else {
             alert('Save failed')
         }
-    } catch(e) {
+    } catch (e) {
         alert('Error saving')
     } finally {
         isSaving.value = false
@@ -939,13 +843,13 @@ async function handleUnsavedOption(action: 'save' | 'discard') {
     if (action === 'save') {
         await doSave() // Saves with current status
     }
-    
+
     // Force clean state to allow navigation
     savedContent.value = localValue.value
     savedTitle.value = postTitle.value
-    
+
     activeModal.value = 'none'
-    
+
     if (pendingActionCallback) {
         pendingActionCallback()
         pendingActionCallback = null
@@ -961,7 +865,7 @@ async function handleUnsavedOption(action: 'save' | 'discard') {
 
 function pushHistory(val: string) {
     if (isTimeTraveling.value) return
-    
+
     // Prevent duplicate adjacent states
     if (historyIndex.value >= 0 && history.value[historyIndex.value] === val) return
 
@@ -971,14 +875,14 @@ function pushHistory(val: string) {
     }
 
     history.value.push(val)
-    
+
     // Maintain max size
     if (history.value.length > MAX_HISTORY) {
         history.value.shift()
         historyIndex.value-- // Shift index as well since array shifted
     }
     historyIndex.value = history.value.length - 1
-    
+
     saveToLocalStorage()
 }
 
@@ -1047,84 +951,84 @@ async function loadPostById(id: string) {
             // Load base from server to get metadata, then override content
             const detailRes = await fetch(`/api/post?id=${id}&mode=edit`)
             if (detailRes.ok) {
-                 const detail = await detailRes.json()
-                 postId.value = detail.id
-                 postTitle.value = detail.title
-                 postStatus.value = detail.status || 'draft'
-                 postDate.value = detail.date || ''
-                 postUpdated.value = detail.updatedAt || detail.date || ''
-                 postTags.value = detail.tags || []
-                 postFont.value = detail.font || 'sans'
-                 
-                 savedContent.value = detail.content // Base is server content
-                 savedTitle.value = detail.title
-             }
-             
-             localValue.value = draft // Override with draft
-             // Restore history if available
-             if (sessionHistory) {
-                 try {
-                     const h = JSON.parse(sessionHistory)
-                     history.value = h.stack
-                     historyIndex.value = h.index
-                 } catch(e) {
-                      history.value = [draft]
-                      historyIndex.value = 0
-                 }
-             } else {
-                 history.value = [draft]
-                 historyIndex.value = 0
-             }
-             return
+                const detail = await detailRes.json()
+                postId.value = detail.id
+                postTitle.value = detail.title
+                postStatus.value = detail.status || 'draft'
+                postDate.value = detail.date || ''
+                postUpdated.value = detail.updatedAt || detail.date || ''
+                postTags.value = detail.tags || []
+                postFont.value = detail.font || 'sans'
+
+                savedContent.value = detail.content // Base is server content
+                savedTitle.value = detail.title
+            }
+
+            localValue.value = draft // Override with draft
+            // Restore history if available
+            if (sessionHistory) {
+                try {
+                    const h = JSON.parse(sessionHistory)
+                    history.value = h.stack
+                    historyIndex.value = h.index
+                } catch (e) {
+                    history.value = [draft]
+                    historyIndex.value = 0
+                }
+            } else {
+                history.value = [draft]
+                historyIndex.value = 0
+            }
+            return
         }
 
         const detailRes = await fetch(`/api/post?id=${id}&mode=edit`)
         if (detailRes.ok) {
-             const detail = await detailRes.json()
-             postId.value = detail.id
-               postTitle.value = detail.title
-               isDefaultTitle.value = false
-             postStatus.value = detail.status || 'draft'
-             postDate.value = detail.date || ''
-             postUpdated.value = detail.updatedAt || detail.date || ''
-             postTags.value = detail.tags || []
-             postFont.value = detail.font || 'sans'
-             localValue.value = detail.content
-             
-             // Update baseline
-             savedContent.value = detail.content
-             savedTitle.value = detail.title
+            const detail = await detailRes.json()
+            postId.value = detail.id
+            postTitle.value = detail.title
+            isDefaultTitle.value = false
+            postStatus.value = detail.status || 'draft'
+            postDate.value = detail.date || ''
+            postUpdated.value = detail.updatedAt || detail.date || ''
+            postTags.value = detail.tags || []
+            postFont.value = detail.font || 'sans'
+            localValue.value = detail.content
 
-             // Restore session history if exists (e.g. reload page without draft change)
-             if (sessionHistory) {
-                 try {
-                     const h = JSON.parse(sessionHistory)
-                     history.value = h.stack
-                     historyIndex.value = h.index
-                 } catch(e) {
-                      history.value = [detail.content]
-                      historyIndex.value = 0
-                 }
-             } else {
-                 history.value = [detail.content]
-                 historyIndex.value = 0
-             }
-            } else {
-                // If server reports not found and there's no local draft, redirect to a random new id
-                const draftExists = !!localStorage.getItem(`chronicle_draft_${id}`)
-                if (!draftExists) {
-                    redirectToRandomNew()
-                    return
+            // Update baseline
+            savedContent.value = detail.content
+            savedTitle.value = detail.title
+
+            // Restore session history if exists (e.g. reload page without draft change)
+            if (sessionHistory) {
+                try {
+                    const h = JSON.parse(sessionHistory)
+                    history.value = h.stack
+                    historyIndex.value = h.index
+                } catch (e) {
+                    history.value = [detail.content]
+                    historyIndex.value = 0
                 }
+            } else {
+                history.value = [detail.content]
+                historyIndex.value = 0
             }
-    } catch(e) {
+        } else {
+            // If server reports not found and there's no local draft, redirect to a random new id
+            const draftExists = !!localStorage.getItem(`chronicle_draft_${id}`)
+            if (!draftExists) {
+                redirectToRandomNew()
+                return
+            }
+        }
+    } catch (e) {
         console.error("Failed to load post", e)
     }
 }
 
 async function initLoad() {
     const queryId = route.query.id as string
-    
+
     if (queryId === 'new') {
         redirectToRandomNew()
         return
@@ -1139,37 +1043,37 @@ async function initLoad() {
         postTags.value = []
         postFont.value = 'sans'
         localValue.value = ''
-        
+
         savedContent.value = ''
         savedTitle.value = t('editor.untitled')
 
         // Check draft/history for this specific ID
         const dKey = `chronicle_draft_${queryId}`
         const hKey = `chronicle_history_${queryId}`
-        
+
         const draft = localStorage.getItem(dKey)
         const sessionHistory = sessionStorage.getItem(hKey)
 
         if (draft) {
             localValue.value = draft
         }
-        
+
         if (sessionHistory) {
-             try {
-                 const h = JSON.parse(sessionHistory)
-                 history.value = h.stack
-                 historyIndex.value = h.index
-             } catch(e) {
-                  history.value = [localValue.value]
-                  historyIndex.value = 0
-             }
+            try {
+                const h = JSON.parse(sessionHistory)
+                history.value = h.stack
+                historyIndex.value = h.index
+            } catch (e) {
+                history.value = [localValue.value]
+                historyIndex.value = 0
+            }
         } else {
             history.value = [localValue.value]
             historyIndex.value = 0
         }
         return
     }
-    
+
     if (queryId) {
         await loadPostById(queryId)
         return
@@ -1186,7 +1090,7 @@ async function initLoad() {
     localValue.value = ''
     savedContent.value = ''
     savedTitle.value = t('editor.untitled')
-    
+
     // Check 'new' draft
     const draft = localStorage.getItem('chronicle_draft_new')
     if (draft) localValue.value = draft
@@ -1195,17 +1099,17 @@ async function initLoad() {
 }
 
 watch(() => props.modelValue, (val) => {
-  if (val !== localValue.value) localValue.value = val
+    if (val !== localValue.value) localValue.value = val
 })
 
 // Main Watcher
 watch(localValue, (val) => {
-  emit('update:modelValue', val)
-  if (!isTimeTraveling.value) {
-     debouncedPush(val)
-  }
-  // Also invoke save immediately (debounced inside) for draft
-  saveToLocalStorage()
+    emit('update:modelValue', val)
+    if (!isTimeTraveling.value) {
+        debouncedPush(val)
+    }
+    // Also invoke save immediately (debounced inside) for draft
+    saveToLocalStorage()
 })
 
 function undo() {
@@ -1248,7 +1152,7 @@ onMounted(() => {
         watch(() => locale.value, () => {
             if (isDefaultTitle.value) postTitle.value = t('editor.untitled')
         })
-    } catch (e) {}
+    } catch (e) { }
 
     window.addEventListener('beforeunload', handleBeforeUnload)
 })
@@ -1275,7 +1179,7 @@ const previewRef = ref<HTMLDivElement | null>(null)
 const activeScroll = ref<'editor' | 'preview' | null>(null)
 
 // Image Handling
-const uploadedImages = ref<{name: string, url: string, path: string, thumb?: string}[]>([])
+const uploadedImages = ref<{ name: string, url: string, path: string, thumb?: string }[]>([])
 const fileInputRef = ref<HTMLInputElement | null>(null)
 
 // Upload Notification State
@@ -1319,43 +1223,43 @@ const getIconForFile = (name: string) => {
 }
 
 async function fetchServerImages() {
-   try {
-     const path = selectedCategory.value
-     const res = await fetch(`/api/files?path=${encodeURIComponent(path)}`)
-     if(res.ok) {
-        const items = await res.json()
-           uploadedImages.value = items
-            .filter((i:any) => i.type === 'file')
-            .map((i:any) => ({
-                name: i.name,
-                url: i.url || `/server/data/upload/${i.path}`,
-                path: i.url || `/server/data/upload/${i.path}`,
-                thumb: (i.url || `/server/data/upload/${i.path}`).replace('/server/data/upload/', '/server/data/upload/.thumbs/')
-            }))
-     }
-   } catch (e) { console.error(e) }
+    try {
+        const path = selectedCategory.value
+        const res = await fetch(`/api/files?path=${encodeURIComponent(path)}`)
+        if (res.ok) {
+            const items = await res.json()
+            uploadedImages.value = items
+                .filter((i: any) => i.type === 'file')
+                .map((i: any) => ({
+                    name: i.name,
+                    url: i.url || `/server/data/upload/${i.path}`,
+                    path: i.url || `/server/data/upload/${i.path}`,
+                    thumb: (i.url || `/server/data/upload/${i.path}`).replace('/server/data/upload/', '/server/data/upload/.thumbs/')
+                }))
+        }
+    } catch (e) { console.error(e) }
 }
 
 async function openImageModal() {
-  activeModal.value = 'media'
-  selectedCategory.value = 'pic' // Default start
-  fetchServerImages()
+    activeModal.value = 'media'
+    selectedCategory.value = 'pic' // Default start
+    fetchServerImages()
 }
 
 // ... inside handleFileSelect ...
 function insertMediaMarkdown(name: string, path: string, category?: string) {
-    if(!editorRef.value) return;
+    if (!editorRef.value) return;
     const textarea = editorRef.value;
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
-    const text = localValue.value; 
-    
+    const text = localValue.value;
+
     // Determine Type
     const ext = name.split('.').pop()?.toLowerCase() || ''
     let insertText = ''
 
     // 1. Image (Keep standard markdown image)
-    if (['jpg','jpeg','png','gif','webp','svg','bmp'].includes(ext)) {
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) {
         // 生产环境拼接CDN
         const url = !path.startsWith('http') ? `${CDN_BASE_URL}${path}` : path;
         insertText = `\n![${name}](${url})\n`;
@@ -1365,11 +1269,11 @@ function insertMediaMarkdown(name: string, path: string, category?: string) {
         const url = !path.startsWith('http') ? `${CDN_BASE_URL}${path}` : path;
         insertText = `\n[${name}](${url})\n`;
     }
-    
+
     localValue.value = text.substring(0, start) + insertText + text.substring(end);
-    
+
     activeModal.value = 'none'
-    
+
     setTimeout(() => {
         if (editorRef.value) {
             editorRef.value.focus();
@@ -1380,98 +1284,98 @@ function insertMediaMarkdown(name: string, path: string, category?: string) {
 }
 
 function triggerFileUpload() {
-  fileInputRef.value?.click()
+    fileInputRef.value?.click()
 }
 
 async function handleFileSelect(event: Event) {
-  const input = event.target as HTMLInputElement
-  if (input.files && input.files[0]) {
-    const file = input.files[0]
-    const filename = encodeURIComponent(file.name)
-    
-    // Init Toast
-    uploadState.show = true
-    uploadState.progress = 0
-    uploadState.status = 'uploading'
-    uploadState.message = `Uploading: ${file.name}`
+    const input = event.target as HTMLInputElement
+    if (input.files && input.files[0]) {
+        const file = input.files[0]
+        const filename = encodeURIComponent(file.name)
 
-    try {
-        const xhr = new XMLHttpRequest()
-        // Upload should go directly to backend origin when configured to avoid CDN proxying upload requests
-        const uploadUrl = API_BASE_URL ? `${API_BASE_URL.replace(/\/$/, '')}/api/upload` : '/api/upload'
-        xhr.open('POST', uploadUrl, true)
-        xhr.setRequestHeader('Content-Type', 'application/octet-stream')
-        xhr.setRequestHeader('X-Filename', filename)
-        
-        // Progress: Browser -> Server transfer
-        xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable) {
-                const percent = Math.round((e.loaded / e.total) * 100)
-                uploadState.progress = percent
-                if (percent === 100) {
-                     uploadState.status = 'processing'
-                     uploadState.message = 'Processing...'
-                }
-            }
-        }
-        
-        xhr.onload = () => {
-             if (xhr.status === 200) {
-                uploadState.status = 'success'
-                uploadState.progress = 100
-                uploadState.message = 'Upload successful'
-                
-                try {
-                    const data = JSON.parse(xhr.responseText)
-                    if (data.category === 'pic') fetchServerImages()
-                    
-                    if (/\.(png|jpe?g|gif|svg|webp|bmp|ico)$/i.test(file.name)) {
-                        insertMediaMarkdown(file.name, data.url)
-                    } else {
-                        insertMediaMarkdown(file.name, data.url)
+        // Init Toast
+        uploadState.show = true
+        uploadState.progress = 0
+        uploadState.status = 'uploading'
+        uploadState.message = `Uploading: ${file.name}`
+
+        try {
+            const xhr = new XMLHttpRequest()
+            // Upload should go directly to backend origin when configured to avoid CDN proxying upload requests
+            const uploadUrl = API_BASE_URL ? `${API_BASE_URL.replace(/\/$/, '')}/api/upload` : '/api/upload'
+            xhr.open('POST', uploadUrl, true)
+            xhr.setRequestHeader('Content-Type', 'application/octet-stream')
+            xhr.setRequestHeader('X-Filename', filename)
+
+            // Progress: Browser -> Server transfer
+            xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable) {
+                    const percent = Math.round((e.loaded / e.total) * 100)
+                    uploadState.progress = percent
+                    if (percent === 100) {
+                        uploadState.status = 'processing'
+                        uploadState.message = 'Processing...'
                     }
-                } catch(e) {
-                    console.error('JSON Parse error', e);
                 }
-
-                // Auto hide
-                setTimeout(() => { uploadState.show = false }, 3000)
-            } else {
-                uploadState.status = 'error'
-                uploadState.message = `Upload failed (${xhr.status})`
-                setTimeout(() => { uploadState.show = false }, 5000) // Keep error longer
             }
-        }
-        
-        xhr.onerror = () => {
+
+            xhr.onload = () => {
+                if (xhr.status === 200) {
+                    uploadState.status = 'success'
+                    uploadState.progress = 100
+                    uploadState.message = 'Upload successful'
+
+                    try {
+                        const data = JSON.parse(xhr.responseText)
+                        if (data.category === 'pic') fetchServerImages()
+
+                        if (/\.(png|jpe?g|gif|svg|webp|bmp|ico)$/i.test(file.name)) {
+                            insertMediaMarkdown(file.name, data.url)
+                        } else {
+                            insertMediaMarkdown(file.name, data.url)
+                        }
+                    } catch (e) {
+                        console.error('JSON Parse error', e);
+                    }
+
+                    // Auto hide
+                    setTimeout(() => { uploadState.show = false }, 3000)
+                } else {
+                    uploadState.status = 'error'
+                    uploadState.message = `Upload failed (${xhr.status})`
+                    setTimeout(() => { uploadState.show = false }, 5000) // Keep error longer
+                }
+            }
+
+            xhr.onerror = () => {
+                uploadState.status = 'error'
+                uploadState.message = 'Network error'
+                setTimeout(() => { uploadState.show = false }, 5000)
+            }
+
+            xhr.send(file)
+        } catch (e) {
             uploadState.status = 'error'
-            uploadState.message = 'Network error'
+            uploadState.message = 'Upload error'
             setTimeout(() => { uploadState.show = false }, 5000)
         }
-        
-        xhr.send(file)
-    } catch (e) {
-        uploadState.status = 'error'
-        uploadState.message = 'Upload error'
-        setTimeout(() => { uploadState.show = false }, 5000)
+        input.value = ''
     }
-    input.value = ''
-  }
 }
 
 function insertImageMarkdown(name: string, path: string) {
-    if(!editorRef.value) return;
+    if (!editorRef.value) return;
     const textarea = editorRef.value;
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
-    const text = localValue.value; 
-    
+    const text = localValue.value;
+
     const insertText = `\n![${name}](${path})\n`;
-    
+
     localValue.value = text.substring(0, start) + insertText + text.substring(end);
-    
+
     activeModal.value = 'none'
-    
+
     setTimeout(() => {
         if (editorRef.value) {
             editorRef.value.focus();
@@ -1537,7 +1441,7 @@ function tableGridClick(r: number, c: number) {
 function insertTable() {
     const r = Math.max(1, parseInt(tblRows.value as any) || 1)
     const c = Math.max(1, parseInt(tblCols.value as any) || 1)
-    
+
     let md = '\n'
     // Header
     md += '| ' + Array(c).fill('Header').join(' | ') + ' |\n'
@@ -1545,23 +1449,23 @@ function insertTable() {
     md += '| ' + Array(c).fill('---').join(' | ') + ' |\n'
     // Rows
     for (let i = 0; i < r; i++) {
-        md += '| ' + Array(c).fill('Cell ' + (i+1)).join(' | ') + ' |\n'
+        md += '| ' + Array(c).fill('Cell ' + (i + 1)).join(' | ') + ' |\n'
     }
     md += '\n'
-    
+
     insertAtCursor(md)
     activeModal.value = 'none'
 }
 
 function insertAtCursor(insertText: string) {
-    if(!editorRef.value) return;
+    if (!editorRef.value) return;
     const textarea = editorRef.value;
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
-    const text = localValue.value; 
-    
+    const text = localValue.value;
+
     localValue.value = text.substring(0, start) + insertText + text.substring(end);
-    
+
     nextTick(() => {
         if (editorRef.value) {
             textarea.focus();
@@ -1573,25 +1477,25 @@ function insertAtCursor(insertText: string) {
 
 // Scroll sync
 function syncScroll(source: 'editor' | 'preview') {
-  if (layout.value !== 'split') return
-  if (activeScroll.value && activeScroll.value !== source) return
+    if (layout.value !== 'split') return
+    if (activeScroll.value && activeScroll.value !== source) return
 
-  const editor = editorRef.value
-  const preview = previewRef.value
+    const editor = editorRef.value
+    const preview = previewRef.value
 
-  if (!editor || !preview) return
+    if (!editor || !preview) return
 
-  if (source === 'editor') {
-    const percentage = editor.scrollTop / (editor.scrollHeight - editor.clientHeight)
-    if (!isNaN(percentage)) {
-      preview.scrollTop = percentage * (preview.scrollHeight - preview.clientHeight)
+    if (source === 'editor') {
+        const percentage = editor.scrollTop / (editor.scrollHeight - editor.clientHeight)
+        if (!isNaN(percentage)) {
+            preview.scrollTop = percentage * (preview.scrollHeight - preview.clientHeight)
+        }
+    } else {
+        const percentage = preview.scrollTop / (preview.scrollHeight - preview.clientHeight)
+        if (!isNaN(percentage)) {
+            editor.scrollTop = percentage * (editor.scrollHeight - editor.clientHeight)
+        }
     }
-  } else {
-    const percentage = preview.scrollTop / (preview.scrollHeight - preview.clientHeight)
-    if (!isNaN(percentage)) {
-      editor.scrollTop = percentage * (editor.scrollHeight - editor.clientHeight)
-    }
-  }
 }
 const fontClass = computed(() => {
     return `font-${postFont.value}`
@@ -1599,11 +1503,11 @@ const fontClass = computed(() => {
 </script>
 
 <style scoped>
-
 .blog-editor {
     display: flex;
     flex-direction: column;
-    height: 100vh; /* ensure editor fills viewport so internal panes scroll, not the page */
+    height: 100vh;
+    /* ensure editor fills viewport so internal panes scroll, not the page */
     border: none;
     background: var(--bg-primary);
 }
@@ -1615,35 +1519,36 @@ const fontClass = computed(() => {
     padding: 0 12px;
     background: var(--bg-secondary);
     border-bottom: 1px solid var(--border-color);
-    position: sticky; /* keep toolbar fixed inside editor viewport */
+    position: sticky;
+    /* keep toolbar fixed inside editor viewport */
     top: 0;
     z-index: 30;
 }
 
 .toolbar-row {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  padding: 8px 0;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 8px 0;
 }
 
 .toolbar-row.row-meta {
-  justify-content: space-between;
+    justify-content: space-between;
     border-bottom: 1px solid var(--border-color);
-  margin-bottom: 0;
-  padding-bottom: 8px;
+    margin-bottom: 0;
+    padding-bottom: 8px;
 }
 
 .toolbar-row.row-tools {
-  justify-content: space-between;
+    justify-content: space-between;
     border-bottom: 1px solid var(--border-color);
-  margin-top: 0;
+    margin-top: 0;
 }
 
 .toolbar-row.row-view {
-  margin-top: 0;
-  padding-top: 8px;
-  border-top: none; 
+    margin-top: 0;
+    padding-top: 8px;
+    border-top: none;
 }
 
 .meta-left {
@@ -1682,6 +1587,7 @@ const fontClass = computed(() => {
     align-items: center;
     gap: 4px;
 }
+
 .date-item.faded {
     color: var(--component-text-secondary);
     font-size: 10px;
@@ -1699,7 +1605,8 @@ const fontClass = computed(() => {
     font-weight: 700;
     font-variation-settings: 'wght' 700;
     color: var(--text-primary);
-    max-width: 200px; /* Reduced to allow space for dates */
+    max-width: 200px;
+    /* Reduced to allow space for dates */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1725,30 +1632,36 @@ const fontClass = computed(() => {
 }
 
 .divider {
-  width: 1px;
-  height: 16px;
+    width: 1px;
+    height: 16px;
     background-color: var(--border-color);
-  margin: 0 6px;
+    margin: 0 6px;
 }
 
 .toolbar-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  background: transparent;
-  border: 1px solid transparent;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: transparent;
+    border: 1px solid transparent;
     color: var(--component-text-primary);
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-  margin-right: 2px;
-  height: 28px;
-  font-size:14px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    margin-right: 2px;
+    height: 28px;
+    font-size: 14px;
 }
+
+.toolbar-btn:hover {
+    border-color: transparent;
+}
+
 .toolbar-btn:hover:not(:disabled) {
     background: var(--component-bg-hover);
 }
+
 .toolbar-btn.active {
     background: var(--component-bg-accent-blur);
     border: 1px solid var(--component-bg-accent);
@@ -1757,97 +1670,110 @@ const fontClass = computed(() => {
 .toolbar-btn.active:hover {
     background: var(--component-bg-accent);
 }
+
 .toolbar-btn:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
+    opacity: 0.3;
+    cursor: not-allowed;
     color: var(--component-text-secondary-disabled);
-  pointer-events: none;
+    pointer-events: none;
 }
 
-.toolbar-btn.font-sans, .toolbar-btn.font-serif, .toolbar-btn.font-mono {
-  text-transform: capitalize;
-  font-size: 1em;
+.toolbar-btn.font-sans,
+.toolbar-btn.font-serif,
+.toolbar-btn.font-mono {
+    text-transform: capitalize;
+    font-size: 1em;
 }
 
 
 .editor-workspace {
     flex: 1;
-    min-height: 0; /* allow flex children to shrink and enable internal scrolling */
+    min-height: 0;
+    /* allow flex children to shrink and enable internal scrolling */
     display: flex;
     overflow: hidden;
     position: relative;
 }
 
 .pane {
-  flex: 1;
-  overflow: auto;
-  height: 100%;
+    flex: 1;
+    overflow: auto;
+    height: 100%;
 }
 
 .editor-pane {
     border-right: 1px solid var(--border-color);
-  overflow: hidden;
+    overflow: hidden;
 }
 
 .markdown-input {
-  display: block;
-  width: 100%;
-  height: 100%;
+    display: block;
+    width: 100%;
+    height: 100%;
     background: var(--bg-primary);
     color: var(--text-primary);
-  border: none;
-  padding: 16px;
-  font-family: 'Consolas', monospace;
-  font-size: 14px;
-  resize: none;
-  outline: none;
-  box-sizing: border-box;
+    border: none;
+    padding: 16px;
+    font-family: 'Consolas', monospace;
+    font-size: 14px;
+    resize: none;
+    outline: none;
+    box-sizing: border-box;
 }
 
 .preview-pane {
     background: var(--bg-primary);
-  padding: 16px;
-  box-sizing: border-box;
+    padding: 16px;
+    box-sizing: border-box;
 }
 
 /* Layout modifiers */
 .layout-split .pane {
-  width: 50%;
+    width: 50%;
 }
-.layout-edit .preview-pane { display: none; }
-.layout-preview .editor-pane { display: none; }
-.layout-preview .pane { width: 100%; }
+
+.layout-edit .preview-pane {
+    display: none;
+}
+
+.layout-preview .editor-pane {
+    display: none;
+}
+
+.layout-preview .pane {
+    width: 100%;
+}
 
 /* Modal Styles */
 .modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
     background: var(--component-bg-blur-alt);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
 }
 
 .modal-content {
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
-  border-radius: 6px;
-  
-  /* Adaptive Size */
-  width: auto;
-  min-width: 350px;
-  max-width: 90vw;
-  height: auto;
-  max-height: 85vh;
-  
-  display: flex;
-  flex-direction: column;
+    border-radius: 6px;
+
+    /* Adaptive Size */
+    width: auto;
+    min-width: 350px;
+    max-width: 90vw;
+    height: auto;
+    max-height: 85vh;
+
+    display: flex;
+    flex-direction: column;
     box-shadow: var(--shadow-elev-2);
-  overflow: hidden;
+    overflow: hidden;
 }
 
 /* Default larger modal preference if not specified small */
@@ -1855,10 +1781,12 @@ const fontClass = computed(() => {
     /* Fallback */
     width: 800px;
 }
+
 .large-modal {
     width: 800px;
     height: auto;
-    min-height: 450px; /* Ensure space for sidebar */
+    min-height: 450px;
+    /* Ensure space for sidebar */
     max-width: 95vw;
     max-height: 90vh;
 }
@@ -1870,36 +1798,37 @@ const fontClass = computed(() => {
 }
 
 .modal-header {
-  padding: 0px 16px;
+    padding: 0px 16px;
     border-bottom: 1px solid var(--border-color);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     background: var(--component-bg-primary);
-  flex-shrink: 0;
-  height: 48px;
+    flex-shrink: 0;
+    height: 48px;
 }
 
 .modal-header h3 {
-  margin: 0;
-  font-size: 16px;
+    margin: 0;
+    font-size: 16px;
     color: var(--component-text-primary);
 }
 
 .close-btn {
-  background: none;
-  border: none;
+    background: none;
+    border: none;
     color: var(--component-text-secondary);
-  cursor: pointer;
-  padding: 4px;
-  display: flex; 
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
 }
+
 .close-btn:hover {
-  background: transparent;
-  color: var(--text-primary);
+    background: transparent;
+    color: var(--text-primary);
 }
 
 .modal-body {
@@ -1909,10 +1838,10 @@ const fontClass = computed(() => {
 }
 
 .modal-body.media-manager-layout {
-  display: flex;
-  flex: 1;
-  padding: 0;
-  overflow: hidden;
+    display: flex;
+    flex: 1;
+    padding: 0;
+    overflow: hidden;
 }
 
 /* Sidebar */
@@ -1935,9 +1864,11 @@ const fontClass = computed(() => {
     color: var(--component-text-primary);
     font-size: 14px;
 }
+
 .modal-sidebar-item:hover {
-        background: var(--component-bg-hover);
+    background: var(--component-bg-hover);
 }
+
 .modal-sidebar-item.active {
     background: var(--component-bg-accent-blur);
     border: 1px solid var(--component-bg-accent);
@@ -1951,6 +1882,7 @@ const fontClass = computed(() => {
     background: var(--accent-color);
     color: var(--text-on-accent);
 }
+
 .toolbar-btn.primary-action:hover {
     background: var(--accent-color-hover);
 }
@@ -1963,6 +1895,7 @@ const fontClass = computed(() => {
     height: 18px;
     margin-right: 10px;
 }
+
 .media-cat-icon :deep(svg) {
     width: 100%;
     height: 100%;
@@ -1990,81 +1923,85 @@ const fontClass = computed(() => {
 }
 
 .library-section h4 {
-  margin-top: 0;
-  margin-bottom: 12px;
+    margin-top: 0;
+    margin-bottom: 12px;
     color: var(--component-text-primary);
 }
 
 .upload-section {
-    display: none; /* Removed old section style */
+    display: none;
+    /* Removed old section style */
 }
 
 .image-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-  gap: 12px;
-  padding-bottom: 20px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 12px;
+    padding-bottom: 20px;
 }
 
 .primary-btn {
     background: var(--accent-color);
     color: var(--text-on-accent);
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
 }
+
 .primary-btn:hover {
     background: var(--accent-color-hover);
 }
 
 .hidden-input {
-  display: none;
+    display: none;
 }
 
 .library-item {
-  cursor: pointer;
+    cursor: pointer;
     border: 1px solid var(--border-color);
-  border-radius: 4px;
-  overflow: hidden;
-  transition: border-color 0.2s;
+    border-radius: 4px;
+    overflow: hidden;
+    transition: border-color 0.2s;
     background: var(--bg-secondary);
-  aspect-ratio: 1;
-  display: flex;
-  flex-direction: column;
+    aspect-ratio: 1;
+    display: flex;
+    flex-direction: column;
 }
+
 .library-item:hover {
     border-color: var(--accent-color);
     background: var(--component-bg-hover);
 }
 
 .img-thumb {
-  flex: 1;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  width: 100%;
-  position: relative;
+    flex: 1;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    width: 100%;
+    position: relative;
 }
 
 .img-name {
-  display: block;
-  padding: 6px;
-  font-size: 11px;
+    display: block;
+    padding: 6px;
+    font-size: 11px;
     color: var(--component-text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: center;
     background: var(--bg-secondary);
     border-top: 1px solid var(--border-color);
 }
 
 .empty-library {
-  text-align: center;
+    text-align: center;
     color: var(--component-text-secondary);
-  padding: 20px;
+    padding: 20px;
 }
+
 .img-thumb.icon-thumb {
     display: flex;
     align-items: center;
@@ -2079,6 +2016,7 @@ const fontClass = computed(() => {
     height: 40px;
     display: block;
 }
+
 .scalable-icon :deep(svg) {
     width: 100%;
     height: 100%;
@@ -2090,17 +2028,18 @@ const fontClass = computed(() => {
 }
 
 .icon-svg {
-  display: inline-flex;
-  width: 18px;
-  height: 18px;
-  align-items: center;
-  justify-content: center;
-  color: inherit;
+    display: inline-flex;
+    width: 18px;
+    height: 18px;
+    align-items: center;
+    justify-content: center;
+    color: inherit;
 }
+
 .icon-svg svg {
-  width: 100%;
-  height: 100%;
-  stroke-width: 1.5;
+    width: 100%;
+    height: 100%;
+    stroke-width: 1.5;
 }
 
 .icon-svg.sidebar-icon {
@@ -2118,19 +2057,23 @@ const fontClass = computed(() => {
     border-color: var(--border-color);
     background: var(--component-bg-hover);
 }
+
 .status-chip.published {
     color: var(--accent-color);
     border-color: var(--accent-color);
     background: var(--accent-color-bg);
 }
+
 .status-chip.modifying {
     color: var(--featured);
     border-color: var(--featured);
     background: var(--featured-bg);
 }
+
 .toolbar-btn.danger-btn {
     color: var(--status-error);
 }
+
 .toolbar-btn.danger-btn:hover:not(:disabled) {
     background: var(--component-bg-hover);
     color: var(--status-error);
@@ -2157,6 +2100,7 @@ const fontClass = computed(() => {
 .form-group {
     margin-bottom: 12px;
 }
+
 .form-group label {
     display: block;
     margin-bottom: 8px;
@@ -2176,6 +2120,7 @@ const fontClass = computed(() => {
     border-radius: 4px;
     outline: none;
 }
+
 .modal-input:focus {
     border-color: var(--accent-color);
 }
@@ -2194,6 +2139,7 @@ const fontClass = computed(() => {
     border-radius: 4px;
     cursor: pointer;
 }
+
 .secondary-btn:hover {
     background: var(--component-bg-hover);
 }
@@ -2206,6 +2152,7 @@ const fontClass = computed(() => {
     gap: 10px;
     margin-bottom: 20px;
 }
+
 .table-grid {
     display: grid;
     grid-template-columns: repeat(8, 24px);
@@ -2215,6 +2162,7 @@ const fontClass = computed(() => {
     border: 1px solid var(--border-color);
     border-radius: 4px;
 }
+
 .grid-cell {
     width: 24px;
     height: 24px;
@@ -2223,35 +2171,42 @@ const fontClass = computed(() => {
     cursor: pointer;
     border-radius: 2px;
 }
+
 .grid-cell:hover {
-        border-color: var(--component-bg-accent); 
+    border-color: var(--component-bg-accent);
 }
+
 .grid-cell.active {
     background: var(--component-bg-accent-blur);
     border-color: var(--component-bg-accent);
 }
+
 .grid-info {
     font-size: 13px;
     color: var(--component-text-primary);
     font-weight: 500;
     font-variation-settings: 'wght' 500;
 }
+
 .manual-inputs {
     display: flex;
     gap: 15px;
     justify-content: center;
     margin-bottom: 20px;
 }
+
 .manual-inputs .form-group {
     flex-direction: row;
     align-items: center;
     gap: 8px;
     margin-bottom: 0;
 }
+
 .manual-inputs input {
     width: 60px;
     text-align: center;
 }
+
 /* Tags Style */
 .tags-input-container {
     display: flex;
@@ -2282,6 +2237,7 @@ const fontClass = computed(() => {
     border: 1px solid var(--border-color);
     user-select: none;
 }
+
 .tag-badge.featured {
     background: var(--featured-bg);
     color: var(--featured);
@@ -2299,9 +2255,11 @@ const fontClass = computed(() => {
     width: 14px;
     height: 14px;
 }
+
 .tag-remove:hover {
     color: var(--text-primary);
 }
+
 .tag-remove .icon-svg {
     width: 12px;
     height: 12px;
@@ -2311,15 +2269,18 @@ const fontClass = computed(() => {
     display: flex;
     gap: 8px;
 }
+
 .small-input {
     padding: 6px 10px;
     font-size: 13px;
     flex: 1;
 }
+
 .small-btn {
     padding: 6px 12px;
     font-size: 13px;
 }
+
 .small-btn.active {
     background: var(--featured-bg);
     color: var(--featured);
@@ -2329,13 +2290,15 @@ const fontClass = computed(() => {
 .primary-btn.danger-action {
     background: var(--status-error);
 }
+
 .primary-btn.danger-action:hover {
     background: var(--status-error);
     filter: brightness(0.92);
 }
+
 /* File Menu Specifics */
 .modal-content.file-menu-modal {
-    flex-direction: row; 
+    flex-direction: row;
     height: 600px;
 }
 
@@ -2347,6 +2310,7 @@ const fontClass = computed(() => {
     display: flex;
     flex-direction: column;
 }
+
 .sidebar-btn {
     padding: 8px 12px;
     background: transparent;
@@ -2358,17 +2322,21 @@ const fontClass = computed(() => {
     color: var(--component-text-primary);
     font-size: 14px;
 }
+
 .sidebar-btn:hover {
     background: var(--component-bg-hover);
     color: var(--text-primary);
 }
+
 .sidebar-btn.active {
     background: var(--component-bg-accent-blur);
     border: 1px solid var(--component-bg-accent);
 }
+
 .sidebar-btn.active:hover {
     background: var(--component-bg-accent);
 }
+
 .main-area {
     flex: 1;
     display: flex;
@@ -2376,6 +2344,7 @@ const fontClass = computed(() => {
     padding: 20px;
     overflow: hidden;
 }
+
 .header {
     display: flex;
     justify-content: space-between;
@@ -2384,8 +2353,17 @@ const fontClass = computed(() => {
     border-bottom: 1px solid var(--border-color);
     padding-bottom: 15px;
 }
-.header h3 { margin: 0; color: var(--text-primary); font-size: 18px; }
-.content-body { flex: 1; overflow-y: auto; }
+
+.header h3 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 18px;
+}
+
+.content-body {
+    flex: 1;
+    overflow-y: auto;
+}
 
 .warning-box {
     background: var(--featured-bg);
@@ -2396,7 +2374,12 @@ const fontClass = computed(() => {
     font-size: 13px;
 }
 
-.post-list { display: flex; flex-direction: column; gap: 8px; }
+.post-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
 .post-item {
     padding: 12px;
     background: var(--component-bg-hover);
@@ -2407,13 +2390,30 @@ const fontClass = computed(() => {
     justify-content: space-between;
     align-items: center;
 }
-.post-item:hover { background: var(--component-bg-secondary); }
-.post-title { font-weight: bold; color: var(--text-primary); flex: 1; margin-right: 10px; }
-.post-date { color: var(--component-text-secondary); font-size: 0.85em; margin-right: 10px; }
+
+.post-item:hover {
+    background: var(--component-bg-secondary);
+}
+
+.post-title {
+    font-weight: bold;
+    color: var(--text-primary);
+    flex: 1;
+    margin-right: 10px;
+}
+
+.post-date {
+    color: var(--component-text-secondary);
+    font-size: 0.85em;
+    margin-right: 10px;
+}
+
 .post-status {
-    font-size: 0.75em; border-radius: 3px;
-    padding: 2px 6px; text-transform: uppercase;
-    margin-right:10px;
+    font-size: 0.75em;
+    border-radius: 3px;
+    padding: 2px 6px;
+    text-transform: uppercase;
+    margin-right: 10px;
 }
 
 .file-drop-area {
@@ -2425,7 +2425,11 @@ const fontClass = computed(() => {
     cursor: pointer;
     border-radius: 6px;
 }
-.file-drop-area:hover { border-color: var(--accent-color); color: var(--component-text-primary); }
+
+.file-drop-area:hover {
+    border-color: var(--accent-color);
+    color: var(--component-text-primary);
+}
 
 .stats-grid {
     display: grid;
@@ -2433,24 +2437,28 @@ const fontClass = computed(() => {
     gap: 12px;
     padding: 10px 0;
 }
+
 .stat-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 8px;
-    background:transparent;
+    background: transparent;
     border-radius: 4px;
 }
+
 .stat-label {
     color: var(--component-text-secondary);
     font-size: 0.9em;
 }
+
 .stat-value {
     color: var(--accent-color);
     font-weight: bold;
     font-family: monospace;
     font-size: 1.2em;
 }
+
 .stats-display {
     background: transparent;
     border: none;
@@ -2461,6 +2469,7 @@ const fontClass = computed(() => {
     border-radius: 4px;
     transition: color 0.2s, background 0.2s;
 }
+
 .stats-display:hover {
     color: var(--text-primary);
     background: var(--component-bg-hover);
@@ -2472,6 +2481,7 @@ const fontClass = computed(() => {
     gap: 15px;
     margin-top: 5px;
 }
+
 .radio-label {
     display: flex;
     align-items: center;
@@ -2480,6 +2490,7 @@ const fontClass = computed(() => {
     font-size: 0.9em;
     color: var(--component-text-primary);
 }
+
 .radio-label input {
     margin: 0;
 }
@@ -2509,7 +2520,8 @@ const fontClass = computed(() => {
     border-left: 4px solid var(--status-success);
 }
 
-.upload-toast.uploading, .upload-toast.processing {
+.upload-toast.uploading,
+.upload-toast.processing {
     border-left: 4px solid var(--accent-color);
 }
 
@@ -2540,9 +2552,11 @@ const fontClass = computed(() => {
     align-items: center;
     justify-content: center;
 }
+
 .toast-close:hover {
     color: var(--text-primary);
 }
+
 .toast-close .icon-svg {
     width: 14px;
     height: 14px;
@@ -2566,7 +2580,7 @@ const fontClass = computed(() => {
 
 .toast-progress-bar {
     height: 100%;
-        background: var(--accent-color);
+    background: var(--accent-color);
     transition: width 0.2s ease;
 }
 
@@ -2581,8 +2595,14 @@ const fontClass = computed(() => {
 }
 
 @keyframes slideIn {
-    from { transform: translateY(20px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
-}
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
 
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
 </style>

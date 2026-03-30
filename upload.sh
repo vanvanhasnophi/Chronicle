@@ -126,3 +126,37 @@ fi
 
 success "上传完成！请在服务器上解压："
 success "cd ${REMOTE_PATH} && tar xzf chronicle-upload.tar.gz"
+
+# 7. 可选：在服务器上执行命令（支持环境变量 REMOTE_CMD 或交互输入）
+check_cmd ssh || die "ssh 未找到，请安装 OpenSSH 客户端以便远程执行命令。"
+
+if [ -z "$REMOTE_CMD" ]; then
+    read -p "是否现在在服务器上执行命令？[y/N]: " run_remote
+    if [[ ! "$run_remote" =~ ^[Yy] ]]; then
+        info "跳过远程命令执行。"
+        exit 0
+    fi
+    read -p "输入要在服务器上执行的命令（回车使用默认：解压并进入目录）: " REMOTE_CMD
+    if [ -z "$REMOTE_CMD" ]; then
+        REMOTE_CMD="cd ${REMOTE_PATH} && tar xzf chronicle-upload.tar.gz"
+    fi
+else
+    info "使用环境变量 REMOTE_CMD 执行远程命令。"
+fi
+
+info "在远程服务器 ${SERVER_USER}@${SERVER_IP} 上执行: $REMOTE_CMD"
+if command -v sshpass >/dev/null 2>&1 && [ -n "$SERVER_PWD" ]; then
+    sshpass -p "$SERVER_PWD" ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "$REMOTE_CMD"
+    rc=$?
+else
+    ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "$REMOTE_CMD"
+    rc=$?
+fi
+
+if [ $rc -ne 0 ]; then
+    error "远程命令执行返回非零状态: $rc"
+    error "你可以手动运行： ssh ${SERVER_USER}@${SERVER_IP} '${REMOTE_CMD}'"
+    exit $rc
+else
+    success "远程命令执行成功。"
+fi

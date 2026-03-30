@@ -83,7 +83,9 @@
       "follow": "Follow Browser",
       "zh": "中文（简体）",
       "en": "English"
-    }
+    },
+    "copy_to_light": "Copy to Light",
+    "copy_to_dark": "Copy to Dark"
   },
   "post": {
     "manageTitle": "Manage Posts",
@@ -187,6 +189,7 @@
     "draft": "Draft",
     "publish": "Publish",
     "fileUpload": "File Upload",
+    "loading": "Editor Loading...",
     "file": {
       "new": "New Post",
       "open": "Open...",

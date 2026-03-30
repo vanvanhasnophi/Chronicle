@@ -6,7 +6,7 @@
       </template>
       <template #fallback>
         <div class="editor-skeleton">
-          <div class="skeleton-box">正在挂载编辑器...</div>
+          <div class="skeleton-box">{{ t('editor.loading') }}</div>
         </div>
       </template>
     </Suspense>
@@ -15,8 +15,10 @@
 
 <script setup lang="ts">
 import { defineAsyncComponent } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 const AsyncEditor = defineAsyncComponent(() => import('../components/BlogEditor.vue'))
+const { t } = useI18n()
 </script>
 
 <style scoped>
