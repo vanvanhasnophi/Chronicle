@@ -100,7 +100,7 @@ async function saveRename(post: Post) {
     
     if (newTitle && newTitle !== post.title) {
          try {
-             const res = await fetch('/api/post', {
+             const res = await fetch(`/api/post?t=${Date.now()}`, {
                  method: 'POST',
                  body: JSON.stringify({
                      id: post.id,
@@ -150,7 +150,7 @@ const deletePost = async (id: string) => {
     if (!confirm(t('post.confirmDelete'))) return
     
     try {
-        const res = await fetch(`/api/post?id=${id}`, { method: 'DELETE' })
+        const res = await fetch(`/api/post?id=${id}&t=${Date.now()}`, { method: 'DELETE' })
         if (res.ok) {
             // refresh
             loadPosts()

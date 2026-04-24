@@ -1,0 +1,94 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { getTranslation, getLocale } from '../../utils/i18n';
+import { getApiUrl } from '../../config/api';
+import '../../styles/BlogPost.css';
+
+const { id } = Astro.params;
+
+// Get locale from Astro.locals (set by middleware)
+const locale = getLocale(Astro.locals);
+const t = (key: string) => getTranslation(locale, key);
+
+let post: Record<string, any> | null = null;
+let settings: Record<string, any> = {};
+
+try {
+  // Try internal backend fetching
+  const params = new URLSearchParams();
+  if (id) {
+     params.append('id', id as string);
+  } else {
+     return Astro.redirect('/404');
+  }
+
+  const res = await fetch(getApiUrl(`/api/public/post?${params.toString()}&t=${Date.now()}`, true));
+  if (res.status === 200) {
+     const data = await res.json();
+     post = data; // object itself is post
+  }
+} catch (e) {
+  console.error("Failed to load post", e);
+}
+
+if (!post) {
+   return Astro.redirect('/404');
+}
+
+// Fetch settings (包含样式设置)
+try {
+  const res = await fetch(getApiUrl('/api/settings?t=' + Date.now(), true));
+  if (res.ok) {
+    settings = await res.json();
+  }
+} catch (e) {
+  console.error('[blog/id] Failed to fetch settings:', e);
+}
+
+// 如果主API失败，尝试public API作为后备
+if (!settings || Object.keys(settings).length === 0) {
+  try {
+    const res = await fetch(getApiUrl('/api/public/settings?t=' + Date.now(), true));
+    if (res.ok) {
+      settings = await res.json();
+    }
+  } catch (e) {}
+}
+
+// Basic markdown to html naive logic or you can parse it on client!
+// Usually Astro uses remark, here we just output it into a container and let client handle it maybe?
+// But Astro can render fast! To render markdown we should use a library like marked, or just output raw Content 
+// Since Vue had a custom MdParser, we probably should load the content in an island later. 
+// For now let's just dump it and run a script tag to render? 
+// Or use markdown-it which is easy to add. 
+const htmlContent = post.html || "";
+
+---
+<Layout title={post.title} settings={settings}>
+  <div class="post-container">
+    <div class="post-header-area">
+      <div class="header-left">
+          <div class="back-nav">
+             <a href="/blogs" class="back-btn" data-astro-prefetch>
+               <span class="icon">←</span> {t('inblog.backToBlogs')}
+             </a>
+          </div>
+      </div>
+      <div class="header-right"></div>
+    </div>
+    <div class="post-content-wrapper">
+       <div class="post-main-area">
+         <h1 class="post-main-title">{post.title}</h1>
+         <div class="post-meta">
+            <span class="meta-item time">
+                {(new Date(post.date)).toLocaleString()}
+            </span>
+            {post.tags && post.tags.map((tag: string) => (
+                <span class="meta-item tag" style="color:var(--accent-color);">#{tag}</span>
+            ))}
+         </div>
+         <div class="post-body markdown-body" set:html={htmlContent} />
+       </div>
+    </div>
+  </div>
+</Layout>

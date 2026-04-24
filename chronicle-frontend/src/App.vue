@@ -524,10 +524,10 @@ async function getSettings() {
     } catch (e) { }
 
     try {
-      const resp = await fetch('/api/settings')
+      const resp = await fetch(`/api/settings?t=${Date.now()}`)
       if (resp.ok) {
         const s = await resp.json()
-        // 保持本地设置优先：先以服务器设置为基础，再让本地设置覆盖它
+        // ä¿æŒæœ¬åœ°è®¾ç½®ä¼˜å…ˆï¼šå…ˆä»¥æœåŠ¡å™¨è®¾ç½®ä¸ºåŸºç¡€ï¼Œå†è®©æœ¬åœ°è®¾ç½®è¦†ç›–å®ƒ
         settings = Object.assign({}, s, settings)
       }
     } catch (e) { }
@@ -1089,7 +1089,7 @@ watch(route, () => {
                 </span>
               </button>
               <button class="popup-item" @click="applyLocale('zh-CN')">
-                <span class="popup-label">中文（简体）</span>
+                <span class="popup-label">ä¸­æ–‡ï¼ˆç®€ä½“ï¼‰</span>
                 <span class="popup-check" v-if="selectedLocale === 'zh-CN'">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
                     <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round"
@@ -1314,7 +1314,7 @@ watch(route, () => {
     left: 0;
     right: 0;
     bottom: 0;
-    height: 100vh;
+    height: 100dvh;
     background: var(--app-bg-secondary);
     /* Solid background for menu */
     flex-direction: column;
@@ -1441,7 +1441,7 @@ watch(route, () => {
   background: var(--component-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  /* Use fixed so the menu overlays page content — allows backdrop-filter to blur underlying page */
+  /* Use fixed so the menu overlays page content â€” allows backdrop-filter to blur underlying page */
   position: fixed;
   color: var(--component-text-secondary);
   top: 70px;

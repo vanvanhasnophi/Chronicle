@@ -1,0 +1,39 @@
+---
+// Back to Top floating button
+---
+
+<button class="corner-button" id="back-to-top" title="Back to Top">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 19V5M5 12l7-7 7 7"/>
+  </svg>
+</button>
+
+
+<script>
+  function initBackToTop() {
+    const btn = document.getElementById('back-to-top');
+    const mainContent = document.querySelector('.main-content');
+
+    if (!btn || !mainContent) return;
+
+    const handleScroll = () => {
+      const isVisible = mainContent.scrollTop > 300;
+      btn.classList.toggle('visible', isVisible);
+    };
+
+    mainContent.addEventListener('scroll', handleScroll);
+
+    btn.addEventListener('click', () => {
+      mainContent.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    // Initial check
+    handleScroll();
+  }
+
+  // Run on initial load
+  initBackToTop();
+
+  // Re-run on Astro View Transitions
+  document.addEventListener('astro:page-load', initBackToTop);
+</script>

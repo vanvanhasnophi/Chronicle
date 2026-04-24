@@ -1,0 +1,22 @@
+{
+  "name": "astro-frontend",
+  "version": "1.4.0",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/node": "^10.0.5",
+    "@types/markdown-it": "^14.1.2",
+    "astro": "^6.1.8",
+    "astro-icon": "^1.1.5",
+    "markdown-it": "^14.1.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

@@ -84,7 +84,7 @@ const loadItems = async () => {
   loading.value = true
   items.value = []
   try {
-    const res = await fetch(`/api/files?path=${currentCategory.value}`)
+    const res = await fetch(`/api/files?path=${currentCategory.value}&t=${Date.now()}`)
     if (res.ok) {
        // Filter out subdirectories if any, we just want files 
        // (Backend ensures flat list structure for categories basically since we don't support sub-sub-folders in this UI view)
@@ -111,7 +111,7 @@ const deleteItem = async (path: string) => {
     // Our backend list returns relative to BASE_UPLOAD_DIR
     // Let's ensure we pass the correct relative path to delete API
     
-    await fetch(`/api/files?path=${encodeURIComponent(path)}`, {
+    await fetch(`/api/files?path=${encodeURIComponent(path)}&t=${Date.now()}`, {
         method: 'DELETE'
     })
     loadItems()
@@ -124,7 +124,7 @@ const handleUpload = async (e: Event) => {
     for (const file of Array.from(input.files)) {
         const encodedName = encodeURIComponent(file.name)
         // We don't need to specify category manually, backend will auto-sort based on extension
-        await fetch('/api/upload', {
+        await fetch(`/api/upload?t=${Date.now()}`, {
             method: 'POST',
             headers: { 'x-filename': encodedName },
             body: file

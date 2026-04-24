@@ -1,0 +1,698 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { getTranslation, getLocale } from '../utils/i18n';
+import { sortTags } from '../utils/tagUtils';
+import { getApiUrl } from '../config/api';
+
+const locale = getLocale(Astro.locals);
+const t = (key: string) => getTranslation(locale, key);
+
+// Fetch settings
+let settings: Record<string, any> = {};
+try {
+  const res = await fetch(getApiUrl('/api/settings?t=' + Date.now(), true));
+  if (res.ok) settings = await res.json();
+} catch (e) {}
+
+if (!settings || Object.keys(settings).length === 0) {
+  try {
+    const res = await fetch(getApiUrl('/api/public/settings?t=' + Date.now(), true));
+    if (res.ok) settings = await res.json();
+  } catch (e) {}
+}
+
+// Fetch posts
+interface Post {
+  id: string;
+  title: string;
+  date: string;
+  summary?: string;
+  tags?: string[];
+}
+
+let posts: Post[] = [];
+try {
+  const res = await fetch(getApiUrl(`/api/posts?t=${Date.now()}`, true));
+  if (res.ok) posts = await res.json();
+} catch (e) {}
+
+// Extract all tags with counts
+const tagCounts = new Map<string, number>();
+posts.forEach(p => {
+  p.tags?.forEach(tag => {
+    tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
+  });
+});
+
+const allTagData = Array.from(tagCounts.entries())
+  .map(([name, count]) => ({ name, count }))
+  .sort((a, b) => {
+    if (a.name === 'featured' || a.name === '精选') return -1;
+    if (b.name === 'featured' || b.name === '精选') return 1;
+    return a.name.localeCompare(b.name);
+  });
+
+// Get URL params for initial state
+const url = new URL(Astro.request.url);
+const initialTitle = url.searchParams.get('title') || '';
+const initialTags = url.searchParams.getAll('tags');
+---
+
+
+<Layout title={t('nav.search')} settings={settings}>
+  <div class="page-container centered-mode" id="search-page">
+    <div class="search-box-wrapper">
+      <div class="search-box">
+        <button class="tag-trigger" id="tag-trigger" title={t('search.selectTags')}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="4" y1="9" x2="20" y2="9"></line>
+            <line x1="4" y1="15" x2="20" y2="15"></line>
+            <line x1="10" y1="3" x2="8" y2="21"></line>
+            <line x1="16" y1="3" x2="14" y2="21"></line>
+          </svg>
+        </button>
+        <span class="divider"></span>
+        <div class="input-area" id="input-area">
+          <div id="selected-tags"></div>
+          <input id="search-input" type="text" placeholder={t('search.placeholder')} class="search-input" value={initialTitle} />
+        </div>
+      </div>
+    </div>
+
+    <div class="content-wrapper" id="content-wrapper" style="display:none;">
+      <div class="content-scroll-area">
+        <div class="tag-cloud-container" id="tag-cloud" style="display:none;">
+          <div class="tags-grid">
+            {allTagData.map(tagData => (
+              <button class="tag-cloud-item" data-tag={tagData.name} class:list={[{ featured: tagData.name === 'featured' || tagData.name === '精选' }]}>
+                {tagData.name === 'featured' || tagData.name === '精选' ? t('tag.featured') : tagData.name}
+                <span class="tag-count">{tagData.count}</span>
+              </button>
+            ))}
+          </div>
+          <div class="cloud-actions">
+            <button class="close-cloud-btn" id="close-cloud">{t('search.done')}</button>
+          </div>
+        </div>
+
+        <div class="results-list" id="results-list">
+          <div class="loading" id="loading-state">{t('search.loading')}</div>
+          <div class="empty" id="empty-state" style="display:none;">{t('search.noResults')}</div>
+          <div id="results-container"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<style is:global>
+.page-container {
+  max-width: 800px;
+  max-height: calc(100vh - 70px);
+  margin: 0 auto;
+  padding: 15vh 20px 0;
+  color: var(--text-primary);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+/* Centered Mode */
+.page-container.centered-mode .search-box-wrapper {
+    transform: translateY(20vh);
+}
+
+/* Search Box */
+.search-box-wrapper {
+    flex-shrink: 0;
+    margin-bottom: 2rem;
+    z-index: 50;
+    width: 100%;
+    transition: transform 0.6s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+/* Results Fade Transition */
+.fade-enter-active {
+  transition: opacity 0.6s ease 0.5s;
+}
+.fade-leave-active {
+  transition: opacity 0.1s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.search-box {
+    display: flex;
+    align-items: center;
+    background: var(--component-bg-blur-alt);
+    border: 1px solid var(--border-color-blur);
+    border-radius: 12px;
+    padding: 4px;
+    transition: box-shadow 0.3s ease;
+}
+.search-box:focus-within {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px var(--component-bg-accent-blur);
+}
+
+.tag-trigger {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 8px 12px;
+    color: var(--component-text-secondary);
+    display: flex;
+    align-items: center;
+    transition: color 0.3s ease;
+    flex-shrink: 0;
+}
+.tag-trigger.active {
+    color: var(--accent-color);
+}
+.tag-trigger:hover {
+    color: var(--accent-color);
+}
+
+.input-area {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 4px 10px;
+    gap: 6px;
+    cursor: text;
+}
+
+.selected-tag-chip {
+    display: inline-flex;
+    align-items: center;
+    background: var(--component-bg-accent-blur);
+    color: var(--accent-color);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+.selected-tag-chip.featured{
+    background: var(--featured-bg);
+    color: var(--featured);
+    font-weight: 600;
+}
+.chip-remove {
+    background: transparent;
+    border: none;
+    color: var(--component-text-primary-hover);
+    cursor: pointer;
+    padding: 0;
+    margin-left: 6px;
+    display: flex;
+    align-items: center;
+    opacity: 0.7;
+}
+.chip-remove.featured {
+    color: var(--featured);
+}
+.chip-remove:hover {
+    opacity: 1;
+}
+
+.search-input {
+    flex: 1;
+    min-width: 120px;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: 1rem;
+    padding: 6px 0;
+    outline: none;
+}
+
+/* Content Area Wrapper */
+.content-wrapper {
+    flex: 1;
+    min-height: 0; 
+    margin-bottom: 10vh;
+    position: relative;
+    /* Blur mask */
+    mask-image: linear-gradient(to bottom, transparent, black 20px, black calc(100% - 20px), transparent);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, black 20px, black calc(100% - 20px), transparent);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.4s ease, visibility 0.4s ease;
+}
+
+.content-wrapper.visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+.content-scroll-area {
+    height: 100%;
+    overflow-y: auto;
+    padding-top: 20px;
+    padding-bottom: 20px;
+    scrollbar-width: none; 
+    -ms-overflow-style: none;
+}
+.content-scroll-area::-webkit-scrollbar { 
+    display: none; 
+}
+
+/* Tag Cloud Overlay */
+.tag-cloud-container {
+    background: transparent; /* Removed background */
+    border: none; /* Removed border */
+    padding: 0; /* Align with content area */
+    animation: fadeIn 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+}
+.tags-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center; /* Scattered feel */
+    align-content: flex-start;
+    flex: 1;
+}
+.tag-cloud-item {
+    background: var(--component-bg-blur);
+    color: var(--component-text-secondary);
+    border: 1px solid var(--border-color);
+    padding: 6px 14px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.tag-cloud-item:hover {
+    background: var(--component-bg-hover);
+    color: var(--component-text-primary-hover);
+}
+.tag-cloud-item.selected {
+    background: var(--accent-color);
+    color: var(--recommended-accent-text);
+    border-color: var(--component-bg-accent);
+}
+.tag-cloud-item.featured {
+    color: var(--featured);
+    font-weight: 600;
+}
+
+.tag-cloud-item.featured:hover {
+    background: var(--featured-bg);
+    color: var(--featured);
+    border-color: var(--featured);
+}
+
+.tag-cloud-item.featured.selected {
+    background: var(--featured);
+    border-color: var(--featured);
+    color: var(--app-bg-primary);
+}
+
+.tag-count {
+    font-size: 0.75em;
+    opacity: 0.7;
+    background: transparent;
+    padding: 0;
+    border-radius: 4px;
+    min-width: 14px;
+    text-align: center;
+}
+
+.cloud-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 2rem;
+    padding-bottom: 1rem;
+}
+.close-cloud-btn {
+    background: var(--accent-color);
+    color: var(--recommended-accent-text);
+    border: none;
+    padding: 8px 24px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.2s ease;
+}
+.close-cloud-btn:hover {
+    background: var(--component-bg-accent-hover);
+}
+
+/* Results */
+.results-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding-bottom: 30px;
+}
+.result-card {
+    background: var(--component-bg-blur-alt);
+    border: 1px solid var(--border-color);
+    padding: 16px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+.result-card:hover {
+    background: var(--component-bg-hover);
+    border-color: var(--component-text-primary-hover);
+}
+.post-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+}
+.post-title {
+    margin: 0;
+    font-size: 1.2rem;
+    color: var(--text-primary);
+}
+.post-date {
+    font-size: 0.9rem;
+    color: var(--component-text-secondary);
+}
+.post-tags {
+    margin-bottom: 8px;
+}
+.tag-display {
+    color: var(--accent-color);
+    font-size: 0.85rem;
+    margin-right: 10px;
+}
+.tag-display.featured {
+    color: var(--featured);
+}
+.post-summary {
+    color: var(--component-text-secondary);
+    font-size: 0.95rem;
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.icon {
+    width: 24px;
+    height: 24px;
+    display: block;
+}
+.icon-sm {
+    width: 16px;
+    height: 16px;
+    display: block;
+    /* Ensure small icons are sized correctly */
+}
+.icon-sm :deep(svg) {
+    width: 16px;
+    height: 16px;
+}
+
+.empty, .loading {
+    text-align: center;
+    color: var(--component-text-secondary);
+    padding: 2rem;
+}
+
+
+.divider {
+  width: 1px;
+  height: 28px;
+    background-color: var(--border-color-blur);
+  margin: 0 2px;
+}
+
+.list-spacer {
+    height: 40px; 
+    width: 100%;
+    flex-shrink: 0;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+</style>
+
+<script define:vars={{ postsJSON: JSON.stringify(posts), initialTitle, initialTagsJSON: JSON.stringify(initialTags), locale, featuredLabel: t('tag.featured') }} data-astro-rerun>
+  // Check if we are on the search page
+  const page = document.getElementById('search-page');
+  if (page) {
+    // Parse posts
+    const allPosts = JSON.parse(postsJSON);
+    const parsedInitialTags = JSON.parse(initialTagsJSON);
+
+    // State
+    let searchQuery = initialTitle;
+    let debouncedQuery = initialTitle;
+    let selectedTags = [...parsedInitialTags];
+    let isTagCloudOpen = false;
+
+    // DOM elements
+    const input = document.getElementById('search-input');
+    const tagTrigger = document.getElementById('tag-trigger');
+    const tagCloud = document.getElementById('tag-cloud');
+    const resultsList = document.getElementById('results-list');
+    const resultsContainer = document.getElementById('results-container');
+    const contentWrapper = document.getElementById('content-wrapper');
+    const selectedTagsEl = document.getElementById('selected-tags');
+    const closeCloudBtn = document.getElementById('close-cloud');
+
+    function sortTagsList(tags) {
+      if (!tags || !Array.isArray(tags)) return [];
+      return [...tags].sort((a, b) => {
+        if (a === 'featured' || a === '精选') return -1;
+        if (b === 'featured' || b === '精选') return 1;
+        return a.localeCompare(b);
+      });
+    }
+
+    function isSearchActive() {
+      return debouncedQuery.trim().length > 0 || selectedTags.length > 0;
+    }
+
+    function updateCenteredMode() {
+      if (page) {
+        page.classList.toggle('centered-mode', !isSearchActive() && !isTagCloudOpen);
+      }
+    }
+
+    function updateVisibility() {
+      const shouldShow = isSearchActive() || isTagCloudOpen;
+      
+      if (shouldShow) {
+        if (contentWrapper) {
+          contentWrapper.style.display = 'block';
+          void contentWrapper.offsetHeight; // force reflow
+          contentWrapper.classList.add('visible');
+        }
+        if (isTagCloudOpen) {
+          if (tagCloud) tagCloud.style.display = 'block';
+          if (resultsList) resultsList.style.display = 'none';
+        } else {
+          if (tagCloud) tagCloud.style.display = 'none';
+          if (resultsList) resultsList.style.display = 'flex';
+        }
+      } else {
+        if (contentWrapper) {
+          contentWrapper.classList.remove('visible');
+          setTimeout(() => {
+            if (!isSearchActive() && !isTagCloudOpen) {
+              contentWrapper.style.display = 'none';
+              if (tagCloud) tagCloud.style.display = 'none';
+              if (resultsList) resultsList.style.display = 'none';
+            }
+          }, 400); // match transition
+        }
+      }
+    }
+
+    function renderTagChips() {
+      if (!selectedTagsEl) return;
+      selectedTagsEl.innerHTML = sortTagsList(selectedTags).map(tag => {
+        const isF = tag === 'featured' || tag === '精选';
+        return `
+          <div class="selected-tag-chip ${isF ? 'featured' : ''}">
+            <span class="chip-text">${isF ? featuredLabel : tag}</span>
+            <button class="chip-remove ${isF ? 'featured' : ''}" data-tag="${tag}"><span class="icon-sm"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></span></button>
+          </div>
+        `;
+      }).join('');
+
+      selectedTagsEl.querySelectorAll('.chip-remove').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const tag = btn.getAttribute('data-tag');
+          selectedTags = selectedTags.filter(t => t !== tag);
+          const cloudItem = document.querySelector(`.tag-cloud-item[data-tag="${tag}"]`);
+          if (cloudItem) cloudItem.classList.remove('selected');
+          syncTagTriggerState();
+          renderTagChips();
+          filterPosts();
+          updateCenteredMode();
+          updateVisibility();
+        });
+      });
+    }
+
+    function syncTagTriggerState() {
+      if (tagTrigger) {
+        tagTrigger.classList.toggle('active', selectedTags.length > 0 || isTagCloudOpen);
+      }
+    }
+
+    function filterPosts() {
+      if (!resultsContainer) return;
+      const query = debouncedQuery.toLowerCase();
+
+      // Avoid rendering full list when search is inactive (empty query + no tags)
+      if (!query.trim() && selectedTags.length === 0) {
+        resultsContainer.innerHTML = '';
+        const loadingState = document.getElementById('loading-state');
+        if (loadingState) loadingState.style.display = 'none';
+        const emptyState = document.getElementById('empty-state');
+        if (emptyState) emptyState.style.display = 'none';
+        return;
+      }
+
+      const filtered = allPosts.filter(post => {
+        const matchesTitle = post.title.toLowerCase().includes(query);
+        const matchesTags = selectedTags.length === 0 || selectedTags.every(t => (post.tags || []).includes(t));
+        return matchesTitle && matchesTags;
+      });
+
+      const loadingState = document.getElementById('loading-state');
+      if (loadingState) loadingState.style.display = 'none';
+
+      if (filtered.length === 0) {
+        resultsContainer.innerHTML = '';
+        const emptyState = document.getElementById('empty-state');
+        if (emptyState) emptyState.style.display = 'block';
+      } else {
+        const emptyState = document.getElementById('empty-state');
+        if (emptyState) emptyState.style.display = 'none';
+        resultsContainer.innerHTML = filtered.map(post => {
+          const isF = (tag) => tag === 'featured' || tag === '精选';
+          return `
+            <article class="result-card" data-post-id="${post.id}">
+              <div class="post-header">
+                <h3 class="post-title">${post.title}</h3>
+                <span class="post-date">${new Date(post.date).toLocaleDateString(locale)}</span>
+              </div>
+              ${post.tags && post.tags.length > 0 ? `
+                <div class="post-tags">
+                  ${sortTagsList(post.tags).map(tag => `
+                    <span class="tag-display ${isF(tag) ? 'featured' : ''}">
+                      #${isF(tag) ? featuredLabel : tag}
+                    </span>
+                  `).join('')}
+                </div>
+              ` : ''}
+              <div class="post-summary">${post.summary || ''}</div>
+            </article>
+          `;
+        }).join('');
+
+        resultsContainer.querySelectorAll('.result-card').forEach(card => {
+          card.addEventListener('click', () => {
+            window.location.href = `/blog/${card.getAttribute('data-post-id')}`;
+          });
+        });
+      }
+    }
+
+    function toggleTagCloud() {
+      isTagCloudOpen = !isTagCloudOpen;
+
+      syncTagTriggerState();
+      updateCenteredMode();
+      updateVisibility();
+    }
+
+    // Debounce helper
+    function debounceFn(func, delay) {
+      let timeout;
+      return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), delay);
+      };
+    }
+
+    const debouncedUpdate = debounceFn((newVal) => {
+      debouncedQuery = newVal;
+      filterPosts();
+      updateCenteredMode();
+      updateVisibility();
+
+      if (newVal.trim()) {
+        document.title = `Search: ${newVal} - Chronicle`;
+      } else {
+        document.title = 'Search - Chronicle';
+      }
+    }, 300);
+
+    if (input) {
+      input.addEventListener('input', (e) => {
+        searchQuery = e.target.value;
+        debouncedUpdate(searchQuery);
+      });
+    }
+
+    if (tagTrigger) tagTrigger.addEventListener('click', toggleTagCloud);
+    if (closeCloudBtn) closeCloudBtn.addEventListener('click', toggleTagCloud);
+
+    document.querySelectorAll('.tag-cloud-item').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tag = btn.getAttribute('data-tag');
+        if (selectedTags.includes(tag)) {
+          selectedTags = selectedTags.filter(t => t !== tag);
+          btn.classList.remove('selected');
+        } else {
+          selectedTags.push(tag);
+          btn.classList.add('selected');
+        }
+        syncTagTriggerState();
+        renderTagChips();
+        filterPosts();
+        updateCenteredMode();
+        updateVisibility();
+      });
+    });
+
+    // Initialize
+    if (parsedInitialTags.length > 0) {
+      renderTagChips();
+      parsedInitialTags.forEach(tag => {
+        document.querySelector(`.tag-cloud-item[data-tag="${tag}"]`)?.classList.add('selected');
+      });
+    }
+
+    syncTagTriggerState();
+
+    // Always run initial filter to correctly display the initial state
+    filterPosts();
+    updateCenteredMode();
+    updateVisibility();
+    
+    if (initialTitle || parsedInitialTags.length > 0) {
+      window.history.replaceState({}, '', '/search');
+    }
+  }
+</script>

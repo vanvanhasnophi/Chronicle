@@ -1,0 +1,250 @@
+/**
+ * 背景层渲染管理器
+ */
+
+let bgRenderVersion = 0;
+const backgroundPreparedCache = new Map<string, Promise<{ ok: boolean; preparedUrl: string }>>();
+const backgroundObjectUrls = new Set<string>();
+let currentBackgroundUrl = '';
+
+/**
+ * 预加载背景图片
+ */
+function preloadBackgroundImage(url: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    try {
+      if (!url) {
+        resolve(false);
+        return;
+      }
+
+      const img = new Image();
+      let done = false;
+      const finish = (ok: boolean) => {
+        if (done) return;
+        done = true;
+        resolve(ok);
+      };
+
+      img.onload = async () => {
+        try {
+          if ((img as any).decode) await (img as any).decode();
+        } catch (e) { }
+        finish(true);
+      };
+      img.onerror = () => finish(false);
+      (img as any).decoding = 'async';
+      img.src = url;
+    } catch (e) {
+      resolve(false);
+    }
+  });
+}
+
+/**
+ * 确保背景图片已准备好
+ */
+function ensureBackgroundImagePrepared(url: string): Promise<{ ok: boolean; preparedUrl: string }> {
+  try {
+    const normalizedUrl = String(url || '').trim();
+    if (!normalizedUrl) return Promise.resolve({ ok: false, preparedUrl: '' });
+
+    const cached = backgroundPreparedCache.get(normalizedUrl);
+    if (cached) return cached;
+
+    const p = (async () => {
+      try {
+        const resp = await fetch(normalizedUrl, { cache: 'force-cache' });
+        if (resp.ok) {
+          const blob = await resp.blob();
+          if (blob && blob.size > 0) {
+            const objUrl = URL.createObjectURL(blob);
+            backgroundObjectUrls.add(objUrl);
+            const okBlob = await preloadBackgroundImage(objUrl);
+            if (okBlob) return { ok: true, preparedUrl: objUrl };
+          }
+        }
+      } catch (e) { }
+
+      const ok = await preloadBackgroundImage(normalizedUrl);
+      return { ok, preparedUrl: ok ? normalizedUrl : '' };
+    })().then((result) => {
+      if (result && result.ok) {
+        console.info('[bg] image-loaded', normalizedUrl);
+      } else {
+        backgroundPreparedCache.delete(normalizedUrl);
+      }
+      return result;
+    });
+
+    backgroundPreparedCache.set(normalizedUrl, p);
+    return p;
+  } catch (e) {
+    return Promise.resolve({ ok: false, preparedUrl: '' });
+  }
+}
+
+/**
+ * 渲染背景层
+ */
+export async function stageBackgroundLayer(
+  imageUrl: string,
+  meta: any,
+  overlayValue: string
+) {
+  try {
+    const layer = document.getElementById('chronicle-bg-layer');
+    if (!layer) return;
+
+    const imgEl = layer.querySelector('.bg-image') as HTMLElement | null;
+    const surfaceEl = layer.querySelector('.bg-surface') as HTMLElement | null;
+    const overlayEl = layer.querySelector('.bg-overlay') as HTMLElement | null;
+    const normalizedUrl = String(imageUrl || '').trim();
+    if (!normalizedUrl) return;
+
+    // 如果URL没有变化，并且已经被渲染过，则仅更新样式而不要清除渲染状态，从而避免闪烁
+    if (normalizedUrl === currentBackgroundUrl && layer.classList.contains('is-ready')) {
+      if (surfaceEl) {
+        const root = getComputedStyle(document.documentElement).getPropertyValue('--app-bg-primary') || '';
+        surfaceEl.style.background = root || 'transparent';
+      }
+      if (overlayEl) {
+        overlayEl.style.background = overlayValue || 'transparent';
+      }
+      if (imgEl) {
+        imgEl.style.backgroundPosition = `${(meta && meta.posX) || 50}% ${(meta && meta.posY) || 50}%`;
+        imgEl.style.backgroundSize = `${(meta && meta.size) || 100}%`;
+        imgEl.style.filter = `blur(${(meta && meta.blur) || 0}px)`;
+      }
+      return; // 直接返回，保持已存在的图片和状态
+    }
+
+    const renderId = ++bgRenderVersion;
+
+    // 清除ready状态
+    layer.classList.remove('is-ready');
+
+    // 设置surface和overlay
+    if (surfaceEl) {
+      const root = getComputedStyle(document.documentElement).getPropertyValue('--app-bg-primary') || '';
+      surfaceEl.style.background = root || 'transparent';
+    }
+    if (overlayEl) {
+      overlayEl.style.background = overlayValue || 'transparent';
+    }
+    if (imgEl) {
+      imgEl.style.backgroundImage = 'none';
+      imgEl.style.backgroundPosition = `${(meta && meta.posX) || 50}% ${(meta && meta.posY) || 50}%`;
+      imgEl.style.backgroundSize = `${(meta && meta.size) || 100}%`;
+      imgEl.style.filter = `blur(${(meta && meta.blur) || 0}px)`;
+    }
+
+    // 异步准备图片
+    const startPrepare = () => {
+      const run = async () => {
+        try {
+          const prepared = await ensureBackgroundImagePrepared(normalizedUrl);
+          if (renderId !== bgRenderVersion) return;
+
+          if (prepared.ok && prepared.preparedUrl) {
+            console.info('[bg] image-applied', prepared.preparedUrl);
+            if (imgEl) imgEl.style.backgroundImage = `url(${prepared.preparedUrl})`;
+            currentBackgroundUrl = normalizedUrl;
+          } else {
+            if (imgEl) imgEl.style.backgroundImage = 'none';
+          }
+
+          // 触发fade动画
+          void (imgEl && (imgEl as HTMLElement).offsetHeight);
+          requestAnimationFrame(() => {
+            if (renderId !== bgRenderVersion) return;
+            setTimeout(() => {
+              if (renderId !== bgRenderVersion) return;
+
+              const onTransitionEnd = (ev: TransitionEvent) => {
+                if (ev.target !== imgEl || ev.propertyName !== 'opacity') return;
+
+                // 清理不用的blob URLs
+                const keep = (prepared && prepared.preparedUrl) ? prepared.preparedUrl : '';
+                backgroundObjectUrls.forEach((u) => {
+                  if (u && u !== keep) {
+                    URL.revokeObjectURL(u);
+                    backgroundObjectUrls.delete(u);
+                  }
+                });
+
+                if (imgEl) imgEl.removeEventListener('transitionend', onTransitionEnd as any);
+              };
+
+              if (imgEl) imgEl.addEventListener('transitionend', onTransitionEnd as any);
+              layer.classList.add('is-ready');
+              console.info('[bg] fade-start', renderId);
+            }, 30);
+          });
+        } catch (e) {
+          console.error('[bg] Error in prepare:', e);
+        }
+      };
+
+      if ((window as any).requestIdleCallback) {
+        (window as any).requestIdleCallback(() => { void run(); }, { timeout: 1000 });
+      } else {
+        setTimeout(() => { void run(); }, 50);
+      }
+    };
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        startPrepare();
+      });
+    });
+  } catch (e) {
+    console.error('[bg] Error in stageBackgroundLayer:', e);
+  }
+}
+
+/**
+ * 确保背景层DOM存在
+ */
+export function ensureBackgroundLayer() {
+  try {
+    let layer = document.getElementById('chronicle-bg-layer');
+    if (!layer) {
+      layer = document.createElement('div');
+      layer.id = 'chronicle-bg-layer';
+
+      const img = document.createElement('div');
+      img.className = 'bg-image';
+      const surface = document.createElement('div');
+      surface.className = 'bg-surface';
+      const overlay = document.createElement('div');
+      overlay.className = 'bg-overlay';
+
+      layer.appendChild(img);
+      layer.appendChild(surface);
+      layer.appendChild(overlay);
+
+      if (document.body.firstChild) {
+        document.body.insertBefore(layer, document.body.firstChild);
+      } else {
+        document.body.appendChild(layer);
+      }
+    }
+  } catch (e) {
+    console.error('[bg] Error ensuring background layer:', e);
+  }
+}
+
+/**
+ * 清理背景资源
+ */
+export function cleanupBackgroundResources() {
+  try {
+    backgroundObjectUrls.forEach((u) => {
+      try { URL.revokeObjectURL(u); } catch (err) { }
+    });
+    backgroundObjectUrls.clear();
+  } catch (e) {
+    console.error('[bg] Error cleaning up resources:', e);
+  }
+}

@@ -311,7 +311,7 @@
                                 <button class="secondary-btn small-btn"
                                     :class="{ active: postTags.includes('featured') }" @click="toggleFeatured"
                                     :title="$t('tag.featured')">
-                                    ★ {{ $t('tag.featured') }}
+                                    ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¹ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ {{ $t('tag.featured') }}
                                 </button>
                             </div>
                         </div>
@@ -526,7 +526,7 @@ async function handleFileTabChange(tab: string) {
     if (tab === 'open') {
         fileLoading.value = true
         try {
-            const res = await fetch('/api/posts?includeDrafts=true')
+            const res = await fetch(`/api/posts?includeDrafts=true&t=${Date.now()}`)
             if (res.ok) {
                 filePosts.value = await res.json()
             }
@@ -689,7 +689,7 @@ async function doRestore() {
     if (!postId.value) return
 
     try {
-        const res = await fetch(`/api/restore?id=${postId.value}`, { method: 'POST' })
+        const res = await fetch(`/api/restore?id=${postId.value}&t=${Date.now()}`, { method: 'POST' })
         if (res.ok) {
             // clear local draft too
             localStorage.removeItem(draftKey.value)
@@ -779,7 +779,7 @@ async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
 
         // Convert mermaid blocks to SVG on save so frontend does not need mermaid runtime
         const contentToSend = await renderMermaidBlocksInMarkdown(localValue.value)
-        const res = await fetch('/api/post', {
+        const res = await fetch(`/api/post?t=${Date.now()}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -949,7 +949,7 @@ async function loadPostById(id: string) {
         if (draft) {
             // We have a local unsaved draft for this ID
             // Load base from server to get metadata, then override content
-            const detailRes = await fetch(`/api/post?id=${id}&mode=edit`)
+            const detailRes = await fetch(`/api/post?id=${id}&mode=edit&t=${Date.now()}`)
             if (detailRes.ok) {
                 const detail = await detailRes.json()
                 postId.value = detail.id
@@ -982,7 +982,7 @@ async function loadPostById(id: string) {
             return
         }
 
-        const detailRes = await fetch(`/api/post?id=${id}&mode=edit`)
+        const detailRes = await fetch(`/api/post?id=${id}&mode=edit&t=${Date.now()}`)
         if (detailRes.ok) {
             const detail = await detailRes.json()
             postId.value = detail.id
@@ -1225,7 +1225,7 @@ const getIconForFile = (name: string) => {
 async function fetchServerImages() {
     try {
         const path = selectedCategory.value
-        const res = await fetch(`/api/files?path=${encodeURIComponent(path)}`)
+        const res = await fetch(`/api/files?path=${encodeURIComponent(path)}&t=${Date.now()}`)
         if (res.ok) {
             const items = await res.json()
             uploadedImages.value = items
@@ -1260,7 +1260,7 @@ function insertMediaMarkdown(name: string, path: string, category?: string) {
 
     // 1. Image (Keep standard markdown image)
     if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) {
-        // 生产环境拼接CDN
+        // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¤ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â½ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¥ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¹ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¼ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â½ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¥CDN
         const url = !path.startsWith('http') ? `${CDN_BASE_URL}${path}` : path;
         insertText = `\n![${name}](${url})\n`;
     }

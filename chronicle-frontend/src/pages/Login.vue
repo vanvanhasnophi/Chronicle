@@ -88,7 +88,7 @@ const handleLogin = async () => {
   error.value = ''
   
   try {
-    const res = await fetch('/api/auth/login', {
+    const res = await fetch(`/api/auth/login?t=${Date.now()}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password: password.value })
@@ -115,7 +115,7 @@ const handleCodeVerify = async () => {
     loading.value = true
     error.value = ''
     try {
-        const res = await fetch('/api/auth/code/verify', {
+        const res = await fetch(`/api/auth/code/verify?t=${Date.now()}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ code: inputCode.value })
@@ -139,12 +139,12 @@ const handlePasskeyLogin = async (is2FA = false) => {
     else error.value = ''
 
     try {
-        const resp = await fetch('/api/auth/passkey/login/options', { method: 'POST' })
+        const resp = await fetch(`/api/auth/passkey/login/options?t=${Date.now()}`, { method: 'POST' })
         const options = await resp.json()
         
         const authResp = await startAuthentication(options)
         
-        const verResp = await fetch('/api/auth/passkey/login/verify', {
+        const verResp = await fetch(`/api/auth/passkey/login/verify?t=${Date.now()}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ response: authResp })

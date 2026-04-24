@@ -231,7 +231,7 @@ onMounted(() => {
   }
   // try to load server-side persisted settings (merge)
   try {
-    fetch('/api/settings')
+    fetch(`/api/settings?t=${Date.now()}`)
       .then(r => r.ok ? r.json() : Promise.resolve({}))
       .then((s: any) => {
         if (!s) return
@@ -467,7 +467,7 @@ try {
 
 async function fetchServerImages() {
   try {
-    const res = await fetch(`/api/files?path=pic`)
+    const res = await fetch(`/api/files?path=pic&t=${Date.now()}`)
     if (!res.ok) return
     const items = await res.json()
     uploadedImagesLocal.value = items
@@ -567,7 +567,7 @@ async function save() {
 
   // persist to backend
   try {
-    await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cfg) })
+    await fetch(`/api/settings?t=${Date.now()}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cfg) })
   } catch(e) {}
 
   // Apply frontend font immediately after Save

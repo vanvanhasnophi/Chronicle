@@ -19,6 +19,496 @@ console.log("Backend Version: 2026-02-11-FIX-RPID (blog.eightyfor.top)");
 
 // Enable CORS
 app.use(cors());
+// Parse JSON bodies for API endpoints
+app.use(express.json());
+
+// In-memory mock control store for development: can override API responses
+const mockStore = {
+    enabled: true,
+    posts: [
+        {
+            id: "6c96284f-a6ec-44d8-a0ed-acce66641cde",
+            title: "乌萨奇？到！",
+            date: "2026-02-11T13:56:09.188Z",
+            updatedAt: "2026-02-15T07:07:53.919Z",
+            filename: "6c96284f-a6ec-44d8-a0ed-acce66641cde.md",
+            summary: "纪念 Chronicle 1.0 上线，有 CDN 过后，图片加载更快了~",
+            tags: ["usagi", "featured"],
+            status: "published",
+            font: "sans"
+        },
+        {
+            id: "a7d395e0-b7fd-55e9-b1fe-bddf77752def",
+            title: "2026 前端技术展望",
+            date: "2026-04-01T02:30:00.000Z",
+            updatedAt: "2026-04-02T10:20:00.000Z",
+            filename: "a7d395e0-b7fd-55e9-b1fe-bddf77752def.md",
+            summary: "React Server Components、Vue Vapor、HTMX……今年有哪些值得关注的前端动向？",
+            tags: ["前端", "展望", "2026"],
+            status: "published",
+            font: "sans"
+        },
+        {
+            id: "b8e4a6f1-c8fe-66f0-c2gf-ceee88863efg",
+            title: "Rust 入门笔记：从所有权开始",
+            date: "2026-03-20T14:20:00.000Z",
+            updatedAt: "2026-03-22T09:15:00.000Z",
+            filename: "b8e4a6f1-c8fe-66f0-c2gf-ceee88863efg.md",
+            summary: "学习 Rust 的过程中，最难理解也最核心的概念就是所有权系统，这里是我的学习笔记。",
+            tags: ["Rust", "系统编程", "入门"],
+            status: "published",
+            font: "mono"
+        },
+        {
+            id: "c9f5b7g2-d9gf-77g1-d3hg-dfff99974fgh",
+            title: "数据库索引设计指南",
+            date: "2026-02-28T09:20:00.000Z",
+            updatedAt: "2026-03-01T11:30:45.789Z",
+            filename: "c9f5b7g2-d9gf-77g1-d3hg-dfff99974fgh.md",
+            summary: "详解 MySQL 索引的类型、原理及最佳实践，通过实际案例展示如何优化慢查询。",
+            tags: ["数据库", "MySQL", "索引", "featured"],
+            status: "published",
+            font: "sans"
+        },
+        {
+            id: "d0g6c8h3-e0hg-88h2-e4ih-eggg00085ghi",
+            title: "Git 工作流团队实践",
+            date: "2026-03-01T11:10:00.000Z",
+            updatedAt: "2026-03-02T14:20:35.901Z",
+            filename: "d0g6c8h3-e0hg-88h2-e4ih-eggg00085ghi.md",
+            summary: "分享团队中使用 Git Flow 和 GitHub Flow 的经验，以及代码审查的最佳实践。",
+            tags: ["Git", "团队协作", "工作流"],
+            status: "published",
+            font: "sans"
+        },
+        {
+            id: "e1h7d9i4-f1ih-99i3-f5ji-fhhh11196hij",
+            title: "设计系统搭建笔记",
+            date: "2026-02-05T16:00:00.000Z",
+            updatedAt: "2026-02-06T10:15:25.234Z",
+            filename: "e1h7d9i4-f1ih-99i3-f5ji-fhhh11196hij.md",
+            summary: "从零开始搭建设计系统的全过程，包括组件库、设计 tokens 和文档站点。",
+            tags: ["设计系统", "UI", "组件库"],
+            status: "draft",
+            font: "sans"
+        },
+        {
+            id: "f2i8e0j5-g2ji-00j4-g6kj-giii22207ijk",
+            title: "微服务架构落地反思",
+            date: "2025-12-10T08:30:00.000Z",
+            updatedAt: "2025-12-12T16:45:12.567Z",
+            filename: "f2i8e0j5-g2ji-00j4-g6kj-giii22207ijk.md",
+            summary: "回顾微服务架构迁移过程中的坑与收获，总结适合小团队的演进策略。",
+            tags: ["微服务", "架构", "反思", "featured"],
+            status: "published",
+            font: "mono"
+        },
+        {
+            id: "g3j9f1k6-h3kj-11k5-h7lk-hjjj33318jkl",
+            title: "CSS Grid 完全指南",
+            date: "2025-11-18T08:30:00.000Z",
+            updatedAt: "2025-11-20T12:00:00.000Z",
+            filename: "g3j9f1k6-h3kj-11k5-h7lk-hjjj33318jkl.md",
+            summary: "从基础概念到复杂布局，一份完整的 CSS Grid 学习手册。",
+            tags: ["CSS", "布局", "Grid"],
+            status: "published",
+            font: "sans"
+        },
+        {
+            id: "h4k0g2l7-i4lk-22l6-i8ml-ikkk44429klm",
+            title: "Node.js 内存泄漏排查实战",
+            date: "2025-10-05T08:30:00.000Z",
+            updatedAt: "2025-10-07T14:30:00.000Z",
+            filename: "h4k0g2l7-i4lk-22l6-i8ml-ikkk44429klm.md",
+            summary: "一次真实的 Node.js 内存泄漏问题排查过程，以及如何通过工具定位问题。",
+            tags: ["Node.js", "内存泄漏", "调试", "featured"],
+            status: "published",
+            font: "mono"
+        },
+        {
+            id: "i5l1h3m8-j5ml-33m7-j9nm-jlll55530lmn",
+            title: "Vue 3 组合式 API 最佳实践",
+            date: "2025-09-12T08:30:00.000Z",
+            updatedAt: "2025-09-14T10:45:00.000Z",
+            filename: "i5l1h3m8-j5ml-33m7-j9nm-jlll55530lmn.md",
+            summary: "总结 Vue 3 项目中组合式 API 的使用经验和复用逻辑的封装技巧。",
+            tags: ["Vue", "组合式API", "前端"],
+            status: "published",
+            font: "sans"
+        },
+        {
+            id: "j6m2i4n9-k6nm-44n8-k0on-kmmm66641mno",
+            title: "Docker 容器化开发环境搭建",
+            date: "2025-08-20T08:30:00.000Z",
+            updatedAt: "2025-08-22T16:20:00.000Z",
+            filename: "j6m2i4n9-k6nm-44n8-k0on-kmmm66641mno.md",
+            summary: "使用 Docker 统一团队开发环境，解决「在我电脑上能跑」的问题。",
+            tags: ["Docker", "DevOps", "环境配置"],
+            status: "published",
+            font: "sans"
+        },
+        {
+            id: "k7n3j5o0-l7on-55o9-l1po-lnnn77752nop",
+            title: "TypeScript 泛型深度解析",
+            date: "2025-07-15T08:30:00.000Z",
+            updatedAt: "2025-07-17T11:10:00.000Z",
+            filename: "k7n3j5o0-l7on-55o9-l1po-lnnn77752nop.md",
+            summary: "从基础到高级，彻底搞懂 TypeScript 泛型的用法和内置工具类型。",
+            tags: ["TypeScript", "类型系统", "进阶"],
+            status: "published",
+            font: "mono"
+        },
+        {
+            id: "l8o4k6p1-m8po-66p0-m2qp-mooo88863opq",
+            title: "HTTP/3 新特性速览",
+            date: "2025-06-08T08:30:00.000Z",
+            updatedAt: "2025-06-10T09:45:00.000Z",
+            filename: "l8o4k6p1-m8po-66p0-m2qp-mooo88863opq.md",
+            summary: "基于 QUIC 协议的 HTTP/3 带来了哪些改进？对前端性能有什么影响？",
+            tags: ["HTTP", "网络协议", "性能"],
+            status: "published",
+            font: "sans"
+        },
+        {
+            id: "m9p5l7q2-n9qp-77q1-n3rq-nppp99974pqr",
+            title: "单元测试入门与实战",
+            date: "2025-05-22T08:30:00.000Z",
+            updatedAt: "2025-05-24T15:30:00.000Z",
+            filename: "m9p5l7q2-n9qp-77q1-n3rq-nppp99974pqr.md",
+            summary: "Jest + Vitest 实战，如何编写可维护的单元测试。",
+            tags: ["测试", "单元测试", "Jest"],
+            status: "published",
+            font: "sans"
+        },
+        {
+            id: "n0q6m8r3-o0rq-88r2-o4sr-oqqq00085qrs",
+            title: "Electron 桌面应用开发踩坑记",
+            date: "2025-04-10T08:30:00.000Z",
+            updatedAt: "2025-04-12T13:20:00.000Z",
+            filename: "n0q6m8r3-o0rq-88r2-o4sr-oqqq00085qrs.md",
+            summary: "从打包到更新，Electron 开发中遇到的问题和解决方案。",
+            tags: ["Electron", "桌面应用", "踩坑"],
+            status: "published",
+            font: "sans"
+        },
+        {
+            id: "o1r7n9s4-p1sr-99s3-p5ts-prrr11196rst",
+            title: "AI 辅助编程实践思考",
+            date: "2025-03-05T08:30:00.000Z",
+            updatedAt: "2025-03-07T10:00:00.000Z",
+            filename: "o1r7n9s4-p1sr-99s3-p5ts-prrr11196rst.md",
+            summary: "Copilot、Cursor 等 AI 工具如何提升开发效率，以及需要注意的问题。",
+            tags: ["AI", "编程工具", "思考", "featured"],
+            status: "published",
+            font: "sans"
+        },
+        {
+            id: "p2s8o0t5-q2ts-00t4-q6ut-qsss22207stu",
+            title: "WebAssembly 应用场景探索",
+            date: "2025-02-18T08:30:00.000Z",
+            updatedAt: "2025-02-20T16:45:00.000Z",
+            filename: "p2s8o0t5-q2ts-00t4-q6ut-qsss22207stu.md",
+            summary: "WASM 在视频处理、游戏、加密计算等场景的实际应用案例。",
+            tags: ["WebAssembly", "WASM", "前沿"],
+            status: "draft",
+            font: "mono"
+        },
+        {
+            id: "q3t9p1u6-r3ut-11u5-r7vu-rttt33318tuv",
+            title: "正则表达式从入门到精通",
+            date: "2025-01-25T08:30:00.000Z",
+            updatedAt: "2025-01-27T11:30:00.000Z",
+            filename: "q3t9p1u6-r3ut-11u5-r7vu-rttt33318tuv.md",
+            summary: "一份系统的正则学习指南，配合大量实战例子。",
+            tags: ["正则", "工具", "技巧"],
+            status: "published",
+            font: "sans"
+        },
+        {
+            id: "r4u0q2v7-s4vu-22v6-s8wv-suuu44429uvw",
+            title: "Nginx 配置进阶技巧",
+            date: "2024-11-30T08:30:00.000Z",
+            updatedAt: "2024-12-02T14:15:00.000Z",
+            filename: "r4u0q2v7-s4vu-22v6-s8wv-suuu44429uvw.md",
+            summary: "负载均衡、缓存配置、限流、反向代理……Nginx 的高级配置技巧汇总。",
+            tags: ["Nginx", "运维", "服务器"],
+            status: "published",
+            font: "sans"
+        },
+        {
+            id: "s5v1r3w8-t5wv-33w7-t9xw-svvv55530vwx",
+            title: "2024 年度技术回顾",
+            date: "2024-12-28T08:30:00.000Z",
+            updatedAt: "2024-12-30T17:00:00.000Z",
+            filename: "s5v1r3w8-t5wv-33w7-t9xw-svvv55530vwx.md",
+            summary: "回顾 2024 年技术圈的大事件：AI 爆发、前端框架更新、Rust 生态发展……",
+            tags: ["年度回顾", "2024", "总结", "featured"],
+            status: "published",
+            font: "sans"
+        }
+    ],
+    settings: null,
+};
+
+// Never auto-fill posts from built-in templates: start with mock disabled and empty.
+mockStore.enabled = false;
+mockStore.posts = null;
+
+// Dev-only mock control endpoints
+app.get('/api/_mock', (req, res) => {
+    return res.json({ enabled: mockStore.enabled, hasPosts: !!mockStore.posts, hasSettings: !!mockStore.settings });
+});
+
+app.post('/api/_mock', (req, res) => {
+    const { key, value } = req.body || {};
+    if (!key) return res.status(400).json({ error: 'missing key' });
+    if (key === 'posts') mockStore.posts = value;
+    else if (key === 'settings') mockStore.settings = value;
+    else return res.status(400).json({ error: 'invalid key' });
+    return res.json({ success: true });
+});
+
+app.post('/api/_mock/enable', (req, res) => {
+    mockStore.enabled = true;
+    return res.json({ enabled: true });
+});
+app.post('/api/_mock/disable', (req, res) => {
+    mockStore.enabled = false;
+    return res.json({ enabled: false });
+});
+app.post('/api/_mock/clear', (req, res) => {
+    mockStore.enabled = false;
+    mockStore.posts = null;
+    mockStore.settings = null;
+    return res.json({ cleared: true });
+});
+
+app.post('/api/_mock/default', (req, res) => {
+    mockStore.enabled = false;
+    mockStore.posts = ([
+        {
+            id: "6c96284f-a6ec-44d8-a0ed-acce66641cde",
+            title: "乌萨奇？到！",
+            date: "2026-02-11T13:56:09.188Z",
+            updatedAt: "2026-02-15T07:07:53.919Z",
+            filename: "6c96284f-a6ec-44d8-a0ed-acce66641cde.md",
+            summary: "纪念 Chronicle 1.0 上线，有 CDN 过后，图片加载更快了~",
+            tags: ["usagi", "featured"],
+            status: "published",
+            font: "sans"
+        },
+        {
+            id: "a7d395e0-b7fd-55e9-b1fe-bddf77752def",
+            title: "2026 前端技术展望",
+            date: "2026-04-01T02:30:00.000Z",
+            updatedAt: "2026-04-02T10:20:00.000Z",
+            filename: "a7d395e0-b7fd-55e9-b1fe-bddf77752def.md",
+            summary: "React Server Components、Vue Vapor、HTMX……今年有哪些值得关注的前端动向？",
+            tags: ["前端", "展望", "2026"],
+            status: "published",
+            font: "sans"
+        },
+        {
+            id: "b8e4a6f1-c8fe-66f0-c2gf-ceee88863efg",
+            title: "Rust 入门笔记：从所有权开始",
+            date: "2026-03-20T14:20:00.000Z",
+            updatedAt: "2026-03-22T09:15:00.000Z",
+            filename: "b8e4a6f1-c8fe-66f0-c2gf-ceee88863efg.md",
+            summary: "学习 Rust 的过程中，最难理解也最核心的概念就是所有权系统，这里是我的学习笔记。",
+            tags: ["Rust", "系统编程", "入门"],
+            status: "published",
+            font: "mono"
+        },
+        {
+            id: "c9f5b7g2-d9gf-77g1-d3hg-dfff99974fgh",
+            title: "数据库索引设计指南",
+            date: "2026-02-28T09:20:00.000Z",
+            updatedAt: "2026-03-01T11:30:45.789Z",
+            filename: "c9f5b7g2-d9gf-77g1-d3hg-dfff99974fgh.md",
+            summary: "详解 MySQL 索引的类型、原理及最佳实践，通过实际案例展示如何优化慢查询。",
+            tags: ["数据库", "MySQL", "索引", "featured"],
+            status: "published",
+            font: "sans"
+        },
+        {
+            id: "d0g6c8h3-e0hg-88h2-e4ih-eggg00085ghi",
+            title: "Git 工作流团队实践",
+            date: "2026-03-01T11:10:00.000Z",
+            updatedAt: "2026-03-02T14:20:35.901Z",
+            filename: "d0g6c8h3-e0hg-88h2-e4ih-eggg00085ghi.md",
+            summary: "分享团队中使用 Git Flow 和 GitHub Flow 的经验，以及代码审查的最佳实践。",
+            tags: ["Git", "团队协作", "工作流"],
+            status: "published",
+            font: "sans"
+        },
+        {
+            id: "e1h7d9i4-f1ih-99i3-f5ji-fhhh11196hij",
+            title: "设计系统搭建笔记",
+            date: "2026-02-05T16:00:00.000Z",
+            updatedAt: "2026-02-06T10:15:25.234Z",
+            filename: "e1h7d9i4-f1ih-99i3-f5ji-fhhh11196hij.md",
+            summary: "从零开始搭建设计系统的全过程，包括组件库、设计 tokens 和文档站点。",
+            tags: ["设计系统", "UI", "组件库"],
+            status: "draft",
+            font: "sans"
+        },
+        {
+            id: "f2i8e0j5-g2ji-00j4-g6kj-giii22207ijk",
+            title: "微服务架构落地反思",
+            date: "2025-12-10T08:30:00.000Z",
+            updatedAt: "2025-12-12T16:45:12.567Z",
+            filename: "f2i8e0j5-g2ji-00j4-g6kj-giii22207ijk.md",
+            summary: "回顾微服务架构迁移过程中的坑与收获，总结适合小团队的演进策略。",
+            tags: ["微服务", "架构", "反思", "featured"],
+            status: "published",
+            font: "mono"
+        },
+        {
+            id: "g3j9f1k6-h3kj-11k5-h7lk-hjjj33318jkl",
+            title: "CSS Grid 完全指南",
+            date: "2025-11-18T08:30:00.000Z",
+            updatedAt: "2025-11-20T12:00:00.000Z",
+            filename: "g3j9f1k6-h3kj-11k5-h7lk-hjjj33318jkl.md",
+            summary: "从基础概念到复杂布局，一份完整的 CSS Grid 学习手册。",
+            tags: ["CSS", "布局", "Grid"],
+            status: "published",
+            font: "sans"
+        },
+        {
+            id: "h4k0g2l7-i4lk-22l6-i8ml-ikkk44429klm",
+            title: "Node.js 内存泄漏排查实战",
+            date: "2025-10-05T08:30:00.000Z",
+            updatedAt: "2025-10-07T14:30:00.000Z",
+            filename: "h4k0g2l7-i4lk-22l6-i8ml-ikkk44429klm.md",
+            summary: "一次真实的 Node.js 内存泄漏问题排查过程，以及如何通过工具定位问题。",
+            tags: ["Node.js", "内存泄漏", "调试", "featured"],
+            status: "published",
+            font: "mono"
+        },
+        {
+            id: "i5l1h3m8-j5ml-33m7-j9nm-jlll55530lmn",
+            title: "Vue 3 组合式 API 最佳实践",
+            date: "2025-09-12T08:30:00.000Z",
+            updatedAt: "2025-09-14T10:45:00.000Z",
+            filename: "i5l1h3m8-j5ml-33m7-j9nm-jlll55530lmn.md",
+            summary: "总结 Vue 3 项目中组合式 API 的使用经验和复用逻辑的封装技巧。",
+            tags: ["Vue", "组合式API", "前端"],
+            status: "published",
+            font: "sans"
+        },
+        {
+            id: "j6m2i4n9-k6nm-44n8-k0on-kmmm66641mno",
+            title: "Docker 容器化开发环境搭建",
+            date: "2025-08-20T08:30:00.000Z",
+            updatedAt: "2025-08-22T16:20:00.000Z",
+            filename: "j6m2i4n9-k6nm-44n8-k0on-kmmm66641mno.md",
+            summary: "使用 Docker 统一团队开发环境，解决「在我电脑上能跑」的问题。",
+            tags: ["Docker", "DevOps", "环境配置"],
+            status: "published",
+            font: "sans"
+        },
+        {
+            id: "k7n3j5o0-l7on-55o9-l1po-lnnn77752nop",
+            title: "TypeScript 泛型深度解析",
+            date: "2025-07-15T08:30:00.000Z",
+            updatedAt: "2025-07-17T11:10:00.000Z",
+            filename: "k7n3j5o0-l7on-55o9-l1po-lnnn77752nop.md",
+            summary: "从基础到高级，彻底搞懂 TypeScript 泛型的用法和内置工具类型。",
+            tags: ["TypeScript", "类型系统", "进阶"],
+            status: "published",
+            font: "mono"
+        },
+        {
+            id: "l8o4k6p1-m8po-66p0-m2qp-mooo88863opq",
+            title: "HTTP/3 新特性速览",
+            date: "2025-06-08T08:30:00.000Z",
+            updatedAt: "2025-06-10T09:45:00.000Z",
+            filename: "l8o4k6p1-m8po-66p0-m2qp-mooo88863opq.md",
+            summary: "基于 QUIC 协议的 HTTP/3 带来了哪些改进？对前端性能有什么影响？",
+            tags: ["HTTP", "网络协议", "性能"],
+            status: "published",
+            font: "sans"
+        },
+        {
+            id: "m9p5l7q2-n9qp-77q1-n3rq-nppp99974pqr",
+            title: "单元测试入门与实战",
+            date: "2025-05-22T08:30:00.000Z",
+            updatedAt: "2025-05-24T15:30:00.000Z",
+            filename: "m9p5l7q2-n9qp-77q1-n3rq-nppp99974pqr.md",
+            summary: "Jest + Vitest 实战，如何编写可维护的单元测试。",
+            tags: ["测试", "单元测试", "Jest"],
+            status: "published",
+            font: "sans"
+        },
+        {
+            id: "n0q6m8r3-o0rq-88r2-o4sr-oqqq00085qrs",
+            title: "Electron 桌面应用开发踩坑记",
+            date: "2025-04-10T08:30:00.000Z",
+            updatedAt: "2025-04-12T13:20:00.000Z",
+            filename: "n0q6m8r3-o0rq-88r2-o4sr-oqqq00085qrs.md",
+            summary: "从打包到更新，Electron 开发中遇到的问题和解决方案。",
+            tags: ["Electron", "桌面应用", "踩坑"],
+            status: "published",
+            font: "sans"
+        },
+        {
+            id: "o1r7n9s4-p1sr-99s3-p5ts-prrr11196rst",
+            title: "AI 辅助编程实践思考",
+            date: "2025-03-05T08:30:00.000Z",
+            updatedAt: "2025-03-07T10:00:00.000Z",
+            filename: "o1r7n9s4-p1sr-99s3-p5ts-prrr11196rst.md",
+            summary: "Copilot、Cursor 等 AI 工具如何提升开发效率，以及需要注意的问题。",
+            tags: ["AI", "编程工具", "思考", "featured"],
+            status: "published",
+            font: "sans"
+        },
+        {
+            id: "p2s8o0t5-q2ts-00t4-q6ut-qsss22207stu",
+            title: "WebAssembly 应用场景探索",
+            date: "2025-02-18T08:30:00.000Z",
+            updatedAt: "2025-02-20T16:45:00.000Z",
+            filename: "p2s8o0t5-q2ts-00t4-q6ut-qsss22207stu.md",
+            summary: "WASM 在视频处理、游戏、加密计算等场景的实际应用案例。",
+            tags: ["WebAssembly", "WASM", "前沿"],
+            status: "draft",
+            font: "mono"
+        },
+        {
+            id: "q3t9p1u6-r3ut-11u5-r7vu-rttt33318tuv",
+            title: "正则表达式从入门到精通",
+            date: "2025-01-25T08:30:00.000Z",
+            updatedAt: "2025-01-27T11:30:00.000Z",
+            filename: "q3t9p1u6-r3ut-11u5-r7vu-rttt33318tuv.md",
+            summary: "一份系统的正则学习指南，配合大量实战例子。",
+            tags: ["正则", "工具", "技巧"],
+            status: "published",
+            font: "sans"
+        },
+        {
+            id: "r4u0q2v7-s4vu-22v6-s8wv-suuu44429uvw",
+            title: "Nginx 配置进阶技巧",
+            date: "2024-11-30T08:30:00.000Z",
+            updatedAt: "2024-12-02T14:15:00.000Z",
+            filename: "r4u0q2v7-s4vu-22v6-s8wv-suuu44429uvw.md",
+            summary: "负载均衡、缓存配置、限流、反向代理……Nginx 的高级配置技巧汇总。",
+            tags: ["Nginx", "运维", "服务器"],
+            status: "published",
+            font: "sans"
+        },
+        {
+            id: "s5v1r3w8-t5wv-33w7-t9xw-svvv55530vwx",
+            title: "2024 年度技术回顾",
+            date: "2024-12-28T08:30:00.000Z",
+            updatedAt: "2024-12-30T17:00:00.000Z",
+            filename: "s5v1r3w8-t5wv-33w7-t9xw-svvv55530vwx.md",
+            summary: "回顾 2024 年技术圈的大事件：AI 爆发、前端框架更新、Rust 生态发展……",
+            tags: ["年度回顾", "2024", "总结", "featured"],
+            status: "published",
+            font: "sans"
+        }
+    ]);
+    mockStore.settings = null;
+});
 
 // Logger
 const LOG_DIR = path.join(__dirname, 'log');
@@ -26,6 +516,14 @@ const ACCESS_LOG = path.join(LOG_DIR, 'access.log');
 if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
 const accessLogStream = fs.createWriteStream(ACCESS_LOG, { flags: 'a' });
 app.use(morgan('combined', { stream: accessLogStream }));
+
+// Keep API JSON responses fresh in browsers; curl bypasses HTTP cache anyway.
+app.use('/api', (req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    next();
+});
 
 // Data Directories
 const BASE_DIR = __dirname;
@@ -361,9 +859,16 @@ app.use((req, res, next) => {
 
 // 1. Static File Serving (Mimic /server/data/upload/...)
 // Frontend requests: /server/data/upload/pic/xxx.png
+// Serve uploaded files but avoid marking them immutable so browsers
+// will revalidate when the underlying file changes. Use a very short
+// max-age to allow clients to pick up background updates promptly.
 app.use('/server/data/upload', express.static(UPLOAD_DIR, {
-    maxAge: '7d',
-    immutable: true
+    maxAge: 0,
+    immutable: false,
+    setHeaders: (res, filePath) => {
+        // Encourage revalidation while still allowing public caching
+        res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+    }
 }));
 
 // Thumbnail endpoint: /thumb/<category>/<file>
@@ -774,8 +1279,150 @@ app.get('/api/files', (req, res) => {
 });
 
 // 5. Settings API - read/write a simple JSON file under server/data/settings.json
+
+// ==========================================
+// 💡 PUBLIC APIs (For Astro / Frontend)
+// ==========================================
+
+app.get('/api/public/settings', (req, res) => {
+    try {
+        if (!fs.existsSync(SETTINGS_FILE)) return res.json({});
+        const saved = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
+        // 🚨 SECURITY: Only return safe fields to the public frontend
+        const safeSettings = {
+            siteName: saved.siteName || 'Chronicle',
+            authorName: saved.authorName || '',
+            bio: saved.bio || '',
+            avatar: saved.avatar || '',
+            homeFeatures: saved.homeFeatures || [],
+            friends: saved.friends || [],
+            footerHtml: saved.footerHtml || '',
+            appearance: saved.appearance || {}
+        };
+        res.json(safeSettings);
+    } catch (e) {
+        console.error('[Public Settings] GET error', e);
+        res.status(500).json({});
+    }
+});
+
+app.get('/api/public/posts', (req, res) => {
+    try {
+        const indexContent = fs.readFileSync(INDEX_FILE, 'utf-8');
+        let posts = JSON.parse(indexContent || '[]');
+        
+        // 🚨 SECURITY: Always filter only published posts
+        posts = posts.filter(p => p.status === 'published');
+        posts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        // Support for pagination (useful for Infinite Scroll in Astro)
+        const page = parseInt(req.query.page, 10) || 1;
+        const limit = parseInt(req.query.limit, 10) || 10;
+        const skip = (page - 1) * limit;
+
+        // Optionally filter by tag
+        const tag = req.query.tag;
+        if (tag) {
+            posts = posts.filter(p => (p.tags || []).includes(tag));
+        }
+
+        const totalOptions = posts.length;
+        const paginatedPosts = posts.slice(skip, skip + limit).map(p => {
+             // Strip sensitive/unnecessary disk fields to minimize payload
+             return {
+                 id: p.id,
+                 title: p.title,
+                 date: p.date,
+                 updatedAt: p.updatedAt,
+                 summary: p.summary,
+                 tags: p.tags || [],
+                 font: p.font
+             }
+        });
+
+        res.json({
+            data: paginatedPosts,
+            total: totalOptions,
+            page,
+            limit,
+            hasMore: skip + limit < totalOptions
+        });
+    } catch(e) {
+        res.status(500).json({ data: [], total: 0 });
+    }
+});
+
+app.get('/api/public/post', (req, res) => {
+    const { id } = req.query;
+    if (!id) return res.status(400).send('Missing ID');
+
+    try {
+        const indexContent = fs.readFileSync(INDEX_FILE, 'utf-8');
+        const posts = JSON.parse(indexContent || '[]');
+        const post = posts.find(p => p.id === id);
+
+        // 🚨 SECURITY: Only allow published posts
+        if (!post || post.status !== 'published') return res.status(404).send('Post not found');
+
+        // Read compiled html & toc from disk
+        const html = readCompiledHtmlFromDisk(post) || '';
+        const toc = readTocFromDisk(post);
+
+        // Return stripped safe payload
+        res.json({ 
+            id: post.id,
+            title: post.title,
+            date: post.date,
+            updatedAt: post.updatedAt,
+            tags: post.tags || [],
+            font: post.font,
+            html, 
+            toc 
+        });
+    } catch(e) {
+        res.status(500).send('Error');
+    }
+});
+
+app.get('/api/public/search', (req, res) => {
+    try {
+        const keyword = (req.query.keyword || '').toLowerCase().trim();
+        if (!keyword) return res.json([]);
+
+        const indexContent = fs.readFileSync(INDEX_FILE, 'utf-8');
+        let posts = JSON.parse(indexContent || '[]');
+        
+        posts = posts.filter(p => p.status === 'published');
+        
+        const results = posts.filter(p => {
+            return (p.title || '').toLowerCase().includes(keyword) || 
+                   (p.summary || '').toLowerCase().includes(keyword) ||
+                   (p.tags || []).some(t => t.toLowerCase().includes(keyword));
+        }).map(p => ({
+            id: p.id,
+            title: p.title,
+            summary: p.summary,
+            date: p.date,
+            tags: p.tags || []
+        }));
+
+        res.json(results);
+    } catch(e) {
+        res.status(500).json([]);
+    }
+});
+
+// ==========================================
+// 🔴 ADMIN APIs (For Vue CMS Dashboard)
+// ==========================================
+
 app.get('/api/settings', (req, res) => {
     try {
+        // If mockStore enabled and settings provided, return mock settings
+        if (typeof mockStore !== 'undefined' && mockStore.enabled && mockStore.settings) {
+            return res.json(mockStore.settings);
+        }
+
         if (!fs.existsSync(SETTINGS_FILE)) return res.json({});
         const saved = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
         res.json(saved);
@@ -963,13 +1610,86 @@ app.post('/api/upload', (req, res) => {
 
 app.get('/api/posts', (req, res) => {
     try {
+        const timelineParam = String(req.query.timeline || '').toLowerCase();
+        const timelineDesc = timelineParam === '' || timelineParam === '1' || timelineParam === 'true' || timelineParam === 'desc' || timelineParam === 'newest';
+        const featuredOnly = req.query.featured === 'true';
+
+        // If mockStore is enabled and posts are provided, use them directly
+        if (typeof mockStore !== 'undefined' && mockStore.enabled && Array.isArray(mockStore.posts)) {
+            let posts = mockStore.posts.map((p) => ({ ...p }));
+            
+            // Filter featured posts if requested
+            if (featuredOnly) {
+                posts = posts.filter(post => 
+                    Array.isArray(post.tags) && 
+                    (post.tags.includes('featured') || post.tags.includes('精选'))
+                );
+            }
+            
+            // apply simple pagination if requested
+            const pageParam = req.query.page !== undefined ? parseInt(String(req.query.page), 10) : NaN;
+            const perPageParam = req.query.perPage !== undefined ? parseInt(String(req.query.perPage), 10) : NaN;
+            if (timelineDesc) {
+                posts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            }
+            if (!Number.isNaN(pageParam) || !Number.isNaN(perPageParam)) {
+                const page = Number.isNaN(pageParam) ? 1 : Math.max(1, pageParam);
+                const perPage = Number.isNaN(perPageParam) ? 10 : Math.max(1, perPageParam);
+                const total = posts.length;
+                const start = (page - 1) * perPage;
+                const end = start + perPage;
+                const pagePosts = posts.slice(start, end);
+                return res.json({ posts: pagePosts, total, page, perPage });
+            }
+            return res.json(posts);
+        }
         // Reload strictly to get fresh data
         const indexContent = fs.readFileSync(INDEX_FILE, 'utf-8');
         let posts = JSON.parse(indexContent || '[]');
+
+        const hasTitleParam = Object.prototype.hasOwnProperty.call(req.query, 'title');
+        const hasTagsParam = Object.prototype.hasOwnProperty.call(req.query, 'tags');
+        const hasSearchParams = hasTitleParam || hasTagsParam;
+
+        const titleQuery = String(req.query.title || '').trim().toLowerCase();
+        const rawTags = req.query.tags;
+        const tagQueryList = Array.isArray(rawTags)
+            ? rawTags
+            : typeof rawTags === 'string'
+                ? rawTags.split(',')
+                : [];
+        const normalizedTags = tagQueryList
+            .map(t => String(t).trim())
+            .filter(Boolean);
         
         const includeDrafts = req.query.includeDrafts === 'true';
         if (!includeDrafts) {
             posts = posts.filter(p => p.status === 'published' || p.status === 'modifying' || !p.status);
+        }
+
+        // Filter featured posts if requested
+        if (featuredOnly) {
+            posts = posts.filter(post => 
+                Array.isArray(post.tags) && 
+                (post.tags.includes('featured') || post.tags.includes('精选'))
+            );
+        }
+
+        // Search mode: if query includes title/tags, enforce filtered results.
+        // Empty title + empty tags should return empty results.
+        if (hasSearchParams) {
+            if (!titleQuery && normalizedTags.length === 0) {
+                return res.json([]);
+            }
+
+            posts = posts.filter(post => {
+                const postTitle = String(post.title || '').toLowerCase();
+                const postTags = Array.isArray(post.tags) ? post.tags : [];
+
+                const matchesTitle = !titleQuery || postTitle.includes(titleQuery);
+                const matchesTags = normalizedTags.length === 0 || normalizedTags.every(tag => postTags.includes(tag));
+                return matchesTitle && matchesTags;
+            });
         }
 
         // Augment posts with hasHtml flag based on disk state
@@ -981,7 +1701,23 @@ app.get('/api/posts', (req, res) => {
             return { ...p, hasHtml }
         })
 
-        posts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        if (timelineDesc) {
+            posts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        }
+
+        // Pagination support: if `page` or `perPage` query provided, return a paged response
+        const pageParam = req.query.page !== undefined ? parseInt(String(req.query.page), 10) : NaN;
+        const perPageParam = req.query.perPage !== undefined ? parseInt(String(req.query.perPage), 10) : NaN;
+        if (!Number.isNaN(pageParam) || !Number.isNaN(perPageParam)) {
+            const page = Number.isNaN(pageParam) ? 1 : Math.max(1, pageParam);
+            const perPage = Number.isNaN(perPageParam) ? 10 : Math.max(1, perPageParam);
+            const total = posts.length;
+            const start = (page - 1) * perPage;
+            const end = start + perPage;
+            const pagePosts = posts.slice(start, end);
+            return res.json({ posts: pagePosts, total, page, perPage });
+        }
+
         res.json(posts);
     } catch(e) {
         res.status(500).send('[]');
