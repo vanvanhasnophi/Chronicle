@@ -6,6 +6,12 @@ let bgRenderVersion = 0;
 const backgroundPreparedCache = new Map<string, Promise<{ ok: boolean; preparedUrl: string }>>();
 const backgroundObjectUrls = new Set<string>();
 let currentBackgroundUrl = '';
+let currentTheme = '';
+
+// 初始化当前主题
+document.addEventListener('DOMContentLoaded', () => {
+  currentTheme = document.documentElement.getAttribute('data-theme') || '';
+});
 
 /**
  * 预加载背景图片
@@ -124,14 +130,18 @@ export async function stageBackgroundLayer(
     // 清除ready状态
     layer.classList.remove('is-ready');
 
-    // 设置surface和overlay
+    // 第一步：立即设置overlay（最高优先级）
+    if (overlayEl) {
+      overlayEl.style.background = overlayValue || 'transparent';
+    }
+
+    // 第二步：设置surface
     if (surfaceEl) {
       const root = getComputedStyle(document.documentElement).getPropertyValue('--app-bg-primary') || '';
       surfaceEl.style.background = root || 'transparent';
     }
-    if (overlayEl) {
-      overlayEl.style.background = overlayValue || 'transparent';
-    }
+
+    // 第三步：设置图片样式（但不立即加载图片）
     if (imgEl) {
       imgEl.style.backgroundImage = 'none';
       imgEl.style.backgroundPosition = `${(meta && meta.posX) || 50}% ${(meta && meta.posY) || 50}%`;
@@ -157,30 +167,38 @@ export async function stageBackgroundLayer(
           // 触发fade动画
           void (imgEl && (imgEl as HTMLElement).offsetHeight);
           requestAnimationFrame(() => {
-            if (renderId !== bgRenderVersion) return;
-            setTimeout(() => {
               if (renderId !== bgRenderVersion) return;
+              setTimeout(() => {
+                if (renderId !== bgRenderVersion) return;
 
-              const onTransitionEnd = (ev: TransitionEvent) => {
-                if (ev.target !== imgEl || ev.propertyName !== 'opacity') return;
+                const onTransitionEnd = (ev: TransitionEvent) => {
+                  if (ev.target !== imgEl || ev.propertyName !== 'opacity') return;
 
-                // 清理不用的blob URLs
-                const keep = (prepared && prepared.preparedUrl) ? prepared.preparedUrl : '';
-                backgroundObjectUrls.forEach((u) => {
-                  if (u && u !== keep) {
-                    URL.revokeObjectURL(u);
-                    backgroundObjectUrls.delete(u);
-                  }
+                  // 清理不用的blob URLs
+                  const keep = (prepared && prepared.preparedUrl) ? prepared.preparedUrl : '';
+                  backgroundObjectUrls.forEach((u) => {
+                    if (u && u !== keep) {
+                      URL.revokeObjectURL(u);
+                      backgroundObjectUrls.delete(u);
+                    }
+                  });
+
+                  if (imgEl) imgEl.removeEventListener('transitionend', onTransitionEnd as any);
+                };
+
+                if (imgEl) imgEl.addEventListener('transitionend', onTransitionEnd as any);
+                layer.classList.add('is-ready');
+                console.info('[bg] fade-start', renderId, 'is-ready class added');
+                
+                // 调试：检查背景层状态
+                console.info('[bg] Layer state:', {
+                  hasIsReady: layer.classList.contains('is-ready'),
+                  imgBackground: imgEl?.style.backgroundImage,
+                  imgOpacity: imgEl?.style.opacity,
+                  computedOpacity: imgEl ? getComputedStyle(imgEl).opacity : 'no imgEl'
                 });
-
-                if (imgEl) imgEl.removeEventListener('transitionend', onTransitionEnd as any);
-              };
-
-              if (imgEl) imgEl.addEventListener('transitionend', onTransitionEnd as any);
-              layer.classList.add('is-ready');
-              console.info('[bg] fade-start', renderId);
-            }, 30);
-          });
+              }, 30);
+            });
         } catch (e) {
           console.error('[bg] Error in prepare:', e);
         }
@@ -232,6 +250,31 @@ export function ensureBackgroundLayer() {
     }
   } catch (e) {
     console.error('[bg] Error ensuring background layer:', e);
+  }
+}
+
+/**
+ * 手动触发背景层重载（由主题切换按钮调用）
+ */
+export function forceBackgroundReload() {
+  try {
+    const newTheme = document.documentElement.getAttribute('data-theme') || '';
+    const oldTheme = currentTheme;
+    
+    // 更新当前主题
+    currentTheme = newTheme;
+    
+    // 强制重载背景层
+    bgRenderVersion++;
+    console.log('[BackgroundLayer] Manual theme change, forcing reload', { 
+      old: oldTheme, 
+      new: newTheme 
+    });
+    
+    return true;
+  } catch (e) {
+    console.error('[BackgroundLayer] Error in forceBackgroundReload:', e);
+    return false;
   }
 }
 

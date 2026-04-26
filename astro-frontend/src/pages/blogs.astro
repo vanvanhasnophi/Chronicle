@@ -2,7 +2,8 @@
 import Layout from "../layouts/Layout.astro";
 import BackToTop from "../components/BackToTop.astro";
 import { getTranslation, getLocale } from "../utils/i18n";
-import { getApiUrl } from "../config/api";
+import { API_BASE_URL, getApiUrl } from "../config/api";
+import { initPreloadSystem } from "../utils/preload";
 
 // Get locale from Astro.locals (set by middleware)
 const locale = getLocale(Astro.locals);
@@ -102,7 +103,7 @@ const renderFeaturedCard = (post: any, hidden = false) => {
     ? `<div class="post-tags">${tags.map((tag) => `<span class="tag${isFeaturedTag(String(tag)) ? " featured" : ""}"># ${isFeaturedTag(String(tag)) ? escapeHtml(t("tag.featured")) : escapeHtml(tag)}</span>`).join("")}</div>`
     : "";
 
-  return `<a href="/blog/${encodeURIComponent(post.id)}" style="text-decoration:none; color:inherit;${hidden ? " display:none;" : ""}" class="${hidden ? "hidden-featured" : ""}">
+  return `<a href="/post/${encodeURIComponent(post.id)}" style="text-decoration:none; color:inherit;${hidden ? " display:none;" : ""}" class="${hidden ? "hidden-featured" : ""}">
     <article class="post-card featured-card">
       <div class="post-meta"><span class="post-date">${escapeHtml(dateText)}</span></div>
       <h3 class="post-title">${escapeHtml(post.title)}</h3>
@@ -119,7 +120,7 @@ const renderArchiveCard = (post: any) => {
     ? `<div class="post-tags">${tags.map((tag) => `<span class="tag${isFeaturedTag(String(tag)) ? " featured" : ""}"># ${isFeaturedTag(String(tag)) ? escapeHtml(t("tag.featured")) : escapeHtml(tag)}</span>`).join("")}</div>`
     : "";
 
-  return `<a href="/blog/${encodeURIComponent(post.id)}" style="text-decoration:none; color:inherit;">
+  return `<a href="/post/${encodeURIComponent(post.id)}" style="text-decoration:none; color:inherit;">
     <article class="post-card compact-card">
       <div class="post-header-row">
         <h4 class="post-title">${escapeHtml(post.title)}</h4>
@@ -281,18 +282,18 @@ const hasFeaturedPosts = initialFeaturedPosts.length > 0;
 
   .toggle-btn {
     background: transparent;
-    border: 1px solid var(--border-color);
+    border: none;
     color: var(--component-text-secondary);
     padding: 4px 10px;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 0.85em;
+    font-size: 1em;
     transition: all 0.3s;
   }
 
   .toggle-btn:hover {
     color: var(--component-text-primary-hover);
-    border-color: var(--accent-color);
+    border: none;
   }
   .featured-grid {
     display: grid;
@@ -484,7 +485,15 @@ const hasFeaturedPosts = initialFeaturedPosts.length > 0;
     locale,
   }}
 >
+
   (function () {
+    // 客户端API配置 - 直接指向3000端口的后端服务
+    const API_BASE_URL = window.location.protocol + '//' + window.location.hostname + ':3000';
+    const getApiUrl = (endpoint) => {
+      endpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+      return `${API_BASE_URL}${endpoint}`;
+    };
+
     const perPage = 10;
     let page = initialPosts.length > 0 ? 1 : 0;
     let loading = false;
@@ -517,7 +526,7 @@ const hasFeaturedPosts = initialFeaturedPosts.length > 0;
     function logRequestUrl(stage, url) {
       let resolved = url;
       try {
-        resolved = new URL(url, window.location.origin).toString();
+        resolved = getApiUrl(url).toString();
       } catch (e) {
         // keep raw url when URL constructor cannot parse
       }
@@ -537,7 +546,7 @@ const hasFeaturedPosts = initialFeaturedPosts.length > 0;
           url = `/api/posts?featured=true&timeline=desc&page=${featuredPage}&perPage=3&_ts=${Date.now()}`;
         }
         logRequestUrl("featured", url);
-        const res = await fetch(url, { cache: "no-store" });
+        const res = await fetch(getApiUrl(url), { cache: "no-store" });
         if (res.ok) {
           const data = await res.json();
           const arr = Array.isArray(data) ? data : data.posts || [];
@@ -553,6 +562,7 @@ const hasFeaturedPosts = initialFeaturedPosts.length > 0;
     }
 
     function resetFeaturedToggleState() {
+      const featuredToggle = document.getElementById("featured-toggle");
       if (!featuredToggle) return;
       featuredToggle.dataset.expanded = "false";
       featuredToggle.textContent =
@@ -575,13 +585,14 @@ const hasFeaturedPosts = initialFeaturedPosts.length > 0;
         btn.dataset.expanded = next ? "true" : "false";
         btn.textContent = next ? collapseLabel : expandLabel;
         
+        // Update the featuredExpanded state
+        featuredExpanded = next;
+        
         // Load remaining featured posts when expanding
-        if (next && !featuredExpanded) {
-          featuredExpanded = true;
+        if (next) {
           await loadFeaturedPosts(true);
-        } else if (!next && featuredExpanded) {
+        } else {
           // Collapse: re-render to show only first 3 posts
-          featuredExpanded = false;
           renderFeatured();
         }
       });
@@ -699,7 +710,7 @@ const hasFeaturedPosts = initialFeaturedPosts.length > 0;
         if (!container) return;
 
         const a = document.createElement("a");
-        a.href = `/blog/${post.id}`;
+        a.href = `/post/${post.id}`;
         a.style.textDecoration = "none";
         a.style.color = "inherit";
         a.setAttribute("data-post-date", post.date);
@@ -749,6 +760,11 @@ const hasFeaturedPosts = initialFeaturedPosts.length > 0;
     }
 
     function renderFeatured() {
+      // Re-fetch DOM elements each time to handle page reloads
+      const featuredSection = document.getElementById("featured-section");
+      const featuredGrid = document.getElementById("featured-grid");
+      const featuredToggle = document.getElementById("featured-toggle");
+      
       if (!featuredSection || !featuredGrid || !featuredToggle) return;
       const featured = Array.from(featuredMap.values()).sort(
         (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
@@ -769,13 +785,6 @@ const hasFeaturedPosts = initialFeaturedPosts.length > 0;
       const displayLimit = featuredExpanded ? featured.length : 3;
       const shouldShowToggle = featuredTotal > 3;
       
-      console.log("[blogs] Featured display settings:", { 
-        displayLimit, 
-        shouldShowToggle,
-        featuredCount: featured.length,
-        featuredTotal
-      });
-      
       featuredGrid.innerHTML = featured
         .slice(0, displayLimit)
         .map((post, idx) => {
@@ -786,7 +795,7 @@ const hasFeaturedPosts = initialFeaturedPosts.length > 0;
           const dateText = new Date(post.date).toLocaleDateString(
             getUserLocale(),
           );
-          return `<a href="/blog/${encodeURIComponent(post.id)}" style="text-decoration:none; color:inherit;" class="featured-card">
+          return `<a href="/post/${encodeURIComponent(post.id)}" style="text-decoration:none; color:inherit;" class="featured-card">
           <article class="post-card featured-card">
             <div class="post-meta"><span class="post-date">${escapeHtml(dateText)}</span></div>
             <h3 class="post-title">${escapeHtml(post.title)}</h3>
@@ -813,7 +822,7 @@ const hasFeaturedPosts = initialFeaturedPosts.length > 0;
       try {
         const url = `/api/posts?page=${page}&perPage=${perPage}&timeline=desc&_ts=${Date.now()}`;
         logRequestUrl("csr", url);
-        const res = await fetch(url, { cache: "no-store" });
+        const res = await fetch(getApiUrl(url), { cache: "no-store" });
         if (!res.ok) {
           done = true;
           return;
@@ -875,15 +884,41 @@ const hasFeaturedPosts = initialFeaturedPosts.length > 0;
       });
     }
 
-    // Listen for language changes
-    window.addEventListener('storage', (e) => {
-      if (e.key === 'locale') {
-        updateMonthLabels();
-      }
-    });
+    // Listen for language changes - use a unique global flag to prevent duplicate binding
+    if (!window.__chronicleBlogsLocaleListenerBound) {
+      window.__chronicleBlogsLocaleListenerBound = true;
+      
+      window.addEventListener('storage', (e) => {
+        if (e.key === 'locale') {
+          // Reset expanded state when language changes
+          featuredExpanded = false;
+          updateMonthLabels();
+          // Re-render featured to update button state
+          // Re-fetch DOM elements after page reload
+          const featuredSection = document.getElementById("featured-section");
+          const featuredGrid = document.getElementById("featured-grid");
+          const featuredToggle = document.getElementById("featured-toggle");
+          if (featuredSection && featuredGrid && featuredToggle) {
+            renderFeatured();
+          }
+        }
+      });
 
-    // Also listen for custom locale change events (from language switcher)
-    document.addEventListener('localeChanged', updateMonthLabels);
+      // Also listen for custom locale change events (from language switcher)
+      document.addEventListener('localeChanged', () => {
+        // Reset expanded state when language changes
+        featuredExpanded = false;
+        updateMonthLabels();
+        // Re-render featured to update button state
+        // Re-fetch DOM elements after page reload
+        const featuredSection = document.getElementById("featured-section");
+        const featuredGrid = document.getElementById("featured-grid");
+        const featuredToggle = document.getElementById("featured-toggle");
+        if (featuredSection && featuredGrid && featuredToggle) {
+          renderFeatured();
+        }
+      });
+    }
 
     // If SSR did not produce posts, fetch the first page on load.
     if (!initialPosts.length) loadNext();
@@ -893,5 +928,15 @@ const hasFeaturedPosts = initialFeaturedPosts.length > 0;
       initialFeaturedPosts.forEach(post => featuredMap.set(post.id, post));
       renderFeatured();
     }
+
+    // 智能预加载其他页面（博客列表页不预加载详情页）
+    import('../utils/preload.ts').then(({ initPreloadSystem }) => {
+      // 延迟执行预加载，避免影响首屏性能
+      setTimeout(() => {
+        initPreloadSystem();
+      }, 2000);
+    }).catch(err => {
+      console.warn('[Preload] Failed to load preload module:', err);
+    });
   })();
 </script>

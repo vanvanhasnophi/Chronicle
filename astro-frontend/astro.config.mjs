@@ -15,11 +15,8 @@ export default defineConfig({
   adapter: node({
     mode: 'standalone'
   }),
-  // 开启更积极的预加载策略，模拟 SPA 的秒开体验
-  prefetch: {
-    prefetchAll: true,
-    defaultStrategy: 'viewport'
-  },
+  // 禁用Astro内置预加载，使用自定义智能预加载策略
+  prefetch: false,
   integrations: [icon()],
   server: { port: 4321 },
   // Astro原生i18n配置

@@ -1349,8 +1349,8 @@ watch(route, () => {
   }
 
   .nav-links .nav-close .nav-close-icon svg {
-    width: 18px;
-    height: 18px;
+    width: 32px;
+    height: 32px;
     display: block;
     stroke: currentColor
   }

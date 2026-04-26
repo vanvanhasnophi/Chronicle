@@ -12,3 +12,5 @@ chronicle-frontend/.env.production
 scripts/media_speed_test.sh
 server/log/*
 .env
+.claude
+astro-frontend/dist/*

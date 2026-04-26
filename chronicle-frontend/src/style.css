@@ -177,17 +177,17 @@ body[data-backend-theme="light"] {
   --app-bg-secondary: #eef2f6;
   --component-bg: #ffffff;
   --component-bg-alt: #f5f7fa;
-  --component-bg-blur: rgba(255, 255, 255, 0.7);
-  --component-bg-blur-alt: rgba(248, 250, 253, 0.4);
-  --component-bg-accent: rgba(46, 163, 95, 0.15);
-  --component-bg-accent-blur: rgba(46, 163, 95, 0.24);
+  --component-bg-blur: rgba(240, 240, 240, 0.7);
+  --component-bg-blur-alt: rgba(238, 238, 238, 0.5);
+  --component-bg-accent: color-mix(in srgb, var(--accent-color) 20%, #fffb);
+  --component-bg-accent-blur: color-mix(in srgb, var(--accent-color) 26%, #fffc);
 
   --app-bg-primary-hover: rgba(0, 0, 0, 0.03);
   --app-bg-primary-active: rgba(0, 0, 0, 0.06);
   --app-bg-secondary-hover: rgba(0, 0, 0, 0.05);
   --app-bg-secondary-active: rgba(0, 0, 0, 0.08);
-  --component-bg-hover: color-mix(in srgb, var(--accent-color) 12%, transparent);
-  --component-bg-active: color-mix(in srgb, var(--accent-color) 18%, transparent);
+  --component-bg-hover: color-mix(in srgb, var(--accent-color) 20%, #fffb);
+  --component-bg-active: color-mix(in srgb, var(--accent-color) 26%, #fffc);
   --component-bg-accent-hover: var(--accent-color-dark);
   --component-bg-accent-active: var(--accent-color-dark);
 
@@ -199,14 +199,14 @@ body[data-backend-theme="light"] {
   --component-text-secondary-disabled: rgba(129, 129, 129, 0.42);
 
   --component-text-primary-hover: var(--accent-color);
-  --component-text-secondary-hover: color-mix(in srgb, var(--accent-color) 75%, #334155);
+  --component-text-secondary-hover: color-mix(in srgb, var(--accent-color) 75%, #555);
   --component-text-primary-active: var(--component-text-primary-hover);
   --component-text-secondary-active: var(--component-text-secondary-hover);
   --component-text-accent-hover: #ffffff;
   --component-text-accent-active: #ffffff;
 
   --featured: #c58f00;
-  --featured-bg: rgba(197, 143, 0, 0.12);
+  --featured-bg: rgba(242, 234, 212, 0.9);
   --border-color: #d8e0ea;
   --border-color-blur: rgba(15, 23, 42, 0.12);
   --select-arrow-color: #738297;
@@ -273,17 +273,17 @@ body[data-backend-theme="dark"] {
   --app-bg-secondary: #eef2f6;
   --component-bg: #ffffff;
   --component-bg-alt: #f5f7fa;
-  --component-bg-blur: rgba(255, 255, 255, 0.7);
-  --component-bg-blur-alt: rgba(248, 250, 253, 0.4);
-  --component-bg-accent: rgba(46, 163, 95, 0.15);
-  --component-bg-accent-blur: rgba(46, 163, 95, 0.24);
+  --component-bg-blur: rgba(240, 240, 240, 0.7);
+  --component-bg-blur-alt: rgba(238, 238, 238, 0.5);
+  --component-bg-accent: color-mix(in srgb, var(--accent-color) 20%, #fffb);
+  --component-bg-accent-blur: color-mix(in srgb, var(--accent-color) 26%, #fffc);
 
   --app-bg-primary-hover: rgba(0, 0, 0, 0.03);
   --app-bg-primary-active: rgba(0, 0, 0, 0.06);
   --app-bg-secondary-hover: rgba(0, 0, 0, 0.05);
   --app-bg-secondary-active: rgba(0, 0, 0, 0.08);
-  --component-bg-hover: color-mix(in srgb, var(--accent-color) 12%, transparent);
-  --component-bg-active: color-mix(in srgb, var(--accent-color) 18%, transparent);
+  --component-bg-hover: color-mix(in srgb, var(--accent-color) 20%, #fffb);
+  --component-bg-active: color-mix(in srgb, var(--accent-color) 26%, #fffc);
   --component-bg-accent-hover: var(--accent-color-dark);
   --component-bg-accent-active: var(--accent-color-dark);
 
@@ -295,14 +295,14 @@ body[data-backend-theme="dark"] {
   --component-text-secondary-disabled: rgba(129, 129, 129, 0.42);
 
   --component-text-primary-hover: var(--accent-color);
-  --component-text-secondary-hover: color-mix(in srgb, var(--accent-color) 75%, #334155);
+  --component-text-secondary-hover: color-mix(in srgb, var(--accent-color) 75%, #555);
   --component-text-primary-active: var(--component-text-primary-hover);
   --component-text-secondary-active: var(--component-text-secondary-hover);
   --component-text-accent-hover: #ffffff;
   --component-text-accent-active: #ffffff;
 
   --featured: #c58f00;
-  --featured-bg: rgba(197, 143, 0, 0.12);
+  --featured-bg: rgba(242, 234, 212, 0.9);
   --border-color: #d8e0ea;
   --border-color-blur: rgba(15, 23, 42, 0.12);
   --select-arrow-color: #738297;
@@ -332,10 +332,10 @@ body[data-backend-theme="dark"] {
     --app-bg-secondary: #eef2f6;
     --component-bg: #ffffff;
     --component-bg-alt: #f5f7fa;
-    --component-bg-blur: rgba(255, 255, 255, 0.7);
-    --component-bg-blur-alt: rgba(248, 250, 253, 0.4);
-    --component-bg-accent: rgba(46, 163, 95, 0.15);
-    --component-bg-accent-blur: rgba(46, 163, 95, 0.24);
+    --component-bg-blur: rgba(240, 240, 240, 0.7);
+    --component-bg-blur-alt: rgba(238, 238, 238, 0.5);
+    --component-bg-accent: color-mix(in srgb, var(--accent-color) 20%, #fffb);
+    --component-bg-accent-blur: color-mix(in srgb, var(--accent-color) 26%, #fffc);
     --app-bg-primary-hover: rgba(0, 0, 0, 0.03);
     --app-bg-primary-active: rgba(0, 0, 0, 0.06);
     --app-bg-secondary-hover: rgba(0, 0, 0, 0.05);
@@ -347,9 +347,9 @@ body[data-backend-theme="dark"] {
     --component-text-primary: #2a3745;
     --component-text-secondary: #66768a;
     --component-text-primary-hover: var(--accent-color);
-    --component-text-secondary-hover: color-mix(in srgb, var(--accent-color) 75%, #334155);
+    --component-text-secondary-hover: color-mix(in srgb, var(--accent-color) 75%, #555);
     --featured: #c58f00;
-    --featured-bg: rgba(197, 143, 0, 0.12);
+    --featured-bg: rgba(242, 234, 212, 0.9);
     --border-color: #d8e0ea;
     --border-color-blur: rgba(15, 23, 42, 0.12);
     --select-arrow-color: #738297;

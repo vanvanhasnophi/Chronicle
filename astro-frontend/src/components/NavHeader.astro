@@ -188,7 +188,7 @@ const isActive = (path: string) => {
         </button>
 
         <hr
-          style="margin:6px 0; border:none; border-top:1px solid var(--border-color);"
+          style="margin:6px 4px; border:none; border-top:1px solid var(--component-text-secondary); opacity: 0.4;"
         />
 
         <!-- Language controls (below) -->
@@ -233,7 +233,7 @@ const isActive = (path: string) => {
         </button>
 
         <hr
-          style="margin:6px 0; border:none; border-top:1px solid var(--border-color);"
+          style="margin:6px 4px; border:none; border-top:1px solid var(--component-text-secondary); opacity: 0.4;"
         />
 
         <!-- About -->
@@ -343,19 +343,20 @@ const isActive = (path: string) => {
   /* Settings Menu */
   .nav-settings-menu {
     background: var(--component-bg);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    position: fixed;
+    position: absolute;
+    top: 80px;
+    right: calc(0.2vw + 12px);
     color: var(--component-text-secondary);
     border: 1px solid var(--border-color);
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
     border-radius: 8px;
-    min-width: 160px;
-    max-width: 240px;
+    min-width: 180px;
+    max-width: 250px;
     box-sizing: border-box;
     padding: 6px;
     z-index: 10000;
     font-size: 0.9rem;
+    transition: opacity 0.2s ease, transform 0.2s ease;
   }
 
   .popup-item {
@@ -428,18 +429,6 @@ const isActive = (path: string) => {
     transition:
       opacity 0.2s ease,
       transform 0.2s ease;
-  }
-  .nav-links .nav-close .nav-close-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center
-  }
-
-  .nav-links .nav-close .nav-close-icon svg {
-    width: 18px;
-    height: 18px;
-    display: block;
-    stroke: currentColor
   }
 
   .menu-toggle .close-icon {

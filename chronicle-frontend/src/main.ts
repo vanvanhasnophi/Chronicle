@@ -26,6 +26,36 @@ const i18n = createI18n({
 	messages
 })
 
+async function cleanupLegacyServiceWorker() {
+	if (typeof window === 'undefined') return
+	if (!('serviceWorker' in navigator)) return
+
+	const CLEANUP_FLAG = 'chronicle.sw.cleanup.v1'
+
+	try {
+		const registrations = await navigator.serviceWorker.getRegistrations()
+		if (!registrations.length) return
+
+		await Promise.all(registrations.map((registration) => registration.unregister()))
+
+		if ('caches' in window) {
+			const keys = await caches.keys()
+			await Promise.all(keys.map((key) => caches.delete(key)))
+		}
+
+		if (!sessionStorage.getItem(CLEANUP_FLAG)) {
+			sessionStorage.setItem(CLEANUP_FLAG, '1')
+			const nextUrl = new URL(window.location.href)
+			nextUrl.searchParams.set('_sw_cleaned', String(Date.now()))
+			window.location.replace(nextUrl.toString())
+		}
+	} catch (err) {
+		console.warn('[Chronicle] Service worker cleanup failed:', err)
+	}
+}
+
+cleanupLegacyServiceWorker()
+
 const app = createApp(App)
 app.use(router)
 app.use(i18n)

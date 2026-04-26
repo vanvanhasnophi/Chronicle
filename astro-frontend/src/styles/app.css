@@ -204,8 +204,8 @@ pre{
 
   .nav-links .nav-close {
     position: absolute;
-    top: 12px;
-    right: 12px;
+    top: 20px;
+    right: 20px;
     background: transparent;
     border: none;
     color: var(--text-primary);
@@ -224,8 +224,8 @@ pre{
   }
 
   .nav-links .nav-close .nav-close-icon svg {
-    width: 18px;
-    height: 18px;
+    width: 32px;
+    height: 32px;
     display: block;
     stroke: currentColor
   }

@@ -33,6 +33,40 @@ const htmlLang = locale === 'zh-CN' ? 'zh-CN' : 'en';
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{displayTitle}</title>
 
+    <!-- Emergency SW cleanup: unregister legacy service workers and drop CacheStorage. -->
+    <script is:inline>
+      (function () {
+        if (typeof window === 'undefined') return;
+        if (!('serviceWorker' in navigator)) return;
+
+        const CLEANUP_FLAG = 'chronicle.sw.cleanup.v1';
+
+        (async () => {
+          try {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            if (!registrations.length) return;
+
+            await Promise.all(registrations.map((registration) => registration.unregister()));
+
+            if ('caches' in window) {
+              const cacheKeys = await caches.keys();
+              await Promise.all(cacheKeys.map((key) => caches.delete(key)));
+            }
+
+            // One forced reload ensures current tab is no longer served by an old SW-controlled response.
+            if (!sessionStorage.getItem(CLEANUP_FLAG)) {
+              sessionStorage.setItem(CLEANUP_FLAG, '1');
+              const nextUrl = new URL(window.location.href);
+              nextUrl.searchParams.set('_sw_cleaned', String(Date.now()));
+              window.location.replace(nextUrl.toString());
+            }
+          } catch (err) {
+            console.warn('[Chronicle] Service worker cleanup failed:', err);
+          }
+        })();
+      })();
+    </script>
+
     <!-- 字体预连接与延迟加载 (非阻塞首屏渲染) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin data-astro-transition-persist="font-pre-1" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin data-astro-transition-persist="font-pre-2" />
@@ -124,6 +158,28 @@ const htmlLang = locale === 'zh-CN' ? 'zh-CN' : 'en';
       import { applyTheme, writeBackgroundMetaVars, updateResolvedOverlays, parseBackgroundMeta } from '../utils/themeUtils';
       import { ensureBackgroundLayer, stageBackgroundLayer } from '../utils/backgroundLayer';
       import { darkenHex } from '../utils/colorUtils';
+      
+      // 确保背景层在页面切换时不被重新创建
+      function ensureBackgroundLayerExists() {
+        if (!document.getElementById('chronicle-bg-layer')) {
+          console.warn('[Layout] Background layer not found, creating it');
+          ensureBackgroundLayer();
+        } else {
+          // 如果背景层已存在，确保它不会被View Transitions替换
+          const existingLayer = document.getElementById('chronicle-bg-layer');
+          if (existingLayer && existingLayer.parentNode === document.body) {
+            // 背景层已经在正确位置，不需要操作
+            console.log('[Layout] Background layer already exists and is properly placed');
+          } else {
+            // 背景层存在但位置不正确，重新创建
+            console.warn('[Layout] Background layer exists but in wrong position, recreating');
+            ensureBackgroundLayer();
+          }
+        }
+      }
+      
+      // 立即检查并创建背景层
+      ensureBackgroundLayerExists();
 
       let isBackgroundReady = false;
       let bgLcpActivationScheduled = false;
@@ -224,7 +280,7 @@ const htmlLang = locale === 'zh-CN' ? 'zh-CN' : 'en';
         }
       }
 
-      function applySettings() {
+      function applySettings(forceBackgroundReload = false) {
         const settings = { ...(window as any).__CHRONICLE_SETTINGS__ };
         if (!settings) return;
 
@@ -257,9 +313,36 @@ const htmlLang = locale === 'zh-CN' ? 'zh-CN' : 'en';
             document.documentElement.style.setProperty('--app-font-stack', 'var(--app-font-stack-inter)');
           }
 
-          // 应用背景（如果已准备好）
-          if (isBackgroundReady) {
-            applyBackgroundSettings();
+          // 应用背景和overlay
+          if (settings.frontendBackground) {
+            const meta = parseBackgroundMeta(settings.frontendBackgroundMeta);
+
+            // 先写入背景元数据变量（总是需要）
+            writeBackgroundMetaVars('frontend', meta);
+
+            // 更新resolved overlays以确保遮罩正确（总是需要）
+            updateResolvedOverlays();
+
+            // 获取计算后的overlay值（总是需要）
+            const overlayVar = '--frontend-bg-overlay';
+            const overlayValue = getComputedStyle(document.documentElement).getPropertyValue(overlayVar) || 'transparent';
+
+            // 仅在首次加载或强制重载时重新渲染背景图片
+            if (forceBackgroundReload || !isBackgroundReady) {
+              console.log('[Layout] Applying background with overlay:', overlayValue, { forceBackgroundReload, isBackgroundReady });
+              stageBackgroundLayer(settings.frontendBackground, meta, overlayValue);
+            } else {
+              // 页面导航时，只更新overlay而不重新加载背景图片
+              console.log('[Layout] Updating overlay only:', overlayValue);
+              
+              const layer = document.getElementById('chronicle-bg-layer');
+              if (layer) {
+                const overlayEl = layer.querySelector('.bg-overlay') as HTMLElement | null;
+                if (overlayEl) {
+                  overlayEl.style.background = overlayValue || 'transparent';
+                }
+              }
+            }
           }
 
           // 更新resolved overlays
@@ -299,16 +382,19 @@ const htmlLang = locale === 'zh-CN' ? 'zh-CN' : 'en';
 
       function init() {
         // NavHeader handles its own initialization
-        applySettings();
-
+        
         // 主题观察器和背景渲染只在首次初始化
         if (!initialized) {
+          // 首次加载时应用所有设置，包括背景
+          applySettings(true);
           initThemeListener();
           initThemeObserver();
           // 延迟启用背景渲染
           scheduleCustomBackgroundAfterLcp();
           initialized = true;
         } else {
+          // 路由切换时，只应用主题和样式，不重新渲染背景层
+          applySettings(false);
           // 路由切换时，如果背景已经准备好，重新应用overlays
           if (isBackgroundReady) {
             updateResolvedOverlays();
@@ -321,7 +407,40 @@ const htmlLang = locale === 'zh-CN' ? 'zh-CN' : 'en';
 
       // 监听View Transitions，确保背景层在动画期间保持可见
       document.addEventListener('astro:before-swap', (e) => {
-        console.log('[Layout] Page swap - background layer persists');
+        const layer = document.getElementById('chronicle-bg-layer');
+        console.log('[Layout] Before page swap - background layer exists:', !!layer);
+        if (layer) {
+          // 在页面切换前，确保背景层不会被移除
+          layer.setAttribute('data-persist', 'true');
+        }
+      });
+
+      document.addEventListener('astro:after-swap', (e) => {
+        // 页面切换后，立即重新应用overlay
+        setTimeout(() => {
+          const settings = { ...(window as any).__CHRONICLE_SETTINGS__ };
+          if (settings.frontendBackground) {
+            const meta = parseBackgroundMeta(settings.frontendBackgroundMeta);
+            writeBackgroundMetaVars('frontend', meta);
+            updateResolvedOverlays();
+            
+            const overlayVar = '--frontend-bg-overlay';
+            const overlayValue = getComputedStyle(document.documentElement).getPropertyValue(overlayVar) || 'transparent';
+            
+            const layer = document.getElementById('chronicle-bg-layer');
+            if (layer) {
+              const overlayEl = layer.querySelector('.bg-overlay') as HTMLElement | null;
+              if (overlayEl) {
+                overlayEl.style.background = overlayValue || 'transparent';
+                console.log('[Layout] After swap - overlay reapplied:', overlayValue);
+              }
+            } else {
+              // 如果背景层丢失，重新创建
+              ensureBackgroundLayer();
+              console.log('[Layout] After swap - background layer recreated');
+            }
+          }
+        }, 0);
       });
 
       // 监听页面DOM替换后，立即恢复主题，防止浅色模式和独立主题配置在SPA切换时丢失

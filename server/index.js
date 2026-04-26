@@ -15,6 +15,26 @@ const os = require('os');
 const app = express();
 const PORT = 3000;
 
+// Disable Express ETag to avoid conditional 304 responses serving stale API payloads.
+app.disable('etag');
+
+// Monotonic data version used by clients/CDNs to detect backend content changes.
+let dataVersion = Date.now();
+
+function bumpDataVersion() {
+    dataVersion = Date.now();
+    return dataVersion;
+}
+
+function markDataChanged(res) {
+    invalidateContentCaches();
+    const version = bumpDataVersion();
+    // Ask supporting browsers to immediately drop HTTP cache after data mutation.
+    res.setHeader('Clear-Site-Data', '"cache"');
+    res.setHeader('X-Chronicle-Data-Invalidated-At', String(version));
+    return version;
+}
+
 console.log("Backend Version: 2026-02-11-FIX-RPID (blog.eightyfor.top)");
 
 // Enable CORS
@@ -519,9 +539,12 @@ app.use(morgan('combined', { stream: accessLogStream }));
 
 // Keep API JSON responses fresh in browsers; curl bypasses HTTP cache anyway.
 app.use('/api', (req, res, next) => {
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Cache-Control', 'no-store, no-cache, max-age=0, must-revalidate, proxy-revalidate');
+    res.setHeader('Surrogate-Control', 'no-store');
+    res.setHeader('CDN-Cache-Control', 'no-store');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
+    res.setHeader('X-Chronicle-Data-Version', String(dataVersion));
     next();
 });
 
@@ -810,6 +833,189 @@ function syncIndexWithFiles() {
     }
 }
 syncIndexWithFiles();
+
+const contentCache = {
+    dirty: true,
+    indexMtimeMs: 0,
+    allPosts: [],
+    allPostsWithHasHtml: [],
+    adminVisiblePosts: [],
+    publishedPosts: [],
+    publishedSafePosts: [],
+    publishedSearchRows: [],
+    tagCloudAll: [],
+    tagCloudPublished: [],
+    byId: new Map(),
+    postPayloadById: new Map(),
+    publicPostPayloadById: new Map(),
+};
+
+function invalidateContentCaches() {
+    contentCache.dirty = true;
+    contentCache.postPayloadById.clear();
+    contentCache.publicPostPayloadById.clear();
+}
+
+function readIndexPostsFromDisk() {
+    try {
+        if (!fs.existsSync(INDEX_FILE)) return [];
+        const raw = fs.readFileSync(INDEX_FILE, 'utf-8');
+        const parsed = JSON.parse(raw || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+        console.error('[Cache] Failed to parse index file:', e);
+        return [];
+    }
+}
+
+function buildTagCloud(posts) {
+    const tagCounts = new Map();
+    posts.forEach((post) => {
+        if (!Array.isArray(post.tags)) return;
+        post.tags.forEach((tag) => {
+            const safeTag = String(tag || '').trim();
+            if (!safeTag) return;
+            tagCounts.set(safeTag, (tagCounts.get(safeTag) || 0) + 1);
+        });
+    });
+
+    return Array.from(tagCounts.entries())
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => {
+            const aFeatured = a.name === 'featured' || a.name === '精选';
+            const bFeatured = b.name === 'featured' || b.name === '精选';
+            if (aFeatured && !bFeatured) return -1;
+            if (!aFeatured && bFeatured) return 1;
+            return a.name.localeCompare(b.name);
+        });
+}
+
+function ensureContentCache() {
+    let mtimeMs = 0;
+    try {
+        if (fs.existsSync(INDEX_FILE)) {
+            mtimeMs = fs.statSync(INDEX_FILE).mtimeMs;
+        }
+    } catch (e) {
+        mtimeMs = 0;
+    }
+
+    if (!contentCache.dirty && contentCache.indexMtimeMs === mtimeMs) return;
+
+    const indexPosts = readIndexPostsFromDisk().map((post) => {
+        if (!post.dir) {
+            post.dir = post.filename ? String(post.filename).replace(/\.md$/, '') : post.id;
+        }
+        return post;
+    });
+
+    const allPostsWithHasHtml = indexPosts.map((post) => {
+        const hasHtml = !!readCompiledHtmlFromDisk(post);
+        return { ...post, hasHtml };
+    });
+
+    const adminVisiblePosts = allPostsWithHasHtml.filter((post) => post.status === 'published' || post.status === 'modifying' || !post.status);
+    const publishedPosts = allPostsWithHasHtml.filter((post) => post.status === 'published');
+    const publishedSafePosts = publishedPosts.map((post) => ({
+        id: post.id,
+        title: post.title,
+        date: post.date,
+        updatedAt: post.updatedAt,
+        summary: post.summary,
+        tags: post.tags || [],
+        font: post.font,
+    }));
+
+    const publishedSearchRows = publishedPosts.map((post) => ({
+        id: post.id,
+        title: String(post.title || ''),
+        summary: String(post.summary || ''),
+        date: post.date,
+        tags: Array.isArray(post.tags) ? post.tags : [],
+        titleLower: String(post.title || '').toLowerCase(),
+        summaryLower: String(post.summary || '').toLowerCase(),
+        tagsLower: (Array.isArray(post.tags) ? post.tags : []).map((tag) => String(tag || '').toLowerCase()),
+    }));
+
+    contentCache.indexMtimeMs = mtimeMs;
+    contentCache.allPosts = indexPosts;
+    contentCache.allPostsWithHasHtml = allPostsWithHasHtml;
+    contentCache.adminVisiblePosts = adminVisiblePosts;
+    contentCache.publishedPosts = publishedPosts;
+    contentCache.publishedSafePosts = publishedSafePosts;
+    contentCache.publishedSearchRows = publishedSearchRows;
+    contentCache.tagCloudAll = buildTagCloud(allPostsWithHasHtml);
+    contentCache.tagCloudPublished = buildTagCloud(publishedPosts);
+    contentCache.byId = new Map(indexPosts.map((post) => [String(post.id), post]));
+    contentCache.postPayloadById.clear();
+    contentCache.publicPostPayloadById.clear();
+    contentCache.dirty = false;
+}
+
+function getContentPosts(options = {}) {
+    ensureContentCache();
+    return options.includeDrafts ? contentCache.allPostsWithHasHtml : contentCache.adminVisiblePosts;
+}
+
+function getPublishedSafePosts() {
+    ensureContentCache();
+    return contentCache.publishedSafePosts;
+}
+
+function getPostByIdCached(id) {
+    ensureContentCache();
+    return contentCache.byId.get(String(id)) || null;
+}
+
+function getPublicPostPayload(post) {
+    ensureContentCache();
+    const key = String(post.id);
+    const cached = contentCache.publicPostPayloadById.get(key);
+    if (cached) return cached;
+
+    const payload = {
+        id: post.id,
+        title: post.title,
+        date: post.date,
+        updatedAt: post.updatedAt,
+        tags: post.tags || [],
+        font: post.font,
+        html: readCompiledHtmlFromDisk(post) || '',
+        toc: readTocFromDisk(post),
+    };
+
+    contentCache.publicPostPayloadById.set(key, payload);
+    return payload;
+}
+
+function getAdminPostPayload(post) {
+    ensureContentCache();
+    const key = String(post.id);
+    const cached = contentCache.postPayloadById.get(key);
+    if (cached) return cached;
+
+    const html = readCompiledHtmlFromDisk(post) || '';
+    const payload = {
+        ...post,
+        content: readPostContentFromDisk(post),
+        html,
+        toc: readTocFromDisk(post),
+        hasHtml: !!(html && html.length > 0),
+    };
+
+    contentCache.postPayloadById.set(key, payload);
+    return payload;
+}
+
+function getPublishedSearchRows() {
+    ensureContentCache();
+    return contentCache.publishedSearchRows;
+}
+
+function getTagCloud(options = {}) {
+    ensureContentCache();
+    return options.includeDrafts ? contentCache.tagCloudAll : contentCache.tagCloudPublished;
+}
 
 function encrypt(text) {
   const iv = crypto.randomBytes(16);
@@ -1308,11 +1514,7 @@ app.get('/api/public/settings', (req, res) => {
 
 app.get('/api/public/posts', (req, res) => {
     try {
-        const indexContent = fs.readFileSync(INDEX_FILE, 'utf-8');
-        let posts = JSON.parse(indexContent || '[]');
-        
-        // 🚨 SECURITY: Always filter only published posts
-        posts = posts.filter(p => p.status === 'published');
+        let posts = getPublishedSafePosts().slice();
         posts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
         // Support for pagination (useful for Infinite Scroll in Astro)
@@ -1357,30 +1559,23 @@ app.get('/api/public/post', (req, res) => {
     if (!id) return res.status(400).send('Missing ID');
 
     try {
-        const indexContent = fs.readFileSync(INDEX_FILE, 'utf-8');
-        const posts = JSON.parse(indexContent || '[]');
-        const post = posts.find(p => p.id === id);
+        const post = getPostByIdCached(id);
 
         // 🚨 SECURITY: Only allow published posts
         if (!post || post.status !== 'published') return res.status(404).send('Post not found');
 
-        // Read compiled html & toc from disk
-        const html = readCompiledHtmlFromDisk(post) || '';
-        const toc = readTocFromDisk(post);
-
-        // Return stripped safe payload
-        res.json({ 
-            id: post.id,
-            title: post.title,
-            date: post.date,
-            updatedAt: post.updatedAt,
-            tags: post.tags || [],
-            font: post.font,
-            html, 
-            toc 
-        });
+        res.json(getPublicPostPayload(post));
     } catch(e) {
         res.status(500).send('Error');
+    }
+});
+
+app.get('/api/public/tags', (req, res) => {
+    try {
+        const tags = getTagCloud({ includeDrafts: false });
+        res.json({ tags, total: tags.length });
+    } catch (e) {
+        res.status(500).json({ tags: [], total: 0 });
     }
 });
 
@@ -1389,21 +1584,16 @@ app.get('/api/public/search', (req, res) => {
         const keyword = (req.query.keyword || '').toLowerCase().trim();
         if (!keyword) return res.json([]);
 
-        const indexContent = fs.readFileSync(INDEX_FILE, 'utf-8');
-        let posts = JSON.parse(indexContent || '[]');
-        
-        posts = posts.filter(p => p.status === 'published');
-        
-        const results = posts.filter(p => {
-            return (p.title || '').toLowerCase().includes(keyword) || 
-                   (p.summary || '').toLowerCase().includes(keyword) ||
-                   (p.tags || []).some(t => t.toLowerCase().includes(keyword));
-        }).map(p => ({
-            id: p.id,
-            title: p.title,
-            summary: p.summary,
-            date: p.date,
-            tags: p.tags || []
+        const results = getPublishedSearchRows().filter((post) => {
+            return post.titleLower.includes(keyword) ||
+                   post.summaryLower.includes(keyword) ||
+                   post.tagsLower.some((tag) => tag.includes(keyword));
+        }).map((post) => ({
+            id: post.id,
+            title: post.title,
+            summary: post.summary,
+            date: post.date,
+            tags: post.tags || []
         }));
 
         res.json(results);
@@ -1442,6 +1632,7 @@ app.post('/api/settings', (req, res) => {
         // Merge incoming values
         saved = Object.assign({}, saved, body);
         fs.writeFileSync(SETTINGS_FILE, JSON.stringify(saved, null, 2));
+        markDataChanged(res);
         res.json(saved);
     } catch (e) {
         console.error('[Settings] POST error', e);
@@ -1643,9 +1834,8 @@ app.get('/api/posts', (req, res) => {
             }
             return res.json(posts);
         }
-        // Reload strictly to get fresh data
-        const indexContent = fs.readFileSync(INDEX_FILE, 'utf-8');
-        let posts = JSON.parse(indexContent || '[]');
+        const includeDrafts = req.query.includeDrafts === 'true';
+        let posts = getContentPosts({ includeDrafts }).slice();
 
         const hasTitleParam = Object.prototype.hasOwnProperty.call(req.query, 'title');
         const hasTagsParam = Object.prototype.hasOwnProperty.call(req.query, 'tags');
@@ -1662,11 +1852,6 @@ app.get('/api/posts', (req, res) => {
             .map(t => String(t).trim())
             .filter(Boolean);
         
-        const includeDrafts = req.query.includeDrafts === 'true';
-        if (!includeDrafts) {
-            posts = posts.filter(p => p.status === 'published' || p.status === 'modifying' || !p.status);
-        }
-
         // Filter featured posts if requested
         if (featuredOnly) {
             posts = posts.filter(post => 
@@ -1691,15 +1876,6 @@ app.get('/api/posts', (req, res) => {
                 return matchesTitle && matchesTags;
             });
         }
-
-        // Augment posts with hasHtml flag based on disk state
-        posts = posts.map(p => {
-            const html = readCompiledHtmlFromDisk(p)
-            const hasHtml = !!(html && html.length > 0)
-            // ensure dir field when possible
-            if (!p.dir) p.dir = p.filename ? p.filename.replace(/\.md$/, '') : p.id
-            return { ...p, hasHtml }
-        })
 
         if (timelineDesc) {
             posts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -1729,21 +1905,11 @@ app.get('/api/post', (req, res) => {
     if (!id) return res.status(400).send('Missing ID');
 
     try {
-        const indexContent = fs.readFileSync(INDEX_FILE, 'utf-8');
-        const posts = JSON.parse(indexContent || '[]');
-        const post = posts.find(p => p.id === id);
+        const post = getPostByIdCached(id);
 
         if (!post) return res.status(404).send('Post not found');
 
-        // legacy filename handling removed: content is read from per-post dir via helpers
-
-        // Read content from per-post directory or legacy filename
-        const content = readPostContentFromDisk(post)
-
-        // Read compiled html & toc from disk if available (validate id)
-        const html = readCompiledHtmlFromDisk(post) || ''
-        const toc = readTocFromDisk(post)
-        const hasHtml = !!(html && html.length > 0)
+        const payload = getAdminPostPayload(post);
 
         // If mode=edit and there's a draft file, prefer draft content for editing
         if (mode === 'edit') {
@@ -1756,13 +1922,23 @@ app.get('/api/post', (req, res) => {
                 // override content
                 // Note: do not promote draft to published unless saved as such
                 // return draft as content for editor
-                return res.json({ ...post, content: body, html, hasHtml, toc })
+                return res.json({ ...payload, content: body })
             }
         }
 
-        res.json({ ...post, content, html, hasHtml, toc });
+        res.json(payload);
     } catch(e) {
         res.status(500).send('Error');
+    }
+});
+
+app.get('/api/tags', (req, res) => {
+    try {
+        const includeDrafts = req.query.includeDrafts !== 'false';
+        const tags = getTagCloud({ includeDrafts });
+        res.json({ tags, total: tags.length });
+    } catch (e) {
+        res.status(500).json({ tags: [], total: 0 });
     }
 });
 
@@ -1782,6 +1958,7 @@ app.post('/api/restore', (req, res) => {
             if (post.draftFilename) delete post.draftFilename
             post.status = 'published'
             fs.writeFileSync(INDEX_FILE, JSON.stringify(posts, null, 2));
+            markDataChanged(res);
         }
         res.json({ success: true });
     } catch(e) {
@@ -1905,6 +2082,7 @@ app.post('/api/post', (req, res) => {
         }
 
         fs.writeFileSync(INDEX_FILE, JSON.stringify(posts, null, 2));
+        markDataChanged(res);
         res.json({ success: true, id: post.id });
     } catch(e) {
         console.error(e);
@@ -1930,6 +2108,7 @@ app.delete('/api/post', (req, res) => {
             }
             posts = posts.filter(p => p.id !== id);
             fs.writeFileSync(INDEX_FILE, JSON.stringify(posts, null, 2));
+            markDataChanged(res);
         }
         res.json({ success: true });
     } catch(e) {
@@ -1990,6 +2169,7 @@ app.post('/api/scan', (req, res) => {
 
         if (posts.length !== originalCount || recoveredCount > 0) {
             fs.writeFileSync(INDEX_FILE, JSON.stringify(posts, null, 2));
+            markDataChanged(res);
         }
 
         res.json({ 

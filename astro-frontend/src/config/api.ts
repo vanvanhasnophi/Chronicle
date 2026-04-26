@@ -18,12 +18,6 @@ export const API_PATH = '/api';
  */
 export function getApiUrl(endpoint: string, isSSR: boolean = typeof window === 'undefined'): string {
   endpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-
-  if (isSSR) {
-    // 服务端：使用完整URL
     return `${API_BASE_URL}${endpoint}`;
-  } else {
-    // 客户端：使用相对路径
-    return `${API_PATH}${endpoint}`;
-  }
+
 }

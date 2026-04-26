@@ -113,7 +113,12 @@
     "noTags": "No tags found",
     "done": "Done",
     "loading": "Loading...",
-    "noResults": "No posts found matching your criteria."
+    "noResults": "No posts found matching your criteria.",
+    "selectedTags": "Selected",
+    "resultDescription": "Search results for {searchDescription}",
+    "items": "{count} item(s)",
+    "tagsCount": " and {count - 1} more tag(s)",
+    "allPosts": "All content"
   },
   "login": {
     "title": "Chronicle Manager",
