@@ -27,7 +27,7 @@ function getPreloadTargets(): PageInfo[] {
     const href = link.getAttribute('href');
     if (href && href.startsWith('/') && !href.startsWith('//')) {
       // 排除帖子详情页
-      if (!href.startsWith('/blog/') || href === '/blog') {
+      if (!/^\/(?:en|zh)\/post(?:\/|$)/.test(href) && (!href.startsWith('/post/') || href === '/post')) {
         // 在生产环境中使用绝对URL
         const absoluteUrl = window.location.origin + href;
         targets.push({
@@ -46,7 +46,7 @@ function getPreloadTargets(): PageInfo[] {
     const href = link.getAttribute('href');
     if (href && href.startsWith('/') && !href.startsWith('//')) {
       // 排除帖子详情页
-      if (!href.startsWith('/blog/') || href === '/blog') {
+      if (!/^\/(?:en|zh)\/post(?:\/|$)/.test(href) && (!href.startsWith('/post/') || href === '/post')) {
         // 在生产环境中使用绝对URL
         const absoluteUrl = window.location.origin + href;
         targets.push({

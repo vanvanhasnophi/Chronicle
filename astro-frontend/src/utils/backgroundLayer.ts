@@ -8,10 +8,19 @@ const backgroundObjectUrls = new Set<string>();
 let currentBackgroundUrl = '';
 let currentTheme = '';
 
-// 初始化当前主题
-document.addEventListener('DOMContentLoaded', () => {
-  currentTheme = document.documentElement.getAttribute('data-theme') || '';
-});
+function resolveBackgroundUrl(value: any) {
+  if (!value) return '';
+  if (typeof value === 'string') return String(value || '').trim();
+  if (typeof value === 'object') return String(value.url || value.path || value.backgroundUrl || '').trim();
+  return '';
+}
+
+// 初始化当前主题（仅在浏览器环境绑定）
+if (typeof document !== 'undefined') {
+  document.addEventListener('DOMContentLoaded', () => {
+    currentTheme = document.documentElement.getAttribute('data-theme') || '';
+  });
+}
 
 /**
  * 预加载背景图片
@@ -105,11 +114,13 @@ export async function stageBackgroundLayer(
     const imgEl = layer.querySelector('.bg-image') as HTMLElement | null;
     const surfaceEl = layer.querySelector('.bg-surface') as HTMLElement | null;
     const overlayEl = layer.querySelector('.bg-overlay') as HTMLElement | null;
-    const normalizedUrl = String(imageUrl || '').trim();
+    const normalizedUrl = resolveBackgroundUrl(imageUrl);
     if (!normalizedUrl) return;
 
     // 如果URL没有变化，并且已经被渲染过，则仅更新样式而不要清除渲染状态，从而避免闪烁
-    if (normalizedUrl === currentBackgroundUrl && layer.classList.contains('is-ready')) {
+    // 但添加一个强制重载的检查，避免首次加载时背景层不渲染的问题
+    const shouldForceReload = layer.getAttribute('data-force-reload') === 'true';
+    if (normalizedUrl === currentBackgroundUrl && layer.classList.contains('is-ready') && !shouldForceReload) {
       if (surfaceEl) {
         const root = getComputedStyle(document.documentElement).getPropertyValue('--app-bg-primary') || '';
         surfaceEl.style.background = root || 'transparent';
@@ -124,6 +135,9 @@ export async function stageBackgroundLayer(
       }
       return; // 直接返回，保持已存在的图片和状态
     }
+    
+    // 清除强制重载标记
+    layer.removeAttribute('data-force-reload');
 
     const renderId = ++bgRenderVersion;
 

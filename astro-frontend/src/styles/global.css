@@ -27,7 +27,9 @@
   --recommended-accent-text: #fff;
   --featured: #ffd700;
   --featured-bg: color-mix(in srgb, var(--featured) 15%, transparent);
-  
+  --warning: #ff4d50;
+  --warning-bg: color-mix(in srgb, var(--warning) 15%, transparent);
+
   --code-bg: rgba(255, 0, 0, 0.12);
   --code-text: #ff8585;
 
@@ -50,8 +52,8 @@
   --app-bg-secondary-active: rgba(255, 255, 255, 0.12);
   --component-bg-hover: rgba(255, 255, 255, 0.08);
   --component-bg-active: rgba(255, 255, 255, 0.14);
-  --component-bg-accent-hover: var(--accent-color-dark);
-  --component-bg-accent-active: var(--accent-color-dark);
+  --component-bg-accent-hover: var(--component-bg-accent-blur);
+  --component-bg-accent-active: var(--component-bg-accent-blur);
 
   /* Foreground hierarchy */
   --app-text-primary: #e0e0e0;
@@ -101,6 +103,7 @@
   --frontend-bg-size: 100%;
   --frontend-bg-blur: 0px;
   --frontend-bg-opacity: 0;
+  --frontend-bg-compression: 1;
   --frontend-bg-overlay-light: transparent;
   --frontend-bg-overlay-dark: transparent;
   --frontend-bg-overlay: transparent;
@@ -110,6 +113,7 @@
   --backend-bg-size: 100%;
   --backend-bg-blur: 0px;
   --backend-bg-opacity: 0;
+  --backend-bg-compression: 1;
   --backend-bg-overlay-light: transparent;
   --backend-bg-overlay-dark: transparent;
   --backend-bg-overlay: transparent;
@@ -207,8 +211,8 @@ body[data-backend-theme="light"] {
   --app-bg-secondary-active: rgba(0, 0, 0, 0.08);
   --component-bg-hover: color-mix(in srgb, var(--accent-color) 20%, #fffb);
   --component-bg-active: color-mix(in srgb, var(--accent-color) 26%, #fffc);
-  --component-bg-accent-hover: var(--accent-color-dark);
-  --component-bg-accent-active: var(--accent-color-dark);
+  --component-bg-accent-hover: var(--component-bg-accent-blur);
+  --component-bg-accent-active: var(--component-bg-accent-blur);
 
   --app-text-primary: #1f2a36;
   --app-text-secondary: #5f6b78;
@@ -226,6 +230,8 @@ body[data-backend-theme="light"] {
 
   --featured: #c58f00;
   --featured-bg: rgba(242, 234, 212, 0.9);
+  --warning: #ff1c20;
+  --warning-bg: rgba(255, 28, 32, 0.15);
   --border-color: #d8e0ea;
   --border-color-blur: rgba(15, 23, 42, 0.12);
   --select-arrow-color: #738297;
@@ -303,8 +309,8 @@ body[data-backend-theme="dark"] {
   --app-bg-secondary-active: rgba(0, 0, 0, 0.08);
   --component-bg-hover: color-mix(in srgb, var(--accent-color) 20%, #fffb);
   --component-bg-active: color-mix(in srgb, var(--accent-color) 26%, #fffc);
-  --component-bg-accent-hover: var(--accent-color-dark);
-  --component-bg-accent-active: var(--accent-color-dark);
+  --component-bg-accent-hover: var(--component-bg-accent-blur);
+  --component-bg-accent-active: var(--component-bg-accent-blur);
 
   --app-text-primary: #1f2a36;
   --app-text-secondary: #5f6b78;
@@ -322,6 +328,8 @@ body[data-backend-theme="dark"] {
 
   --featured: #c58f00;
   --featured-bg: rgba(242, 234, 212, 0.9);
+  --warning: #ff1c20;
+  --warning-bg: rgba(255, 28, 32, 0.15);
   --border-color: #d8e0ea;
   --border-color-blur: rgba(15, 23, 42, 0.12);
   --select-arrow-color: #738297;
@@ -369,6 +377,8 @@ body[data-backend-theme="dark"] {
     --component-text-secondary-hover: color-mix(in srgb, var(--accent-color) 75%, #555);
     --featured: #c58f00;
     --featured-bg: rgba(242, 234, 212, 0.9);
+    --warning: #ff4d50;
+    --warning-bg: rgba(255, 77, 80, 0.15);
     --border-color: #d8e0ea;
     --border-color-blur: rgba(15, 23, 42, 0.12);
     --select-arrow-color: #738297;
@@ -396,6 +406,7 @@ i, em {
 
 a {
   font-weight: 500;
+  font-variation-settings: 'wght' 500;
   color: var(--accent-color);
   text-decoration: inherit;
 }
@@ -500,6 +511,7 @@ button {
   padding: 0.6em 1.2em;
   font-size: 1em;
   font-weight: 500;
+  font-variation-settings: 'wght' 500;
   font-family: inherit;
   background-color: var(--component-bg-alt);
   color: var(--component-text-primary);
@@ -558,7 +570,7 @@ button.secondary {
     box-shadow: var(--shadow-elev-1);
     opacity: 0;
     pointer-events: none;
-    transition: all 0.2s ease-out;
+    transition: all 0.15s ease-out; 
     transform: translateY(20px);
     z-index: 200;
     display: flex;
@@ -576,6 +588,7 @@ html:not(.is-mobile) .corner-button:hover {
   background: var(--component-bg-hover);
   transform: scale(1.1);
   border-color: var(--border-color-blur);
+  filter: brightness(1.2);
 }
 
 html.is-mobile .corner-button:active {
@@ -638,6 +651,7 @@ html.is-mobile .toc-float { display: none !important; }
 
 .card {
   padding: 2em;
+  background: var(--component-bg-blur);
 }
 
 .modern-select {

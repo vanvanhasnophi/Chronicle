@@ -1,0 +1,64 @@
+---
+import { getLocale } from "../utils/i18n";
+
+// 获取当前语言设置
+const locale = getLocale(Astro.locals);
+const routePrefix = locale === "zh-CN" ? "/zh" : "/en";
+
+// 获取当前URL的完整路径信息
+const url = new URL(Astro.request.url);
+const pathname = url.pathname;
+const hash = url.hash; // 保留hash定位
+const searchParams = url.search; // 保留查询参数
+
+// 从路径中提取帖子ID（如果有的话）
+const pathSegments = pathname.split('/').filter(Boolean);
+const postId = pathSegments.length > 1 ? pathSegments[1] : '';
+
+// 构建重定向路径
+let redirectPath = `${routePrefix}/post`;
+if (postId) {
+  redirectPath += `/${postId}`;
+}
+redirectPath += `${searchParams}${hash}`;
+
+// 使用meta标签进行立即重定向，用户看不到任何页面
+---
+
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Redirecting to Post</title>
+    <!-- 立即重定向，用户看不到任何页面 -->
+    <meta http-equiv="refresh" content={`0;url=${redirectPath}`} />
+  </head>
+  <body>
+    <!-- 备用重定向，使用客户端JavaScript获取查询参数 -->
+    <script>
+      // 获取当前URL的查询参数和路径信息
+      const searchParams = window.location.search;
+      const hash = window.location.hash;
+      const pathname = window.location.pathname;
+      const routePrefix = window.location.pathname.includes('/zh') ? '/zh' : '/en';
+      
+      // 从路径中提取帖子ID（如果有的话）
+      const pathSegments = pathname.split('/').filter(Boolean);
+      const postId = pathSegments.length > 1 ? pathSegments[1] : '';
+      
+      // 构建重定向路径
+      let redirectPath = `${routePrefix}/post`;
+      if (postId) {
+        redirectPath += `/${postId}`;
+      }
+      redirectPath += `${searchParams}${hash}`;
+      
+      // 立即重定向
+      window.location.replace(redirectPath);
+    </script>
+    <!-- 最终备用方案 -->
+    <div style="display:none;">
+      <p>If you are not redirected, <a href={redirectPath}>click here</a>.</p>
+    </div>
+  </body>
+</html>

@@ -1,7 +1,5 @@
 #!/bin/bash
 
-#!/bin/bash
-
 set -o pipefail
 
 # Colors
@@ -85,16 +83,22 @@ if [ -d /tmp/chronicle-upload/server/data ]; then
     find /tmp/chronicle-upload/server/data -type f -delete || info "警告：清理 data 文件失败，但继续。"
 fi
 
-# 4. 复制 dist 到临时目录
+# 4. 复制 astro-frontend 源码到临时目录，供服务器端构建使用
+info "复制 astro-frontend 源码..."
+if ! rsync -av --exclude='node_modules' --exclude='.git' --exclude='dist' --exclude='.astro' astro-frontend /tmp/chronicle-upload/; then
+    die "rsync 同步 astro-frontend 目录失败。"
+fi
+
+# 5. 复制 dist 到临时目录
 info "复制 dist..."
 if ! cp -r chronicle-frontend/dist /tmp/chronicle-upload/; then
     die "复制 dist 失败。确保前端已正确构建并生成 dist。"
 fi
 
-# 5. 打包
+# 6. 打包
 cd /tmp/chronicle-upload || die "无法进入 /tmp/chronicle-upload"
 info "正在打包..."
-if ! tar czf chronicle-upload.tar.gz server dist; then
+if ! tar czf chronicle-upload.tar.gz server astro-frontend dist; then
     die "打包失败。"
 fi
 

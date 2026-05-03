@@ -8,9 +8,13 @@ import '../styles/app.css';
 interface Props {
   title?: string;
   settings?: any;
+  locale?: 'en' | 'zh-CN';
+  navTitle?: string;
+  navBackHref?: string;
+  navBackLabel?: string;
 }
 
-const { title, settings } = Astro.props;
+const { title, settings, locale: propLocale, navTitle, navBackHref, navBackLabel } = Astro.props;
 
 const siteTitle = settings?.siteName || 'Chronicle';
 const displayTitle = title ? `${title} - ${siteTitle}` : siteTitle;
@@ -23,7 +27,7 @@ const frontendBackgroundMeta = settings?.frontendBackgroundMeta || null;
 const frontendFont = settings?.frontendFont || 'sans';
 
 // 从Astro.locals获取locale（由middleware设置）
-const locale = getLocale(Astro.locals);
+const locale = propLocale || getLocale(Astro.locals);
 const htmlLang = locale === 'zh-CN' ? 'zh-CN' : 'en';
 ---
 <!DOCTYPE html>
@@ -137,6 +141,29 @@ const htmlLang = locale === 'zh-CN' ? 'zh-CN' : 'en';
         }
       })();
     </script>
+
+    <script is:inline>
+      (function () {
+        if (typeof window === 'undefined') return;
+
+        const applyMobileClass = () => {
+          document.documentElement.classList.toggle('is-mobile', window.innerWidth < 768);
+        };
+
+        const syncMobileClass = () => {
+          applyMobileClass();
+        };
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', syncMobileClass, { once: true });
+        } else {
+          syncMobileClass();
+        }
+
+        document.addEventListener('astro:page-load', syncMobileClass);
+        document.addEventListener('astro:after-swap', syncMobileClass);
+      })();
+    </script>
   </head>
   <body class="frontend-body">
     <!-- 背景层 - 使用transition:persist保持跨页面持久化 -->
@@ -147,7 +174,7 @@ const htmlLang = locale === 'zh-CN' ? 'zh-CN' : 'en';
     </div>
 
     <div id="app">
-      <NavHeader currentPath={Astro.url.pathname} locale={locale} />
+      <NavHeader currentPath={Astro.url.pathname} locale={locale} articleTitle={navTitle} articleBackHref={navBackHref} articleBackLabel={navBackLabel} />
 
       <div class="main-content" transition:animate="fade">
          <slot />
@@ -180,6 +207,65 @@ const htmlLang = locale === 'zh-CN' ? 'zh-CN' : 'en';
       
       // 立即检查并创建背景层
       ensureBackgroundLayerExists();
+
+      // 复用背景层渲染逻辑
+      function applyBackgroundLayer(forceReload = false) {
+        console.log('[Layout] applyBackgroundLayer called', { forceReload });
+        const settings = { ...(window as any).__CHRONICLE_SETTINGS__ };
+        console.log('[Layout] Settings:', settings);
+        
+        if (settings.frontendBackground) {
+          console.log('[Layout] Found frontendBackground:', settings.frontendBackground);
+          const meta = parseBackgroundMeta(settings.frontendBackgroundMeta);
+          console.log('[Layout] Background meta:', meta);
+          
+          writeBackgroundMetaVars('frontend', meta);
+          updateResolvedOverlays();
+          
+          const overlayVar = '--frontend-bg-overlay';
+          const overlayValue = getComputedStyle(document.documentElement).getPropertyValue(overlayVar) || 'transparent';
+          console.log('[Layout] Overlay value:', overlayValue);
+          
+          const layer = document.getElementById('chronicle-bg-layer');
+          console.log('[Layout] Background layer found:', !!layer);
+          
+          if (layer) {
+            // 如果需要强制重载，设置标记
+            if (forceReload) {
+              layer.setAttribute('data-force-reload', 'true');
+              console.log('[Layout] Setting force-reload flag');
+            }
+            
+            // 强制设置背景层样式
+            layer.style.opacity = '1';
+            layer.style.visibility = 'visible';
+            layer.style.display = 'block';
+            
+            const overlayEl = layer.querySelector('.bg-overlay') as HTMLElement | null;
+            if (overlayEl) {
+              overlayEl.style.background = overlayValue || 'transparent';
+              console.log('[Layout] Background layer overlay applied:', overlayValue);
+            }
+            
+            // 强制渲染背景图片
+            console.log('[Layout] Calling stageBackgroundLayer...');
+            stageBackgroundLayer(settings.frontendBackground, meta, overlayValue);
+            console.log('[Layout] stageBackgroundLayer called');
+          } else {
+            // 如果背景层丢失，重新创建并渲染
+            console.log('[Layout] Background layer not found, recreating...');
+            ensureBackgroundLayer();
+            console.log('[Layout] Background layer recreated and rendered');
+          }
+        } else {
+          console.log('[Layout] No frontendBackground found in settings');
+        }
+      }
+
+      // 立即应用背景设置，确保首次加载时背景层正确渲染
+      setTimeout(() => {
+        applyBackgroundLayer(true); // 强制重载，确保首次加载正确渲染
+      }, 100);
 
       let isBackgroundReady = false;
       let bgLcpActivationScheduled = false;
@@ -404,6 +490,13 @@ const htmlLang = locale === 'zh-CN' ? 'zh-CN' : 'en';
 
       // Astro 每次路由切换完毕会抛出 page-load 事件 (包含首次加载)
       document.addEventListener('astro:page-load', init);
+      
+      // 监听DOM完全加载，确保背景层在首次加载时正确渲染
+       document.addEventListener('DOMContentLoaded', () => {
+         setTimeout(() => {
+           applyBackgroundLayer();
+         }, 200);
+       });
 
       // 监听View Transitions，确保背景层在动画期间保持可见
       document.addEventListener('astro:before-swap', (e) => {
@@ -412,34 +505,22 @@ const htmlLang = locale === 'zh-CN' ? 'zh-CN' : 'en';
         if (layer) {
           // 在页面切换前，确保背景层不会被移除
           layer.setAttribute('data-persist', 'true');
+          
+          // 强制设置背景层为可见状态，防止View Transitions隐藏
+          layer.style.opacity = '1';
+          layer.style.visibility = 'visible';
+          layer.style.display = 'block';
         }
       });
 
       document.addEventListener('astro:after-swap', (e) => {
-        // 页面切换后，立即重新应用overlay
+        // 页面切换后，立即重新应用背景层
         setTimeout(() => {
-          const settings = { ...(window as any).__CHRONICLE_SETTINGS__ };
-          if (settings.frontendBackground) {
-            const meta = parseBackgroundMeta(settings.frontendBackgroundMeta);
-            writeBackgroundMetaVars('frontend', meta);
-            updateResolvedOverlays();
-            
-            const overlayVar = '--frontend-bg-overlay';
-            const overlayValue = getComputedStyle(document.documentElement).getPropertyValue(overlayVar) || 'transparent';
-            
-            const layer = document.getElementById('chronicle-bg-layer');
-            if (layer) {
-              const overlayEl = layer.querySelector('.bg-overlay') as HTMLElement | null;
-              if (overlayEl) {
-                overlayEl.style.background = overlayValue || 'transparent';
-                console.log('[Layout] After swap - overlay reapplied:', overlayValue);
-              }
-            } else {
-              // 如果背景层丢失，重新创建
-              ensureBackgroundLayer();
-              console.log('[Layout] After swap - background layer recreated');
-            }
-          }
+          // 强制重新创建背景层以确保正确渲染
+          ensureBackgroundLayer();
+          
+          // 复用背景层渲染逻辑
+          applyBackgroundLayer();
         }, 0);
       });
 

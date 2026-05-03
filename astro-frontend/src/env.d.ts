@@ -3,6 +3,7 @@
 declare namespace App {
   interface Locals {
     locale: 'en' | 'zh-CN';
+    routeLocale?: 'en' | 'zh';
   }
 }
 

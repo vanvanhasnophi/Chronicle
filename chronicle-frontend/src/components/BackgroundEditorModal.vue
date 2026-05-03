@@ -11,11 +11,12 @@
             <div class="preview-inner" :style="previewInnerStyle"></div>
             <div class="overlay" :style="overlayStyle"></div>
             <div class="preview-theme-toggle">
-              <button :class="{ 'active': previewTheme === 'light' }" @click.prevent="previewTheme = 'light'">Light</button>
-              <button :class="{ 'active': previewTheme === 'dark' }" @click.prevent="previewTheme = 'dark'">Dark</button>
+              <button :class="{ 'active': previewTheme === 'light' }" @click.prevent="previewTheme = 'light'" style="color: #FFF">Light</button>
+              <button :class="{ 'active': previewTheme === 'dark' }" @click.prevent="previewTheme = 'dark'" style="color: #000">Dark</button>
             </div>
           </div>
         </div>
+        <div class="controls-container">
         <div class="controls">
           <div class="control-row">
             <label>Position X</label>
@@ -57,6 +58,7 @@
               <span>{{ meta.overlayDarkOpacity }}%</span>
             </div>
           </div>
+        </div>
         </div>
       </div>
       <div class="bg-editor-actions">
@@ -173,17 +175,19 @@ function copyDarkToLight() {
 .bg-editor-modal {
   width: 92%;
   max-width: 900px;
+  max-height: 80vh;
   background: var(--component-bg);
   border: 1px solid var(--border-color);
   border-radius: 10px;
   overflow: hidden;
   display: flex;
-  flex-direction: column
+  flex-direction: column;
 }
 
 .bg-editor-header {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
   justify-content: space-between;
   padding: 12px 16px;
   border-bottom: 1px solid var(--border-color)
@@ -191,6 +195,9 @@ function copyDarkToLight() {
 
 .bg-editor-body {
   display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
   gap: 12px;
   padding: 12px
 }
@@ -204,7 +211,8 @@ function copyDarkToLight() {
 
 .preview {
   width: 100%;
-  height: 320px;
+  height: min(320px, 40vh, calc(80vh - 200px));
+  min-height: 55px;
   border-radius: 8px;
   overflow: hidden;
   background-size: cover;
@@ -290,11 +298,16 @@ function copyDarkToLight() {
   transform: rotate(180deg);
 }
 
-.controls {
+.controls-container {
   flex: 1 1 60%;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.controls {
   display: flex;
   flex-direction: column;
-  gap: 10px
+  gap: 10px;
 }
 
 .control-row {
@@ -353,6 +366,7 @@ function copyDarkToLight() {
 
 .bg-editor-actions {
   display: flex;
+  flex-shrink: 0;
   justify-content: flex-end;
   gap: 8px;
   padding: 12px;
@@ -394,5 +408,14 @@ label.small {
 h5 {
   margin: 0;
   color: var(--text-primary);
+}
+
+@media (max-width: 768px) {
+  .bg-editor-body {
+    flex-direction: column;
+  }
+  .preview-area {
+    width: 100%;
+  }
 }
 </style>

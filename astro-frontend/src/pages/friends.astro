@@ -1,82 +1,40 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import { getTranslation, getLocale } from '../utils/i18n';
-import { getApiUrl } from '../config/api';
+import { getLocale } from "../utils/i18n";
 
-// Get locale from Astro.locals (set by middleware)
+// 获取当前语言设置
 const locale = getLocale(Astro.locals);
-const t = (key: string) => getTranslation(locale, key);
+const routePrefix = locale === "zh-CN" ? "/zh" : "/en";
 
-// Fetch settings
-let settings: Record<string, any> = {};
-try {
-  const res = await fetch(getApiUrl('/api/settings?t=' + Date.now(), true), {
-    cache: 'no-store',
-  });
-  if (res.ok) settings = await res.json();
-} catch (e) {}
+// 构建基本重定向路径（不包含查询参数）
+const baseRedirectPath = `${routePrefix}/friends`;
 
-if (!settings || Object.keys(settings).length === 0) {
-  try {
-    const res = await fetch(getApiUrl('/api/public/settings?t=' + Date.now(), true), {
-      cache: 'no-store',
-    });
-    if (res.ok) settings = await res.json();
-  } catch (e) {}
-}
+// 使用meta标签进行立即重定向，用户看不到任何页面
 ---
 
-<Layout title={t('friends.title')} settings={settings}>
-  <div class="page-container">
-    <h1>{t('friends.title')}</h1>
-    <div class="friends-list">
-      <div class="friend-item">
-        <h3>Waiwai</h3>
-        <h4>非常乐意并享受被人挂网上的感觉</h4>
-        <img src="https://file.eightyfor.top/server/data/upload/pic/1770999133303_vne7_177099908700-992.webp" alt="Waiwai" />
-        <p>（据说这位是家属）</p>
-      </div>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Redirecting to Friends</title>
+    <!-- 立即重定向，用户看不到任何页面 -->
+    <meta http-equiv="refresh" content={`0;url=${baseRedirectPath}`} />
+  </head>
+  <body>
+    <!-- 备用重定向，使用客户端JavaScript获取查询参数 -->
+    <script>
+      // 获取当前URL的查询参数
+      const searchParams = window.location.search;
+      const routePrefix = window.location.pathname.includes('/zh') ? '/zh' : '/en';
+      
+      // 构建完整重定向路径
+      const redirectPath = `${routePrefix}/friends${searchParams}`;
+  
+      // 立即重定向
+      window.location.replace(redirectPath);
+    </script>
+    <!-- 最终备用方案 -->
+    <div style="display:none;">
+      <p>If you are not redirected, <a href={baseRedirectPath}>click here</a>.</p>
     </div>
-  </div>
-</Layout>
-
-<style>
-.page-container {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 40px 20px;
-  color: var(--text-primary);
-}
-
-.friends-list {
-  margin-top: 30px;
-}
-
-.friend-item {
-  margin-bottom: 40px;
-}
-
-.friend-item h3 {
-  color: var(--text-primary);
-  margin-bottom: 10px;
-}
-
-.friend-item h4 {
-  color: var(--component-text-secondary);
-  font-weight: normal;
-  margin-bottom: 20px;
-}
-
-.friends-list img {
-  max-width: 100%;
-  height: auto;
-  margin: 20px 0;
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-}
-
-.friend-item p {
-  color: var(--component-text-secondary);
-  font-style: italic;
-}
-</style>
+  </body>
+</html>

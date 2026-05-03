@@ -14,3 +14,4 @@ server/log/*
 .env
 .claude
 astro-frontend/dist/*
+decrypt_post.js

@@ -1,0 +1,242 @@
+type TooltipState = {
+  root: HTMLElement | null
+  trigger: HTMLElement | null
+  tex: string
+  displayMode: boolean
+  visible: boolean
+}
+
+type SyntaxRule = {
+  pattern: RegExp
+  className: string
+}
+
+const syntaxRules: SyntaxRule[] = [
+  { pattern: /(%.*$)/gm, className: 'comment' },
+  { pattern: /[_+\-*/%=^&|]/g, className: 'operator' },
+  { pattern: /\\[a-zA-Z]+(?![a-zA-Z])/g, className: 'katexcommand' },
+  { pattern: /\\[^a-zA-Z]/g, className: 'katexcommand' },
+  { pattern: /\b\d+\.?\d*\b/g, className: 'katexnumber' },
+  { pattern: /[{}[\]()[\]]/g, className: 'katexbracket' },
+]
+
+function escapeHtml(text: string) {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function highlightKatexSource(tex: string) {
+  let highlighted = tex
+  const replacements: string[] = []
+
+  for (const rule of syntaxRules) {
+    highlighted = highlighted.replace(rule.pattern, (match) => {
+      const placeholder = `__KATEX_HIGHLIGHT_${replacements.length}__`
+      replacements.push(`<span class="${rule.className}">${escapeHtml(match)}</span>`)
+      return placeholder
+    })
+  }
+
+  highlighted = escapeHtml(highlighted)
+
+  replacements.forEach((replacement, index) => {
+    highlighted = highlighted.replace(new RegExp(`__KATEX_HIGHLIGHT_${index}__`, 'g'), replacement)
+  })
+
+  return highlighted
+}
+
+let state: TooltipState = {
+  root: null,
+  trigger: null,
+  tex: '',
+  displayMode: false,
+  visible: false,
+}
+
+function ensureRoot() {
+  if (state.root) {
+    if (typeof document !== 'undefined' && !state.root.isConnected) {
+      document.body.appendChild(state.root)
+    }
+    return state.root
+  }
+
+  const root = document.createElement('div')
+  root.className = 'math-tooltip is-hidden'
+  root.setAttribute('role', 'dialog')
+  root.setAttribute('aria-hidden', 'true')
+  root.innerHTML = `
+    <div class="math-tooltip-panel">
+      <div class="math-tooltip-header">
+        <div class="math-tooltip-title">TeX</div>
+        <div class="math-tooltip-actions">
+          <button type="button" class="math-tooltip-action math-tooltip-copy" aria-label="Copy TeX"> <svg class="copy-icon" width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="7" y="7" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.5"></rect><rect x="4" y="4" width="9" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"></rect></svg> </button>
+        </div>
+      </div>
+      <pre class="syntax-highlight math-tooltip-source"><code></code></pre>
+    </div>
+  `
+  document.body.appendChild(root)
+  state.root = root
+
+  root.addEventListener('click', (event) => {
+    const target = event.target as HTMLElement
+    if (target.closest('.math-tooltip-close')) {
+      hideTooltip()
+      return
+    }
+    if (target.closest('.math-tooltip-copy')) {
+      void copyTex()
+    }
+  })
+
+  return root
+}
+
+function copyTex() {
+  if (!state.tex) return
+  navigator.clipboard.writeText(state.tex).catch(() => {})
+}
+
+function positionRoot() {
+  const root = state.root
+  const trigger = state.trigger
+  if (!root || !trigger) return
+
+  const rect = trigger.getBoundingClientRect()
+  const rootRect = root.getBoundingClientRect()
+  const margin = 10
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+
+  let left = rect.left
+  let top = rect.bottom + margin
+
+  if (left + rootRect.width + margin > vw) {
+    left = Math.max(margin, vw - rootRect.width - margin)
+  }
+
+  if (top + rootRect.height + margin > vh) {
+    const above = rect.top - rootRect.height - margin
+    top = above > margin ? above : Math.max(margin, vh - rootRect.height - margin)
+  }
+
+  root.style.left = `${Math.max(margin, left)}px`
+  root.style.top = `${Math.max(margin, top)}px`
+}
+
+function updateContent() {
+  const root = ensureRoot()
+  const code = root.querySelector('.math-tooltip-source code') as HTMLElement | null
+  if (!code) return
+  code.innerHTML = highlightKatexSource(state.tex)
+
+  const copyButton = root.querySelector('.math-tooltip-copy') as HTMLButtonElement | null
+  if (copyButton) {
+    copyButton.innerHTML = `<svg class="copy-icon" width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="7" y="7" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.5"></rect><rect x="4" y="4" width="9" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"></rect></svg>`
+    copyButton.disabled = false
+  }
+}
+
+function showTooltip(trigger: HTMLElement) {
+  const tex = trigger.getAttribute('data-tex') || trigger.textContent || ''
+  const type = trigger.getAttribute('data-type') || 'inline'
+
+  state.trigger = trigger
+  state.tex = tex
+  state.displayMode = type === 'block'
+  state.visible = true
+
+  const root = ensureRoot()
+  root.classList.remove('is-hidden')
+  root.classList.toggle('is-block', state.displayMode)
+  root.setAttribute('aria-hidden', 'false')
+  root.style.visibility = 'hidden'
+  root.style.display = 'block'
+
+  updateContent()
+  requestAnimationFrame(() => {
+    positionRoot()
+    root.style.visibility = 'visible'
+  })
+}
+
+function hideTooltip() {
+  state.visible = false
+  state.trigger = null
+  const root = state.root
+  if (!root) return
+  root.classList.add('is-hidden')
+  root.setAttribute('aria-hidden', 'true')
+  root.style.visibility = 'hidden'
+}
+
+function onDocumentPointerDown(event: PointerEvent) {
+  const target = event.target as HTMLElement | null
+  if (!target) return
+
+  const root = state.root
+  if (root && root.contains(target)) return
+
+  const trigger = target.closest('.katex-interactive') as HTMLElement | null
+  if (!trigger) {
+    if (state.visible) hideTooltip()
+    return
+  }
+
+  event.preventDefault()
+  event.stopPropagation()
+
+  if (state.visible && state.trigger === trigger) {
+    hideTooltip()
+    return
+  }
+
+  showTooltip(trigger)
+}
+
+function onWindowChange() {
+  if (!state.visible) return
+  requestAnimationFrame(() => positionRoot())
+}
+
+function onKeyDown(event: KeyboardEvent) {
+  if (event.key === 'Escape') hideTooltip()
+}
+
+export function initMathTooltip(container: ParentNode = document) {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return
+  if (container !== document) {
+    void container
+  }
+
+  ensureRoot()
+  document.removeEventListener('pointerdown', onDocumentPointerDown, true)
+  document.addEventListener('pointerdown', onDocumentPointerDown, true)
+  window.removeEventListener('resize', onWindowChange)
+  window.removeEventListener('scroll', onWindowChange, true)
+  document.removeEventListener('keydown', onKeyDown)
+  window.addEventListener('resize', onWindowChange)
+  window.addEventListener('scroll', onWindowChange, true)
+  document.addEventListener('keydown', onKeyDown)
+}
+
+export function destroyMathTooltip() {
+  document.removeEventListener('pointerdown', onDocumentPointerDown, true)
+  window.removeEventListener('resize', onWindowChange)
+  window.removeEventListener('scroll', onWindowChange, true)
+  document.removeEventListener('keydown', onKeyDown)
+  state.root?.remove()
+  state = {
+    root: null,
+    trigger: null,
+    tex: '',
+    displayMode: false,
+    visible: false,
+  }
+}

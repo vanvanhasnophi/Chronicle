@@ -43,6 +43,7 @@ pre{
   margin: 0 auto;
 }
 
+
 /* Mobile title back button (left of app title) */
 .mobile-title-back {
   background: transparent;
@@ -55,6 +56,10 @@ pre{
   height: 32px;
   margin-right: 12px;
   padding: 0;
+}
+
+.mobile-title-back:hover {
+  color: var(--text-primary);
 }
 
 .mobile-title-back span {
@@ -75,6 +80,7 @@ pre{
   color: var(--text-primary);
   font-size: 1.15rem;
   font-weight: 600;
+  font-variation-settings: 'wght' 600;
   line-height: 1;
 }
 
@@ -257,6 +263,7 @@ pre{
   background: var(--accent-color);
   color: white !important;
   font-weight: 600;
+  font-variation-settings: 'wght' 500;
 }
 
 .new-post-btn:hover {
@@ -278,6 +285,9 @@ pre{
   /* Use padding instead of margin */
   height: 100vh;
   box-sizing: border-box;
+  --toc-scroll-offset: 70px;
+  scroll-behavior: smooth;
+  scroll-padding-top: var(--toc-scroll-offset);
 }
 
 .main-content.no-nav {

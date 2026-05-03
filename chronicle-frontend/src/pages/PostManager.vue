@@ -150,7 +150,22 @@ const deletePost = async (id: string) => {
     if (!confirm(t('post.confirmDelete'))) return
     
     try {
-        const res = await fetch(`/api/post?id=${id}&t=${Date.now()}`, { method: 'DELETE' })
+    const authToken = (() => {
+      try {
+        const raw = localStorage.getItem('chronicle_auth')
+        if (!raw) return ''
+        const parsed = JSON.parse(raw)
+        return typeof parsed?.token === 'string' ? parsed.token : ''
+      } catch (e) {
+        return ''
+      }
+    })()
+
+        const res = await fetch(`/api/post?id=${id}&t=${Date.now()}`, {
+          method: 'DELETE',
+          headers: authToken ? { 'X-Chronicle-Auth': authToken } : {},
+        })
+        
         if (res.ok) {
             // refresh
             loadPosts()

@@ -1,29 +1,52 @@
 ---
 import { getTranslation, getLocale, type Locale } from "../utils/i18n";
+import { buildLocalizedPath, stripRouteLocale } from "../utils/routeLocale";
 
 interface Props {
   currentPath: string;
   locale?: Locale;
+  articleTitle?: string;
+  articleBackHref?: string;
+  articleBackLabel?: string;
 }
 
-const { currentPath, locale: propLocale } = Astro.props;
+const { currentPath, locale: propLocale, articleTitle, articleBackHref, articleBackLabel } = Astro.props;
 const locale = propLocale || getLocale(Astro.locals);
 const t = (key: string) => getTranslation(locale, key);
+const activePath = stripRouteLocale(currentPath);
+const homeHref = buildLocalizedPath(locale, "/");
+const blogsHref = buildLocalizedPath(locale, "/blogs");
+const searchHref = buildLocalizedPath(locale, "/search");
+const friendsHref = buildLocalizedPath(locale, "/friends");
 
 // Determine active route for highlighting
 const isActive = (path: string) => {
-  if (path === "/" && currentPath === "/") return true;
-  if (path !== "/" && currentPath.startsWith(path)) return true;
+  if (path === "/" && activePath === "/") return true;
+  if (path !== "/" && activePath.startsWith(path)) return true;
   return false;
 };
 ---
 
-<nav class="nav-header at-top" id="main-nav">
+<nav class:list={["nav-header", { "at-top": true, "swap-enabled": articleTitle && articleBackHref }]} id="main-nav">
   <div class="nav-content">
-    <div class="site-header">
-      <a href="/" style="text-decoration:none; color:inherit;">
-        <h1 class="app-title">Chronicle</h1>
-      </a>
+    <div class="header-swap">
+      <div class:list={["site-header", { "entering-up": articleTitle && articleBackHref }]}>
+        <a href="/" style="text-decoration:none; color:inherit;">
+          <h1 class="app-title">Chronicle</h1>
+        </a>
+      </div>
+
+      <div class:list={["reading-header", { "entering-down": articleTitle && articleBackHref }]}>
+        {articleTitle && articleBackHref && (
+          <a href={articleBackHref} class="mobile-title-back" aria-label={articleBackLabel || t('inblog.backToBlogs')}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+          </a>
+        )}
+        {articleTitle && <h1 class="reading-title">{articleTitle}</h1>}
+      </div>
     </div>
 
     <div class="nav-actions">
@@ -82,13 +105,13 @@ const isActive = (path: string) => {
           </span>
         </button>
         <a
-          href="/"
+          href={homeHref}
           class:list={["nav-link", { "router-link-active": isActive("/") }]}
         >
           {t("nav.home")}
         </a>
         <a
-          href="/blogs"
+          href={blogsHref}
           class:list={[
             "nav-link",
             { "router-link-active": isActive("/blogs") },
@@ -97,7 +120,7 @@ const isActive = (path: string) => {
           {t("nav.blogs")}
         </a>
         <a
-          href="/search"
+          href={searchHref}
           class:list={[
             "nav-link",
             { "router-link-active": isActive("/search") },
@@ -106,7 +129,7 @@ const isActive = (path: string) => {
           {t("nav.search")}
         </a>
         <a
-          href="/friends"
+          href={friendsHref}
           class:list={[
             "nav-link",
             { "router-link-active": isActive("/friends") },
@@ -288,11 +311,93 @@ const isActive = (path: string) => {
     margin: 0 auto;
   }
 
+  .header-swap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+  }
+
   .app-title {
     color: var(--text-primary);
     margin: 0;
     font-size: 1.6rem;
   }
+
+  .site-header,
+  .reading-header {
+    align-items: center;
+    min-width: 0;
+  }
+
+  .site-header {
+    display: flex;
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  html.is-mobile .nav-header.swap-enabled .reading-header {
+    display: flex;
+  }
+
+  .reading-header {
+    display: none;
+  }
+
+  html.is-mobile .nav-header.swap-enabled .header-swap {
+    position: relative;
+    min-width: 0;
+    flex: 1 1 auto;
+    height: 100%;
+  }
+
+  html.is-mobile .nav-header.swap-enabled .site-header,
+  html.is-mobile .nav-header.swap-enabled .reading-header {
+    position: absolute;
+    inset: 0 auto 0 0;
+    opacity: 0;
+    transform: translateY(0);
+    pointer-events: none;
+    transition:
+      transform 190ms cubic-bezier(.2, .9, .3, 1),
+      opacity 160ms ease;
+    will-change: transform, opacity;
+  }
+
+  html.is-mobile .nav-header.swap-enabled .site-header.entering-up {
+    transform: translateY(-8px);
+  }
+
+  html.is-mobile .nav-header.swap-enabled .reading-header.entering-down {
+    transform: translateY(8px);
+  }
+
+  html.is-mobile .nav-header.swap-enabled.at-top .site-header {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  html.is-mobile .nav-header.swap-enabled.at-top .reading-header {
+    opacity: 0;
+    transform: translateY(8px);
+    pointer-events: none;
+  }
+
+  html.is-mobile .nav-header.swap-enabled:not(.at-top) .site-header {
+    opacity: 0;
+    transform: translateY(-8px);
+    pointer-events: none;
+  }
+
+  html.is-mobile .nav-header.swap-enabled:not(.at-top) .reading-header {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
 
   .nav-actions {
     display: flex;
@@ -343,9 +448,7 @@ const isActive = (path: string) => {
   /* Settings Menu */
   .nav-settings-menu {
     background: var(--component-bg);
-    position: absolute;
-    top: 80px;
-    right: calc(0.2vw + 12px);
+    position: fixed;
     color: var(--component-text-secondary);
     border: 1px solid var(--border-color);
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
@@ -424,8 +527,8 @@ const isActive = (path: string) => {
   .menu-toggle .menu-icon,
   .menu-toggle .close-icon {
     position: absolute;
-    width: 18px;
-    height: 18px;
+    width: 24px;
+    height: 24px;
     transition:
       opacity 0.2s ease,
       transform 0.2s ease;
@@ -465,6 +568,7 @@ const isActive = (path: string) => {
 
   /* Mobile Styles */
   @media (max-width: 768px) {
+
     .menu-toggle {
       display: flex;
       z-index: 102;
@@ -566,6 +670,11 @@ const isActive = (path: string) => {
 
     if (!settingBtn || !settingsMenu) return;
 
+    // Move to body to avoid backdrop-filter stacking context issues
+    if (settingsMenu.parentNode !== document.body) {
+      document.body.appendChild(settingsMenu);
+    }
+
     // Get current theme and locale
     function getCurrentTheme() {
       try {
@@ -582,10 +691,69 @@ const isActive = (path: string) => {
       return localStorage.getItem("locale") || "follow";
     }
 
+    function getBrowserLocale() {
+      const nav = navigator.language || "en";
+      return nav.startsWith("zh") ? "zh-CN" : "en";
+    }
+
+    function getCurrentRouteLocale() {
+      const segments = window.location.pathname.split("/").filter(Boolean);
+      if (segments[0] === "en") return "en";
+      if (segments[0] === "zh") return "zh-CN";
+      return null;
+    }
+
+    function getBasePath() {
+      const segments = window.location.pathname.split("/").filter(Boolean);
+      if (segments[0] === "en" || segments[0] === "zh") {
+        const remainder = `/${segments.slice(1).join("/")}`;
+        return remainder === "/" ? "/" : remainder;
+      }
+      return window.location.pathname || "/";
+    }
+
+    function buildLocalizedClientPath(nextLocale: string | null) {
+      const routeLocale = nextLocale === "zh-CN" ? "zh" : "en";
+      const basePath = getBasePath();
+      if (basePath === "/") return `/${routeLocale}`;
+      return `/${routeLocale}${basePath.startsWith("/") ? basePath : `/${basePath}`}`;
+    }
+
+    function saveLocalePreference(nextLocale: string | null) {
+      localStorage.setItem("locale", nextLocale || "follow");
+      const cookieValue = nextLocale || "follow";
+      document.cookie = `locale=${cookieValue}; path=/; max-age=31536000`;
+    }
+
+    function maybePromptLocaleMismatch() {
+      const routeLocale = getCurrentRouteLocale();
+      const browserLocale = getBrowserLocale();
+      if (!routeLocale || routeLocale === browserLocale) return false;
+
+      const promptKey = `chronicle.locale.prompted.${routeLocale}.${browserLocale}`;
+      if (sessionStorage.getItem(promptKey)) return false;
+      sessionStorage.setItem(promptKey, "1");
+
+      const message = browserLocale === "zh-CN"
+        ? "当前页面语言与系统语言不一致，是否切换到中文版本？"
+        : "The current page language does not match your system language. Switch to the English version?";
+
+      const shouldSwitch = window.confirm(message);
+      if (shouldSwitch) {
+        saveLocalePreference(browserLocale);
+        navigate(buildLocalizedClientPath(browserLocale), { history: "replace" });
+        return true;
+      }
+
+      return false;
+    }
+
     // Update checkmarks
     function updateMenuState() {
       const currentTheme = getCurrentTheme();
-      const currentLocale = getCurrentLocale();
+      const storedLocale = getCurrentLocale();
+      const routeLocale = getCurrentRouteLocale();
+      
       if (!settingsMenu) return;
 
       // Update theme checkmarks
@@ -597,7 +765,27 @@ const isActive = (path: string) => {
       // Update locale checkmarks
       settingsMenu.querySelectorAll("[data-locale]").forEach((btn) => {
         const locale = btn.getAttribute("data-locale");
-        btn.classList.toggle("active", locale === currentLocale);
+        
+        // 语言选中状态逻辑：
+        // 1. 如果localStorage中的语言字段是"follow system"，就选择"跟随系统"
+        // 2. 否则按照当前路由来选择
+        let shouldBeActive = false;
+        
+        if (storedLocale === "follow") {
+          // 跟随系统模式：只有"follow"按钮应该被选中
+          shouldBeActive = locale === "follow";
+        } else {
+          // 固定语言模式：根据当前路由和存储的语言设置同步
+          if (routeLocale) {
+            // 有路由语言：选中对应的语言按钮
+            shouldBeActive = locale === routeLocale;
+          } else {
+            // 无路由语言：选中存储的语言设置
+            shouldBeActive = locale === storedLocale;
+          }
+        }
+        
+        btn.classList.toggle("active", shouldBeActive);
       });
     }
 
@@ -630,6 +818,7 @@ const isActive = (path: string) => {
         settingsMenu.style.display = "none";
       } else {
         updateMenuState();
+        if (maybePromptLocaleMismatch()) return;
         positionSettingsMenu();
       }
     });
@@ -673,20 +862,17 @@ const isActive = (path: string) => {
     settingsMenu.querySelectorAll("[data-locale]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const locale = btn.getAttribute("data-locale");
+        const browserLocale = getBrowserLocale();
+        const nextLocale = locale === "follow" ? browserLocale : locale;
 
-        // Save to localStorage
-        localStorage.setItem("locale", locale || "follow");
-
-        // Save to cookie for SSR (expires in 1 year)
-        const cookieValue = locale || "follow";
-        document.cookie = `locale=${cookieValue}; path=/; max-age=31536000`;
+        saveLocalePreference(locale || "follow");
 
         // Dispatch custom event to notify other components
         const event = new CustomEvent('localeChanged', { detail: { locale } });
         window.dispatchEvent(event);
 
         // Keep background layer persisted across locale switch.
-        navigate(window.location.pathname + window.location.search, {
+        navigate(buildLocalizedClientPath(nextLocale) + window.location.search, {
           history: "replace",
         });
       });

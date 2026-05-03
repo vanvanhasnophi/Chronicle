@@ -1,21 +1,18 @@
 <script setup lang="ts">
-import { computed, ref, watch, onMounted, onBeforeUnmount, reactive, nextTick } from 'vue'
+import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { Icons } from './utils/icons'
-import { Settings } from 'lucide-vue-next'
 import { ensureNotoLoaded } from './utils/fontLoader'
 import { hexToRgbString } from './utils/colorUtils'
+import { resolveBackgroundCompression, resolveBackgroundUrl } from './utils/backgroundSettings'
 import FilePreviewModal from './components/FilePreviewModal.vue'
 import ImagePreviewModal from './components/ImagePreviewModal.vue'
 import Toast from './components/Toast.vue'
+import useToast from './composables/useToast'
 import { useI18n } from 'vue-i18n'
 
 const route = useRoute()
 const router = useRouter()
-
-function openNewEditor() {
-  router.push('/editor?id=new')
-}
 const isBackend = computed(() => {
   // Explicit frontend routes: Home, BlogList, BlogPost, Search, Friends
   const frontendPrefixes = ['/', '/blogs', '/post', '/search', '/friends']
@@ -38,16 +35,9 @@ document.body.addEventListener('touchstart', (e) => {
   }
 }, { passive: true }) // improve mobile click responsiveness
 
-const { locale, t } = useI18n()
-const selectedLocale = ref<string>(localStorage.getItem('locale') || 'follow')
-const isMobileRoot = ref(false)
-const showSettingsMenu = ref(false)
-const navSettingBtn = ref<HTMLElement | null>(null)
-const menuStyle = reactive<{ top?: string; left?: string; right?: string }>({ top: '0px', left: 'auto', right: '24px' })
+const { locale } = useI18n()
 const __VERSION__ = APP_VERSION // Replace with actual version
 const __YEAR__ = APP_YEAR // Replace with actual year
-let onWindowResize: (() => void) | null = null
-let onWindowScroll: (() => void) | null = null
 let selectObserver: MutationObserver | null = null
 let themeAttrObserver: MutationObserver | null = null
 let backendThemeAttrObserver: MutationObserver | null = null
@@ -76,9 +66,11 @@ function writeBackgroundMetaVars(scope: 'frontend' | 'backend', meta: any) {
   if (!meta) return
   const prefix = scope === 'frontend' ? '--frontend' : '--backend'
   try {
+    const compression = resolveBackgroundCompression(meta, scope)
     document.documentElement.style.setProperty(`${prefix}-bg-pos`, `${meta.posX || 50}% ${meta.posY || 50}%`)
     document.documentElement.style.setProperty(`${prefix}-bg-size`, `${meta.size || 100}%`)
     document.documentElement.style.setProperty(`${prefix}-bg-blur`, `${meta.blur || 0}px`)
+    document.documentElement.style.setProperty(`${prefix}-bg-compression`, String(compression || 1))
 
     const overlayLight = meta.overlayLightColor || meta.overlayColor || 'transparent'
     const overlayLightOpa = (meta.overlayLightOpacity != null) ? ((meta.overlayLightOpacity || 0) / 100) : ((meta.overlayOpacity || 0) / 100)
@@ -405,66 +397,6 @@ function scheduleCustomBackgroundAfterLcp() {
   }
 }
 
-function applyLocale(val: string) {
-  selectedLocale.value = val
-  showSettingsMenu.value = false
-}
-
-function onDocClick(e: MouseEvent) {
-  const path = (e.composedPath && e.composedPath()) || (e as any).path || []
-  const hit = path.some((el: any) => el && el.classList && (el.classList.contains('nav-settings-menu') || el.classList.contains('nav-setting-btn')))
-  if (!hit) showSettingsMenu.value = false
-}
-
-function positionSettingsMenu() {
-  if (!navSettingBtn.value) return
-  const btnRect = navSettingBtn.value.getBoundingClientRect()
-  // default menu dims
-  const margin = 12
-  const preferredTop = Math.round(btnRect.bottom + 8 + window.scrollY)
-  // we will measure the menu after it's rendered
-  nextTick(() => {
-    const menuEl = document.querySelector('.nav-settings-menu') as HTMLElement | null
-    if (!menuEl) return
-    const menuRect = menuEl.getBoundingClientRect()
-    let left = Math.round(btnRect.left + window.scrollX)
-    // prefer aligning right edge of menu to button right if it overflows
-    if (left + menuRect.width + margin > window.innerWidth) {
-      left = Math.max(margin, Math.round(btnRect.right - menuRect.width + window.scrollX))
-    }
-    // ensure left not out of viewport
-    if (left < margin) left = margin
-    // ensure top fits vertically, otherwise flip above button
-    let top = preferredTop
-    if (top + menuRect.height > window.scrollY + window.innerHeight - margin) {
-      // place above button
-      top = Math.max(margin, Math.round(btnRect.top - menuRect.height - 8 + window.scrollY))
-    }
-    menuStyle.top = `${top}px`
-    menuStyle.left = `${left}px`
-    menuStyle.right = 'auto'
-  })
-}
-
-// selected theme for the nav menu (frontend theme control)
-const selectedTheme = ref('follow')
-
-function applyTheme(val: string) {
-  selectedTheme.value = val
-  // merge into chronicle.settings in localStorage
-  try {
-    const key = 'chronicle.settings'
-    const raw = localStorage.getItem(key)
-    let cfg: any = {}
-    if (raw) cfg = JSON.parse(raw)
-    cfg.frontendTheme = val
-    localStorage.setItem(key, JSON.stringify(cfg))
-  } catch (e) { }
-  // apply immediately
-  try { applySettings() } catch (e) { }
-  showSettingsMenu.value = false
-}
-
 // Resolve and write the effective overlay CSS vars so body::after always reads a concrete rgba value
 function updateResolvedOverlays() {
   try {
@@ -517,22 +449,15 @@ function updateResolvedOverlays() {
 
 async function getSettings() {
   try {
-    let settings: any = {}
-    try {
-      const stored = localStorage.getItem('chronicle.settings')
-      if (stored) settings = JSON.parse(stored)
-    } catch (e) { }
-
     try {
       const resp = await fetch(`/api/settings?t=${Date.now()}`)
       if (resp.ok) {
         const s = await resp.json()
-        // ä¿æŒæœ¬åœ°è®¾ç½®ä¼˜å…ˆï¼šå…ˆä»¥æœåŠ¡å™¨è®¾ç½®ä¸ºåŸºç¡€ï¼Œå†è®©æœ¬åœ°è®¾ç½®è¦†ç›–å®ƒ
-        settings = Object.assign({}, s, settings)
+        return s || {}
       }
     } catch (e) { }
 
-    return settings
+    return {}
   } catch (e) {
     return {}
   }
@@ -565,7 +490,7 @@ async function applySettings() {
       // If userPref exists (including 'follow' or 'zh-CN'), we respect it (already applied by applyFrontendLocaleFromSelection)
     }
 
-    // Apply Fonts
+    // Apply Fonts from server settings only
     try {
       if (s.frontendFont === 'serif') {
         // ensure serif font loaded when requested
@@ -585,43 +510,26 @@ async function applySettings() {
       }
     } catch (e) { }
 
-    // Apply Theme & Accent (if provided by server settings)
+    // Apply Theme & Accent from server settings only
     try {
-      // Respect local user settings stored in chronicle.settings first (mirror locale logic)
-      let localCfg: any = null
-      try {
-        const raw = localStorage.getItem('chronicle.settings')
-        if (raw) localCfg = JSON.parse(raw)
-      } catch (e) { localCfg = null }
-
-      // Frontend theme: only apply server-provided frontendTheme if user has no local frontendTheme
-      if (!localCfg || !localCfg.frontendTheme) {
-        if (s.frontendTheme) {
-          if (s.frontendTheme === 'follow' || s.frontendTheme === 'system') {
-            document.documentElement.removeAttribute('data-theme')
-          } else if (s.frontendTheme === 'light') {
-            document.documentElement.setAttribute('data-theme', 'light')
-          } else if (s.frontendTheme === 'dark') {
-            document.documentElement.setAttribute('data-theme', 'dark')
-          }
+      if (s.frontendTheme) {
+        if (s.frontendTheme === 'follow' || s.frontendTheme === 'system') {
+          document.documentElement.removeAttribute('data-theme')
+        } else if (s.frontendTheme === 'light') {
+          document.documentElement.setAttribute('data-theme', 'light')
+        } else if (s.frontendTheme === 'dark') {
+          document.documentElement.setAttribute('data-theme', 'dark')
         }
-      } else {
-        // local preference exists -> apply it
-        const lf = String(localCfg.frontendTheme)
-        if (lf === 'follow' || lf === 'system') document.documentElement.removeAttribute('data-theme')
-        else if (lf === 'light') document.documentElement.setAttribute('data-theme', 'light')
-        else if (lf === 'dark') document.documentElement.setAttribute('data-theme', 'dark')
       }
 
-      // Backend theme: prefer local setting, otherwise use server value when in backend area
+      // Backend theme also comes from server settings.
       if (isBackend.value) {
-        const backendThemeToApply = (localCfg && localCfg.backendTheme) ? localCfg.backendTheme : s.backendTheme
-        if (backendThemeToApply) {
-          if (backendThemeToApply === 'follow' || backendThemeToApply === 'system') {
+        if (s.backendTheme) {
+          if (s.backendTheme === 'follow' || s.backendTheme === 'system') {
             document.body.removeAttribute('data-backend-theme')
-          } else if (backendThemeToApply === 'light') {
+          } else if (s.backendTheme === 'light') {
             document.body.setAttribute('data-backend-theme', 'light')
-          } else if (backendThemeToApply === 'dark') {
+          } else if (s.backendTheme === 'dark') {
             document.body.setAttribute('data-backend-theme', 'dark')
           }
         }
@@ -655,13 +563,15 @@ async function applySettings() {
 
       // Apply background with staged reveal: overlay/blur first, media source after load.
       try {
-        const fb = (localCfg && localCfg.frontendBackground) ? localCfg.frontendBackground : s.frontendBackground
-        const bb = (localCfg && localCfg.backendBackground) ? localCfg.backendBackground : s.backendBackground
+        const fb = s.frontendBackground
+        const bb = s.backendBackground
+        const frontendBgUrl = resolveBackgroundUrl(fb, 'frontend')
+        const backendBgUrl = resolveBackgroundUrl(bb, 'backend')
 
         // Preload in advance so reveal can happen immediately once LCP is also ready.
         try {
-          if (fb) void ensureBackgroundImagePrepared(String(fb))
-          if (bb) void ensureBackgroundImagePrepared(String(bb))
+          if (frontendBgUrl) void ensureBackgroundImagePrepared(frontendBgUrl)
+          if (backendBgUrl) void ensureBackgroundImagePrepared(backendBgUrl)
         } catch (e) { }
 
         // Disable pseudo-element media rendering path; we render media only in #chronicle-bg-layer.
@@ -680,13 +590,13 @@ async function applySettings() {
         } else {
           try { ensureBackgroundLayer() } catch (e) { }
 
-          const fm = parseBackgroundMeta((localCfg && localCfg.frontendBackgroundMeta) ? localCfg.frontendBackgroundMeta : s.frontendBackgroundMeta)
-          const bm = parseBackgroundMeta((localCfg && localCfg.backendBackgroundMeta) ? localCfg.backendBackgroundMeta : s.backendBackgroundMeta)
+          const fm = parseBackgroundMeta(s.frontendBackgroundMeta)
+          const bm = parseBackgroundMeta(s.backendBackgroundMeta)
 
           try { writeBackgroundMetaVars('frontend', fm) } catch (e) { }
           try { writeBackgroundMetaVars('backend', bm) } catch (e) { }
 
-          const activeUrl = String((isBackend.value ? bb : fb) || '')
+          const activeUrl = String(isBackend.value ? backendBgUrl : frontendBgUrl)
 
           let activeOverlay = 'transparent'
           try {
@@ -710,18 +620,14 @@ async function applySettings() {
   } catch (e) { }
 }
 
-// re-export helper from utils
-const ensureNotoLoadedLocal = ensureNotoLoaded
-
 function applyFrontendLocaleFromSelection() {
-  if (!selectedLocale.value || selectedLocale.value === 'follow') {
-    // If 'follow' is explicitly selected by user or restored from localStorage, persist it.
+  const storedLocale = localStorage.getItem('locale') || 'follow'
+  if (!storedLocale || storedLocale === 'follow') {
     localStorage.setItem('locale', 'follow')
     const nav = navigator.language || 'en'
     locale.value = nav.startsWith('zh') ? 'zh-CN' : 'en'
   } else {
-    localStorage.setItem('locale', selectedLocale.value)
-    locale.value = selectedLocale.value as any
+    locale.value = storedLocale as any
   }
 }
 
@@ -760,17 +666,6 @@ onMounted(async () => {
     }
   } catch (e) { }
 
-  // Global mobile detection: set a root class (`is-mobile`) based on initial window width.
-  // This is done once at startup (per requirement) and does not follow subsequent resizes.
-  try {
-    const mobile = typeof window !== 'undefined' && window.innerWidth <= 720
-    if (mobile) document.documentElement.classList.add('is-mobile')
-    else document.documentElement.classList.remove('is-mobile')
-    // keep a component-local copy for template conditions
-    isMobileRoot.value = mobile
-  } catch (e) { }
-
-
   // initial apply depending on area
   if (isBackend.value) {
     applyBackendLocaleIfNeeded()
@@ -779,7 +674,6 @@ onMounted(async () => {
     // load selected frontend locale from storage if available
     const stored = localStorage.getItem('locale')
     if (stored) {
-      selectedLocale.value = stored
       applyFrontendLocaleFromSelection()
     } else {
       // No stored preference -> Temporary default to browser language until settings load
@@ -789,22 +683,9 @@ onMounted(async () => {
     try { document.body.classList.remove('backend') } catch (e) { }
   }
 
-  // initialize selectedTheme from local settings if available
-  try {
-    const raw = localStorage.getItem('chronicle.settings')
-    if (raw) {
-      const cfg = JSON.parse(raw)
-      if (cfg && cfg.frontendTheme) selectedTheme.value = cfg.frontendTheme
-    }
-  } catch (e) { }
 
 
 
-  document.addEventListener('click', onDocClick)
-  onWindowResize = () => { if (showSettingsMenu.value) positionSettingsMenu() }
-  onWindowScroll = () => { if (showSettingsMenu.value) positionSettingsMenu() }
-  window.addEventListener('resize', onWindowResize)
-  window.addEventListener('scroll', onWindowScroll, true)
   // apply modern-select class to existing select elements site-wide
   try {
     document.querySelectorAll('select').forEach((s) => s.classList.add('modern-select'))
@@ -880,9 +761,6 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
-  document.removeEventListener('click', onDocClick)
-  try { if (onWindowResize) window.removeEventListener('resize', onWindowResize) } catch (e) { }
-  try { if (onWindowScroll) window.removeEventListener('scroll', onWindowScroll, true) } catch (e) { }
   try { if (bgLcpObserver) bgLcpObserver.disconnect() } catch (e) { }
   bgLcpObserver = null
   try {
@@ -916,16 +794,6 @@ onBeforeUnmount(() => {
   } catch (e) { }
 })
 
-// when selectedLocale changes (frontend language chooser)
-watch(selectedLocale, (v) => {
-  if (!isBackend.value) applyFrontendLocaleFromSelection()
-})
-
-// when menu opens, position it
-watch(showSettingsMenu, (open) => {
-  if (open) positionSettingsMenu()
-})
-
 // when route changes, switch between frontend/backend locale policies
 watch(route, () => {
   // navigation happened -> give navigation priority over background rendering
@@ -955,172 +823,142 @@ watch(route, () => {
   }
 })
 
-const isScrolled = ref(false)
 const isMenuOpen = ref(false)
-
-// Reactive mirror of document.title so Vue can react to title changes
-import { onMounted as _onMounted } from 'vue'
+const isBuildActive = computed(() => route.path.startsWith('/settings/build'))
 import { APP_VERSION, APP_YEAR } from './version'
 const docTitle = ref(typeof document !== 'undefined' ? document.title : '')
 let titleObserver: MutationObserver | null = null
 
-const handleScroll = (e: Event) => {
-  const target = e.target as HTMLElement
-  // User requested ~30px
-  isScrolled.value = target.scrollTop > 30
+const showBackendShell = computed(() => route.path !== '/editor' && route.path !== '/login' && isBackend.value)
+const isContentRoute = computed(() => route.path.startsWith('/manage') || route.path.startsWith('/settings/homepage') || route.path.startsWith('/settings/friends'))
+const isSettingsRoute = computed(() => route.path.startsWith('/settings/appearance') || route.path.startsWith('/settings/security'))
+const backendContentOpen = ref(isContentRoute.value)
+const backendSettingsOpen = ref(isSettingsRoute.value)
+
+watch(isContentRoute, (open) => {
+  if (open) backendContentOpen.value = true
+})
+
+watch(isSettingsRoute, (open) => {
+  if (open) backendSettingsOpen.value = true
+})
+
+function toggleBackendContent() {
+  backendContentOpen.value = !backendContentOpen.value
 }
 
-// Compute the article title from reactive `docTitle` when on a blog post route.
-const articleTitle = computed(() => {
-  try {
-    if (!route.path.startsWith('/post')) return t('app.title')
-    const dt = docTitle.value || ''
-    if (!dt) return t('app.title')
-    // Common pattern: "Post Title - Chronicle"; prefer left side
-    const parts = dt.split(' - ')
-    return parts.length > 1 ? parts[0] : dt
-  } catch (e) {
-    return t('app.title')
-  }
-})
+function toggleBackendSettings() {
+  backendSettingsOpen.value = !backendSettingsOpen.value
+}
 
 watch(route, () => {
   isMenuOpen.value = false
 })
+
+// Sidebar actions: open frontend and trigger astro rebuild
+const { show: showToast } = useToast()
+const isRebuilding = ref(false)
+
+function openFrontend() {
+  try {
+    window.open('/', '_blank')
+  } catch (e) { }
+}
+
+async function rebuildFrontend() {
+  if (isRebuilding.value) return
+  isRebuilding.value = true
+  try {
+    const authToken = (() => {
+      try {
+        const raw = localStorage.getItem('chronicle_auth')
+        if (!raw) return ''
+        const parsed = JSON.parse(raw)
+        return typeof parsed?.token === 'string' ? parsed.token : ''
+      } catch (e) { return '' }
+    })()
+
+    showToast('触发前台构建...', { status: 'info', position: 'bottom-center', shape: 'capsule', duration: 2500 })
+    const res = await fetch(`/api/admin/build/astro?t=${Date.now()}`, {
+      method: 'POST',
+      headers: authToken ? { 'X-Chronicle-Auth': authToken } : {}
+    })
+    if (res.ok) {
+      showToast('前台构建完成', { status: 'success', position: 'bottom-center', shape: 'capsule' })
+    } else {
+      showToast('前台构建失败', { status: 'error', position: 'bottom-center', shape: 'capsule' })
+    }
+  } catch (e) {
+    showToast('前台构建出错', { status: 'error', position: 'bottom-center', shape: 'capsule' })
+  } finally {
+    isRebuilding.value = false
+  }
+}
 </script>
 
 <template>
   <div id="app">
-    <nav class="nav-header" v-if="route.path !== '/editor' && route.path !== '/login'"
-      :class="{ 'at-top': !isScrolled }">
-      <div class="nav-content">
-        <div style="display:flex; align-items:center; cursor: default;">
-          <transition name="header-swap" mode="out-in">
-            <div v-if="!(isMobileRoot && route.path.startsWith('/post') && isScrolled)" key="site"
-              class="site-header entering-up" @click="router.push('/')" style="cursor: pointer !important;">
-              <h1 class="app-title">{{ $t('app.title') }}</h1>
-            </div>
-            <div v-else key="reading" class="reading-header entering-down">
-              <button class="mobile-title-back" @click="router.push('/blogs')" aria-label="Back">
-                <span v-html="Icons.arrowUp"></span>
-              </button>
-              <div class="reading-title">
-                {{ articleTitle }}
-              </div>
-            </div>
-          </transition>
+    <template v-if="showBackendShell">
+      <button class="menu-toggle backend-menu-toggle" @click="isMenuOpen = !isMenuOpen" 
+        v-html="isMenuOpen ? null : Icons.menu" aria-label="Toggle backend navigation"></button>
+
+      <aside class="backend-sidebar" :class="{ 'mobile-open': isMenuOpen }">
+        <div class="backend-sidebar-header">
+          <div class="backend-brand" @click="router.push('/manage')">
+            <h1 class="app-title">{{ $t('app.title') }}</h1>
+            <span class="backend-brand-subtitle">Manager</span>
+          </div>
+          <button v-if="isMenuOpen" class="nav-close backend-close" @click="isMenuOpen = false" aria-label="Close menu">
+            <span class="nav-close-icon" v-html="Icons.cross"></span>
+          </button>
         </div>
 
-
-        <div class="nav-actions">
-          <!-- Mobile Menu Toggle -->
-          <button class="menu-toggle" @click="isMenuOpen = !isMenuOpen"
-            v-html="isMenuOpen ? Icons.cross : Icons.menu"></button>
-
-          <!-- Frontend Nav -->
-          <div class="nav-links" :class="{ 'mobile-open': isMenuOpen }" v-if="!isBackend">
-            <button v-if="isMenuOpen" class="nav-close" @click="isMenuOpen = false" aria-label="Close menu">
-              <span class="nav-close-icon" v-html="Icons.cross"></span>
+          <div class="sidebar-nav">
+          <RouterLink to="/dashboard" class="nav-link backend-nav-link" @click="isMenuOpen = false">{{ $t('nav.dashboard') }}</RouterLink>
+          <RouterLink to="/files" class="nav-link backend-nav-link" @click="isMenuOpen = false">{{ $t('nav.files') }}</RouterLink>
+          <RouterLink to="/traffic" class="nav-link backend-nav-link" @click="isMenuOpen = false">{{ $t('nav.traffic') }}</RouterLink>
+          <div class="backend-tree-group" :class="{ expanded: backendContentOpen, active: isContentRoute }">
+            <button type="button" class="nav-link backend-nav-link backend-tree-toggle"
+              @click="toggleBackendContent">
+              <span>{{ $t('nav.content') }}</span>
+              <span class="backend-tree-caret" :class="{ open: backendContentOpen }" v-html="Icons.chevron"></span>
             </button>
-            <RouterLink to="/" class="nav-link" @click="isMenuOpen = false">{{ $t('nav.home') }}</RouterLink>
-            <RouterLink to="/blogs" class="nav-link" @click="isMenuOpen = false">{{ $t('nav.blogs') }}</RouterLink>
-            <RouterLink to="/search" class="nav-link" @click="isMenuOpen = false">{{ $t('nav.search') }}</RouterLink>
-            <RouterLink to="/friends" class="nav-link" @click="isMenuOpen = false">{{ $t('nav.friends') }}</RouterLink>
+            <div v-show="backendContentOpen" class="backend-tree-children">
+              <RouterLink to="/manage" class="nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('nav.posts') }}</RouterLink>
+              <RouterLink to="/settings/homepage" class="nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.shortHome') }}</RouterLink>
+              <RouterLink to="/settings/friends" class="nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.friends') }}</RouterLink>
+            </div>
           </div>
-
-          <!-- Backend Nav -->
-          <div class="nav-links" :class="{ 'mobile-open': isMenuOpen }" v-else>
-            <button v-if="isMenuOpen" class="nav-close" @click="isMenuOpen = false" aria-label="Close menu">
-              <span class="nav-close-icon" v-html="Icons.cross"></span>
+          <div class="backend-tree-group" :class="{ expanded: backendSettingsOpen, active: isSettingsRoute }">
+            <button type="button" class="nav-link backend-nav-link backend-tree-toggle"
+              @click="toggleBackendSettings">
+              <span>{{ $t('nav.settings') }}</span>
+              <span class="backend-tree-caret" :class="{ open: backendSettingsOpen }" v-html="Icons.chevron"></span>
             </button>
-            <RouterLink to="/manage" class="nav-link" @click="isMenuOpen = false">{{ $t('nav.posts') }}</RouterLink>
-            <RouterLink to="/files" class="nav-link" @click="isMenuOpen = false">{{ $t('nav.files') }}</RouterLink>
-            <RouterLink to="/settings/homepage" class="nav-link" @click="isMenuOpen = false">{{ $t('nav.settings') }}
-            </RouterLink>
-            <a href="#" @click.prevent="(openNewEditor(), isMenuOpen = false)" class="nav-link new-post-btn">{{
-              $t('nav.newPost') }}</a>
-          </div>
-
-          <!-- Nav settings menu (theme + language) -->
-          <div style="margin-left:0.2rem; position:relative;">
-            <button ref="navSettingBtn" class="nav-setting-btn" v-if="!isBackend"
-              @click.stop="showSettingsMenu = !showSettingsMenu" :aria-expanded="showSettingsMenu"
-              aria-label="Settings">
-              <Settings class="locale-icon" stroke-width="1.4" style="height:18px; width:18px;" />
-            </button>
-            <div v-if="showSettingsMenu" class="nav-settings-menu" @click.stop :style="menuStyle">
-              <!-- Theme controls (top) -->
-              <button class="popup-item" @click="applyTheme('follow')">
-                <span class="popup-label">Follow System</span>
-                <span class="popup-check" v-if="selectedTheme === 'follow'">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                    <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                      stroke-linejoin="round" />
-                  </svg>
-                </span>
-              </button>
-              <button class="popup-item" @click="applyTheme('light')">
-                <span class="popup-label">Light</span>
-                <span class="popup-check" v-if="selectedTheme === 'light'">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                    <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                      stroke-linejoin="round" />
-                  </svg>
-                </span>
-              </button>
-              <button class="popup-item" @click="applyTheme('dark')">
-                <span class="popup-label">Dark</span>
-                <span class="popup-check" v-if="selectedTheme === 'dark'">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                    <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                      stroke-linejoin="round" />
-                  </svg>
-                </span>
-              </button>
-              <hr style="margin:6px 0; border:none; border-top:1px solid var(--border-color);" />
-              <!-- Language controls (below) -->
-              <button class="popup-item" @click="applyLocale('follow')">
-                <span class="popup-label">{{ $t('settings.locale.follow') }}</span>
-                <span class="popup-check" v-if="selectedLocale === 'follow'">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                    <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                      stroke-linejoin="round" />
-                  </svg>
-                </span>
-              </button>
-              <button class="popup-item" @click="applyLocale('zh-CN')">
-                <span class="popup-label">ä¸­æ–‡ï¼ˆç®€ä½“ï¼‰</span>
-                <span class="popup-check" v-if="selectedLocale === 'zh-CN'">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                    <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                      stroke-linejoin="round" />
-                  </svg>
-                </span>
-              </button>
-              <button class="popup-item" @click="applyLocale('en')">
-                <span class="popup-label">English</span>
-                <span class="popup-check" v-if="selectedLocale === 'en'">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                    <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                      stroke-linejoin="round" />
-                  </svg>
-                </span>
-              </button>
-              <hr style="margin:6px 0; border:none; border-top:1px solid var(--border-color);" />
-              <!-- About -->
-               <button class="popup-item" @click="router.push('/about')">
-                <span class="popup-label">{{ $t('nav.about') }}</span>
-              </button>
-              <div style="font-size: 0.8em; padding: 2px 10px 0 10px; color: var(--component-text-secondary);">
-                Chronicle {{ __VERSION__ }}<br>
-                &copy; {{ __YEAR__ }} Eightyfor All Rights Reserved.
-              </div>
+            <div v-show="backendSettingsOpen" class="backend-tree-children">
+              <RouterLink to="/settings/appearance" class="nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.appearance') }}</RouterLink>
+              <RouterLink to="/settings/security" class="nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.security') }}</RouterLink>
             </div>
           </div>
         </div>
-      </div>
-    </nav>
-    <main class="main-content" :class="{ 'no-nav': route.path === '/editor' }" @scroll="handleScroll">
+        <div class="backend-sidebar-footer">
+          <RouterLink to="/settings/build" :class="['nav-link backend-nav-link sidebar-footer-item sidebar-footer-link', { 'router-link-active': isBuildActive }]" @click="isMenuOpen = false" :aria-current="isBuildActive ? 'page' : null">
+            <span class="icon-svg footer-icon" v-html="Icons.columns"></span>
+            <span class="footer-label">{{ $t('nav.build') }}</span>
+          </RouterLink>
+
+          <button class="sidebar-footer-item sidebar-footer-icon-btn" type="button" @click="rebuildFrontend" :disabled="isRebuilding" :title="$t('nav.buildNow')" aria-label="{{ $t('nav.buildNow') }}">
+            <span class="icon-svg footer-icon" v-html="Icons.refresh"></span>
+          </button>
+
+          <button class="sidebar-footer-item sidebar-footer-icon-btn" type="button" @click="openFrontend" :title="$t('nav.openFrontend')" aria-label="{{ $t('nav.openFrontend') }}">
+            <span class="icon-svg footer-icon" v-html="Icons.link"></span>
+          </button>
+        </div>
+      </aside>
+    </template>
+
+    <main class="main-content" :class="{ 'no-nav': route.path === '/editor', 'backend-main': showBackendShell }">
       <RouterView />
     </main>
     <FilePreviewModal />
@@ -1134,136 +972,6 @@ watch(route, () => {
   display: flex;
   flex-direction: column;
   height: 100vh;
-}
-
-.nav-header {
-  background: var(--component-bg-blur);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid var(--border-color-blur);
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 9999;
-  height: 70px;
-  box-sizing: border-box;
-  transition: background 0.3s ease, border-color 0.3s ease, backdrop-filter 0.3s ease;
-}
-
-.nav-header.at-top {
-  background: transparent;
-  border-bottom-color: transparent;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
-.nav-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 2rem;
-  height: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-/* Mobile title back button (left of app title) */
-.mobile-title-back {
-  background: transparent;
-  border: none;
-  color: var(--text-primary);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  margin-right: 12px;
-  padding: 0;
-}
-
-.mobile-title-back span {
-  display: inline-flex;
-  transform: rotate(-90deg);
-  width: 24px;
-  height: 24px
-}
-
-
-.app-title {
-  color: var(--text-primary);
-  margin: 0;
-  font-size: 1.6rem;
-}
-
-.reading-title {
-  color: var(--text-primary);
-  font-size: 1.15rem;
-  font-weight: 600;
-  line-height: 1;
-}
-
-.site-header {
-  display: flex;
-  align-items: center
-}
-
-.reading-header {
-  display: flex;
-  align-items: center
-}
-
-/* Ensure reading-title shrinks in flex layout and shows ellipsis when too long */
-.reading-header {
-  gap: 8px
-}
-
-.reading-title {
-  cursor: default;
-  flex: 1 1 auto;
-  min-width: 0;
-  /* allow flex children to shrink below content width */
-  max-width: calc(100vw - 220px);
-  /* prevent overflow beyond viewport (accounting for back button and padding) */
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Unified header-swap transition: out-in mode ensures leave completes before enter starts.
-  Enter animations differ by element via .entering-up / .entering-down classes. Leave has no animation. */
-.header-swap-enter-from {
-  opacity: 0
-}
-
-.header-swap-enter-to {
-  opacity: 1
-}
-
-.header-swap-enter-active {
-  transition: transform 190ms cubic-bezier(.2, .9, .3, 1), opacity 160ms ease
-}
-
-.header-swap-leave-active {
-  transition: none
-}
-
-/* entering-up: site title enters from slightly above */
-.entering-up.header-swap-enter-from {
-  transform: translateY(-8px)
-}
-
-.entering-up.header-swap-enter-to {
-  transform: translateY(0)
-}
-
-/* entering-down: reading header enters from slightly below */
-.entering-down.header-swap-enter-from {
-  transform: translateY(8px)
-}
-
-.entering-down.header-swap-enter-to {
-  transform: translateY(0)
 }
 
 .menu-toggle {
@@ -1291,77 +999,31 @@ watch(route, () => {
   line-height: 0;
 }
 
-.nav-links {
-  display: flex;
-  gap: 2rem;
-}
-
-.nav-actions {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
 @media (max-width: 768px) {
   .menu-toggle {
     display: flex;
   }
 
-  .nav-links {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 100dvh;
-    background: var(--app-bg-secondary);
-    /* Solid background for menu */
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    transform: translateY(-100%);
+  .backend-sidebar {
+    transform: translateX(-102%);
     transition: transform 0.3s ease;
-    z-index: 101;
-    /* Behind toggle, above content */
-    gap: 30px;
+    box-shadow: 4px 4px 0 0 rgba(0, 0, 0, 0.28);
   }
 
-  .nav-links .nav-close {
-    position: absolute;
-    top: 12px;
-    right: 12px;
-    background: transparent;
-    border: none;
-    color: var(--text-primary);
-    width: 44px;
-    height: 44px;
+  .main-content.backend-main {
+    padding-left: 0 !important;
+  }
+
+  .backend-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .backend-menu-toggle {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 110;
   }
 
-  .nav-links .nav-close .nav-close-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center
-  }
-
-  .nav-links .nav-close .nav-close-icon svg {
-    width: 32px;
-    height: 32px;
-    display: block;
-    stroke: currentColor
-  }
-
-  .nav-links.mobile-open {
-    transform: translateY(0);
-    z-index: 999;
-  }
-
-  .nav-link {
-    font-size: 1.5em;
+  .main-content.backend-main {
+    padding-left: 0;
   }
 }
 
@@ -1373,19 +1035,9 @@ watch(route, () => {
   transition: all 0.3s ease;
 }
 
-.nav-link.router-link-active {
+.backend-nav-link.router-link-active {
   background: var(--component-bg-hover);
   color: var(--component-text-primary-hover);
-}
-
-.new-post-btn {
-  background: var(--accent-color);
-  color: white !important;
-  font-weight: 600;
-}
-
-.new-post-btn:hover {
-  background: var(--accent-color-hover) !important;
 }
 
 .nav-link:hover {
@@ -1397,10 +1049,8 @@ watch(route, () => {
 .main-content {
   flex: 1;
   overflow-y: auto;
-  /* Changed to auto to allow scrolling under nav */
   overflow-x: hidden;
-  padding-top: 70px;
-  /* Use padding instead of margin */
+  padding-top: 0;
   height: 100vh;
   box-sizing: border-box;
 }
@@ -1408,98 +1058,234 @@ watch(route, () => {
 .main-content.no-nav {
   padding-top: 0;
   overflow: hidden;
-  /* Restore hidden for editor */
   z-index: 0;
 }
 
-.nav-setting-btn {
+.main-content.backend-main {
+  padding-top: 0;
+  padding-left: 256px;
+}
+
+.backend-menu-toggle {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 1100;
+}
+
+.backend-sidebar {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  bottom: 8px;
+  width: 240px;
+  padding: 0.6rem 0.5rem;
+  box-sizing: border-box;
+  background: var(--component-bg-blur-alt);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color-blur);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  z-index: 1090;
+  border-radius: 12px;
+  box-shadow: 4px 0 10px 0 rgba(0, 0, 0, 0.05);
+}
+
+.backend-sidebar-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0.7rem 0.9rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.backend-close {
   background: transparent;
-  border: 1px solid transparent;
-  padding: 0 8px;
-  margin-left: 0;
-  border-radius: 6px;
-  color: var(--text-inactive);
-  cursor: pointer;
-  transition: all 0.3s ease;
+  border: none;
+  color: var(--text-primary);
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: none;
-  /* remove border on hover */
-}
-
-.nav-setting-btn:hover {
-  background: transparent;
-  /* hover background should not change */
-  border: none;
-  /* remove border on hover */
-  color: var(--text-primary);
-}
-
-.nav-settings-menu {
-  /* reduce opacity to make blur more visible */
-  background: var(--component-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  /* Use fixed so the menu overlays page content â€” allows backdrop-filter to blur underlying page */
-  position: fixed;
-  color: var(--component-text-secondary);
-  top: 70px;
-  /* immediately under the header */
-  right: 24px;
-  /* align near the nav padding on desktop */
-  left: auto;
-  border: 1px solid var(--border-color);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  padding: 0;
   border-radius: 8px;
-  min-width: 160px;
-  max-width: calc(100vw - 24px);
-  max-height: 70vh;
-  box-sizing: border-box;
-  overflow: auto;
+  cursor: pointer;
+}
 
-  /* allow internal scrolling instead of overflowing viewport */
-  /* keep icon sizing inline */
-  .locale-icon {
-    width: 14px;
-    height: 14px;
-    display: inline-block;
-    vertical-align: middle
-  }
+.backend-close .nav-close-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 
+.backend-close .nav-close-icon svg {
+  width: 32px;
+  height: 32px;
+  display: block;
+  stroke: currentColor;
+}
+
+.backend-brand {
   display: flex;
   flex-direction: column;
-  padding: 6px;
-  z-index: 1200;
-  font-size: 0.9rem;
-}
-
-.popup-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  text-align: left;
-  padding: 6px 10px;
-  background: transparent;
-  border: none;
-  color: var(--text-primary);
+  gap: 0.15rem;
   cursor: pointer;
-  border-radius: 6px
 }
 
-.popup-item:hover {
+.backend-brand .app-title {
+  margin: 0;
+  font-size: 1.35rem;
+  line-height: 1.1;
+}
+
+.backend-brand-subtitle {
+  font-size: 0.82rem;
+  color: var(--component-text-secondary);
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  flex: 1;
+  padding: 0.2rem 0.2rem 0;
+  overflow-y:auto;
+}
+
+.sidebar-nav::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--component-text-secondary) 50%, transparent);
+  border-radius: 4px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--component-text-primary) 50%, transparent);
+
+}
+
+
+.sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+
+
+.backend-tree-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  border-radius:12px;
+}
+
+.backend-tree-group.active,
+.backend-tree-group.expanded  {
+  background: var(--component-bg-blur-alt);
+  color: var(--component-text-primary-hover);
+}
+
+.backend-tree-group.active:not(.expanded) .backend-tree-toggle{
   background: var(--component-bg-hover);
   color: var(--component-text-primary-hover);
 }
 
-.popup-label {
-  flex: 1;
-  text-align: left
+.backend-tree-toggle {
+  display: flex;
+  background: transparent;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  line-height: 24px;
 }
 
-.popup-check {
-  color: var(--accent);
+.backend-tree-caret {
   display: inline-flex;
-  align-items: center
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  transition: transform 0.18s ease;
+  transform: rotate(0deg); /* closed = down */
+  flex: 0 0 auto;
 }
+
+.backend-tree-caret.open {
+  transform: rotate(180deg); /* open = up */
+}
+
+.backend-tree-caret svg {
+  width: 14px;
+  height: 14px;
+}
+
+.backend-tree-children {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding-left: 0.8rem;
+}
+
+.backend-tree-child {
+  padding: 0.65rem 0.85rem;
+  font-size: 0.92rem;
+  opacity: 0.96;
+}
+
+.backend-tree-child.router-link-active {
+  background: var(--component-bg-hover);
+  color: var(--component-text-primary-hover);
+}
+
+.backend-nav-link, .sidebar-footer-link {
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+  padding: 0.4rem 0.8rem;
+  border-radius: 10px;
+}
+
+.backend-sidebar-footer {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.6rem 0.6rem 0.6rem;
+  align-items: center;
+  justify-content: space-between;
+  flex: 0 0 auto;
+  margin-top: auto; /* stick to bottom */
+}
+
+.sidebar-footer-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-inactive);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+
+.sidebar-footer-icon-btn { justify-content: center; width: 44px; height: 36px; }
+.sidebar-footer-item:disabled { opacity: 0.6; cursor: not-allowed; }
+.sidebar-footer-item:hover { background: var(--component-bg-hover); color: var(--component-text-primary-hover); }
+
+/* Ensure v-html injected SVGs are vertically centered inside footer items */
+.footer-icon { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; line-height: 0; }
+/* scoped styles need :deep to target injected SVG elements */
+:deep(.footer-icon) svg { width: 20px !important; height: 20px !important; display: block !important; vertical-align: middle !important; }
+.footer-label { font-size: 1rem; }
+
 </style>

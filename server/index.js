@@ -4,6 +4,7 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { spawn, spawnSync } = require('child_process');
 const {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -14,6 +15,8 @@ const os = require('os');
 
 const app = express();
 const PORT = 3000;
+const ASTRO_FRONTEND_DIR = path.resolve(__dirname, '../astro-frontend');
+const ASTRO_DIST_DIR = path.resolve(ASTRO_FRONTEND_DIR, 'dist');
 
 // Disable Express ETag to avoid conditional 304 responses serving stale API payloads.
 app.disable('etag');
@@ -33,6 +36,170 @@ function markDataChanged(res) {
     res.setHeader('Clear-Site-Data', '"cache"');
     res.setHeader('X-Chronicle-Data-Invalidated-At', String(version));
     return version;
+}
+
+function detectCronSupport() {
+    const candidates = ['crontab', 'cron', 'crond'];
+    for (const commandName of candidates) {
+        const result = spawnSync('sh', ['-lc', `command -v ${commandName} >/dev/null 2>&1`], { stdio: 'ignore' });
+        if (result && result.status === 0) {
+            return { installed: true, command: commandName };
+        }
+    }
+    return { installed: false, command: '' };
+}
+
+function ensureDirectory(directoryPath) {
+    if (!fs.existsSync(directoryPath)) {
+        fs.mkdirSync(directoryPath, { recursive: true });
+    }
+}
+
+function emptyDirectory(directoryPath) {
+    ensureDirectory(directoryPath);
+    const removedPaths = [];
+    for (const entry of fs.readdirSync(directoryPath, { withFileTypes: true })) {
+        const fullPath = path.join(directoryPath, entry.name);
+        try {
+            fs.rmSync(fullPath, { recursive: true, force: true });
+            removedPaths.push(fullPath);
+        } catch (error) {
+            console.error('[Build] Failed to remove path during clean:', fullPath, error);
+        }
+    }
+    return removedPaths;
+}
+
+let astroBuildInFlight = null;
+
+function getAdminBuildToken(req) {
+    const bodyToken = req.body && typeof req.body.token === 'string' ? req.body.token : '';
+    const headerToken = typeof req.headers['x-chronicle-auth'] === 'string' ? req.headers['x-chronicle-auth'] : '';
+    const authorization = typeof req.headers.authorization === 'string' ? req.headers.authorization : '';
+    const bearerToken = authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : '';
+    return bodyToken || headerToken || bearerToken;
+}
+
+function isValidAdminBuildToken(token) {
+    return token === 'active' || token === 'session-valid';
+}
+
+function runAstroBuild() {
+    return new Promise((resolve, reject) => {
+        const child = spawn('npm', ['run', 'build'], {
+            cwd: ASTRO_FRONTEND_DIR,
+            env: process.env,
+            stdio: ['ignore', 'pipe', 'pipe'],
+        });
+
+        let stdout = '';
+        let stderr = '';
+
+        child.stdout.on('data', (chunk) => {
+            stdout += chunk.toString();
+            if (stdout.length > 12000) stdout = stdout.slice(-12000);
+        });
+
+        child.stderr.on('data', (chunk) => {
+            stderr += chunk.toString();
+            if (stderr.length > 12000) stderr = stderr.slice(-12000);
+        });
+
+        child.on('error', (error) => reject(error));
+        child.on('close', (code) => {
+            if (code === 0) {
+                resolve({ stdout, stderr });
+            } else {
+                const error = new Error(`Astro build failed with exit code ${code}`);
+                error.stdout = stdout;
+                error.stderr = stderr;
+                reject(error);
+            }
+        });
+    });
+}
+
+function removeAstroPostArtifacts(postId) {
+    if (!postId || !fs.existsSync(ASTRO_DIST_DIR)) return [];
+
+    const targets = new Set();
+
+    function walk(currentDir) {
+        let entries = [];
+        try {
+            entries = fs.readdirSync(currentDir, { withFileTypes: true });
+        } catch (e) {
+            return;
+        }
+
+        for (const entry of entries) {
+            const fullPath = path.join(currentDir, entry.name);
+            const relPath = path.relative(ASTRO_DIST_DIR, fullPath).replace(/\\/g, '/');
+            const segments = relPath.split('/');
+            const postIndex = segments.indexOf('post');
+
+            if (postIndex !== -1 && segments[postIndex + 1] === postId) {
+                const routeDir = path.join(ASTRO_DIST_DIR, ...segments.slice(0, postIndex + 2));
+                targets.add(routeDir);
+            }
+
+            if (entry.isDirectory()) {
+                walk(fullPath);
+            } else if (entry.name === `${postId}.html`) {
+                targets.add(fullPath);
+            }
+        }
+    }
+
+    walk(ASTRO_DIST_DIR);
+
+    return [...targets]
+        .sort((a, b) => b.split(path.sep).length - a.split(path.sep).length)
+        .filter((target, index, arr) => arr.indexOf(target) === index)
+        .map((target) => {
+            try {
+                if (fs.existsSync(target)) {
+                    fs.rmSync(target, { recursive: true, force: true });
+                    return target;
+                }
+            } catch (e) {
+                console.error('[Astro Cleanup] failed to remove', target, e);
+            }
+            return null;
+        })
+        .filter(Boolean);
+}
+
+async function triggerAstroBuild({ postId = '', reason = 'publish', token = '', granularity = 'full' } = {}) {
+    if (astroBuildInFlight) {
+        const error = new Error('Astro build already in progress');
+        error.code = 'BUILD_IN_PROGRESS';
+        throw error;
+    }
+
+    if (!isValidAdminBuildToken(token)) {
+        const error = new Error('Forbidden');
+        error.code = 'FORBIDDEN';
+        throw error;
+    }
+
+    const startedAt = new Date().toISOString();
+    astroBuildInFlight = runAstroBuild();
+    try {
+        const result = await astroBuildInFlight;
+        return {
+            success: true,
+            startedAt,
+            finishedAt: new Date().toISOString(),
+            reason,
+            postId,
+            granularity,
+            affectedPages: ['/blogs', postId ? `/post/${postId}` : null].filter(Boolean),
+            ...result,
+        };
+    } finally {
+        astroBuildInFlight = null;
+    }
 }
 
 console.log("Backend Version: 2026-02-11-FIX-RPID (blog.eightyfor.top)");
@@ -556,8 +723,266 @@ const POSTS_DIR = path.join(DATA_DIR, 'posts');
 const SECURITY_FILE = path.join(DATA_DIR, 'security.json');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 const INDEX_FILE = path.join(POSTS_DIR, 'index.json');
+const BACKGROUND_DIR = path.join(UPLOAD_DIR, 'background');
 
 const CATEGORIES = ['pic', 'sound', 'txt', 'video', 'doc', 'other'];
+
+function ensureBackgroundDir() {
+    if (!fs.existsSync(BACKGROUND_DIR)) fs.mkdirSync(BACKGROUND_DIR, { recursive: true });
+}
+
+function stripQueryHash(value) {
+    return String(value || '').split('?')[0].split('#')[0];
+}
+
+function normalizeUploadRelPath(value) {
+    const raw = stripQueryHash(value).trim();
+    if (!raw) return '';
+
+    let pathPart = raw;
+    try {
+        if (/^https?:\/\//i.test(raw)) {
+            pathPart = new URL(raw).pathname || raw;
+        }
+    } catch (e) { }
+
+    pathPart = stripQueryHash(pathPart).trim();
+    if (!pathPart) return '';
+
+    const prefix = '/server/data/upload/';
+    if (pathPart.startsWith(prefix)) pathPart = pathPart.slice(prefix.length);
+    else if (pathPart.startsWith('/')) pathPart = pathPart.slice(1);
+
+    pathPart = pathPart.replace(/^\/+/, '');
+    if (pathPart.startsWith('server/data/upload/')) pathPart = pathPart.slice('server/data/upload/'.length);
+    if (pathPart.startsWith('..')) return '';
+    return pathPart;
+}
+
+function uploadRelToUrl(rel) {
+    const normalized = normalizeUploadRelPath(rel);
+    return normalized ? `${MEDIA_DOMAIN}/server/data/upload/${normalized}` : '';
+}
+
+function isBackgroundGeneratedRel(rel, scope) {
+    const normalized = normalizeUploadRelPath(rel);
+    if (!normalized) return false;
+    const base = path.basename(normalized);
+    const prefix = scope === 'frontend' ? 'chr_f_bg-' : 'chr_b_bg-';
+    return normalized.startsWith('background/') && base.startsWith(prefix) && base.endsWith('.webp');
+}
+
+function getBackgroundCompressionFromMeta(meta, sourceHeight) {
+    if (!meta) return 1;
+    const candidates = [
+        meta.compressionFactor,
+        meta.compression,
+        meta.bgCompression,
+        meta.scale,
+    ];
+    for (const value of candidates) {
+        const num = Number(value);
+        if (Number.isFinite(num) && num > 1) return Math.min(30, num);
+    }
+
+    const blurCandidates = [
+        meta.blur,
+        meta.blurLight,
+        meta.blurDark,
+        meta.lightBlur,
+        meta.darkBlur,
+        meta.overlayLightBlur,
+        meta.overlayDarkBlur,
+    ]
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value) && value > 0);
+
+    if (!blurCandidates.length) return 1;
+
+    const minBlur = Math.min(...blurCandidates);
+    const heightValue = Number(sourceHeight);
+    if (!Number.isFinite(heightValue) || heightValue <= 0) return 1;
+
+    const factor = (heightValue / 1000) * 0.6 * minBlur;
+    if (!Number.isFinite(factor) || factor <= 1) return 1;
+    return Math.min(30, factor);
+}
+
+function normalizeBackgroundMeta(raw, sourceHeight) {
+    if (!raw) return null;
+    const meta = typeof raw === 'string' ? (() => { try { return JSON.parse(raw); } catch (e) { return null; } })() : { ...raw };
+    if (!meta || typeof meta !== 'object') return null;
+
+    const compression = getBackgroundCompressionFromMeta(meta, sourceHeight);
+    const normalized = { ...meta };
+    normalized.posX = Number(normalized.posX ?? 50);
+    normalized.posY = Number(normalized.posY ?? 50);
+    normalized.size = Number(normalized.size ?? 100);
+    normalized.blur = Number(normalized.blur ?? 0);
+    normalized.compressionFactor = compression;
+    normalized.compression = compression;
+    return normalized;
+}
+
+function normalizeBackgroundRecord(raw, scope) {
+    if (!raw) return null;
+
+    if (typeof raw === 'string') {
+        const rel = normalizeUploadRelPath(raw);
+        if (!rel) return null;
+        return {
+            url: uploadRelToUrl(rel) || raw,
+            path: rel,
+            sourcePath: rel,
+            sourceName: path.basename(rel),
+            originalName: path.basename(rel),
+            generatedPath: isBackgroundGeneratedRel(rel, scope) ? rel : '',
+            generatedName: isBackgroundGeneratedRel(rel, scope) ? path.basename(rel) : '',
+            compression: 1,
+            compressionFactor: 1,
+        };
+    }
+
+    const rel = normalizeUploadRelPath(raw.path || raw.url || raw.generatedPath || '');
+    const sourcePath = normalizeUploadRelPath(raw.sourcePath || raw.originalPath || raw.sourceUrl || raw.source || raw.path || raw.url || '');
+    const generatedPath = normalizeUploadRelPath(raw.generatedPath || raw.outputPath || raw.path || raw.url || '');
+    const sourceName = raw.sourceName || raw.originalName || raw.name || (sourcePath ? path.basename(sourcePath) : (generatedPath ? path.basename(generatedPath) : ''));
+    const compression = Number(raw.compressionFactor ?? raw.compression ?? raw.bgCompression ?? 1);
+    const safeCompression = Number.isFinite(compression) && compression > 1 ? Math.min(30, compression) : 1;
+
+    return {
+        ...raw,
+        url: uploadRelToUrl(rel || generatedPath || sourcePath) || raw.url || '',
+        path: rel || generatedPath || sourcePath || '',
+        sourcePath: sourcePath || generatedPath || rel || '',
+        sourceName,
+        originalName: sourceName,
+        generatedPath: generatedPath || '',
+        generatedName: raw.generatedName || (generatedPath ? path.basename(generatedPath) : ''),
+        compression: safeCompression,
+        compressionFactor: safeCompression,
+    };
+}
+
+function deleteBackgroundGeneratedFile(record) {
+    const generatedRel = normalizeUploadRelPath(record && (record.generatedPath || record.path || record.url));
+    if (!generatedRel) return;
+    const absPath = path.join(UPLOAD_DIR, generatedRel);
+    if (generatedRel.startsWith('background/') && fs.existsSync(absPath)) {
+        try { fs.unlinkSync(absPath); } catch (e) { }
+    }
+}
+
+async function renderBackgroundDerivative(scope, sourceRel, meta, previousRecord) {
+    const normalizedSourceRel = normalizeUploadRelPath(sourceRel);
+    if (!normalizedSourceRel) return null;
+
+    const sourceAbs = path.join(UPLOAD_DIR, normalizedSourceRel);
+    if (!sourceAbs.startsWith(UPLOAD_DIR) || !fs.existsSync(sourceAbs)) {
+        throw new Error(`Background source not found: ${normalizedSourceRel}`);
+    }
+
+    ensureBackgroundDir();
+    const prefix = scope === 'frontend' ? 'chr_f_bg' : 'chr_b_bg';
+    const generatedName = `${prefix}-${Date.now()}.webp`;
+    const generatedRel = `background/${generatedName}`;
+    const generatedAbs = path.join(BACKGROUND_DIR, generatedName);
+
+    if (!sharpLib) {
+        throw new Error('sharp is required for background compression');
+    }
+
+    const pipeline = sharpLib(sourceAbs).rotate();
+    const info = await pipeline.metadata();
+    const compression = getBackgroundCompressionFromMeta(meta, info && info.height);
+    const resizeFactor = compression > 1 ? compression : 1;
+
+    let nextPipeline = pipeline;
+    if (resizeFactor > 1 && info && info.width && info.height) {
+        const targetWidth = Math.max(1, Math.round(info.width / resizeFactor));
+        const targetHeight = Math.max(1, Math.round(info.height / resizeFactor));
+        nextPipeline = nextPipeline.resize({
+            width: targetWidth,
+            height: targetHeight,
+            fit: 'inside',
+            withoutEnlargement: true,
+        });
+    }
+
+    await nextPipeline
+        .webp({ quality: 92, effort: 6 })
+        .toFile(generatedAbs);
+
+    if (previousRecord) deleteBackgroundGeneratedFile(previousRecord);
+
+    return {
+        url: uploadRelToUrl(generatedRel),
+        path: generatedRel,
+        generatedPath: generatedRel,
+        generatedName,
+        sourcePath: normalizedSourceRel,
+        sourceName: path.basename(normalizedSourceRel),
+        originalName: path.basename(normalizedSourceRel),
+        compression: resizeFactor,
+        compressionFactor: resizeFactor,
+        originalWidth: info && info.width ? info.width : undefined,
+        originalHeight: info && info.height ? info.height : undefined,
+        width: info && info.width && resizeFactor > 1 ? Math.max(1, Math.round(info.width / resizeFactor)) : info && info.width ? info.width : undefined,
+        height: info && info.height && resizeFactor > 1 ? Math.max(1, Math.round(info.height / resizeFactor)) : info && info.height ? info.height : undefined,
+    };
+}
+
+async function processBackgroundSetting(scope, incoming, previousRecord, meta) {
+    if (!incoming) {
+        deleteBackgroundGeneratedFile(previousRecord);
+        return null;
+    }
+
+    const normalizedIncoming = normalizeBackgroundRecord(incoming, scope);
+    if (!normalizedIncoming) {
+        deleteBackgroundGeneratedFile(previousRecord);
+        return null;
+    }
+
+    const sourceCandidates = [
+        normalizedIncoming.sourcePath,
+        normalizedIncoming.originalPath,
+        normalizedIncoming.sourceUrl,
+        normalizedIncoming.source,
+        previousRecord && previousRecord.sourcePath,
+        previousRecord && previousRecord.originalPath,
+    ].filter(Boolean);
+
+    let sourceRel = '';
+    for (const candidate of sourceCandidates) {
+        const normalized = normalizeUploadRelPath(candidate);
+        if (!normalized) continue;
+        if (isBackgroundGeneratedRel(normalized, scope)) {
+            continue;
+        }
+        sourceRel = normalized;
+        break;
+    }
+
+    if (!sourceRel) {
+        // Fallback: if the current value is already a generated background and
+        // we have no original source information, keep the previous source if any.
+        if (previousRecord && previousRecord.sourcePath) {
+            sourceRel = normalizeUploadRelPath(previousRecord.sourcePath);
+        }
+    }
+
+    if (!sourceRel) {
+        deleteBackgroundGeneratedFile(previousRecord);
+        return null;
+    }
+
+    const nextRecord = await renderBackgroundDerivative(scope, sourceRel, meta, previousRecord);
+    if (!nextRecord) return null;
+
+    nextRecord.meta = normalizeBackgroundMeta(meta, nextRecord.originalHeight) || null;
+    return nextRecord;
+}
 
 function sortTags(tags) {
     if (!tags || !Array.isArray(tags)) return [];
@@ -704,6 +1129,8 @@ function stringifyFrontMatter(attributes, body) {
     if (attributes.date) fm += `date: ${attributes.date}\n`;
     if (attributes.font) fm += `font: ${attributes.font}\n`;
     if (attributes.tags) fm += `tags: ${JSON.stringify(attributes.tags)}\n`;
+    if (attributes.author) fm += `author: ${attributes.author}\n`;
+    if (attributes.aiGenerated !== undefined) fm += `aiGenerated: ${attributes.aiGenerated}\n`;
     fm += '---\n';
     return fm + body;
 }
@@ -980,6 +1407,8 @@ function getPublicPostPayload(post) {
         updatedAt: post.updatedAt,
         tags: post.tags || [],
         font: post.font,
+        author: post.author || '', // 新增作者字段
+        aiGenerated: post.aiGenerated || false, // 新增AI生成字段
         html: readCompiledHtmlFromDisk(post) || '',
         toc: readTocFromDisk(post),
     };
@@ -1015,6 +1444,429 @@ function getPublishedSearchRows() {
 function getTagCloud(options = {}) {
     ensureContentCache();
     return options.includeDrafts ? contentCache.tagCloudAll : contentCache.tagCloudPublished;
+}
+
+function readJsonArray(filePath, fallback = []) {
+    try {
+        if (!fs.existsSync(filePath)) return fallback;
+        const raw = fs.readFileSync(filePath, 'utf-8').trim();
+        if (!raw) return fallback;
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : fallback;
+    } catch (e) {
+        return fallback;
+    }
+}
+
+function getAllIndexPosts() {
+    return readJsonArray(INDEX_FILE, []);
+}
+
+function classifyUploadFile(filename) {
+    const ext = String(path.extname(filename || '')).toLowerCase().replace(/^\./, '');
+    if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'avif', 'ico'].includes(ext)) return 'images';
+    if (['mp4', 'webm', 'mkv', 'mov', 'avi', 'flv', 'wmv', 'm4v'].includes(ext)) return 'videos';
+    if (['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac'].includes(ext)) return 'audio';
+    if (['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'odt', 'ods', 'odp', 'rtf'].includes(ext)) return 'documents';
+    if (['txt', 'md', 'json', 'js', 'ts', 'vue', 'html', 'css', 'scss', 'less', 'xml', 'yml', 'yaml', 'csv', 'log', 'sh', 'py', 'java', 'go', 'rs', 'c', 'cpp', 'cs', 'php', 'rb', 'swift', 'kt'].includes(ext)) return 'text';
+    return 'others';
+}
+
+function collectUploadStats(rootDir = UPLOAD_DIR) {
+    const stats = {
+        totalFiles: 0,
+        totalBytes: 0,
+        images: 0,
+        videos: 0,
+        audio: 0,
+        documents: 0,
+        text: 0,
+        others: 0,
+        folders: 0,
+    };
+
+    function walk(dir) {
+        if (!fs.existsSync(dir)) return;
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+            if (entry.name === '.thumbs') continue;
+            const abs = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                stats.folders += 1;
+                walk(abs);
+                continue;
+            }
+
+            if (!entry.isFile()) continue;
+            stats.totalFiles += 1;
+            try { stats.totalBytes += fs.statSync(abs).size; } catch (e) {}
+            const bucket = classifyUploadFile(entry.name);
+            stats[bucket] = (stats[bucket] || 0) + 1;
+        }
+    }
+
+    walk(rootDir);
+    return stats;
+}
+
+function parseMorganDate(value) {
+    const match = String(value || '').match(/^(\d{2})\/([A-Za-z]{3})\/(\d{4}):(\d{2}):(\d{2}):(\d{2}) ([+-]\d{4})$/);
+    if (!match) return null;
+
+    const monthMap = {
+        Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
+        Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11,
+    };
+
+    const day = Number(match[1]);
+    const month = monthMap[match[2]];
+    const year = Number(match[3]);
+    const hour = Number(match[4]);
+    const minute = Number(match[5]);
+    const second = Number(match[6]);
+    const offset = match[7];
+
+    if (!Number.isFinite(day) || month === undefined || !Number.isFinite(year)) return null;
+
+    const utcMs = Date.UTC(year, month, day, hour, minute, second);
+    const sign = offset.startsWith('-') ? -1 : 1;
+    const offsetHours = Number(offset.slice(1, 3)) || 0;
+    const offsetMinutes = Number(offset.slice(3, 5)) || 0;
+    const offsetMs = sign * ((offsetHours * 60) + offsetMinutes) * 60 * 1000;
+    return new Date(utcMs - offsetMs);
+}
+
+function parseAccessLogLine(line) {
+    const match = String(line || '').match(/^(\S+) - - \[([^\]]+)\] "(\S+) ([^"]*?) HTTP\/[^"]+" (\d{3}) (\S+) "(.*?)" "(.*?)"$/);
+    if (!match) return null;
+
+    const date = parseMorganDate(match[2]);
+    if (!date || Number.isNaN(date.getTime())) return null;
+
+    const method = match[3];
+    const rawUrl = match[4] || '';
+    const status = Number(match[5]) || 0;
+    const size = match[6] === '-' ? 0 : Number(match[6]) || 0;
+    const referer = match[7] || '-';
+    const userAgent = match[8] || '-';
+
+    let pathname = rawUrl;
+    try {
+        if (/^https?:\/\//i.test(rawUrl)) {
+            pathname = new URL(rawUrl).pathname || rawUrl;
+        }
+    } catch (e) {}
+    pathname = String(pathname || '').split('?')[0].split('#')[0] || '/';
+
+    const isApi = pathname.startsWith('/api/');
+    const isStaticAsset = /\.[a-z0-9]{1,8}$/i.test(pathname) || pathname.startsWith('/server/data/upload/') || pathname.startsWith('/thumb/');
+    const isPage = !isApi && !isStaticAsset && (method === 'GET' || method === 'HEAD');
+
+    return {
+        ip: match[1],
+        date,
+        method,
+        rawUrl,
+        path: pathname,
+        status,
+        size,
+        referer,
+        userAgent,
+        isApi,
+        isPage,
+        isStaticAsset,
+    };
+}
+
+function parseAccessLogs(limitLines = 12000) {
+    if (!fs.existsSync(ACCESS_LOG)) return [];
+
+    try {
+        const raw = fs.readFileSync(ACCESS_LOG, 'utf-8');
+        const lines = raw.split(/\r?\n/).filter(Boolean);
+        const sample = lines.length > limitLines ? lines.slice(-limitLines) : lines;
+        return sample.map(parseAccessLogLine).filter(Boolean).sort((a, b) => a.date - b.date);
+    } catch (e) {
+        return [];
+    }
+}
+
+function getBrowserFromUA(ua) {
+    const lower = String(ua || '').toLowerCase();
+    if (!lower || lower === '-') return 'Unknown';
+    if (lower.includes('edg/')) return 'Edge';
+    if (lower.includes('chrome/') && !lower.includes('edg/')) return 'Chrome';
+    if (lower.includes('firefox/')) return 'Firefox';
+    if (lower.includes('safari/') && !lower.includes('chrome/')) return 'Safari';
+    if (lower.includes('opr/') || lower.includes('opera')) return 'Opera';
+    if (lower.includes('micromessenger')) return 'WeChat';
+    return 'Other';
+}
+
+function buildDashboardSummary(days = 30) {
+    const posts = getAllIndexPosts();
+    const sortedPosts = [...posts].sort((a, b) => new Date(b.updatedAt || b.date || 0).getTime() - new Date(a.updatedAt || a.date || 0).getTime());
+    const allTags = new Map();
+
+    let publishedCount = 0;
+    let draftCount = 0;
+    let modifyingCount = 0;
+    let featuredCount = 0;
+    let aiGeneratedCount = 0;
+
+    for (const post of posts) {
+        const status = String(post.status || 'published');
+        if (status === 'published') publishedCount += 1;
+        else if (status === 'draft') draftCount += 1;
+        else if (status === 'modifying') modifyingCount += 1;
+
+        if (post.aiGenerated) aiGeneratedCount += 1;
+        if (Array.isArray(post.tags) && post.tags.some((tag) => tag === 'featured' || tag === '精选')) featuredCount += 1;
+        if (Array.isArray(post.tags)) {
+            for (const tag of post.tags) {
+                const key = String(tag);
+                allTags.set(key, (allTags.get(key) || 0) + 1);
+            }
+        }
+    }
+
+    const uploadStats = collectUploadStats();
+    const traffic = buildTrafficSummary(days);
+
+    const recentPosts = sortedPosts.slice(0, 8).map((post) => ({
+        id: post.id,
+        title: post.title,
+        date: post.date,
+        updatedAt: post.updatedAt || post.date,
+        status: post.status || 'published',
+        tags: post.tags || [],
+        author: post.author || '',
+        aiGenerated: !!post.aiGenerated,
+        summary: post.summary || '',
+    }));
+
+    const topTags = [...allTags.entries()]
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count || String(a.name).localeCompare(String(b.name)))
+        .slice(0, 8);
+
+    const latestPublishDate = sortedPosts[0]?.date || null;
+
+    return {
+        overview: {
+            totalPosts: posts.length,
+            publishedPosts: publishedCount,
+            draftPosts: draftCount,
+            modifyingPosts: modifyingCount,
+            featuredPosts: featuredCount,
+            aiGeneratedPosts: aiGeneratedCount,
+            totalTags: allTags.size,
+            totalUploads: uploadStats.totalFiles,
+            imageUploads: uploadStats.images,
+            videoUploads: uploadStats.videos,
+            audioUploads: uploadStats.audio,
+            documentUploads: uploadStats.documents,
+            textUploads: uploadStats.text,
+            otherUploads: uploadStats.others,
+            totalUploadBytes: uploadStats.totalBytes,
+            latestPostDate: latestPublishDate,
+        },
+        recentPosts,
+        topTags,
+        monthlyPosts: buildMonthlyPostSeries(posts, 6),
+        traffic: {
+            totalRequests: traffic.summary.totalRequests,
+            uniqueVisitors: traffic.summary.uniqueVisitors,
+            pageViews: traffic.summary.pageViews,
+            apiCalls: traffic.summary.apiCalls,
+        },
+        uploadStats,
+    };
+}
+
+function buildMonthlyPostSeries(posts, months = 6) {
+    const items = [...posts]
+        .filter((post) => post && post.date)
+        .map((post) => new Date(post.date))
+        .filter((date) => !Number.isNaN(date.getTime()))
+        .sort((a, b) => a - b);
+
+    const latest = items[items.length - 1] || new Date();
+    const monthKeys = [];
+    for (let offset = months - 1; offset >= 0; offset -= 1) {
+        const date = new Date(Date.UTC(latest.getUTCFullYear(), latest.getUTCMonth() - offset, 1));
+        monthKeys.push(`${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`);
+    }
+
+    const counts = new Map(monthKeys.map((key) => [key, 0]));
+    for (const post of posts) {
+        const date = new Date(post.date || post.updatedAt || 0);
+        if (Number.isNaN(date.getTime())) continue;
+        const key = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+        if (counts.has(key)) counts.set(key, counts.get(key) + 1);
+    }
+
+    return monthKeys.map((key) => {
+        const [year, month] = key.split('-').map(Number);
+        const label = new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString('en', { month: 'short' });
+        return { key, label, count: counts.get(key) || 0 };
+    });
+}
+
+function buildTrafficSummary(days = 30) {
+    const entries = parseAccessLogs();
+    if (!entries.length) {
+        return {
+            range: { days, start: null, end: null },
+            summary: { totalRequests: 0, pageViews: 0, apiCalls: 0, uniqueVisitors: 0, uniqueRoutes: 0, errors: 0, todayRequests: 0, todayVisitors: 0 },
+            daily: [],
+            topRoutes: [],
+            topPages: [],
+            topApis: [],
+            topReferrers: [],
+            topDevices: [],
+            topBrowsers: [],
+            topMethods: [],
+            topStatuses: [],
+        };
+    }
+
+    const latest = entries[entries.length - 1].date;
+    const rangeEnd = latest;
+    const rangeStart = days === 'all' ? entries[0].date : new Date(rangeEnd.getTime() - ((Math.max(1, Number(days) || 30) - 1) * 24 * 60 * 60 * 1000));
+    const inRange = entries.filter((entry) => entry.date >= rangeStart && entry.date <= rangeEnd);
+
+    const dayKeys = [];
+    const totalDays = Math.max(1, Math.round((rangeEnd.getTime() - rangeStart.getTime()) / (24 * 60 * 60 * 1000)) + 1);
+    for (let i = 0; i < totalDays; i += 1) {
+        const d = new Date(rangeStart.getTime() + i * 24 * 60 * 60 * 1000);
+        dayKeys.push(d.toISOString().slice(0, 10));
+    }
+
+    const dayMap = new Map(dayKeys.map((key) => [key, {
+        key,
+        count: 0,
+        pageViews: 0,
+        apiCalls: 0,
+        uniqueVisitors: new Set(),
+    }]));
+    const routeMap = new Map();
+    const pageMap = new Map();
+    const apiMap = new Map();
+    const referrerMap = new Map();
+    const deviceMap = new Map();
+    const browserMap = new Map();
+    const methodMap = new Map();
+    const statusMap = new Map();
+    const uniqueVisitors = new Set();
+
+    for (const entry of inRange) {
+        const dayKey = entry.date.toISOString().slice(0, 10);
+        const dayBucket = dayMap.get(dayKey);
+        if (dayBucket) {
+            dayBucket.count += 1;
+            dayBucket.uniqueVisitors.add(entry.ip);
+            if (entry.isApi) dayBucket.apiCalls += 1;
+            if (entry.isPage) dayBucket.pageViews += 1;
+        }
+
+        uniqueVisitors.add(entry.ip);
+
+        const routeBucket = routeMap.get(entry.path) || { path: entry.path, count: 0, apiCount: 0, pageCount: 0, methods: new Map(), statuses: new Map() };
+        routeBucket.count += 1;
+        routeBucket.apiCount += entry.isApi ? 1 : 0;
+        routeBucket.pageCount += entry.isPage ? 1 : 0;
+        routeBucket.methods.set(entry.method, (routeBucket.methods.get(entry.method) || 0) + 1);
+        routeBucket.statuses.set(entry.status, (routeBucket.statuses.get(entry.status) || 0) + 1);
+        routeMap.set(entry.path, routeBucket);
+
+        if (entry.isPage) {
+            pageMap.set(entry.path, (pageMap.get(entry.path) || 0) + 1);
+        } else if (entry.isApi) {
+            apiMap.set(entry.path, (apiMap.get(entry.path) || 0) + 1);
+        }
+
+        if (entry.referer && entry.referer !== '-') {
+            let refLabel = entry.referer;
+            try {
+                refLabel = new URL(entry.referer).hostname || entry.referer;
+            } catch (e) {}
+            referrerMap.set(refLabel, (referrerMap.get(refLabel) || 0) + 1);
+        } else {
+            referrerMap.set('Direct', (referrerMap.get('Direct') || 0) + 1);
+        }
+
+        const device = getDeviceTypeFromUA(entry.userAgent);
+        deviceMap.set(device, (deviceMap.get(device) || 0) + 1);
+
+        const browser = getBrowserFromUA(entry.userAgent);
+        browserMap.set(browser, (browserMap.get(browser) || 0) + 1);
+
+        methodMap.set(entry.method, (methodMap.get(entry.method) || 0) + 1);
+        statusMap.set(entry.status, (statusMap.get(entry.status) || 0) + 1);
+    }
+
+    const sortedRouteEntries = [...routeMap.values()].sort((a, b) => b.count - a.count || a.path.localeCompare(b.path));
+    const sortedPageEntries = [...pageMap.entries()].map(([path, count]) => ({ path, count })).sort((a, b) => b.count - a.count || a.path.localeCompare(b.path));
+    const sortedApiEntries = [...apiMap.entries()].map(([path, count]) => ({ path, count })).sort((a, b) => b.count - a.count || a.path.localeCompare(b.path));
+
+    const todayKey = rangeEnd.toISOString().slice(0, 10);
+    const todayBucket = dayMap.get(todayKey);
+
+    const toSortedList = (map, labelKey = 'name') => [...map.entries()]
+        .map(([key, count]) => ({ [labelKey]: key, count }))
+        .sort((a, b) => b.count - a.count || String(a[labelKey]).localeCompare(String(b[labelKey])));
+
+    return {
+        range: {
+            days,
+            start: rangeStart.toISOString(),
+            end: rangeEnd.toISOString(),
+        },
+        summary: {
+            totalRequests: inRange.length,
+            pageViews: inRange.filter((entry) => entry.isPage).length,
+            apiCalls: inRange.filter((entry) => entry.isApi).length,
+            uniqueVisitors: uniqueVisitors.size,
+            uniqueRoutes: routeMap.size,
+            errors: inRange.filter((entry) => entry.status >= 400).length,
+            todayRequests: todayBucket ? todayBucket.count : 0,
+            todayVisitors: todayBucket ? todayBucket.uniqueVisitors.size : 0,
+        },
+        daily: dayKeys.map((key) => {
+            const bucket = dayMap.get(key);
+            return {
+                date: key,
+                count: bucket ? bucket.count : 0,
+                pageViews: bucket ? bucket.pageViews : 0,
+                apiCalls: bucket ? bucket.apiCalls : 0,
+                uniqueVisitors: bucket ? bucket.uniqueVisitors.size : 0,
+            };
+        }),
+        topRoutes: sortedRouteEntries.slice(0, 12).map((item) => ({
+            path: item.path,
+            count: item.count,
+            apiCount: item.apiCount,
+            pageCount: item.pageCount,
+            methods: toSortedList(item.methods, 'method'),
+            statuses: toSortedList(item.statuses, 'status'),
+        })),
+        topPages: sortedPageEntries.slice(0, 10),
+        topApis: sortedApiEntries.slice(0, 10),
+        topReferrers: toSortedList(referrerMap).slice(0, 10),
+        topDevices: toSortedList(deviceMap).slice(0, 10),
+        topBrowsers: toSortedList(browserMap).slice(0, 10),
+        topMethods: toSortedList(methodMap, 'method'),
+        topStatuses: toSortedList(statusMap, 'status'),
+    };
+}
+
+function buildDashboardData(days = 30) {
+    return buildDashboardSummary(days);
+}
+
+function buildTrafficData(days = 30) {
+    return buildTrafficSummary(days);
 }
 
 function encrypt(text) {
@@ -1503,7 +2355,13 @@ app.get('/api/public/settings', (req, res) => {
             homeFeatures: saved.homeFeatures || [],
             friends: saved.friends || [],
             footerHtml: saved.footerHtml || '',
-            appearance: saved.appearance || {}
+            appearance: saved.appearance || {},
+            frontendTheme: saved.frontendTheme || 'follow',
+            frontendAccent: saved.frontendAccent || '#2ea35f',
+            frontendFont: saved.frontendFont || 'sans',
+            frontendLocale: saved.frontendLocale || 'follow',
+            frontendBackground: normalizeBackgroundRecord(saved.frontendBackground, 'frontend'),
+            frontendBackgroundMeta: normalizeBackgroundMeta(saved.frontendBackgroundMeta)
         };
         res.json(safeSettings);
     } catch (e) {
@@ -1602,38 +2460,151 @@ app.get('/api/public/search', (req, res) => {
     }
 });
 
+app.post('/api/admin/build/astro', async (req, res) => {
+    try {
+        const token = getAdminBuildToken(req);
+        const body = req.body || {};
+        if (!isValidAdminBuildToken(token)) {
+            const error = new Error('Forbidden');
+            error.code = 'FORBIDDEN';
+            throw error;
+        }
+        const cleanRequested = body.clean === true || body.clean === 1 || body.clean === '1' || req.query.clean === '1';
+        const granularity = String(body.granularity || 'full');
+
+        if (cleanRequested) {
+            const removedPaths = emptyDirectory(ASTRO_DIST_DIR);
+            res.json({
+                success: true,
+                cleaned: true,
+                buildTargetDir: ASTRO_DIST_DIR,
+                removedPaths,
+            });
+            return;
+        }
+
+        const { postId = '', reason = 'publish' } = body;
+        const result = await triggerAstroBuild({ postId: String(postId || ''), reason: String(reason || 'publish'), token, granularity });
+        res.json(result);
+    } catch (e) {
+        const status = e && e.code === 'BUILD_IN_PROGRESS' ? 409 : (e && e.code === 'FORBIDDEN' ? 401 : 500);
+        console.error('[Build] Astro build request failed:', e && (e.stack || e.message) ? (e.stack || e.message) : e);
+        res.status(status).json({
+            success: false,
+            message: status === 401 ? 'Forbidden' : (status === 409 ? 'Build already running' : 'Astro build failed'),
+        });
+    }
+});
+
+app.get('/api/dashboard', (req, res) => {
+    try {
+        const days = req.query.days != null ? req.query.days : 30;
+        res.json(buildDashboardData(days));
+    } catch (e) {
+        console.error('[Dashboard] GET error', e);
+        res.status(500).json({
+            overview: {},
+            recentPosts: [],
+            topTags: [],
+            monthlyPosts: [],
+            traffic: {},
+            uploadStats: {},
+        });
+    }
+});
+
+app.get('/api/traffic', (req, res) => {
+    try {
+        const days = req.query.days != null ? req.query.days : 30;
+        res.json(buildTrafficData(days));
+    } catch (e) {
+        console.error('[Traffic] GET error', e);
+        res.status(500).json({
+            range: {},
+            summary: {},
+            daily: [],
+            topRoutes: [],
+            topPages: [],
+            topApis: [],
+            topReferrers: [],
+            topDevices: [],
+            topBrowsers: [],
+            topMethods: [],
+            topStatuses: [],
+        });
+    }
+});
+
 // ==========================================
 // 🔴 ADMIN APIs (For Vue CMS Dashboard)
 // ==========================================
 
 app.get('/api/settings', (req, res) => {
     try {
+        const cronInfo = detectCronSupport();
+        const runtimeInfo = {
+            frontendCodeDir: ASTRO_FRONTEND_DIR,
+            frontendBuildTargetDir: ASTRO_DIST_DIR,
+            cronInstalled: cronInfo.installed,
+            cronCommand: cronInfo.command,
+        };
+
         // If mockStore enabled and settings provided, return mock settings
         if (typeof mockStore !== 'undefined' && mockStore.enabled && mockStore.settings) {
-            return res.json(mockStore.settings);
+            const mockSettings = { ...mockStore.settings };
+            if (mockSettings.frontendBackground) mockSettings.frontendBackground = normalizeBackgroundRecord(mockSettings.frontendBackground, 'frontend');
+            if (mockSettings.backendBackground) mockSettings.backendBackground = normalizeBackgroundRecord(mockSettings.backendBackground, 'backend');
+            if (mockSettings.frontendBackgroundMeta) mockSettings.frontendBackgroundMeta = normalizeBackgroundMeta(mockSettings.frontendBackgroundMeta);
+            if (mockSettings.backendBackgroundMeta) mockSettings.backendBackgroundMeta = normalizeBackgroundMeta(mockSettings.backendBackgroundMeta);
+            return res.json(Object.assign({}, mockSettings, runtimeInfo));
         }
 
-        if (!fs.existsSync(SETTINGS_FILE)) return res.json({});
+        if (!fs.existsSync(SETTINGS_FILE)) return res.json(runtimeInfo);
         const saved = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
-        res.json(saved);
+        if (saved.frontendBackground) saved.frontendBackground = normalizeBackgroundRecord(saved.frontendBackground, 'frontend');
+        if (saved.backendBackground) saved.backendBackground = normalizeBackgroundRecord(saved.backendBackground, 'backend');
+        if (saved.frontendBackgroundMeta) saved.frontendBackgroundMeta = normalizeBackgroundMeta(saved.frontendBackgroundMeta);
+        if (saved.backendBackgroundMeta) saved.backendBackgroundMeta = normalizeBackgroundMeta(saved.backendBackgroundMeta);
+        res.json(Object.assign({}, saved, runtimeInfo));
     } catch (e) {
         console.error('[Settings] GET error', e);
         res.status(500).json({});
     }
 });
 
-app.post('/api/settings', (req, res) => {
+app.post('/api/settings', async (req, res) => {
     try {
         const body = req.body || {};
         let saved = {};
         if (fs.existsSync(SETTINGS_FILE)) {
             try { saved = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8')) } catch(e) { saved = {} }
         }
-        // Merge incoming values
-        saved = Object.assign({}, saved, body);
+        const next = Object.assign({}, saved, body);
+
+        const frontendMetaInput = body.frontendBackgroundMeta !== undefined ? body.frontendBackgroundMeta : saved.frontendBackgroundMeta;
+        const backendMetaInput = body.backendBackgroundMeta !== undefined ? body.backendBackgroundMeta : saved.backendBackgroundMeta;
+        const frontendBackgroundInput = body.frontendBackground !== undefined ? body.frontendBackground : saved.frontendBackground;
+        const backendBackgroundInput = body.backendBackground !== undefined ? body.backendBackground : saved.backendBackground;
+
+        const frontendPrevious = saved.frontendBackground ? normalizeBackgroundRecord(saved.frontendBackground, 'frontend') : null;
+        const backendPrevious = saved.backendBackground ? normalizeBackgroundRecord(saved.backendBackground, 'backend') : null;
+
+        next.frontendBackgroundMeta = normalizeBackgroundMeta(frontendMetaInput);
+        next.backendBackgroundMeta = normalizeBackgroundMeta(backendMetaInput);
+
+        next.frontendBackground = await processBackgroundSetting('frontend', frontendBackgroundInput, frontendPrevious, next.frontendBackgroundMeta);
+        next.backendBackground = await processBackgroundSetting('backend', backendBackgroundInput, backendPrevious, next.backendBackgroundMeta);
+
+        saved = next;
         fs.writeFileSync(SETTINGS_FILE, JSON.stringify(saved, null, 2));
         markDataChanged(res);
-        res.json(saved);
+        const cronInfo = detectCronSupport();
+        res.json(Object.assign({}, saved, {
+            frontendCodeDir: ASTRO_FRONTEND_DIR,
+            frontendBuildTargetDir: ASTRO_DIST_DIR,
+            cronInstalled: cronInfo.installed,
+            cronCommand: cronInfo.command,
+        }));
     } catch (e) {
         console.error('[Settings] POST error', e);
         res.status(500).send('Error');
@@ -2001,6 +2972,8 @@ app.post('/api/post', (req, res) => {
                 }
                 if (data.tags) post.tags = sortTags(data.tags || []);
                 if (data.font) post.font = data.font;
+                if (data.author !== undefined) post.author = data.author; // 新增作者字段
+                if (data.aiGenerated !== undefined) post.aiGenerated = data.aiGenerated; // 新增AI生成字段
                 post.updatedAt = now;
                 // Ensure post.dir exists for new/legacy posts
                 if (!post.dir) post.dir = post.id
@@ -2020,6 +2993,8 @@ app.post('/api/post', (req, res) => {
                 summary: (content || '').slice(0, 200).replace(/[#*`\[\]]/g, ''),
                 tags: sortTags(data.tags || []),
                 font: data.font || 'sans',
+                author: data.author || '', // 新增作者字段
+                aiGenerated: data.aiGenerated || false, // 新增AI生成字段
                 status: status || 'draft'
             };
             posts.push(post);
@@ -2058,7 +3033,9 @@ app.post('/api/post', (req, res) => {
                         date: post.date,
                         updatedAt: post.updatedAt,
                         tags: post.tags || [],
-                        font: post.font || 'sans'
+                        font: post.font || 'sans',
+                        author: post.author || '',
+                        aiGenerated: post.aiGenerated || false
                     }, body);
                     fs.writeFileSync(existingPath, encrypt(newContent));
                 } catch(e) { console.error('Failed to update file metadata', e); }
@@ -2094,6 +3071,11 @@ app.delete('/api/post', (req, res) => {
     const { id } = req.query;
     if (!id) return res.status(400).send('ID required');
 
+    const token = getAdminBuildToken(req);
+    if (!isValidAdminBuildToken(token)) {
+        return res.status(401).json({ success: false, message: 'Forbidden' });
+    }
+
     try {
         let posts = JSON.parse(fs.readFileSync(INDEX_FILE, 'utf-8') || '[]');
         const post = posts.find(p => p.id === id);
@@ -2108,9 +3090,30 @@ app.delete('/api/post', (req, res) => {
             }
             posts = posts.filter(p => p.id !== id);
             fs.writeFileSync(INDEX_FILE, JSON.stringify(posts, null, 2));
+            const removedAstroArtifacts = removeAstroPostArtifacts(String(id));
             markDataChanged(res);
+
+            triggerAstroBuild({ postId: String(id), reason: 'delete', token })
+                .then((buildResult) => {
+                    res.json({
+                        success: true,
+                        removedAstroArtifacts,
+                        build: buildResult,
+                    });
+                })
+                .catch((buildError) => {
+                    console.error('[Delete] Astro rebuild failed after delete', buildError);
+                    res.status(buildError && buildError.code === 'FORBIDDEN' ? 401 : 500).json({
+                        success: false,
+                        deleted: true,
+                        removedAstroArtifacts,
+                        message: buildError && buildError.message ? buildError.message : 'Astro rebuild failed',
+                    });
+                });
+            return;
         }
-        res.json({ success: true });
+        markDataChanged(res);
+        res.json({ success: true, removedAstroArtifacts: [] });
     } catch(e) {
         res.status(500).send('Error');
     }

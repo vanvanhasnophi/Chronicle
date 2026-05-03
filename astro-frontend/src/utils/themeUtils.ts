@@ -16,10 +16,13 @@ export function parseBackgroundMeta(raw: any) {
  * 写入背景元数据CSS变量
  */
 export function writeBackgroundMetaVars(scope: 'frontend' | 'backend', meta: any) {
+  if (typeof document === 'undefined') return;
   if (!meta) return;
   const prefix = scope === 'frontend' ? '--frontend' : '--backend';
 
   try {
+    const compression = Number(meta.compressionFactor ?? meta.compression ?? meta.bgCompression ?? 1);
+    document.documentElement.style.setProperty(`${prefix}-bg-compression`, String(Number.isFinite(compression) && compression > 0 ? compression : 1));
     document.documentElement.style.setProperty(`${prefix}-bg-pos`, `${meta.posX || 50}% ${meta.posY || 50}%`);
     document.documentElement.style.setProperty(`${prefix}-bg-size`, `${meta.size || 100}%`);
     document.documentElement.style.setProperty(`${prefix}-bg-blur`, `${meta.blur || 0}px`);
@@ -51,6 +54,7 @@ export function writeBackgroundMetaVars(scope: 'frontend' | 'backend', meta: any
  * 更新已解析的overlay CSS变量
  */
 export function updateResolvedOverlays() {
+  if (typeof document === 'undefined') return;
   try {
     // Frontend overlay
     const light = getComputedStyle(document.documentElement).getPropertyValue('--frontend-bg-overlay-light') || '';
@@ -91,6 +95,7 @@ export function updateResolvedOverlays() {
  * 应用主题设置
  */
 export function applyTheme(theme: string) {
+  if (typeof document === 'undefined') return;
   try {
     if (theme === 'follow' || theme === 'system') {
       document.documentElement.removeAttribute('data-theme');

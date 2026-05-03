@@ -3,7 +3,7 @@
     <h2>{{ $t('security.title') }}</h2>
     
     <div class="card highlight-card">
-        <h3 style="margin-top: 5px;">{{ $t('security.verificationTitle') }}</h3>
+        <h3>{{ $t('security.verificationTitle') }}</h3>
         <p class="hint">{{ $t('security.verificationHint') }}</p>
         
         <div v-if="verificationCode" class="code-display">
@@ -14,7 +14,7 @@
     </div>
 
     <div class="card">
-      <h3 style="margin-top: 5px;">{{ $t('security.changePasswordTitle') }}</h3>
+      <h3>{{ $t('security.changePasswordTitle') }}</h3>
       
       <div class="form-group">
         <label>{{ $t('security.currentPassword') }}</label>
@@ -41,7 +41,7 @@
     </div>
 
     <div class="card">
-      <h3 style="margin-top: 5px;">{{ $t('security.twoFactorTitle') }}</h3>
+      <h3>{{ $t('security.twoFactorTitle') }}</h3>
       <p class="hint">{{ $t('security.twoFactorHint') }}</p>
       
       <button @click="registerPasskey" :disabled="regLoading" class="secondary-btn">
@@ -68,7 +68,7 @@
     </div>
 
     <div class="card logout-card">
-      <h3 style="margin-top: 5px;">{{ $t('security.session') }}</h3>
+      <h3>{{ $t('security.session') }}</h3>
       <button class="logout-btn" @click="logout">{{ $t('security.logout') }}</button>
     </div>
   </div>
@@ -310,9 +310,9 @@ onMounted(() => {
   padding: 2rem;
 }
 .card {
-  background: var(--bg-secondary);
+  background: var(--component-bg-blur);
   padding: 2rem;
-  border-radius: 8px;
+  border-radius: 12px;
   border: 1px solid var(--border-color);
   margin-bottom: 2rem;
 }
@@ -444,6 +444,10 @@ button:disabled {
     text-align: center;
     font-size: 1em;
   color: var(--component-text-secondary);
+}
+
+h3{
+  margin-top: 5px;
 }
 
 </style>

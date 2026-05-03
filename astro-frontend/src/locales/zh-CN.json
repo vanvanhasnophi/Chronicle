@@ -20,7 +20,10 @@
     "wordPlural": "{count} 字",
     "min": "分钟",
     "created": "创建于",
-    "updated": "更新于"
+    "updated": "更新于",
+    "words": "字数",
+    "readingTime": "阅读时间",
+    "aiGeneratedTip": "文章含 AI 生成内容"
   },
   "misc": {
     "backToTop": "回到顶部"
@@ -69,7 +72,7 @@
     "title": "友人"
   },
   "settings": {
-    "home": "首页设置",
+    "home": "内容主题与首页",
     "homeHint": "编辑首页自定义 HTML（将保存在本地配置中）",
     "friends": "朋友页设置",
     "friendsHint": "编辑朋友页自定义 HTML（将保存在本地配置中）",
@@ -114,6 +117,8 @@
     "loading": "正在加载...",
     "noResults": "未找到符合条件的文章。",
     "selectedTags": "已选",
+    "resultsTitle": "搜索结果",
+    "resultsCount": "{count} 条",
     "resultDescription": "{searchDescription} 的搜索结果",
     "items": "{count} 条",
     "tagsCount": "等{count}个标签",

@@ -59,7 +59,7 @@ else
     # Prod mode: Instant secondary navigation
     echo "[System] Building Astro for Production speed..."
     npm run build
-    HOST=0.0.0.0 PORT=4321 node ./dist/server/entry.mjs &
+    HOST=0.0.0.0 PORT=4321 npm run preview -- --host 0.0.0.0 --port 4321 &
 fi
 
 # Wait for all background processes

@@ -557,6 +557,7 @@ html:not(.is-mobile) .corner-button:hover {
   background: var(--component-bg-hover);
   transform: scale(1.1);
   border-color: var(--border-color-blur);
+  filter: brightness(1.5);
 }
 
 html.is-mobile .corner-button:active {
@@ -619,6 +620,7 @@ html.is-mobile .toc-float { display: none !important; }
 
 .card {
   padding: 2em;
+  background: var(--component-bg-blur);
 }
 
 .modern-select {
@@ -773,6 +775,7 @@ html.is-mobile .toc-float { display: none !important; }
   --frontend-bg-size: cover;
   --frontend-bg-blur: 0px;
   --frontend-bg-opacity: 0;
+  --frontend-bg-compression: 1;
   --frontend-bg-overlay-dark: transparent;
   --frontend-bg-overlay-light: transparent;
   --frontend-bg-overlay: var(--frontend-bg-overlay-dark);
@@ -780,6 +783,7 @@ html.is-mobile .toc-float { display: none !important; }
   --backend-bg-size: cover;
   --backend-bg-blur: 0px;
   --backend-bg-opacity: 0;
+  --backend-bg-compression: 1;
   --backend-bg-overlay-dark: transparent;
   --backend-bg-overlay-light: transparent;
   --backend-bg-overlay: var(--backend-bg-overlay-dark);
@@ -870,4 +874,22 @@ html {
   width: auto;
   max-width: 100%;
   height: auto;
+}
+
+
+.modern-input { 
+    width: 100%;
+    /* Ensure no overflow */
+    box-sizing: border-box;
+    padding: 10px;
+    font-size: 16px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    border-radius: 4px;
+    outline: none;
+}
+
+.modern-input:focus {
+    border-color: var(--accent-color);
 }

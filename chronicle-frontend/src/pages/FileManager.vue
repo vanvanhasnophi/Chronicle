@@ -195,20 +195,19 @@ onMounted(() => {
 .file-manager {
     display: flex;
     height: 100%;
-    background: var(--bg-primary);
+    background: transparent;
     color: var(--text-primary);
 }
 .sidebar {
     width: 200px;
-    background: var(--bg-secondary);
-    border-right: 1px solid var(--border-color);
+    background: transparent;
     padding: 10px;
     overflow-y: auto;
 }
 .folder-item {
     padding: 8px 12px;
     cursor: pointer;
-    border-radius: 4px;
+    border-radius: 8px;
     margin-bottom: 2px;
     display: flex;
     align-items: center;
@@ -243,7 +242,6 @@ onMounted(() => {
     align-items: center;
     margin-bottom: 20px;
     padding-bottom: 10px;
-    border-bottom: 1px solid var(--border-color);
 }
 .actions {
     display: flex;
@@ -254,7 +252,7 @@ button, .upload-btn {
     color: var(--text-on-accent);
     border: none;
     padding: 6px 12px;
-    border-radius: 2px;
+    border-radius: 6px;
     cursor: pointer;
     font-size: 13px;
     display: inline-block;
@@ -271,9 +269,9 @@ button:hover, .upload-btn:hover {
     gap: 15px;
 }
 .grid-item {
-    background: var(--component-bg-primary);
+    background: var(--component-bg-blur-alt);
     border: 1px solid var(--border-color);
-    border-radius: 4px;
+    border-radius: 8px;
     padding: 10px;
     text-align: center;
     position: relative;
@@ -333,7 +331,7 @@ button:hover, .upload-btn:hover {
     border-radius: 50%;
     opacity: 0;
     transition: opacity 0.2s;
-    color: var(--text-on-accent);
+    color: var(--component-text-primary);
 }
 .delete-btn :deep(svg) {
     width: 14px;
@@ -344,6 +342,7 @@ button:hover, .upload-btn:hover {
 }
 .delete-btn:hover {
     background: var(--status-error);
+    color: #fff;
 }
 .actions-row {
     display: flex;
@@ -358,7 +357,7 @@ button:hover, .upload-btn:hover {
     justify-content: center;
     width: 24px;
     height: 24px;
-    border-radius: 4px;
+    border-radius: 8px;
     color: var(--component-text-primary);
 }
 .copy-btn :deep(svg) {
@@ -376,6 +375,7 @@ button:hover, .upload-btn:hover {
 }
 .icon-btn {
     padding: 6px;
+    border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
