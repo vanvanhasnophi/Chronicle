@@ -160,7 +160,7 @@ const { t } = useI18n()
 const { show } = useToast()
 
 const DEFAULT_FRONTEND_DOMAIN = 'blog.eightyfor.top'
-const DEFAULT_FRONTEND_CODE_DIR = '/opt/chronicle/astro-frontend'
+const DEFAULT_FRONTEND_CODE_DIR = '/opt/Chronicle/astro-frontend'
 
 const frontendUrl = ref(DEFAULT_FRONTEND_DOMAIN)
 const frontendCodeDir = ref(DEFAULT_FRONTEND_CODE_DIR)

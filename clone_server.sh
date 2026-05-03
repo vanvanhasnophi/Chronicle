@@ -32,7 +32,7 @@ Usage: $0 [options]
 Options:
   -u USER       远端 SSH 用户名（或环境变量 SERVER_USER）
   -h HOST       远端主机（或环境变量 SERVER_IP）
-  -r REMOTE_SERVER_PATH 远端目录路径（或环境变量 REMOTE_SERVER_PATH），默认: /opt/chronicle/server
+  -r REMOTE_SERVER_PATH 远端目录路径（或环境变量 REMOTE_SERVER_PATH），默认: /opt/Chronicle/server
   -d DEST       本地目标目录（默认: ./server）
   -k SSH_KEY    私钥路径（或环境变量 SSH_KEY），可选
   -P PORT       SSH 端口（或环境变量 SSH_PORT），默认 22
@@ -42,14 +42,14 @@ Options:
 
 环境变量优先级低于命令行参数。
 示例：
-  SERVER_USER=alice SERVER_IP=host.example.com REMOTE_SERVER_PATH=/opt/chronicle/server \ 
+  SERVER_USER=alice SERVER_IP=host.example.com REMOTE_SERVER_PATH=/opt/Chronicle/server \ 
     ./scripts/clone_server.sh -d ./server_backup -n
 EOF
 }
 
 # 默认值
 DEST_DIR="./server"
-REMOTE_SERVER_PATH="/opt/chronicle/server"
+REMOTE_SERVER_PATH="/opt/Chronicle/server"
 SSH_PORT="22"
 DRY_RUN=0
 AUTO_YES=0

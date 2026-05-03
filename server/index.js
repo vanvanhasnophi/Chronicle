@@ -39,7 +39,7 @@ const INDEX_FILE = path.join(POSTS_DIR, 'index.json');
 
 const DEFAULT_BUILD_SETTINGS = {
     frontendUrl: 'blog.eightyfor.top',
-    frontendCodeDir: '/opt/chronicle/astro-frontend',
+    frontendCodeDir: '/opt/Chronicle/astro-frontend',
     frontendBuildTargetDir: '/var/www/blog.eightyfor.top'
 };
 

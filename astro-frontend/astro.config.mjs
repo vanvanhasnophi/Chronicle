@@ -41,5 +41,28 @@ export default defineConfig({
         }
       }
     }
+    ,
+    plugins: [
+      // 在构建时排除 src/archive 目录下的所有模块
+      (function excludeArchivePlugin() {
+        const archiveMarker = '/src/archive/';
+        return {
+          name: 'exclude-archive',
+          enforce: 'pre',
+          load(id) {
+            if (!id) return null;
+            try {
+              const normalized = id.replace(/\\\\/g, '/');
+              if (normalized.includes(archiveMarker) || normalized.endsWith('/src/archive')) {
+                return 'export default {}';
+              }
+            } catch (e) {
+              return null;
+            }
+            return null;
+          }
+        };
+      })()
+    ]
   }
 });

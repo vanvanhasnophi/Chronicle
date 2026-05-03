@@ -87,7 +87,7 @@ if [ -z "$SERVER_PWD" ]; then
     echo
 fi
 if [ -z "$REMOTE_PATH" ]; then
-    read -p "请输入服务器目标路径（如 /opt/chronicle-deploy）: " REMOTE_PATH
+    read -p "请输入服务器目标路径（如 /opt/Chronicle-deploy）: " REMOTE_PATH
 fi
 
 prompt_default FRONTEND_API_BASE_URL "请输入 chronicle-frontend 的 API 基址" "${FRONTEND_API_BASE_URL:-https://blog.eightyfor.top}"
