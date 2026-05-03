@@ -5,7 +5,7 @@ _MACOSX/*
 .joycode/*
 localhost_5173-20250825T191532.json
 node_modules/
-/server/data/*
+server/data/*
 /server/logs/*
 chronicle-frontend/.env.production
 scripts/media_speed_test.sh
