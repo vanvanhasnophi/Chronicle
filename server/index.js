@@ -3,6 +3,7 @@ const morgan = require('morgan');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 const crypto = require('crypto');
 const {
   generateRegistrationOptions,
@@ -36,6 +37,12 @@ const SECURITY_FILE = path.join(DATA_DIR, 'security.json');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 const INDEX_FILE = path.join(POSTS_DIR, 'index.json');
 
+const DEFAULT_BUILD_SETTINGS = {
+    frontendUrl: 'blog.eightyfor.top',
+    frontendCodeDir: '/opt/chronicle/astro-frontend',
+    frontendBuildTargetDir: '/var/www/blog.eightyfor.top'
+};
+
 const CATEGORIES = ['pic', 'sound', 'txt', 'video', 'doc', 'other'];
 
 function sortTags(tags) {
@@ -45,6 +52,68 @@ function sortTags(tags) {
         if (b === 'featured') return 1;
         return a.localeCompare(b);
     });
+}
+
+function getBuildSettings() {
+    let saved = {};
+    if (fs.existsSync(SETTINGS_FILE)) {
+        try {
+            saved = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8')) || {};
+        } catch (e) {
+            saved = {};
+        }
+    }
+
+    const frontendUrl = String(saved.frontendUrl || DEFAULT_BUILD_SETTINGS.frontendUrl || '').trim();
+    const frontendCodeDir = String(saved.frontendCodeDir || DEFAULT_BUILD_SETTINGS.frontendCodeDir || '').trim();
+    const frontendBuildTargetDir = String(saved.frontendBuildTargetDir || DEFAULT_BUILD_SETTINGS.frontendBuildTargetDir || '').trim() || `/var/www/${frontendUrl || DEFAULT_BUILD_SETTINGS.frontendUrl}`;
+
+    return {
+        ...DEFAULT_BUILD_SETTINGS,
+        ...saved,
+        frontendUrl,
+        frontendCodeDir,
+        frontendBuildTargetDir,
+    };
+}
+
+function requireAdminToken(req, res) {
+    const token = req.headers['x-chronicle-auth'];
+    if (token && token !== 'session-valid') {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return false;
+    }
+    return true;
+}
+
+function buildAstroFrontend(settings) {
+    const codeDir = path.resolve(settings.frontendCodeDir || DEFAULT_BUILD_SETTINGS.frontendCodeDir);
+    const targetDir = path.resolve(settings.frontendBuildTargetDir || `/var/www/${settings.frontendUrl || DEFAULT_BUILD_SETTINGS.frontendUrl}`);
+
+    if (!fs.existsSync(codeDir)) {
+        throw new Error(`Frontend code dir not found: ${codeDir}`);
+    }
+    if (!path.isAbsolute(targetDir) || targetDir === path.parse(targetDir).root) {
+        throw new Error(`Invalid build target dir: ${targetDir}`);
+    }
+
+    execSync('npm run build', {
+        cwd: codeDir,
+        stdio: 'inherit',
+        env: process.env,
+    });
+
+    const distDir = path.join(codeDir, 'dist');
+    if (!fs.existsSync(distDir)) {
+        throw new Error(`Build output not found: ${distDir}`);
+    }
+
+    fs.mkdirSync(targetDir, { recursive: true });
+    fs.rmSync(targetDir, { recursive: true, force: true });
+    fs.mkdirSync(targetDir, { recursive: true });
+    fs.cpSync(distDir, targetDir, { recursive: true });
+
+    return { codeDir, targetDir };
 }
 
 // Dev Static Link Helper
@@ -776,8 +845,7 @@ app.get('/api/files', (req, res) => {
 // 5. Settings API - read/write a simple JSON file under server/data/settings.json
 app.get('/api/settings', (req, res) => {
     try {
-        if (!fs.existsSync(SETTINGS_FILE)) return res.json({});
-        const saved = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
+        const saved = getBuildSettings();
         res.json(saved);
     } catch (e) {
         console.error('[Settings] GET error', e);
@@ -799,6 +867,24 @@ app.post('/api/settings', (req, res) => {
     } catch (e) {
         console.error('[Settings] POST error', e);
         res.status(500).send('Error');
+    }
+});
+
+app.post('/api/admin/build/astro', (req, res) => {
+    try {
+        if (!requireAdminToken(req, res)) return;
+
+        const settings = getBuildSettings();
+        const result = buildAstroFrontend(settings);
+        res.json({
+            success: true,
+            frontendUrl: settings.frontendUrl,
+            frontendCodeDir: result.codeDir,
+            frontendBuildTargetDir: result.targetDir,
+        });
+    } catch (e) {
+        console.error('[Build] Astro build failed', e);
+        res.status(500).json({ success: false, message: e.message || 'Build failed' });
     }
 });
 

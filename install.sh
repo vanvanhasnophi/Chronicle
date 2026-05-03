@@ -7,9 +7,12 @@ REPO_URL="${REPO_URL:-https://github.com/vanvanhasnophi/Chronicle.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
 INSTALL_DIR_DEFAULT="${INSTALL_DIR:-/opt/Chronicle}"
 MEDIA_DOMAIN_DEFAULT="${MEDIA_DOMAIN:-https://file.eightyfor.top}"
-WEB_ROOT_DEFAULT="${WEB_ROOT:-/var/www/blog.eightyfor.top}"
 NGINX_CONFIG_DIR="/etc/nginx/sites-available"
-BLOG_DOMAIN_DEFAULT="${BLOG_DOMAIN:-blog.eightyfor.top}"
+FRONTEND_DOMAIN_DEFAULT="${FRONTEND_DOMAIN:-blog.eightyfor.top}"
+BACKEND_DOMAIN_DEFAULT="${BACKEND_DOMAIN:-admin.blog.eightyfor.top}"
+FRONTEND_ROOT_DEFAULT="${FRONTEND_ROOT:-/var/www/${FRONTEND_DOMAIN_DEFAULT}}"
+BACKEND_ROOT_DEFAULT="${BACKEND_ROOT:-/var/www/${BACKEND_DOMAIN_DEFAULT}}"
+ENABLE_HTTPS_DEFAULT="${ENABLE_HTTPS:-false}"
 
 # 参数记忆配置
 CONFIG_DIR="${HOME}/.config/chronicle"
@@ -54,16 +57,26 @@ prompt_default() {
 
 command_exists() { command -v "$1" >/dev/null 2>&1; }
 
+site_root_for_domain() {
+  printf '/var/www/%s' "$1"
+}
+
 save_config() {
   local install_dir="$1"
-  local blog_domain="$2"
-  local web_root="$3"
+  local frontend_domain="$2"
+  local backend_domain="$3"
+  local frontend_root="$4"
+  local backend_root="$5"
+  local enable_https="$6"
   
   mkdir -p "$CONFIG_DIR"
   cat > "$CONFIG_FILE" <<EOF
 INSTALL_DIR="$install_dir"
-BLOG_DOMAIN="$blog_domain"
-WEB_ROOT="$web_root"
+FRONTEND_DOMAIN="$frontend_domain"
+BACKEND_DOMAIN="$backend_domain"
+FRONTEND_ROOT="$frontend_root"
+BACKEND_ROOT="$backend_root"
+ENABLE_HTTPS="$enable_https"
 REPO_BRANCH="$REPO_BRANCH"
 SAVED_AT="$(date -Iseconds)"
 EOF
@@ -75,13 +88,14 @@ load_config() {
     log INFO "加载保存的配置..."
     source "$CONFIG_FILE"
     INSTALL_DIR_DEFAULT="${INSTALL_DIR:-$INSTALL_DIR_DEFAULT}"
-    BLOG_DOMAIN_DEFAULT="${BLOG_DOMAIN:-$BLOG_DOMAIN_DEFAULT}"
-    WEB_ROOT_DEFAULT="${WEB_ROOT:-$WEB_ROOT_DEFAULT}"
+    FRONTEND_DOMAIN_DEFAULT="${FRONTEND_DOMAIN:-$FRONTEND_DOMAIN_DEFAULT}"
+    BACKEND_DOMAIN_DEFAULT="${BACKEND_DOMAIN:-$BACKEND_DOMAIN_DEFAULT}"
+    FRONTEND_ROOT_DEFAULT="${FRONTEND_ROOT:-$(site_root_for_domain "$FRONTEND_DOMAIN_DEFAULT")}"
+    BACKEND_ROOT_DEFAULT="${BACKEND_ROOT:-$(site_root_for_domain "$BACKEND_DOMAIN_DEFAULT")}"
+    ENABLE_HTTPS_DEFAULT="${ENABLE_HTTPS:-$ENABLE_HTTPS_DEFAULT}"
     REPO_BRANCH="${REPO_BRANCH:-main}"
   fi
 }
-
-command_exists() { command -v "$1" >/dev/null 2>&1; }
 
 root_exec() {
   if [[ $EUID -eq 0 ]]; then
@@ -243,87 +257,200 @@ prepare_runtime_dirs() {
 }
 
 generate_nginx_config() {
-  local blog_domain="$1"
-  local web_root="$2"
-  local config_file="$NGINX_CONFIG_DIR/$blog_domain"
-  
+  local frontend_domain="$1"
+  local backend_domain="$2"
+  local frontend_root="$3"
+  local backend_root="$4"
+  local repo_root="$5"
+  local enable_https="$6"
+  local config_file="$NGINX_CONFIG_DIR/chronicle.conf"
+  local tmp_file="/tmp/chronicle-nginx.conf"
+  local frontend_cert_dir="/etc/letsencrypt/live/$frontend_domain"
+  local backend_cert_dir="/etc/letsencrypt/live/$backend_domain"
+  local https_ready="false"
+
+  if [[ "$enable_https" == "true" && -f "$frontend_cert_dir/fullchain.pem" && -f "$frontend_cert_dir/privkey.pem" && -f "$backend_cert_dir/fullchain.pem" && -f "$backend_cert_dir/privkey.pem" ]]; then
+    https_ready="true"
+  elif [[ "$enable_https" == "true" ]]; then
+    warn "HTTPS 已启用，但证书不存在，已回退到 HTTP。"
+  fi
+
   log INFO "生成 Nginx 配置: $config_file"
-  
-  cat > /tmp/nginx-$blog_domain.conf <<'NGINX_EOF'
+
+  : > "$tmp_file"
+
+  cat >> "$tmp_file" <<EOF
 upstream chronicle_backend {
-    server 127.0.0.1:3000;
+  server 127.0.0.1:3000;
 }
 
-upstream chronicle_cms {
-    server 127.0.0.1:5173;
-}
+EOF
 
-upstream chronicle_astro {
-    server 127.0.0.1:4321;
+  if [[ "$https_ready" == "true" ]]; then
+    cat >> "$tmp_file" <<EOF
+server {
+  listen 80;
+  listen [::]:80;
+  server_name $frontend_domain;
+  return 301 https://\$host\$request_uri;
 }
 
 server {
-    listen 80;
-    listen [::]:80;
-    server_name {{BLOG_DOMAIN}};
-    
-    root {{WEB_ROOT}};
-    
-    # 前端静态文件
-    location / {
-        try_files $uri $uri/ /index.html;
-        add_header Cache-Control "public, max-age=3600";
-    }
-    
-    # 上传的媒体文件
-    location /server/data/upload/ {
-        alias {{REPO_ROOT}}/server/data/upload/;
-        expires 365d;
-        add_header Cache-Control "public, immutable";
-    }
-    
-    # 后端 API
-    location /api/ {
-        proxy_pass http://chronicle_backend;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_buffering off;
-    }
+  listen 80;
+  listen [::]:80;
+  server_name $backend_domain;
+  return 301 https://\$host\$request_uri;
 }
 
 server {
-    listen 80;
-    listen [::]:80;
-    server_name admin.{{BLOG_DOMAIN}};
-    
-    # CMS 管理后台
-    location / {
-        proxy_pass http://chronicle_cms;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_buffering off;
-    }
+  listen 443 ssl http2;
+  listen [::]:443 ssl http2;
+  server_name $frontend_domain;
+  root $frontend_root;
+
+  ssl_certificate $frontend_cert_dir/fullchain.pem;
+  ssl_certificate_key $frontend_cert_dir/privkey.pem;
+  ssl_protocols TLSv1.2 TLSv1.3;
+  ssl_ciphers HIGH:!aNULL:!MD5;
+  ssl_prefer_server_ciphers off;
+  ssl_session_cache shared:SSL:10m;
+  ssl_session_timeout 10m;
+  add_header Strict-Transport-Security "max-age=63072000" always;
+  client_max_body_size 100M;
+
+  location / {
+    try_files \$uri \$uri/ /index.html;
+    add_header Cache-Control "public, max-age=3600";
+  }
+
+  location /server/data/upload/ {
+    alias $repo_root/server/data/upload/;
+    expires 365d;
+    add_header Cache-Control "public, immutable";
+  }
+
+  location /api/ {
+    proxy_pass http://chronicle_backend;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade \$http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host \$host;
+    proxy_set_header X-Real-IP \$remote_addr;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto \$scheme;
+    proxy_buffering off;
+  }
 }
-NGINX_EOF
-  
-  # 替换占位符
-  sed -i "s|{{BLOG_DOMAIN}}|$blog_domain|g" /tmp/nginx-$blog_domain.conf
-  sed -i "s|{{WEB_ROOT}}|$web_root|g" /tmp/nginx-$blog_domain.conf
-  sed -i "s|{{REPO_ROOT}}|${repo_root}|g" /tmp/nginx-$blog_domain.conf
-  
-  root_exec cp /tmp/nginx-$blog_domain.conf "$config_file"
-  root_exec ln -sf "$config_file" "/etc/nginx/sites-enabled/$blog_domain" 2>/dev/null || true
-  
+
+server {
+  listen 443 ssl http2;
+  listen [::]:443 ssl http2;
+  server_name $backend_domain;
+  root $backend_root;
+
+  ssl_certificate $backend_cert_dir/fullchain.pem;
+  ssl_certificate_key $backend_cert_dir/privkey.pem;
+  ssl_protocols TLSv1.2 TLSv1.3;
+  ssl_ciphers HIGH:!aNULL:!MD5;
+  ssl_prefer_server_ciphers off;
+  ssl_session_cache shared:SSL:10m;
+  ssl_session_timeout 10m;
+  add_header Strict-Transport-Security "max-age=63072000" always;
+  client_max_body_size 100M;
+
+  location / {
+    try_files \$uri \$uri/ /index.html;
+    add_header Cache-Control "public, max-age=3600";
+  }
+
+  location /server/data/upload/ {
+    alias $repo_root/server/data/upload/;
+    expires 365d;
+    add_header Cache-Control "public, immutable";
+  }
+
+  location /api/ {
+    proxy_pass http://chronicle_backend;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade \$http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host \$host;
+    proxy_set_header X-Real-IP \$remote_addr;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto \$scheme;
+    proxy_buffering off;
+  }
+}
+EOF
+  else
+    cat >> "$tmp_file" <<EOF
+server {
+  listen 80;
+  listen [::]:80;
+  server_name $frontend_domain;
+  root $frontend_root;
+  client_max_body_size 100M;
+
+  location / {
+    try_files \$uri \$uri/ /index.html;
+    add_header Cache-Control "public, max-age=3600";
+  }
+
+  location /server/data/upload/ {
+    alias $repo_root/server/data/upload/;
+    expires 365d;
+    add_header Cache-Control "public, immutable";
+  }
+
+  location /api/ {
+    proxy_pass http://chronicle_backend;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade \$http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host \$host;
+    proxy_set_header X-Real-IP \$remote_addr;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto \$scheme;
+    proxy_buffering off;
+  }
+}
+
+server {
+  listen 80;
+  listen [::]:80;
+  server_name $backend_domain;
+  root $backend_root;
+  client_max_body_size 100M;
+
+  location / {
+    try_files \$uri \$uri/ /index.html;
+    add_header Cache-Control "public, max-age=3600";
+  }
+
+  location /server/data/upload/ {
+    alias $repo_root/server/data/upload/;
+    expires 365d;
+    add_header Cache-Control "public, immutable";
+  }
+
+  location /api/ {
+    proxy_pass http://chronicle_backend;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade \$http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host \$host;
+    proxy_set_header X-Real-IP \$remote_addr;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto \$scheme;
+    proxy_buffering off;
+  }
+}
+EOF
+  fi
+
+  root_exec cp "$tmp_file" "$config_file" >/dev/null 2>&1 || die "[ERROR] Nginx 配置写入失败"
+  root_exec ln -sf "$config_file" "/etc/nginx/sites-enabled/chronicle.conf" >/dev/null 2>&1 || die "[ERROR] Nginx 启用失败"
+
   log INFO "Nginx 配置已生成"
 }
 
@@ -364,23 +491,18 @@ install_nginx() {
 
 deploy_from_repo() {
   local repo_root="$1"
-  local web_root="$2"
+  local frontend_root="$2"
+  local backend_root="$3"
   local server_root="$repo_root/server"
-  local astro_root="$repo_root/astro-frontend"
   
-  log INFO "部署前端到 $web_root ..."
-  root_exec mkdir -p "$web_root"
-  root_exec cp -r "$repo_root/dist/"* "$web_root/" 2>/dev/null || true
-  
-  log INFO "更新 Astro 源代码 ($astro_root)..."
-  root_exec rsync -q --delete --exclude='node_modules' --exclude='dist' --exclude='.astro' \
-    "$repo_root/astro-frontend/" "$astro_root/" || true
-  
-  log INFO "配置上传目录符号链接..."
-  root_exec mkdir -p "$astro_root/public/server/data"
-  ensure_symlink "$astro_root/public/server/data/upload" "$server_root/data/upload"
-  ensure_symlink "$web_root/server/data/upload" "$server_root/data/upload"
-  
+  log INFO "部署前端静态文件到 $frontend_root ..."
+  root_exec mkdir -p "$frontend_root"
+  root_exec rsync -a --delete "$repo_root/astro-frontend/dist/" "$frontend_root/" >/dev/null 2>&1 || die "[ERROR] 前台静态文件部署失败"
+
+  log INFO "部署后台静态文件到 $backend_root ..."
+  root_exec mkdir -p "$backend_root"
+  root_exec rsync -a --delete "$repo_root/chronicle-frontend/dist/" "$backend_root/" >/dev/null 2>&1 || die "[ERROR] 后台静态文件部署失败"
+
   log INFO "部署后端代码..."
   root_exec mkdir -p "$server_root"
   root_exec rsync -q --delete --exclude='data' --exclude='log' --exclude='node_modules' \
@@ -435,20 +557,38 @@ restart_services() {
 do_install() {
   local repo_root=""
   local install_dir="$INSTALL_DIR_DEFAULT"
-  local web_root="$WEB_ROOT_DEFAULT"
-  local blog_domain="$BLOG_DOMAIN_DEFAULT"
+  local frontend_domain="$FRONTEND_DOMAIN_DEFAULT"
+  local backend_domain="$BACKEND_DOMAIN_DEFAULT"
+  local frontend_root="$FRONTEND_ROOT_DEFAULT"
+  local backend_root="$BACKEND_ROOT_DEFAULT"
+  local enable_https="$ENABLE_HTTPS_DEFAULT"
   
   need_sudo
   
   # 加载之前保存的配置
   load_config
   install_dir="$INSTALL_DIR_DEFAULT"
-  blog_domain="$BLOG_DOMAIN_DEFAULT"
-  web_root="$WEB_ROOT_DEFAULT"
+  frontend_domain="$FRONTEND_DOMAIN_DEFAULT"
+  backend_domain="$BACKEND_DOMAIN_DEFAULT"
+  frontend_root="$FRONTEND_ROOT_DEFAULT"
+  backend_root="$BACKEND_ROOT_DEFAULT"
+  enable_https="$ENABLE_HTTPS_DEFAULT"
   
   log INFO "Chronicle 傻瓜式部署安装"
   prompt_default install_dir "安装目录" "$install_dir"
-  prompt_default blog_domain "博客域名" "$blog_domain"
+  prompt_default frontend_domain "前台域名" "$frontend_domain"
+  prompt_default backend_domain "后台域名" "$backend_domain"
+  frontend_root="$(site_root_for_domain "$frontend_domain")"
+  backend_root="$(site_root_for_domain "$backend_domain")"
+  local https_default="N"
+  if [[ "$enable_https" == "true" ]]; then
+    https_default="Y"
+  fi
+  if confirm "是否启用 HTTPS（需要已签发证书）" "$https_default"; then
+    enable_https="true"
+  else
+    enable_https="false"
+  fi
   prompt_default REPO_BRANCH "Git 分支" "$REPO_BRANCH"
   
   # 创建安装目录
@@ -477,17 +617,17 @@ do_install() {
   rebuild_frontends "$repo_root"
   
   # 部署到 Web 根目录
-  deploy_from_repo "$repo_root" "$web_root"
+  deploy_from_repo "$repo_root" "$frontend_root" "$backend_root"
   
   # 生成并配置 Nginx
-  generate_nginx_config "$blog_domain" "$web_root"
+  generate_nginx_config "$frontend_domain" "$backend_domain" "$frontend_root" "$backend_root" "$repo_root" "$enable_https"
   reload_nginx
   
   # 启动服务
   restart_services "$repo_root"
   
   # 保存配置
-  save_config "$install_dir" "$blog_domain" "$web_root"
+  save_config "$install_dir" "$frontend_domain" "$backend_domain" "$frontend_root" "$backend_root" "$enable_https"
   
   cat <<EOF
 
@@ -496,12 +636,15 @@ ${GREEN}║           Chronicle  部署完成！                         ║${RE
 ${GREEN}╚════════════════════════════════════════════════════════╝${RESET}
 
 📁 安装目录: $repo_root
-🌐 前端: http://$blog_domain
-🔐 后台: http://admin.$blog_domain
-📝 后端 API: http://$blog_domain/api
+🌐 前台: http://$frontend_domain
+🧰 后台: http://$backend_domain
+📝 API: http://$frontend_domain/api
+🔐 HTTPS: ${enable_https}
 
 📋 日志文件:
   - 后端: $repo_root/server.log
+📂 前台目录: $frontend_root
+📂 后台目录: $backend_root
 
 📍 配置已保存到: $CONFIG_FILE
 
@@ -513,7 +656,7 @@ ${GREEN}╚═══════════════════════
   bash $repo_root/install.sh update
 
   # 更新配置
-  nano /etc/nginx/sites-available/$blog_domain
+  nano /etc/nginx/sites-available/chronicle.conf
   systemctl reload nginx
 
 EOF
@@ -521,12 +664,20 @@ EOF
 
 do_update() {
   local repo_root
-  local web_root
+  local frontend_root
+  local backend_root
+  local frontend_domain
+  local backend_domain
+  local enable_https
   
   # 加载保存的配置
   load_config
   repo_root="${INSTALL_DIR:-$INSTALL_DIR_DEFAULT}"
-  web_root="${WEB_ROOT:-$WEB_ROOT_DEFAULT}"
+  frontend_domain="${FRONTEND_DOMAIN:-$FRONTEND_DOMAIN_DEFAULT}"
+  backend_domain="${BACKEND_DOMAIN:-$BACKEND_DOMAIN_DEFAULT}"
+  frontend_root="${FRONTEND_ROOT:-$FRONTEND_ROOT_DEFAULT}"
+  backend_root="${BACKEND_ROOT:-$BACKEND_ROOT_DEFAULT}"
+  enable_https="${ENABLE_HTTPS:-$ENABLE_HTTPS_DEFAULT}"
   
   [[ -d "$repo_root" ]] || die "安装目录不存在: $repo_root"
   
@@ -541,7 +692,8 @@ do_update() {
   rebuild_frontends "$repo_root"
   
   log INFO "部署到生产环境..."
-  deploy_from_repo "$repo_root" "$web_root"
+  deploy_from_repo "$repo_root" "$frontend_root" "$backend_root"
+  generate_nginx_config "$frontend_domain" "$backend_domain" "$frontend_root" "$backend_root" "$repo_root" "$enable_https"
   
   reload_nginx
   restart_services "$repo_root"
@@ -555,22 +707,24 @@ main() {
       do_install
       ;;
     update)
-      do_update "$INSTALL_DIR_DEFAULT"
+      do_update
       ;;
     *)
       cat <<EOF
 用法: $0 [install|update]
 
   install  - 首次安装（默认）
-  update   - 更新代码、重构前端、重启服务
+  update   - 更新代码、重新构建前后端静态资源、重载 Nginx、重启后端
 
 环境变量:
   INSTALL_DIR     - 安装目录 (默认: /opt/Chronicle)
-  BLOG_DOMAIN     - 博客域名 (默认: blog.eightyfor.top)
+  FRONTEND_DOMAIN - 前台域名 (默认: blog.eightyfor.top)
+  BACKEND_DOMAIN  - 后台域名 (默认: admin.blog.eightyfor.top)
+  ENABLE_HTTPS    - 是否启用 HTTPS (true/false)
   REPO_BRANCH     - Git 分支 (默认: main)
 
 示例:
-  BLOG_DOMAIN=myblog.com bash $0 install
+  FRONTEND_DOMAIN=myblog.com BACKEND_DOMAIN=admin.myblog.com bash $0 install
   bash $0 update
 EOF
       exit 0

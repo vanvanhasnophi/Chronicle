@@ -859,9 +859,17 @@ watch(route, () => {
 const { show: showToast } = useToast()
 const isRebuilding = ref(false)
 
-function openFrontend() {
+function normalizeFrontendUrl(frontendUrl: string) {
+  if (!frontendUrl) return '/'
+  if (/^[a-zA-Z]+:\/\//.test(frontendUrl)) return frontendUrl
+  return `https://${frontendUrl.replace(/^\/+/, '')}`
+}
+
+async function openFrontend() {
   try {
-    window.open('/', '_blank')
+    const settings = await getSettings()
+    const frontendUrl = normalizeFrontendUrl(settings.frontendUrl || 'blog.eightyfor.top')
+    window.open(frontendUrl, '_blank')
   } catch (e) { }
 }
 

@@ -9,9 +9,9 @@
           <div class="form-row">
             <label>{{ $t('settings.frontendLocation') }}</label>
             <div class="inline-actions">
-              <input readonly class="modern-input" :value="frontendUrl" />
+              <input class="modern-input" v-model="frontendUrl" />
               <button class="primary" @click="visitFrontend">{{ $t('settings.visitNow') }}</button>
-              <button class="secondary" @click="detectFrontend">{{ $t('settings.detect') }}</button>
+              <button class="secondary" @click="resetFrontendUrl">{{ $t('settings.reset') }}</button>
             </div>
             <p class="small muted">{{ $t('settings.frontendLocationHint') }}</p>
           </div>
@@ -19,8 +19,8 @@
           <div class="form-row">
             <label>{{ $t('settings.frontendCodeLocation') }}</label>
             <div class="inline-actions">
-              <input readonly class="modern-input" :value="frontendCodeDir" />
-              <button class="secondary" @click="detectFrontendCodeDir">{{ $t('settings.detect') }}</button>
+              <input class="modern-input" v-model="frontendCodeDir" />
+              <button class="secondary" @click="resetFrontendCodeDir">{{ $t('settings.reset') }}</button>
             </div>
             <p class="small muted">{{ $t('settings.frontendCodeLocationHint') }}</p>
           </div>
@@ -28,8 +28,8 @@
           <div class="form-row">
             <label>{{ $t('settings.frontendBuildTargetLocation') }}</label>
             <div class="inline-actions">
-              <input readonly class="modern-input" :value="frontendBuildTargetDir" />
-              <button class="secondary" @click="detectBuildTargetDir">{{ $t('settings.detect') }}</button>
+              <input class="modern-input" v-model="frontendBuildTargetDir" />
+              <button class="secondary" @click="resetFrontendBuildTargetDir">{{ $t('settings.reset') }}</button>
             </div>
             <p class="small muted">{{ $t('settings.frontendBuildTargetLocationHint') }}</p>
           </div>
@@ -146,7 +146,7 @@
 
     <div class="actions" style="margin-top:16px; display: flex; gap: 8px;">
       <button class="primary" @click="save">{{ $t('settings.save') }}</button>
-      <button class="secondary" @click="load">{{ $t('settings.reset') }}</button>
+      <button class="secondary" @click="formResetAll">{{ $t('settings.reset') }}</button>
     </div>
   </div>
 </template>
@@ -159,9 +159,12 @@ import useToast from '../composables/useToast'
 const { t } = useI18n()
 const { show } = useToast()
 
-const frontendUrl = ref(window.location.origin || '/')
-const frontendCodeDir = ref('')
-const frontendBuildTargetDir = ref('')
+const DEFAULT_FRONTEND_DOMAIN = 'blog.eightyfor.top'
+const DEFAULT_FRONTEND_CODE_DIR = '/opt/chronicle/astro-frontend'
+
+const frontendUrl = ref(DEFAULT_FRONTEND_DOMAIN)
+const frontendCodeDir = ref(DEFAULT_FRONTEND_CODE_DIR)
+const frontendBuildTargetDir = ref(defaultBuildTargetFor(DEFAULT_FRONTEND_DOMAIN))
 const cronInstalled = ref(false)
 const cronCommand = ref('')
 const schedule = ref({
@@ -233,45 +236,49 @@ function authHeaders() {
 }
 
 function visitFrontend() {
-  try { window.open(frontendUrl.value, '_blank') } catch (e) {}
-}
-
-function detectFrontend() {
-  // simple heuristic - use origin
-  frontendUrl.value = window.location.origin || '/'
-  show(t('settings.frontendDetected') as string, { status: 'success' })
-}
-
-async function detectFrontendCodeDir() {
   try {
-    const res = await fetch(`/api/settings?t=${Date.now()}`)
-    if (!res.ok) return
-    const s = await res.json()
-    if (s && s.frontendCodeDir) {
-      frontendCodeDir.value = s.frontendCodeDir
-      show(t('settings.frontendCodeDetected') as string, { status: 'success' })
-    } else {
-      show(t('settings.detectFailed') as string, { status: 'warning' })
-    }
-  } catch (e) {
-    show(t('settings.detectFailed') as string, { status: 'error' })
-  }
+    const proto = window.location.protocol && window.location.protocol.startsWith('http') ? window.location.protocol : 'https:'
+    const host = getDomain(frontendUrl.value) || frontendUrl.value
+    window.open(`${proto}//${host}`, '_blank')
+  } catch (e) {}
 }
 
-async function detectBuildTargetDir() {
+function getDomain(val: string) {
   try {
-    const res = await fetch(`/api/settings?t=${Date.now()}`)
-    if (!res.ok) return
-    const s = await res.json()
-    if (s && s.frontendBuildTargetDir) {
-      frontendBuildTargetDir.value = s.frontendBuildTargetDir
-      show(t('settings.frontendBuildTargetDetected') as string, { status: 'success' })
-    } else {
-      show(t('settings.detectFailed') as string, { status: 'warning' })
-    }
-  } catch (e) {
-    show(t('settings.detectFailed') as string, { status: 'error' })
-  }
+    if (!val) return ''
+    if (/^[a-zA-Z]+:\/\//.test(val)) return new URL(val).hostname
+    // strip possible trailing slashes and protocol-like prefix
+    return val.replace(/^https?:\/\//, '').replace(/\/.*$/, '')
+  } catch (e) { return val }
+}
+
+function defaultBuildTargetFor(domain: string) {
+  const d = getDomain(domain) || DEFAULT_FRONTEND_DOMAIN
+  return `/var/www/${d}`
+}
+
+function resetFrontendUrl() {
+  frontendUrl.value = DEFAULT_FRONTEND_DOMAIN
+  // also update build target to match domain
+  frontendBuildTargetDir.value = defaultBuildTargetFor(frontendUrl.value)
+}
+
+function resetFrontendCodeDir() {
+  frontendCodeDir.value = DEFAULT_FRONTEND_CODE_DIR
+}
+
+function resetFrontendBuildTargetDir() {
+  frontendBuildTargetDir.value = defaultBuildTargetFor(frontendUrl.value)
+}
+
+// detect* removed; use reset buttons and formResetAll instead
+
+function formResetAll() {
+  resetFrontendUrl()
+  resetFrontendCodeDir()
+  // ensure build target updated after domain reset
+  frontendBuildTargetDir.value = defaultBuildTargetFor(frontendUrl.value)
+  show(t('settings.reset') as string, { status: 'success' })
 }
 
 async function triggerBuild() {
@@ -317,8 +324,9 @@ async function load() {
     if (!res.ok) return
     const s = await res.json()
     if (!s) return
-    frontendCodeDir.value = s.frontendCodeDir || frontendCodeDir.value
-    frontendBuildTargetDir.value = s.frontendBuildTargetDir || frontendBuildTargetDir.value
+    frontendUrl.value = s.frontendUrl || DEFAULT_FRONTEND_DOMAIN
+    frontendCodeDir.value = s.frontendCodeDir || DEFAULT_FRONTEND_CODE_DIR
+    frontendBuildTargetDir.value = s.frontendBuildTargetDir || defaultBuildTargetFor(frontendUrl.value)
     cronInstalled.value = !!s.cronInstalled
     cronCommand.value = s.cronCommand || ''
 
@@ -329,7 +337,6 @@ async function load() {
     schedule.value.weekday = parseNumber(s.scheduledBuildWeekday, 1)
     schedule.value.customCron = String(s.scheduledBuildCron || s.scheduledBuildCrontab || '')
     build.value.granularity = s.buildGranularity || 'full'
-    if (s.frontendUrl) frontendUrl.value = s.frontendUrl
   } catch (e) {}
   finally { loading.value = false }
 }
@@ -345,7 +352,9 @@ async function save() {
       scheduledBuildWeekday: schedule.value.weekday,
       scheduledBuildCron: schedule.value.customCron.trim(),
       buildGranularity: build.value.granularity,
-      frontendUrl: frontendUrl.value
+      frontendUrl: frontendUrl.value,
+      frontendCodeDir: frontendCodeDir.value,
+      frontendBuildTargetDir: frontendBuildTargetDir.value
     }
     const headers: Record<string,string> = { 'Content-Type': 'application/json' }
     Object.assign(headers, authHeaders())
