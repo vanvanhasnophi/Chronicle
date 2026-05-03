@@ -609,7 +609,7 @@ onMounted(async () => {
     }
 
     try {
-        const res = await fetch(`/api/post?id=${id}`)
+        const res = await fetch(`/api/post?id=${id}&t=${Date.now()}`)
         if (res.ok) {
             post.value = await res.json()
         }

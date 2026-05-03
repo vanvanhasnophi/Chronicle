@@ -1,0 +1,88 @@
+---
+export const prerender = true;
+
+export async function getStaticPaths() {
+  return [{ params: { lang: 'zh' } }, { params: { lang: 'en' } }];
+}
+
+import Layout from '../../layouts/Layout.astro';
+import { getTranslation, getLocale } from '../../utils/i18n';
+import { getApiUrl } from '../../config/api';
+
+// Get locale from Astro.locals (set by middleware)
+const locale = getLocale(Astro.locals);
+const t = (key: string) => getTranslation(locale, key);
+
+// Fetch settings
+let settings: Record<string, any> = {};
+try {
+  const res = await fetch(getApiUrl('/api/settings?t=' + Date.now(), true), {
+    cache: 'no-store',
+  });
+  if (res.ok) settings = await res.json();
+} catch (e) {}
+
+if (!settings || Object.keys(settings).length === 0) {
+  try {
+    const res = await fetch(getApiUrl('/api/public/settings?t=' + Date.now(), true), {
+      cache: 'no-store',
+    });
+    if (res.ok) settings = await res.json();
+  } catch (e) {}
+}
+---
+
+<Layout title={t('friends.title')} settings={settings}>
+  <div class="page-container">
+    <h1>{t('friends.title')}</h1>
+    <div class="friends-list">
+      <div class="friend-item">
+        <h3>Waiwai</h3>
+        <h4>非常乐意并享受被人挂网上的感觉</h4>
+        <img src="https://file.eightyfor.top/data/upload/pic/1770999133303_vne7_177099908700-992.webp" alt="Waiwai" />
+        <p>（据说这位是家属）</p>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<style>
+.page-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 40px 20px;
+  color: var(--text-primary);
+}
+
+.friends-list {
+  margin-top: 30px;
+}
+
+.friend-item {
+  margin-bottom: 40px;
+}
+
+.friend-item h3 {
+  color: var(--text-primary);
+  margin-bottom: 10px;
+}
+
+.friend-item h4 {
+  color: var(--component-text-secondary);
+  font-weight: normal;
+  margin-bottom: 20px;
+}
+
+.friends-list img {
+  max-width: 100%;
+  height: auto;
+  margin: 20px 0;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.friend-item p {
+  color: var(--component-text-secondary);
+  font-style: italic;
+}
+</style>

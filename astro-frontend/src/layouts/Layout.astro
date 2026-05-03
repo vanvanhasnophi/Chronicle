@@ -1,0 +1,551 @@
+---
+import { ClientRouter } from 'astro:transitions';
+import NavHeader from '../components/NavHeader.astro';
+import { getLocale } from '../utils/i18n';
+import '../styles/global.css';
+import '../styles/app.css';
+
+interface Props {
+  title?: string;
+  settings?: any;
+  locale?: 'en' | 'zh-CN';
+  navTitle?: string;
+  navBackHref?: string;
+  navBackLabel?: string;
+}
+
+const { title, settings, locale: propLocale, navTitle, navBackHref, navBackLabel } = Astro.props;
+
+const siteTitle = settings?.siteName || 'Chronicle';
+const displayTitle = title ? `${title} - ${siteTitle}` : siteTitle;
+
+// 从settings获取样式配置
+const frontendTheme = settings?.frontendTheme || 'follow';
+const frontendAccent = settings?.frontendAccent || '#2ea35f';
+const frontendBackground = settings?.frontendBackground || '';
+const frontendBackgroundMeta = settings?.frontendBackgroundMeta || null;
+const frontendFont = settings?.frontendFont || 'sans';
+
+// 从Astro.locals获取locale（由middleware设置）
+const locale = propLocale || getLocale(Astro.locals);
+const htmlLang = locale === 'zh-CN' ? 'zh-CN' : 'en';
+---
+<!DOCTYPE html>
+<html lang={htmlLang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{displayTitle}</title>
+
+    <!-- Emergency SW cleanup: unregister legacy service workers and drop CacheStorage. -->
+    <script is:inline>
+      (function () {
+        if (typeof window === 'undefined') return;
+        if (!('serviceWorker' in navigator)) return;
+
+        const CLEANUP_FLAG = 'chronicle.sw.cleanup.v1';
+
+        (async () => {
+          try {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            if (!registrations.length) return;
+
+            await Promise.all(registrations.map((registration) => registration.unregister()));
+
+            if ('caches' in window) {
+              const cacheKeys = await caches.keys();
+              await Promise.all(cacheKeys.map((key) => caches.delete(key)));
+            }
+
+            // One forced reload ensures current tab is no longer served by an old SW-controlled response.
+            if (!sessionStorage.getItem(CLEANUP_FLAG)) {
+              sessionStorage.setItem(CLEANUP_FLAG, '1');
+              const nextUrl = new URL(window.location.href);
+              nextUrl.searchParams.set('_sw_cleaned', String(Date.now()));
+              window.location.replace(nextUrl.toString());
+            }
+          } catch (err) {
+            console.warn('[Chronicle] Service worker cleanup failed:', err);
+          }
+        })();
+      })();
+    </script>
+
+    <!-- 字体预连接与延迟加载 (非阻塞首屏渲染) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin data-astro-transition-persist="font-pre-1" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin data-astro-transition-persist="font-pre-2" />
+    <link rel="preload" href="/fonts/inter.css" as="style" onload="this.onload=null;this.rel='stylesheet'" data-astro-transition-persist="font-inter" />
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@200..900&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'" crossorigin="anonymous" data-astro-transition-persist="font-noto" />
+    <noscript>
+      <link rel="stylesheet" href="/fonts/inter.css" />
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@200..900&display=swap" crossorigin="anonymous" />
+    </noscript>
+
+    <ClientRouter />
+
+    <style define:vars={{
+      accentColor: frontendAccent,
+      fontStack: frontendFont === 'serif' ? "'Noto Serif SC', serif" : "var(--app-font-stack-inter)"
+    }}>
+      .frontend-body {
+        margin: 0;
+        padding: 0;
+        background-color: var(--app-bg-primary);
+        color: var(--text-primary);
+        font-family: var(--fontStack);
+      }
+      #app { display: flex; flex-direction: column; min-height: 100vh; }
+      .app-title { font-size: 1.5rem; font-weight: bold; }
+
+      /* 应用accent颜色 */
+      :root {
+        --accent-color: var(--accentColor);
+      }
+    </style>
+
+    <script define:vars={{ frontendTheme, frontendAccent, frontendBackground, frontendBackgroundMeta, frontendFont }}>
+      // 将settings传递给客户端
+      window.__CHRONICLE_SETTINGS__ = {
+        frontendTheme,
+        frontendAccent,
+        frontendBackground,
+        frontendBackgroundMeta,
+        frontendFont
+      };
+    </script>
+
+    <!-- Theme Initialization (runs before page render) -->
+    <script is:inline>
+      (function() {
+        // Apply theme immediately to prevent flash
+        try {
+          const settings = JSON.parse(localStorage.getItem('chronicle.settings') || '{}');
+          const theme = settings.frontendTheme || 'follow';
+
+          if (theme === 'follow' || theme === 'system') {
+            // Follow system preference
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (prefersDark) {
+              document.documentElement.setAttribute('data-theme', 'dark');
+            } else {
+              document.documentElement.setAttribute('data-theme', 'light');
+            }
+          } else if (theme === 'light') {
+            document.documentElement.setAttribute('data-theme', 'light');
+          } else if (theme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+          }
+        } catch (e) {
+          // Default to dark if error
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      })();
+    </script>
+
+    <script is:inline>
+      (function () {
+        if (typeof window === 'undefined') return;
+
+        const applyMobileClass = () => {
+          document.documentElement.classList.toggle('is-mobile', window.innerWidth < 768);
+        };
+
+        const syncMobileClass = () => {
+          applyMobileClass();
+        };
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', syncMobileClass, { once: true });
+        } else {
+          syncMobileClass();
+        }
+
+        document.addEventListener('astro:page-load', syncMobileClass);
+        document.addEventListener('astro:after-swap', syncMobileClass);
+      })();
+    </script>
+  </head>
+  <body class="frontend-body">
+    <!-- 背景层 - 使用transition:persist保持跨页面持久化 -->
+    <div id="chronicle-bg-layer" transition:persist="background-layer">
+      <div class="bg-image"></div>
+      <div class="bg-surface"></div>
+      <div class="bg-overlay"></div>
+    </div>
+
+    <div id="app">
+      <NavHeader currentPath={Astro.url.pathname} locale={locale} articleTitle={navTitle} articleBackHref={navBackHref} articleBackLabel={navBackLabel} />
+
+      <div class="main-content" transition:animate="fade">
+         <slot />
+      </div>
+    </div>
+
+    <script>
+      import { applyTheme, writeBackgroundMetaVars, updateResolvedOverlays, parseBackgroundMeta } from '../utils/themeUtils';
+      import { ensureBackgroundLayer, stageBackgroundLayer } from '../utils/backgroundLayer';
+      import { darkenHex } from '../utils/colorUtils';
+      
+      // 确保背景层在页面切换时不被重新创建
+      function ensureBackgroundLayerExists() {
+        if (!document.getElementById('chronicle-bg-layer')) {
+          console.warn('[Layout] Background layer not found, creating it');
+          ensureBackgroundLayer();
+        } else {
+          // 如果背景层已存在，确保它不会被View Transitions替换
+          const existingLayer = document.getElementById('chronicle-bg-layer');
+          if (existingLayer && existingLayer.parentNode === document.body) {
+            // 背景层已经在正确位置，不需要操作
+            console.log('[Layout] Background layer already exists and is properly placed');
+          } else {
+            // 背景层存在但位置不正确，重新创建
+            console.warn('[Layout] Background layer exists but in wrong position, recreating');
+            ensureBackgroundLayer();
+          }
+        }
+      }
+      
+      // 立即检查并创建背景层
+      ensureBackgroundLayerExists();
+
+      // 复用背景层渲染逻辑
+      function applyBackgroundLayer(forceReload = false) {
+        console.log('[Layout] applyBackgroundLayer called', { forceReload });
+        const settings = { ...(window as any).__CHRONICLE_SETTINGS__ };
+        console.log('[Layout] Settings:', settings);
+        
+        if (settings.frontendBackground) {
+          console.log('[Layout] Found frontendBackground:', settings.frontendBackground);
+          const meta = parseBackgroundMeta(settings.frontendBackgroundMeta);
+          console.log('[Layout] Background meta:', meta);
+          
+          writeBackgroundMetaVars('frontend', meta);
+          updateResolvedOverlays();
+          
+          const overlayVar = '--frontend-bg-overlay';
+          const overlayValue = getComputedStyle(document.documentElement).getPropertyValue(overlayVar) || 'transparent';
+          console.log('[Layout] Overlay value:', overlayValue);
+          
+          const layer = document.getElementById('chronicle-bg-layer');
+          console.log('[Layout] Background layer found:', !!layer);
+          
+          if (layer) {
+            // 如果需要强制重载，设置标记
+            if (forceReload) {
+              layer.setAttribute('data-force-reload', 'true');
+              console.log('[Layout] Setting force-reload flag');
+            }
+            
+            // 强制设置背景层样式
+            layer.style.opacity = '1';
+            layer.style.visibility = 'visible';
+            layer.style.display = 'block';
+            
+            const overlayEl = layer.querySelector('.bg-overlay') as HTMLElement | null;
+            if (overlayEl) {
+              overlayEl.style.background = overlayValue || 'transparent';
+              console.log('[Layout] Background layer overlay applied:', overlayValue);
+            }
+            
+            // 强制渲染背景图片
+            console.log('[Layout] Calling stageBackgroundLayer...');
+            stageBackgroundLayer(settings.frontendBackground, meta, overlayValue);
+            console.log('[Layout] stageBackgroundLayer called');
+          } else {
+            // 如果背景层丢失，重新创建并渲染
+            console.log('[Layout] Background layer not found, recreating...');
+            ensureBackgroundLayer();
+            console.log('[Layout] Background layer recreated and rendered');
+          }
+        } else {
+          console.log('[Layout] No frontendBackground found in settings');
+        }
+      }
+
+      // 立即应用背景设置，确保首次加载时背景层正确渲染
+      setTimeout(() => {
+        applyBackgroundLayer(true); // 强制重载，确保首次加载正确渲染
+      }, 100);
+
+      let isBackgroundReady = false;
+      let bgLcpActivationScheduled = false;
+
+      // System theme change listener
+      function initThemeListener() {
+        try {
+          const settings = JSON.parse(localStorage.getItem('chronicle.settings') || '{}');
+          const theme = settings.frontendTheme || 'follow';
+
+          if (theme === 'follow' || theme === 'system') {
+            // Listen for system theme changes
+            const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+            const handleThemeChange = (e: { matches: boolean }) => {
+              if (e.matches) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+              } else {
+                document.documentElement.setAttribute('data-theme', 'light');
+              }
+            };
+
+            // Use modern API or fallback
+            if (mediaQuery.addEventListener) {
+              mediaQuery.addEventListener('change', handleThemeChange);
+            } else if (mediaQuery.addListener) {
+              mediaQuery.addListener(handleThemeChange);
+            }
+          }
+        } catch (e) {
+          console.error('Theme listener error:', e);
+        }
+      }
+
+      // initNavState removed - NavHeader component handles all navigation logic
+
+      function enableCustomBackgroundRendering() {
+        if (isBackgroundReady) return;
+        isBackgroundReady = true;
+        // 背景层已在HTML中定义，不需要ensureBackgroundLayer
+        applyBackgroundSettings();
+      }
+
+      function scheduleCustomBackgroundAfterLcp() {
+        if (bgLcpActivationScheduled) return;
+        bgLcpActivationScheduled = true;
+
+        const activate = () => {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              enableCustomBackgroundRendering();
+            });
+          });
+        };
+
+        // 简化版：3秒后激活
+        setTimeout(() => {
+          activate();
+        }, 3000);
+
+        // 尝试使用PerformanceObserver
+        try {
+          if (typeof PerformanceObserver !== 'undefined') {
+            const observer = new PerformanceObserver(() => {
+              activate();
+              observer.disconnect();
+            });
+            observer.observe({ type: 'largest-contentful-paint', buffered: true } as any);
+          }
+        } catch (e) {
+          // fallback已经设置
+        }
+      }
+
+      function applyBackgroundSettings() {
+        const settings = (window as any).__CHRONICLE_SETTINGS__;
+        if (!settings) return;
+
+        try {
+          const meta = parseBackgroundMeta(settings.frontendBackgroundMeta);
+
+          // 先写入背景元数据变量
+          writeBackgroundMetaVars('frontend', meta);
+
+          // 更新resolved overlays以确保遮罩正确
+          updateResolvedOverlays();
+
+          if (isBackgroundReady && settings.frontendBackground) {
+            // 获取计算后的overlay值
+            const overlayVar = '--frontend-bg-overlay';
+            const overlayValue = getComputedStyle(document.documentElement).getPropertyValue(overlayVar) || 'transparent';
+
+            console.log('[Layout] Applying background with overlay:', overlayValue);
+            stageBackgroundLayer(settings.frontendBackground, meta, overlayValue);
+          }
+        } catch (e) {
+          console.error('[Layout] Error applying background:', e);
+        }
+      }
+
+      function applySettings(forceBackgroundReload = false) {
+        const settings = { ...(window as any).__CHRONICLE_SETTINGS__ };
+        if (!settings) return;
+
+        try {
+          // 如果本地有保存的设置，覆盖全局设置
+          const localSettings = JSON.parse(localStorage.getItem('chronicle.settings') || '{}');
+          if (localSettings.frontendTheme) {
+            settings.frontendTheme = localSettings.frontendTheme;
+          }
+        } catch (e) {}
+
+        try {
+          // 应用主题
+          applyTheme(settings.frontendTheme);
+
+          // 应用accent颜色
+          if (settings.frontendAccent) {
+            const accent = settings.frontendAccent;
+            document.documentElement.style.setProperty('--accent-color', accent);
+
+            // 计算更深的颜色用于hover
+            const darkAccent = darkenHex(accent);
+            document.documentElement.style.setProperty('--accent-color-dark', darkAccent);
+          }
+
+          // 应用字体
+          if (settings.frontendFont === 'serif') {
+            document.documentElement.style.setProperty('--app-font-stack', "'Noto Serif SC', serif");
+          } else {
+            document.documentElement.style.setProperty('--app-font-stack', 'var(--app-font-stack-inter)');
+          }
+
+          // 应用背景和overlay
+          if (settings.frontendBackground) {
+            const meta = parseBackgroundMeta(settings.frontendBackgroundMeta);
+
+            // 先写入背景元数据变量（总是需要）
+            writeBackgroundMetaVars('frontend', meta);
+
+            // 更新resolved overlays以确保遮罩正确（总是需要）
+            updateResolvedOverlays();
+
+            // 获取计算后的overlay值（总是需要）
+            const overlayVar = '--frontend-bg-overlay';
+            const overlayValue = getComputedStyle(document.documentElement).getPropertyValue(overlayVar) || 'transparent';
+
+            // 仅在首次加载或强制重载时重新渲染背景图片
+            if (forceBackgroundReload || !isBackgroundReady) {
+              console.log('[Layout] Applying background with overlay:', overlayValue, { forceBackgroundReload, isBackgroundReady });
+              stageBackgroundLayer(settings.frontendBackground, meta, overlayValue);
+            } else {
+              // 页面导航时，只更新overlay而不重新加载背景图片
+              console.log('[Layout] Updating overlay only:', overlayValue);
+              
+              const layer = document.getElementById('chronicle-bg-layer');
+              if (layer) {
+                const overlayEl = layer.querySelector('.bg-overlay') as HTMLElement | null;
+                if (overlayEl) {
+                  overlayEl.style.background = overlayValue || 'transparent';
+                }
+              }
+            }
+          }
+
+          // 更新resolved overlays
+          updateResolvedOverlays();
+        } catch (e) {
+          console.error('[Layout] Error applying settings:', e);
+        }
+      }
+
+      function initThemeObserver() {
+        try {
+          // 观察data-theme属性变化
+          const observer = new MutationObserver(() => {
+            updateResolvedOverlays();
+          });
+          observer.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['data-theme']
+          });
+
+          // 监听系统主题变化
+          if (window.matchMedia) {
+            const mql = window.matchMedia('(prefers-color-scheme: dark)');
+            const handler = () => updateResolvedOverlays();
+            if (typeof mql.addEventListener === 'function') {
+              mql.addEventListener('change', handler);
+            } else if (typeof mql.addListener === 'function') {
+              mql.addListener(handler);
+            }
+          }
+        } catch (e) {
+          console.error('[Layout] Error initializing theme observer:', e);
+        }
+      }
+
+      let initialized = false;
+
+      function init() {
+        // NavHeader handles its own initialization
+        
+        // 主题观察器和背景渲染只在首次初始化
+        if (!initialized) {
+          // 首次加载时应用所有设置，包括背景
+          applySettings(true);
+          initThemeListener();
+          initThemeObserver();
+          // 延迟启用背景渲染
+          scheduleCustomBackgroundAfterLcp();
+          initialized = true;
+        } else {
+          // 路由切换时，只应用主题和样式，不重新渲染背景层
+          applySettings(false);
+          // 路由切换时，如果背景已经准备好，重新应用overlays
+          if (isBackgroundReady) {
+            updateResolvedOverlays();
+          }
+        }
+      }
+
+      // Astro 每次路由切换完毕会抛出 page-load 事件 (包含首次加载)
+      document.addEventListener('astro:page-load', init);
+      
+      // 监听DOM完全加载，确保背景层在首次加载时正确渲染
+       document.addEventListener('DOMContentLoaded', () => {
+         setTimeout(() => {
+           applyBackgroundLayer();
+         }, 200);
+       });
+
+      // 监听View Transitions，确保背景层在动画期间保持可见
+      document.addEventListener('astro:before-swap', (e) => {
+        const layer = document.getElementById('chronicle-bg-layer');
+        console.log('[Layout] Before page swap - background layer exists:', !!layer);
+        if (layer) {
+          // 在页面切换前，确保背景层不会被移除
+          layer.setAttribute('data-persist', 'true');
+          
+          // 强制设置背景层为可见状态，防止View Transitions隐藏
+          layer.style.opacity = '1';
+          layer.style.visibility = 'visible';
+          layer.style.display = 'block';
+        }
+      });
+
+      document.addEventListener('astro:after-swap', (e) => {
+        // 页面切换后，立即重新应用背景层
+        setTimeout(() => {
+          // 强制重新创建背景层以确保正确渲染
+          ensureBackgroundLayer();
+          
+          // 复用背景层渲染逻辑
+          applyBackgroundLayer();
+        }, 0);
+      });
+
+      // 监听页面DOM替换后，立即恢复主题，防止浅色模式和独立主题配置在SPA切换时丢失
+      document.addEventListener('astro:after-swap', () => {
+        try {
+          const settings = JSON.parse(localStorage.getItem('chronicle.settings') || '{}');
+          const theme = settings.frontendTheme || 'follow';
+
+          if (theme === 'follow' || theme === 'system') {
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (prefersDark) {
+              document.documentElement.setAttribute('data-theme', 'dark');
+            } else {
+              document.documentElement.setAttribute('data-theme', 'light');
+            }
+          } else if (theme === 'light') {
+            document.documentElement.setAttribute('data-theme', 'light');
+          } else if (theme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+          }
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -333,8 +333,6 @@ watch(() => [props.code, props.language], async () => {
   line-height: 1.3em;
   overflow: auto;
   /* pointer-events: none; 允许高亮层可滚动 */
-  white-space: pre-wrap;
-  word-wrap: break-word;
   tab-size: 2;
   vertical-align: top;
 }

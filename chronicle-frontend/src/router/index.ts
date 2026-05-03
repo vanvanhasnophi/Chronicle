@@ -27,12 +27,8 @@ function resolveMessage(key: string) {
     return key
   }
 }
-// Pages are lazy-loaded per-route so only the visited page is fetched
-const Home = () => import(/* webpackChunkName: "home" */ '../pages/Home.vue')
-const BlogList = () => import(/* webpackChunkName: "blog-list" */ '../pages/BlogList.vue')
-const BlogPost = () => import(/* webpackChunkName: "blog-post" */ '../pages/BlogPost.vue')
-const Search = () => import(/* webpackChunkName: "search" */ '../pages/Search.vue')
-const Friends = () => import(/* webpackChunkName: "friends" */ '../pages/Friends.vue')
+// 前台内容页面已弃用（主页、帖子列表、帖子详情、搜索、朋友页）
+// 为避免打包和路由暴露，这些路由在路由表中重定向到后台登录。
 const Login = () => import(/* webpackChunkName: "login" */ '../pages/Login.vue')
 // Security backend page lazy-loaded
 const Security = () => import(/* webpackChunkName: "security" */ '../pages/Security.vue')
@@ -40,25 +36,34 @@ const Security = () => import(/* webpackChunkName: "security" */ '../pages/Secur
 // Backend pages are lazy-loaded so frontend bundle doesn't include admin code
 const PostManager = () => import(/* webpackChunkName: "post-manager" */ '../pages/PostManager.vue')
 const FileManager = () => import(/* webpackChunkName: "file-manager" */ '../pages/FileManager.vue')
+const Dashboard = () => import(/* webpackChunkName: "dashboard" */ '../pages/Dashboard.vue')
+const Traffic = () => import(/* webpackChunkName: "traffic" */ '../pages/Traffic.vue')
 const Settings = () => import(/* webpackChunkName: "settings" */ '../pages/Settings.vue')
-const SettingsHome = () => import(/* webpackChunkName: "settings-home" */ '../pages/settings/SettingsHome.vue')
-const SettingsFriends = () => import(/* webpackChunkName: "settings-friends" */ '../pages/settings/SettingsFriends.vue')
+const SettingsHome = () => import(/* webpackChunkName: "settings-home" */ '../pages/SettingsHome.vue')
+const SettingsFriends = () => import(/* webpackChunkName: "settings-friends" */ '../pages/SettingsFriends.vue')
 const SettingsAppearance = () => import(/* webpackChunkName: "settings-appearance" */ '../pages/settings/SettingsAppearance.vue')
 const SettingsSecurity = () => import(/* webpackChunkName: "settings-security" */ '../pages/settings/SettingsSecurity.vue')
 const TextEditorLazy = () => import(/* webpackChunkName: "text-editor" */ '../pages/TextEditor.vue')
 
 const routes = [
-  {
-    path: '/',
-    name: 'Home',
-    component: Home,
-    meta: { title: 'home.title' }
-  },
+  { path: '/', redirect: '/login' },
   {
     path: '/login',
     name: 'Login',
     component: Login,
     meta: { title: 'login.title' }
+  },
+  {
+    path: '/dashboard',
+    name: 'Dashboard',
+    component: Dashboard,
+    meta: { requiresAuth: true, title: 'nav.dashboard' }
+  },
+  {
+    path: '/traffic',
+    name: 'Traffic',
+    component: Traffic,
+    meta: { requiresAuth: true, title: 'nav.traffic' }
   },
   {
     path: '/settings',
@@ -70,25 +75,16 @@ const routes = [
       { path: 'friends', name: 'SettingsFriends', component: SettingsFriends, meta: { title: 'settings.friends' } },
       { path: 'i18n', redirect: 'appearance' },
       { path: 'appearance', name: 'SettingsAppearance', component: SettingsAppearance, meta: { title: 'settings.appearance' } },
-      { path: 'security', name: 'SettingsSecurity', component: SettingsSecurity, meta: { requiresAuth: true, title: 'settings.security' } }
+      { path: 'security', name: 'SettingsSecurity', component: SettingsSecurity, meta: { requiresAuth: true, title: 'settings.security' } },
+      { path: 'build', name: 'SettingsBuild', component: () => import(/* webpackChunkName: "settings-build" */ '../pages/SettingsBuild.vue'), meta: { requiresAuth: true, title: 'settings.build' } }
     ]
   },
   {
     path: '/security',
     redirect: '/settings/security'
   },
-  {
-    path: '/blogs',
-    name: 'BlogList',
-    component: BlogList,
-    meta: { title: 'nav.blogs' }
-  },
-  {
-    path: '/post/:id',
-    name: 'BlogPost',
-    component: BlogPost
-    // Title set dynamically in component
-  },
+  { path: '/blogs', redirect: '/login' },
+  { path: '/post/:id', redirect: '/login' },
   {
     path: '/manage',
     name: 'PostManager',
@@ -107,18 +103,8 @@ const routes = [
     component: FileManager,
     meta: { requiresAuth: true, title: 'file.library' }
   },
-  {
-    path: '/search',
-    name: 'Search',
-    component: Search,
-    meta: { title: 'nav.search' }
-  },
-  {
-    path: '/friends',
-    name: 'Friends',
-    component: Friends,
-    meta: { title: 'friends.title' }
-  }
+  { path: '/search', redirect: '/login' },
+  { path: '/friends', redirect: '/login' }
 ]
 
 const router = createRouter({

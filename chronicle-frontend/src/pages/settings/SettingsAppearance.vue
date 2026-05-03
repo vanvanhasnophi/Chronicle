@@ -78,7 +78,7 @@
             <div style="display:flex; gap:8px; align-items:center;">
               <div v-if="uiFrontendBackground" class="bg-preview" :style="{ backgroundImage: `url(${uiFrontendBackground})` }"></div>
               <button class="secondary" @click.prevent="handleEditBackground('frontend')">{{ uiFrontendBackground ? 'Edit' : 'Add' }}</button>
-              <button v-if="uiFrontendBackground" class="secondary" @click.prevent="(uiFrontendBackground='')">Clear</button>
+              <button v-if="uiFrontendBackground" class="secondary" @click.prevent="clearBackground('frontend')">Clear</button>
             </div>
           </div>
 
@@ -87,7 +87,7 @@
             <div style="display:flex; gap:8px; align-items:center;">
               <div v-if="uiBackendBackground" class="bg-preview" :style="{ backgroundImage: `url(${uiBackendBackground})` }"></div>
               <button class="secondary" @click.prevent="handleEditBackground('backend')">{{ uiBackendBackground ? 'Edit' : 'Add' }}</button>
-              <button v-if="uiBackendBackground" class="secondary" @click.prevent="(uiBackendBackground='')">Clear</button>
+              <button v-if="uiBackendBackground" class="secondary" @click.prevent="clearBackground('backend')">Clear</button>
             </div>
           </div>
         </div>
@@ -163,10 +163,10 @@ import { useI18n } from 'vue-i18n'
 import useToast from '../../composables/useToast'
 import BackgroundEditorModal from '../../components/BackgroundEditorModal.vue'
 import { hexToRgbString } from '../../utils/colorUtils'
+import { normalizeBackgroundRecord, resolveBackgroundSourceName, resolveBackgroundSourcePath, resolveBackgroundUrl } from '../../utils/backgroundSettings'
 import { Icons } from '../../utils/icons'
 
 const { locale } = useI18n()
-const key = 'chronicle.settings'
 const uiFrontendLocale = ref('follow')
 const uiBackendLocale = ref('follow')
 const uiFrontendFont = ref('sans')
@@ -176,6 +176,10 @@ const uiBackendTheme = ref('follow')
 const uiAccentColor = ref('#2ea35f')
 const uiFrontendBackground = ref('')
 const uiBackendBackground = ref('')
+const uiFrontendBackgroundSourcePath = ref('')
+const uiBackendBackgroundSourcePath = ref('')
+const uiFrontendBackgroundSourceName = ref('')
+const uiBackendBackgroundSourceName = ref('')
 const uiFrontendBackgroundMeta = ref<any>(null)
 const uiBackendBackgroundMeta = ref<any>(null)
 
@@ -212,26 +216,9 @@ function buildDarkerColor(accent: string) {
 }
 
 onMounted(() => {
-  const raw = localStorage.getItem(key)
-  if (raw) {
-    try {
-      const cfg = JSON.parse(raw)
-      uiFrontendLocale.value = cfg.frontendLocale || 'follow'
-      uiBackendLocale.value = cfg.backendLocale || 'follow'
-      uiFrontendFont.value = cfg.frontendFont || 'sans'
-      uiBackendFont.value = cfg.backendFont || 'sans'
-        uiThemeMode.value = cfg.frontendTheme || 'follow'
-        uiBackendTheme.value = cfg.backendTheme || 'follow'
-      uiAccentColor.value = cfg.frontendAccent || '#2ea35f'
-      uiFrontendBackground.value = cfg.frontendBackground || ''
-      uiBackendBackground.value = cfg.backendBackground || ''
-      try { uiFrontendBackgroundMeta.value = cfg.frontendBackgroundMeta ? JSON.parse(cfg.frontendBackgroundMeta) : null } catch(e) { uiFrontendBackgroundMeta.value = null }
-      try { uiBackendBackgroundMeta.value = cfg.backendBackgroundMeta ? JSON.parse(cfg.backendBackgroundMeta) : null } catch(e) { uiBackendBackgroundMeta.value = null }
-    } catch(e) {}
-  }
   // try to load server-side persisted settings (merge)
   try {
-    fetch('/api/settings')
+    fetch(`/api/settings?t=${Date.now()}`)
       .then(r => r.ok ? r.json() : Promise.resolve({}))
       .then((s: any) => {
         if (!s) return
@@ -242,176 +229,33 @@ onMounted(() => {
           if (s.frontendTheme) uiThemeMode.value = s.frontendTheme
           if (s.backendTheme) uiBackendTheme.value = s.backendTheme
         if (s.frontendAccent) uiAccentColor.value = s.frontendAccent
-        if (s.frontendBackground) uiFrontendBackground.value = s.frontendBackground
-        if (s.backendBackground) uiBackendBackground.value = s.backendBackground
-        try { uiFrontendBackgroundMeta.value = s.frontendBackgroundMeta ? JSON.parse(s.frontendBackgroundMeta) : uiFrontendBackgroundMeta.value } catch(e) {}
-        try { uiBackendBackgroundMeta.value = s.backendBackgroundMeta ? JSON.parse(s.backendBackgroundMeta) : uiBackendBackgroundMeta.value } catch(e) {}
+        if (s.frontendBackground) {
+          const normalized = normalizeBackgroundRecord(s.frontendBackground, 'frontend')
+          uiFrontendBackground.value = resolveBackgroundUrl(s.frontendBackground, 'frontend') || normalized?.url || ''
+          uiFrontendBackgroundSourcePath.value = resolveBackgroundSourcePath(s.frontendBackground, 'frontend') || normalized?.sourcePath || ''
+          uiFrontendBackgroundSourceName.value = resolveBackgroundSourceName(s.frontendBackground, 'frontend') || normalized?.sourceName || ''
+        }
+        if (s.backendBackground) {
+          const normalized = normalizeBackgroundRecord(s.backendBackground, 'backend')
+          uiBackendBackground.value = resolveBackgroundUrl(s.backendBackground, 'backend') || normalized?.url || ''
+          uiBackendBackgroundSourcePath.value = resolveBackgroundSourcePath(s.backendBackground, 'backend') || normalized?.sourcePath || ''
+          uiBackendBackgroundSourceName.value = resolveBackgroundSourceName(s.backendBackground, 'backend') || normalized?.sourceName || ''
+        }
+        try {
+          uiFrontendBackgroundMeta.value = typeof s.frontendBackgroundMeta === 'string'
+            ? JSON.parse(s.frontendBackgroundMeta)
+            : (s.frontendBackgroundMeta || uiFrontendBackgroundMeta.value)
+        } catch(e) {}
+        try {
+          uiBackendBackgroundMeta.value = typeof s.backendBackgroundMeta === 'string'
+            ? JSON.parse(s.backendBackgroundMeta)
+            : (s.backendBackgroundMeta || uiBackendBackgroundMeta.value)
+        } catch(e) {}
       })
       .catch(() => {})
   } catch(e) {}
 })
-// Live-apply theme changes so preview updates immediately when user changes selection
-try {
-  watch(uiThemeMode, (val) => {
-    try {
-      if (val === 'follow') document.documentElement.removeAttribute('data-theme')
-      else if (val === 'light') document.documentElement.setAttribute('data-theme', 'light')
-      else if (val === 'dark') document.documentElement.setAttribute('data-theme', 'dark')
-      // update existing bg layer overlay to match selected theme
-      try {
-        const layer = document.getElementById('chronicle-bg-layer')
-        if (layer) {
-          const overlayEl = layer.querySelector('.bg-overlay') as HTMLElement | null
-            if (overlayEl) {
-              try {
-                // Choose explicit overlay variable to avoid unresolved var() references.
-                let overlayVar = '--frontend-bg-overlay'
-                if (val === 'light') overlayVar = '--frontend-bg-overlay-light'
-                else if (val === 'dark') overlayVar = '--frontend-bg-overlay-dark'
-                else {
-                  // follow -> detect system preference
-                  try {
-                    overlayVar = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? '--frontend-bg-overlay-dark' : '--frontend-bg-overlay-light'
-                  } catch(e) { overlayVar = '--frontend-bg-overlay-light' }
-                }
-                const v = getComputedStyle(document.documentElement).getPropertyValue(overlayVar)
-                const resolved = v && v.trim() ? v : 'transparent'
-                overlayEl.style.background = resolved
-                try { document.documentElement.style.setProperty('--frontend-bg-overlay', resolved) } catch(e) {}
-              } catch(e) { overlayEl.style.background = 'transparent' }
-            }
-        }
-      } catch(e) {}
-    } catch(e) {}
-  })
-
-  watch(uiBackendTheme, (val) => {
-    try {
-      if (val === 'follow') document.body.removeAttribute('data-backend-theme')
-      else if (val === 'light') document.body.setAttribute('data-backend-theme', 'light')
-      else if (val === 'dark') document.body.setAttribute('data-backend-theme', 'dark')
-      // update bg overlay for backend if present
-      try {
-        const layer = document.getElementById('chronicle-bg-layer')
-        if (layer) {
-          const overlayEl = layer.querySelector('.bg-overlay') as HTMLElement | null
-          if (overlayEl) {
-              try {
-                let overlayVar = '--backend-bg-overlay'
-                if (val === 'light') overlayVar = '--backend-bg-overlay-light'
-                else if (val === 'dark') overlayVar = '--backend-bg-overlay-dark'
-                else {
-                  try {
-                    overlayVar = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? '--backend-bg-overlay-dark' : '--backend-bg-overlay-light'
-                  } catch(e) { overlayVar = '--backend-bg-overlay-light' }
-                }
-                const v = getComputedStyle(document.documentElement).getPropertyValue(overlayVar)
-                const resolved = v && v.trim() ? v : 'transparent'
-                overlayEl.style.background = resolved
-                try { document.documentElement.style.setProperty('--backend-bg-overlay', resolved) } catch(e) {}
-              } catch(e) { overlayEl.style.background = 'transparent' }
-          }
-        }
-      } catch(e) {}
-    } catch(e) {}
-  })
-} catch(e) {}
-// apply meta changes live for immediate preview
-try {
-  watch(uiFrontendBackgroundMeta, (m) => {
-    try {
-      if (!m) return
-      document.documentElement.style.setProperty('--frontend-bg-pos', `${m.posX || 50}% ${m.posY || 50}%`)
-      document.documentElement.style.setProperty('--frontend-bg-size', `${m.size || 100}%`)
-      document.documentElement.style.setProperty('--frontend-bg-blur', `${m.blur || 0}px`)
-      try {
-        const layer = document.getElementById('chronicle-bg-layer')
-        if (layer) {
-          const imgEl = layer.querySelector('.bg-image') as HTMLElement | null
-          const surfaceEl = layer.querySelector('.bg-surface') as HTMLElement | null
-          const overlayEl = layer.querySelector('.bg-overlay') as HTMLElement | null
-          if (imgEl) {
-            imgEl.style.backgroundPosition = `${m.posX || 50}% ${m.posY || 50}%`
-            imgEl.style.backgroundSize = `${m.size || 100}%`
-            imgEl.style.filter = `blur(${m.blur || 0}px)`
-          }
-          if (overlayEl) {
-            const opa = (m.overlayOpacity || 0) / 100
-            try {
-              let h = String(m.overlayColor || '#000').replace('#','')
-              if (h.length === 3) h = h.split('').map((c:any)=>c+c).join('')
-              const r = parseInt(h.substring(0,2),16)
-              const g = parseInt(h.substring(2,4),16)
-              const b = parseInt(h.substring(4,6),16)
-              overlayEl.style.background = `rgba(${r}, ${g}, ${b}, ${opa})`
-            } catch(e) { overlayEl.style.background = 'transparent' }
-          }
-          if (surfaceEl) {
-            try { surfaceEl.style.background = getComputedStyle(document.documentElement).getPropertyValue('--app-bg-primary') || 'transparent' } catch(e) {}
-          }
-        }
-      } catch(e) {}
-      if (m.overlayColor) {
-        const opa = (m.overlayOpacity || 0) / 100
-        let h = String(m.overlayColor).replace('#','')
-        if (h.length === 3) h = h.split('').map(c=>c+c).join('')
-        const r = parseInt(h.substring(0,2),16)
-        const g = parseInt(h.substring(2,4),16)
-        const b = parseInt(h.substring(4,6),16)
-        const rgba = `rgba(${r}, ${g}, ${b}, ${opa})`
-        document.documentElement.style.setProperty('--frontend-bg-overlay-dark', rgba)
-        document.documentElement.style.setProperty('--frontend-bg-overlay-light', rgba)
-      }
-    } catch(e) {}
-  }, { deep: true })
-  watch(uiBackendBackgroundMeta, (m) => {
-    try {
-      if (!m) return
-      document.documentElement.style.setProperty('--backend-bg-pos', `${m.posX || 50}% ${m.posY || 50}%`)
-      document.documentElement.style.setProperty('--backend-bg-size', `${m.size || 100}%`)
-      document.documentElement.style.setProperty('--backend-bg-blur', `${m.blur || 0}px`)
-      try {
-        const layer = document.getElementById('chronicle-bg-layer')
-        if (layer) {
-          const imgEl = layer.querySelector('.bg-image') as HTMLElement | null
-          const surfaceEl = layer.querySelector('.bg-surface') as HTMLElement | null
-          const overlayEl = layer.querySelector('.bg-overlay') as HTMLElement | null
-          if (imgEl) {
-            imgEl.style.backgroundPosition = `${m.posX || 50}% ${m.posY || 50}%`
-            imgEl.style.backgroundSize = `${m.size || 100}%`
-            imgEl.style.filter = `blur(${m.blur || 0}px)`
-          }
-          if (overlayEl) {
-            const opa = (m.overlayOpacity || 0) / 100
-            try {
-              let h = String(m.overlayColor || '#000').replace('#','')
-              if (h.length === 3) h = h.split('').map((c:any)=>c+c).join('')
-              const r = parseInt(h.substring(0,2),16)
-              const g = parseInt(h.substring(2,4),16)
-              const b = parseInt(h.substring(4,6),16)
-              overlayEl.style.background = `rgba(${r}, ${g}, ${b}, ${opa})`
-            } catch(e) { overlayEl.style.background = 'transparent' }
-          }
-          if (surfaceEl) {
-            try { surfaceEl.style.background = getComputedStyle(document.documentElement).getPropertyValue('--app-bg-primary') || 'transparent' } catch(e) {}
-          }
-        }
-      } catch(e) {}
-      if (m.overlayColor) {
-        const opa = (m.overlayOpacity || 0) / 100
-        let h = String(m.overlayColor).replace('#','')
-        if (h.length === 3) h = h.split('').map(c=>c+c).join('')
-        const r = parseInt(h.substring(0,2),16)
-        const g = parseInt(h.substring(2,4),16)
-        const b = parseInt(h.substring(4,6),16)
-        // 设置为深色/浅色两套变量以兼容新主题遮罩变体
-        document.documentElement.style.setProperty('--backend-bg-overlay-dark', `rgba(${r}, ${g}, ${b}, ${opa})`)
-        document.documentElement.style.setProperty('--backend-bg-overlay-light', `rgba(${r}, ${g}, ${b}, ${opa})`)
-      }
-    } catch(e) {}
-  }, { deep: true })
-} catch(e) {}
-  // apply current background vars so preview is immediate
+// All appearance updates are deferred until Save is clicked.
   try {
     if (uiFrontendBackground.value) document.documentElement.style.setProperty('--frontend-bg-image', `url(${uiFrontendBackground.value})`)
     else document.documentElement.style.setProperty('--frontend-bg-image', 'none')
@@ -467,7 +311,7 @@ try {
 
 async function fetchServerImages() {
   try {
-    const res = await fetch(`/api/files?path=pic`)
+    const res = await fetch(`/api/files?path=pic&t=${Date.now()}`)
     if (!res.ok) return
     const items = await res.json()
     uploadedImagesLocal.value = items
@@ -482,26 +326,21 @@ async function fetchServerImages() {
 }
 
 function chooseBackgroundImage(img: any) {
-  if (bgPickerTarget.value === 'frontend') uiFrontendBackground.value = img.path || img.url
-  else uiBackendBackground.value = img.path || img.url
+  const sourcePath = img.path || img.url || ''
+  const sourceName = img.name || (String(sourcePath).split('/').pop() || '')
+  if (bgPickerTarget.value === 'frontend') {
+    uiFrontendBackground.value = img.url || img.path || ''
+    uiFrontendBackgroundSourcePath.value = sourcePath
+    uiFrontendBackgroundSourceName.value = sourceName
+  } else {
+    uiBackendBackground.value = img.url || img.path || ''
+    uiBackendBackgroundSourcePath.value = sourcePath
+    uiBackendBackgroundSourceName.value = sourceName
+  }
   ensureMetaForTarget(bgPickerTarget.value)
   // close picker then open editor so selection is merged into edit flow
   bgPickerOpen.value = false
   try { openBackgroundEditor(bgPickerTarget.value) } catch(e) {}
-  try {
-    const layer = document.getElementById('chronicle-bg-layer')
-      if (layer) {
-        const imgEl = layer.querySelector('.bg-image') as HTMLElement | null
-        const surfaceEl = layer.querySelector('.bg-surface') as HTMLElement | null
-        if (imgEl) {
-          if (bgPickerTarget.value === 'frontend') imgEl.style.backgroundImage = uiFrontendBackground.value ? `url(${uiFrontendBackground.value})` : 'none'
-          else imgEl.style.backgroundImage = uiBackendBackground.value ? `url(${uiBackendBackground.value})` : 'none'
-        }
-        if (surfaceEl) {
-          try { surfaceEl.style.background = getComputedStyle(document.documentElement).getPropertyValue('--app-bg-primary') || 'transparent' } catch(e) {}
-        }
-      }
-  } catch(e) {}
 }
 
 // When user clicks unified Edit button: if image exists open editor, otherwise open picker
@@ -542,6 +381,33 @@ function ensureMetaForTarget(target:'frontend'|'backend') {
   }
 }
 
+function clearBackground(target:'frontend'|'backend') {
+  if (target === 'frontend') {
+    uiFrontendBackground.value = ''
+    uiFrontendBackgroundSourcePath.value = ''
+    uiFrontendBackgroundSourceName.value = ''
+  } else {
+    uiBackendBackground.value = ''
+    uiBackendBackgroundSourcePath.value = ''
+    uiBackendBackgroundSourceName.value = ''
+  }
+}
+
+function buildBackgroundPayload(target:'frontend'|'backend') {
+  const displayUrl = target === 'frontend' ? uiFrontendBackground.value : uiBackendBackground.value
+  const sourcePath = target === 'frontend' ? uiFrontendBackgroundSourcePath.value : uiBackendBackgroundSourcePath.value
+  const sourceName = target === 'frontend' ? uiFrontendBackgroundSourceName.value : uiBackendBackgroundSourceName.value
+  if (!displayUrl && !sourcePath) return ''
+
+  return {
+    url: displayUrl,
+    path: displayUrl,
+    sourcePath: sourcePath || displayUrl,
+    sourceName: sourceName || (sourcePath || displayUrl).split('/').pop() || '',
+    originalName: sourceName || (sourcePath || displayUrl).split('/').pop() || '',
+  }
+}
+
 function openBackgroundEditor(target:'frontend'|'backend') {
   bgEditorTarget.value = target
   bgEditorOpen.value = true
@@ -556,18 +422,81 @@ async function save() {
     frontendTheme: uiThemeMode.value,
     frontendAccent: uiAccentColor.value,
     backendTheme: uiBackendTheme.value,
-    frontendBackground: uiFrontendBackground.value,
-    backendBackground: uiBackendBackground.value,
+    frontendBackground: buildBackgroundPayload('frontend'),
+    backendBackground: buildBackgroundPayload('backend'),
     frontendBackgroundMeta: uiFrontendBackgroundMeta.value ? JSON.stringify(uiFrontendBackgroundMeta.value) : undefined,
     backendBackgroundMeta: uiBackendBackgroundMeta.value ? JSON.stringify(uiBackendBackgroundMeta.value) : undefined
   }
 
-  // persist locally
-  localStorage.setItem(key, JSON.stringify(cfg))
+  const applyBackgroundToDom = (target: 'frontend' | 'backend') => {
+    const backgroundUrl = target === 'frontend' ? uiFrontendBackground.value : uiBackendBackground.value
+    const backgroundMeta = target === 'frontend' ? uiFrontendBackgroundMeta.value : uiBackendBackgroundMeta.value
+    const prefix = target === 'frontend' ? 'frontend' : 'backend'
+    const themeMode = target === 'frontend' ? uiThemeMode.value : uiBackendTheme.value
+
+    try {
+      if (backgroundUrl) document.documentElement.style.setProperty(`--${prefix}-bg-image`, `url(${backgroundUrl})`)
+      else document.documentElement.style.setProperty(`--${prefix}-bg-image`, 'none')
+
+      if (!backgroundMeta) return
+
+      const m = backgroundMeta
+      document.documentElement.style.setProperty(`--${prefix}-bg-pos`, `${m.posX || 50}% ${m.posY || 50}%`)
+      document.documentElement.style.setProperty(`--${prefix}-bg-size`, `${m.size || 100}%`)
+      document.documentElement.style.setProperty(`--${prefix}-bg-blur`, `${m.blur || 0}px`)
+
+      const overlayLight = m.overlayLightColor || m.overlayColor || 'transparent'
+      const overlayLightOpa = (m.overlayLightOpacity != null) ? ((m.overlayLightOpacity || 0) / 100) : ((m.overlayOpacity || 0) / 100)
+      const overlayDark = m.overlayDarkColor || m.overlayColor || 'transparent'
+      const overlayDarkOpa = (m.overlayDarkOpacity != null) ? ((m.overlayDarkOpacity || 0) / 100) : ((m.overlayOpacity || 0) / 100)
+
+      if (overlayLight === 'transparent') {
+        document.documentElement.style.setProperty(`--${prefix}-bg-overlay-light`, 'transparent')
+      } else {
+        const rgbLight = hexToRgbString(overlayLight)
+        document.documentElement.style.setProperty(`--${prefix}-bg-overlay-light`, `rgba(${rgbLight}, ${overlayLightOpa})`)
+      }
+
+      if (overlayDark === 'transparent') {
+        document.documentElement.style.setProperty(`--${prefix}-bg-overlay-dark`, 'transparent')
+      } else {
+        const rgbDark = hexToRgbString(overlayDark)
+        document.documentElement.style.setProperty(`--${prefix}-bg-overlay-dark`, `rgba(${rgbDark}, ${overlayDarkOpa})`)
+      }
+
+      const isDarkPreferred = themeMode === 'dark' || (themeMode === 'follow' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+      const activeOverlay = isDarkPreferred
+        ? (overlayDark === 'transparent' ? 'transparent' : `rgba(${hexToRgbString(overlayDark)}, ${overlayDarkOpa})`)
+        : (overlayLight === 'transparent' ? 'transparent' : `rgba(${hexToRgbString(overlayLight)}, ${overlayLightOpa})`)
+
+      const layer = document.getElementById('chronicle-bg-layer')
+      if (!layer) return
+
+      const imgEl = layer.querySelector('.bg-image') as HTMLElement | null
+      const surfaceEl = layer.querySelector('.bg-surface') as HTMLElement | null
+      const overlayEl = layer.querySelector('.bg-overlay') as HTMLElement | null
+      if (imgEl) {
+        imgEl.style.backgroundImage = backgroundUrl ? `url(${backgroundUrl})` : 'none'
+        imgEl.style.backgroundPosition = `${m.posX || 50}% ${m.posY || 50}%`
+        imgEl.style.backgroundSize = `${m.size || 100}%`
+        imgEl.style.filter = `blur(${m.blur || 0}px)`
+      }
+      if (overlayEl) {
+        overlayEl.style.background = activeOverlay
+      }
+      if (surfaceEl) {
+        try { surfaceEl.style.background = getComputedStyle(document.documentElement).getPropertyValue('--app-bg-primary') || 'transparent' } catch(e) {}
+      }
+    } catch(e) {}
+  }
+
+  // Apply background layer immediately when Save is clicked.
+  applyBackgroundToDom('frontend')
+  applyBackgroundToDom('backend')
 
   // persist to backend
   try {
-    await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cfg) })
+    await fetch(`/api/settings?t=${Date.now()}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cfg) })
   } catch(e) {}
 
   // Apply frontend font immediately after Save
@@ -613,96 +542,7 @@ async function save() {
       document.documentElement.style.setProperty('--accent-color', accent)
       document.documentElement.style.setProperty('--accent-color-dark', buildDarkerColor(accent))
     } catch(e) {}
-    // Apply background images immediately
-    try {
-      if (uiFrontendBackground.value) document.documentElement.style.setProperty('--frontend-bg-image', `url(${uiFrontendBackground.value})`)
-      else document.documentElement.style.setProperty('--frontend-bg-image', 'none')
-      if (uiBackendBackground.value) document.documentElement.style.setProperty('--backend-bg-image', `url(${uiBackendBackground.value})`)
-      else document.documentElement.style.setProperty('--backend-bg-image', 'none')
-      // apply meta settings
-      try {
-        if (uiFrontendBackgroundMeta.value) {
-          const m = uiFrontendBackgroundMeta.value
-          document.documentElement.style.setProperty('--frontend-bg-pos', `${m.posX || 50}% ${m.posY || 50}%`)
-          document.documentElement.style.setProperty('--frontend-bg-size', `${m.size || 100}%`)
-          document.documentElement.style.setProperty('--frontend-bg-blur', `${m.blur || 0}px`)
-          const overlay = m.overlayColor || 'transparent'
-          const opa = (m.overlayOpacity || 0) / 100
-          if (overlay === 'transparent') {
-            document.documentElement.style.setProperty('--frontend-bg-overlay-dark', 'transparent')
-            document.documentElement.style.setProperty('--frontend-bg-overlay-light', 'transparent')
-          } else {
-            const rgb = hexToRgbString(overlay)
-            document.documentElement.style.setProperty('--frontend-bg-overlay-dark', `rgba(${rgb}, ${opa})`)
-            document.documentElement.style.setProperty('--frontend-bg-overlay-light', `rgba(${rgb}, ${opa})`)
-          }
-          try {
-            const layer = document.getElementById('chronicle-bg-layer')
-            if (layer) {
-              const imgEl = layer.querySelector('.bg-image') as HTMLElement | null
-              const surfaceEl = layer.querySelector('.bg-surface') as HTMLElement | null
-              const overlayEl = layer.querySelector('.bg-overlay') as HTMLElement | null
-              if (imgEl) {
-                imgEl.style.backgroundPosition = `${m.posX || 50}% ${m.posY || 50}%`
-                imgEl.style.backgroundSize = `${m.size || 100}%`
-                imgEl.style.filter = `blur(${m.blur || 0}px)`
-              }
-              if (overlayEl) {
-                if (overlay === 'transparent') overlayEl.style.background = 'transparent'
-                else {
-                  const rgb = hexToRgbString(overlay)
-                  overlayEl.style.background = `rgba(${rgb}, ${opa})`
-                }
-              }
-              if (surfaceEl) {
-                try { surfaceEl.style.background = getComputedStyle(document.documentElement).getPropertyValue('--app-bg-primary') || 'transparent' } catch(e) {}
-              }
-            }
-          } catch(e) {}
-        }
-      } catch(e) {}
-      try {
-        if (uiBackendBackgroundMeta.value) {
-          const m = uiBackendBackgroundMeta.value
-          document.documentElement.style.setProperty('--backend-bg-pos', `${m.posX || 50}% ${m.posY || 50}%`)
-          document.documentElement.style.setProperty('--backend-bg-size', `${m.size || 100}%`)
-          document.documentElement.style.setProperty('--backend-bg-blur', `${m.blur || 0}px`)
-          const overlay = m.overlayColor || 'transparent'
-          const opa = (m.overlayOpacity || 0) / 100
-          if (overlay === 'transparent') {
-            document.documentElement.style.setProperty('--backend-bg-overlay-dark', 'transparent')
-            document.documentElement.style.setProperty('--backend-bg-overlay-light', 'transparent')
-          } else {
-            const rgb = hexToRgbString(overlay)
-            document.documentElement.style.setProperty('--backend-bg-overlay-dark', `rgba(${rgb}, ${opa})`)
-            document.documentElement.style.setProperty('--backend-bg-overlay-light', `rgba(${rgb}, ${opa})`)
-          }
-          try {
-            const layer = document.getElementById('chronicle-bg-layer')
-            if (layer) {
-              const imgEl = layer.querySelector('.bg-image') as HTMLElement | null
-              const surfaceEl = layer.querySelector('.bg-surface') as HTMLElement | null
-              const overlayEl = layer.querySelector('.bg-overlay') as HTMLElement | null
-              if (imgEl) {
-                imgEl.style.backgroundPosition = `${m.posX || 50}% ${m.posY || 50}%`
-                imgEl.style.backgroundSize = `${m.size || 100}%`
-                imgEl.style.filter = `blur(${m.blur || 0}px)`
-              }
-              if (overlayEl) {
-                if (overlay === 'transparent') overlayEl.style.background = 'transparent'
-                else {
-                  const rgb = hexToRgbString(overlay)
-                  overlayEl.style.background = `rgba(${rgb}, ${opa})`
-                }
-              }
-              if (surfaceEl) {
-                try { surfaceEl.style.background = getComputedStyle(document.documentElement).getPropertyValue('--app-bg-primary') || 'transparent' } catch(e) {}
-              }
-            }
-          } catch(e) {}
-        }
-      } catch(e) {}
-    } catch(e) {}
+    // Background already applied above on Save click.
   } catch(e) {}
 
   // Apply language settings immediately for current session (Settings is backend):
@@ -723,7 +563,6 @@ async function save() {
 }
 
 function reset() {
-  localStorage.removeItem(key)
   uiFrontendLocale.value = 'follow'
   uiBackendLocale.value = 'follow'
   uiFrontendFont.value = 'sans'

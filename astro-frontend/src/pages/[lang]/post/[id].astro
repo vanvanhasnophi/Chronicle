@@ -1,0 +1,1132 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import { getApiUrl } from '../../../config/api';
+import { getTranslation, getLocale } from '../../../utils/i18n';
+import { buildLocalizedPath, toContentLocale } from '../../../utils/routeLocale';
+import { buildTocItems, injectHeadingIds } from '../../../utils/toc';
+import DesktopFloatingToc from '../../../components/FloatingToc.vue';
+import MobileTocPanel from '../../../components/MobileTocPanel.vue';
+import CornerActions from '../../../components/CornerActions.vue';
+import MarkdownIt from 'markdown-it';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
+import '../../../styles/post.css';
+
+export const prerender = true;
+
+// 语法高亮规则（内置，支持多语言，按字母序排列，plain在最后）
+const syntaxRules: Record<string, Array<{ pattern: RegExp; className: string }>> = {
+  c: [
+    { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
+    { pattern: /(["'])(?:(?!(\\|\1)).|\\.)*(\\|\1)/g, className: 'string' },
+    { pattern: /\b(auto|break|case|char|const|continue|default|do|double|else|enum|extern|float|for|goto|if|inline|int|long|register|restrict|return|short|signed|sizeof|static|struct|switch|typedef|union|unsigned|void|volatile|while|_Alignas|_Alignof|_Atomic|_Bool|_Complex|_Generic|_Imaginary|_Noreturn|_Static_assert|_Thread_local)\b/g, className: 'keyword' },
+    { pattern: /\b(true|false|NULL)\b/g, className: 'boolean' },
+    { pattern: /\b\d+\.?\d*(e[+-]?\d+)?[ulULfF]?\b/gi, className: 'number' },
+    { pattern: /[{}[\]()]/g, className: 'bracket' },
+    { pattern: /[+\-*/%=<>!&|?:.]/g, className: 'operator' }
+  ],
+  cpp: [
+    { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
+    { pattern: /(["'])(?:(?!(\\|\1)).|\\.)*(\\|\1)/g, className: 'string' },
+    { pattern: /\b(alignas|alignof|and|and_eq|asm|auto|bitand|bitor|bool|break|case|catch|char|char16_t|char32_t|class|compl|const|constexpr|const_cast|continue|decltype|default|delete|do|double|dynamic_cast|else|enum|explicit|export|extern|false|float|for|friend|goto|if|inline|int|long|mutable|namespace|new|noexcept|not|not_eq|nullptr|operator|or|or_eq|private|protected|public|register|reinterpret_cast|return|short|signed|sizeof|static|static_assert|static_cast|struct|switch|template|this|thread_local|throw|true|try|typedef|typeid|typename|union|unsigned|using|virtual|void|volatile|wchar_t|while|xor|xor_eq)\b/g, className: 'keyword' },
+    { pattern: /\b(true|false|nullptr)\b/g, className: 'boolean' },
+    { pattern: /\b\d+\.?\d*(e[+-]?\d+)?[ulULfF]?\b/gi, className: 'number' },
+    { pattern: /[{}[\]()]/g, className: 'bracket' },
+    { pattern: /[+\-*/%=<>!&|?:.]/g, className: 'operator' }
+  ],
+  css: [
+    { pattern: /\/\*([\s\S]*?)\*\//g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b([a-z-]+)(?=\s*:)/gi, className: 'property' },
+    { pattern: /#[0-9a-fA-F]{3,6}\b/g, className: 'color' },
+    { pattern: /\.[a-zA-Z_][\w-]*/g, className: 'selector' },
+    { pattern: /:[a-zA-Z-]+/g, className: 'selector' },
+    { pattern: /\b\d+\.?\d*(px|em|rem|%)?\b/g, className: 'number' }
+  ],
+  html: [
+    { pattern: /<!--([\s\S]*?)-->/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /<\/?[a-zA-Z][^\s>]*\b/g, className: 'tag' },
+    { pattern: /\b(class|id|style|src|href|alt|title|type|value|name|rel|for|onclick|onchange|oninput|onfocus|onblur|checked|disabled|readonly|required|selected|multiple|placeholder|action|method|target|enctype|accept|autocomplete|autofocus|form|list|max|min|pattern|step|size|width|height|rows|cols|wrap|spellcheck|tabindex|accesskey|contenteditable|draggable|hidden|lang|translate|dir|data-[\w-]+)\b/g, className: 'attribute' }
+  ],
+  java: [
+    { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
+    { pattern: /(["'])(?:(?!(\\|\1)).|\\.)*(\\|\1)/g, className: 'string' },
+    { pattern: /\b(abstract|assert|boolean|break|byte|case|catch|char|class|const|continue|default|do|double|else|enum|extends|final|finally|float|for|goto|if|implements|import|instanceof|int|interface|long|native|new|null|package|private|protected|public|return|short|static|strictfp|super|switch|synchronized|this|throw|throws|transient|try|void|volatile|while)\b/g, className: 'keyword' },
+    { pattern: /\b(true|false)\b/g, className: 'boolean' },
+    { pattern: /\b\d+\.?\d*(e[+-]?\d+)?[fdl]?\b/gi, className: 'number' },
+    { pattern: /[{}[\]()]/g, className: 'bracket' },
+    { pattern: /[+\-*/%=<>!&|?:.]/g, className: 'operator' }
+  ],
+  javascript: [
+    { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
+    { pattern: /(["'`])(?:(?!(\\|\1)).|\\.)*(\\|\1)/g, className: 'string' },
+    { pattern: /\b(const|let|var|function|return|if|else|for|while|do|break|continue|switch|case|default|try|catch|finally|throw|class|extends|import|export|from|as|async|await|yield|typeof|instanceof|new|this|super|static|get|set|constructor)\b/g, className: 'keyword' },
+    { pattern: /\b(true|false|null|undefined|NaN|Infinity)\b/g, className: 'boolean' },
+    { pattern: /\b\d+\.?\d*(e[+-]?\d+)?[lf]?\b/gi, className: 'number' },
+    { pattern: /[{}[\]()]/g, className: 'bracket' },
+    { pattern: /[+\-*/%=<>!&|?:.]/g, className: 'operator' }
+  ],
+  json: [
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(true|false|null)\b/g, className: 'boolean' },
+    { pattern: /\b\d+\.?\d*\b/g, className: 'number' },
+    { pattern: /[{}[\]()]/g, className: 'bracket' },
+    { pattern: /[:,]/g, className: 'operator' }
+  ],
+  katex: [
+    { pattern: /(\%.*$)/gm, className: 'comment' },
+    { pattern: /[_+\-*/%=^&|]/g, className: 'katexoperator' },
+    { pattern: /\\[a-zA-Z]+(?![a-zA-Z])/g, className: 'katexcommand' },
+    { pattern: /\\[^a-zA-Z]/g, className: 'katexcommand' },
+    { pattern: /\b\d+\.?\d*\b/g, className: 'katexnumber' },
+    { pattern: /[{}[\]()]/g, className: 'katexbracket' },
+  ],
+  markdown: [
+    { pattern: /^\s{0,3}(#{1,6})\s+(.*)$/gm, className: 'header' },
+    { pattern: /\*\*(.*?)\*\*/g, className: 'bold' },
+    { pattern: /\*(.*?)\*/g, className: 'italic' },
+    { pattern: /`([^`]+)`/g, className: 'inline-code' },
+    { pattern: /^>\s+(.*)$/gm, className: 'quote' },
+    { pattern: /^\s*[-*+]\s+/gm, className: 'list' },
+    { pattern: /\[(.*?)\]\((.*?)\)/g, className: 'link' }
+  ],
+  python: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /(["']{3}[\s\S]*?["']{3}|(["'])(?:(?!\2).)*\2)/g, className: 'string' },
+    { pattern: /\b(def|class|if|elif|else|for|while|break|continue|return|try|except|finally|with|as|import|from|pass|raise|in|is|not|and|or|lambda|yield|assert|del|global|nonlocal|print)\b/g, className: 'keyword' },
+    { pattern: /\b(True|False|None)\b/g, className: 'boolean' },
+    { pattern: /\b\d+\.?\d*\b/g, className: 'number' },
+    { pattern: /[{}[\]()]/g, className: 'bracket' },
+    { pattern: /[+\-*/%=<>!&|]/g, className: 'operator' }
+  ],
+  typescript: [
+    { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
+    { pattern: /(["'`])(?:(?!(\\|\1)).|\\.)*(\\|\1)/g, className: 'string' },
+    { pattern: /\b(const|let|var|function|return|if|else|for|while|do|break|continue|switch|case|default|try|catch|finally|throw|class|extends|import|export|from|as|async|await|yield|typeof|instanceof|new|this|super|static|get|set|constructor|interface|type|enum|namespace|module|declare|abstract|implements|private|public|protected|readonly)\b/g, className: 'keyword' },
+    { pattern: /\b(string|number|boolean|object|any|void|never|unknown|Array|Promise|Date|RegExp)\b/g, className: 'type' },
+    { pattern: /\b(true|false|null|undefined|NaN|Infinity)\b/g, className: 'boolean' },
+    { pattern: /\b\d+\.?\d*(e[+-]?\d+)?[lf]?\b/gi, className: 'number' },
+    { pattern: /[{}[\]()]/g, className: 'bracket' },
+    { pattern: /[+\-*/%=<>!&|?:.]/g, className: 'operator' }
+  ],
+  apache: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /\b(Listen|ServerName|DocumentRoot|LoadModule|ProxyPass|ProxyPassReverse|ErrorLog|CustomLog|DirectoryIndex)\b/gi, className: 'keyword' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' }
+  ],
+  bash: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\$\w+|\${[^}]+}/g, className: 'variable' },
+    { pattern: /\b(if|then|else|fi|for|in|do|done|case|esac|function|return)\b/g, className: 'keyword' }
+  ],
+  dockerfile: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /\b(FROM|RUN|CMD|LABEL|EXPOSE|ENV|ADD|COPY|ENTRYPOINT|VOLUME|WORKDIR|USER)\b/gi, className: 'keyword' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' }
+  ],
+  git: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /\b(commit|push|pull|merge|rebase|checkout|branch|tag|clone)\b/gi, className: 'keyword' }
+  ],
+  go: [
+    { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(package|import|func|var|const|type|struct|interface|map|range|return|if|else|for|go|select|case|defer)\b/g, className: 'keyword' },
+    { pattern: /\b\d+\.?\d*\b/g, className: 'number' }
+  ],
+  ini: [
+    { pattern: /;.*/g, className: 'comment' },
+    { pattern: /\[[^\]]+\]/g, className: 'section' },
+    { pattern: /\b[\w.-]+(?=\s*=)/g, className: 'attribute' },
+    { pattern: /=/g, className: 'operator' }
+  ],
+  kotlin: [
+    { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(class|fun|val|var|if|else|for|while|when|object|interface|package|import|return|is|in|null)\b/g, className: 'keyword' }
+  ],
+  less: [
+    { pattern: /\/\*([\s\S]*?)\*\//g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\.[a-zA-Z_][\w-]*/g, className: 'selector' }
+  ],
+  lua: [
+    { pattern: /--.*$/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(function|local|if|then|else|elseif|end|for|in|do|while|repeat|until|return)\b/g, className: 'keyword' }
+  ],
+  matlab: [
+    { pattern: /%.*/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(function|end|if|else|for|while|switch|case|otherwise|return)\b/gi, className: 'keyword' }
+  ],
+  nginx: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /\b(server|location|listen|proxy_pass|root|index|server_name|error_page|access_log|try_files)\b/gi, className: 'keyword' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' }
+  ],
+  php: [
+    { pattern: /(\/\*?[\s\S]*?\*?\/)/g, className: 'comment' },
+    { pattern: /(<\?php[\s\S]*?\?>)/g, className: 'string' },
+    { pattern: /\b(function|echo|print|return|if|else|foreach|as|class|public|private|protected|namespace|use|new)\b/gi, className: 'keyword' }
+  ],
+  powershell: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(function|param|return|if|else|elseif|foreach|for|while|switch|break|continue)\b/gi, className: 'keyword' },
+    { pattern: /[A-Za-z]+-[A-Za-z]+/g, className: 'cmdlet' }
+  ],
+  r: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(function|if|else|for|while|repeat|in|next|break|return)\b/gi, className: 'keyword' }
+  ],
+  react: [
+    { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
+    { pattern: /(["'`])(?:(?!(\\|\1)).|\\.)*(\\|\1)/g, className: 'string' },
+    { pattern: /\b(const|let|var|function|return|if|else|class|extends|import|export|from|JSX)\b/g, className: 'keyword' }
+  ],
+  ruby: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(def|class|module|end|if|else|elsif|do|while|until|for|in|return)\b/g, className: 'keyword' }
+  ],
+  rust: [
+    { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(fn|let|mut|pub|impl|trait|struct|enum|match|use|crate|mod|unsafe|async|await|move|ref|return)\b/g, className: 'keyword' }
+  ],
+  scss: [
+    { pattern: /\/\*[\s\S]*?\*\//g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b([a-z-]+)(?=\s*:)/gi, className: 'property' }
+  ],
+  sql: [
+    { pattern: /--.*$/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(SELECT|FROM|WHERE|INSERT|INTO|VALUES|UPDATE|SET|DELETE|JOIN|LEFT|RIGHT|INNER|OUTER|ON|GROUP BY|ORDER BY|LIMIT|OFFSET|AS|AND|OR|NOT|NULL|IS|IN|CREATE|TABLE|ALTER|DROP)\b/gi, className: 'keyword' }
+  ],
+  swift: [
+    { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(func|let|var|if|else|for|in|while|return|class|struct|enum|protocol|extension|import)\b/g, className: 'keyword' }
+  ],
+  toml: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /\[[^\]]+\]/g, className: 'section' },
+    { pattern: /=/g, className: 'operator' }
+  ],
+  vue: [
+    { pattern: /<!--([\s\S]*?)-->/g, className: 'comment' },
+    { pattern: /<\/?[a-zA-Z][^>]*>/g, className: 'tag' }
+  ],
+  xml: [
+    { pattern: /<!--([\s\S]*?)-->/g, className: 'comment' },
+    { pattern: /<\/?[a-zA-Z][^>]*>/g, className: 'tag' },
+    { pattern: /\b([a-zA-Z-]+)(?=\=)/g, className: 'attribute' }
+  ],
+  yaml: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /\b[\w-]+(?=\:)/g, className: 'attribute' },
+    { pattern: /\b(true|false|null)\b/g, className: 'boolean' }
+  ],
+  mermaid: [
+    { pattern: /^%%.*$/g, className: 'comment' },
+    { pattern: /%%\{[\s\S]*?\}%%/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(class|graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|gantt|erDiagram|pie|journey|subgraph|end|click|classDef|style|linkStyle|note|activate|deactivate|loop|alt|opt|par|rect|section|today|axis|direction|LR|TB|TD)\b/gi, className: 'keyword' },
+    { pattern: /(-->|->|---|==>|===|<--|<-)/g, className: 'operator' },
+    { pattern: /\[[^\]]*\]|\([^\)]*\)/g, className: 'bracket' }
+  ],
+  basic: [
+    { pattern: /'.*/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(PRINT|LET|IF|THEN|ELSE|FOR|TO|STEP|NEXT|GOTO|GOSUB|RETURN|DIM|REM|END|FUNCTION|SUB|WHILE|WEND|AND|OR|NOT|MOD)\b/gi, className: 'keyword' },
+    { pattern: /\b\d+\b/g, className: 'number' },
+    { pattern: /[+\-*/=<>]/g, className: 'operator' }
+  ],
+  vb: [
+    { pattern: /'[^\n]*/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(If|Then|Else|ElseIf|End If|For|Each|Next|While|Wend|Function|Sub|Dim|As|Set|Let|Return|Select|Case|Do|Loop|And|Or|Not|Is|Mod|Private|Public|Friend|End)\b/gi, className: 'keyword' },
+    { pattern: /\b\d+\.?\d*\b/g, className: 'number' },
+    { pattern: /[+\-*/=<>]/g, className: 'operator' }
+  ],
+  plain: []
+}
+
+// 服务器端代码高亮函数（复刻自 AsyncHighlight.vue）
+function highlightCode(code: string, language: string): string {
+  try {
+    if (!code || language === 'plain' || language === 'text' || !syntaxRules[language]) {
+      return escapeHtml(code);
+    }
+
+    const rules = syntaxRules[language] || [];
+    let highlighted = code;
+    const placeholders: Array<{ index: number; replacement: string }> = [];
+    let placeholderIndex = 0;
+
+    // 应用所有规则，用占位符替换匹配的内容
+    rules.forEach((rule: { pattern: RegExp; className: string }) => {
+      try {
+        highlighted = highlighted.replace(rule.pattern, (match) => {
+          const placeholder = `__HIGHLIGHT_${placeholderIndex}__`;
+          placeholders.push({
+            index: placeholderIndex,
+            replacement: `<span class="${rule.className}">${escapeHtml(match)}</span>`
+          });
+          placeholderIndex++;
+          return placeholder;
+        });
+      } catch (e) {
+        // Skip this rule if it fails
+      }
+    });
+
+    // 转义 HTML
+    highlighted = escapeHtml(highlighted);
+
+    // 替换占位符为高亮后的 HTML
+    placeholders.forEach(({ index, replacement }) => {
+      const placeholder = `__HIGHLIGHT_${index}__`;
+      highlighted = highlighted.replace(escapeHtml(placeholder), replacement);
+    });
+
+    return highlighted;
+  } catch (e) {
+    // If highlighting fails entirely, return escaped code
+    return escapeHtml(code);
+  }
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
+function getFileExt(url: string): string {
+  try {
+    const pathname = url.split('?')[0].split('#')[0];
+    const match = pathname.match(/\.([0-9a-z]+)$/i);
+    return match ? match[1].toLowerCase() : '';
+  } catch {
+    return '';
+  }
+}
+
+function getMediaIcon(type: 'audio' | 'video' | 'file'): string {
+  if (type === 'audio') {
+    return '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>';
+  }
+  if (type === 'video') {
+    return '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="15" height="10" rx="2"></rect><path d="M17 10l5-3v10l-5-3z"></path></svg>';
+  }
+  return '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>';
+}
+
+function toMediaCard(label: string, href: string, type: 'audio' | 'video' | 'file'): string {
+  const safeHref = escapeHtml(href);
+  const safeLabel = label || href;
+  const typeLabel = type === 'audio' ? 'Audio' : type === 'video' ? 'Video' : 'Document';
+  const icon = getMediaIcon(type);
+
+  return `<div class="file-card" data-url="${safeHref}" data-name="${safeLabel}" data-type="${typeLabel}"><div class="file-card-icon">${icon}</div><div class="file-card-info"><div class="file-name">${safeLabel}</div><div class="file-type">${typeLabel}</div></div></div>`;
+}
+
+function rewriteMediaLinks(renderedHtml: string): string {
+  try {
+    const audioExts = new Set(['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac']);
+    const videoExts = new Set(['mp4', 'webm', 'mkv', 'mov', 'avi']);
+    const fileExts = new Set(['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'zip', 'rar', '7z', 'tar', 'gz']);
+
+    return renderedHtml.replace(/<a\s+[^>]*href=\"([^\"]+)\"[^>]*>(.*?)<\/a>/gi, (_full, href: string, labelHtml: string) => {
+      try {
+        const ext = getFileExt(href);
+        if (audioExts.has(ext)) return toMediaCard(labelHtml, href, 'audio');
+        if (videoExts.has(ext)) return toMediaCard(labelHtml, href, 'video');
+        if (fileExts.has(ext)) return toMediaCard(labelHtml, href, 'file');
+        return _full;
+      } catch (e) {
+        // If toMediaCard fails, return original link
+        return _full;
+      }
+    });
+  } catch (e) {
+    // If regex replacement fails, return original HTML
+    return renderedHtml;
+  }
+}
+
+function hydrateLegacyKatexPlaceholders(html: string, contextLabel = 'unknown-post'): string {
+  try {
+    return html.replace(/<(span|div)\b([^>]*?)class=\"([^\"]*katex-placeholder[^\"]*)\"([^>]*?)data-tex=\"([^\"]+)\"([^>]*?)data-type=\"([^\"]+)\"[^>]*><\/(span|div)>/g, (_full, _tag, _a, _className, _b, rawTex, _c, rawType) => {
+      try {
+        const tex = decodeHtmlEntities(rawTex);
+        const displayMode = rawType === 'block';
+        const rendered = katex.renderToString(tex, { throwOnError: false, displayMode });
+        const tag = displayMode ? 'div' : 'span';
+        const className = displayMode
+          ? 'katex-rendered katex-display-wrapper katex-interactive katex-interactive-block'
+          : 'katex-rendered katex-inline-wrapper katex-interactive';
+        return `<${tag} class=\"${className}\" data-tex=\"${escapeHtml(tex)}\" data-type=\"${displayMode ? 'block' : 'inline'}\">${rendered}</${tag}>`;
+      } catch (e) {
+        // If katex rendering fails, return fallback code block
+        console.warn(`[Post SSR] KaTeX render failed in ${contextLabel}`, {
+          type: rawType,
+          texPreview: decodeHtmlEntities(rawTex).slice(0, 120),
+        });
+        return `<code class=\"math-fallback\">${escapeHtml(rawTex)}</code>`;
+      }
+    });
+  } catch (e) {
+    // If placeholder replacement fails, return original HTML
+    console.warn(`[Post SSR] KaTeX placeholder hydration failed in ${contextLabel}`, e);
+    return html;
+  }
+}
+
+function wrapRenderedKatex(tex: string, displayMode: boolean, renderedHtml: string, uniqueId = ''): string {
+  const tag = displayMode ? 'div' : 'span';
+  const className = displayMode
+    ? 'katex-rendered katex-display-wrapper katex-interactive katex-interactive-block'
+    : 'katex-rendered katex-inline-wrapper katex-interactive';
+  const uniqueIdAttr = uniqueId ? ` data-unique-id=\"${escapeHtml(uniqueId)}\"` : '';
+  return `<${tag} class=\"${className}\" data-tex=\"${escapeHtml(tex)}\" data-type=\"${displayMode ? 'block' : 'inline'}\"${uniqueIdAttr}>${renderedHtml}</${tag}>`;
+}
+
+function renderStaticMarkdown(markdown: string, contextLabel = 'unknown-post'): string {
+  try {
+    const md = new MarkdownIt({
+      html: true,
+      linkify: true,
+      breaks: true,
+      typographer: true,
+    });
+
+    md.renderer.rules.fence = (tokens, idx) => {
+      try {
+        const token = tokens[idx];
+        const info = (token.info || '').trim();
+        const lang = info.split(/\s+/g)[0] || 'text';
+        const code = escapeHtml(token.content);
+        
+        // 特殊处理Mermaid代码块
+        if (lang === 'mermaid') {
+          return `<div class="mermaid-block">
+            <div class="mermaid-header">
+              <span class="mermaid-lang">Mermaid</span>
+              <button class="icon-btn copy-btn" title="Copy" data-code="${escapeHtml(token.content)}">
+                <svg class="copy-icon" width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="7" y="7" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.5"></rect><rect x="4" y="4" width="9" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"></rect></svg>
+                <svg class="success-icon" width="18" height="18" viewBox="0 0 20 20" fill="none" style="display: none;"><path d="M4 10l3 3 9-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </button>
+            </div>
+            <div class="mermaid-content">
+              <pre><code class="language-mermaid">${code}</code></pre>
+              <div class="mermaid-preview">
+                <div class="mermaid-placeholder">Mermaid图表预渲染功能暂未实现</div>
+              </div>
+            </div>
+          </div>`;
+        }
+        
+        return `<div class="code-block"><div class="code-lang">${escapeHtml(lang)}</div><pre><code class="language-${escapeHtml(lang)}\">${code}</code></pre></div>`;
+      } catch (e) {
+        return '<pre class="code-placeholder md-placeholder">代码块解析失败</pre>';
+      }
+    };
+
+    md.renderer.rules.image = (tokens, idx) => {
+      try {
+        const token = tokens[idx];
+        const src = token.attrGet('src') || '';
+        const alt = escapeHtml(token.content || '');
+        const title = token.attrGet('title');
+        const caption = title ? escapeHtml(title) : alt;
+        if (!src) {
+          return `<div class="md-image-container"><div class="md-image-wrapper placeholder"><span class="md-placeholder-text">解析中</span></div><div class="md-image-caption">${caption}</div></div>`;
+        }
+        return `<div class="md-image-container"><div class="md-image-wrapper loaded"><img src="${escapeHtml(src)}" alt="${alt}" class="md-image" loading="lazy" /></div><div class="md-image-caption">${caption}</div></div>`;
+      } catch (e) {
+        return '<div class="md-image-container"><div class="md-image-wrapper error"><span class="md-placeholder-text">图片加载失败</span></div></div>';
+      }
+    };
+
+    md.renderer.rules.blockquote_open = () => '<blockquote class="md-quote-block">';
+
+    // Extract math expressions into placeholders so the client-side Vue
+    // can hydrate them (and provide MathTooltip interactivity).
+    const blockMath: string[] = [];
+    const inlineMath: string[] = [];
+    const ESC_DOLLAR = '__ESC_DOLLAR__';
+
+    let source = markdown.replace(/\\\$/g, ESC_DOLLAR);
+
+    source = source.replace(/\\\[([\s\S]+?)\\\]/g, (_m, tex: string) => {
+      const i = blockMath.push(tex.trim()) - 1;
+      return `\n\n@@MATH_BLOCK_${i}@@\n\n`;
+    });
+
+    source = source.replace(/\$\$([\s\S]+?)\$\$/g, (_m, tex: string) => {
+      const i = blockMath.push(tex.trim()) - 1;
+      return `\n\n@@MATH_BLOCK_${i}@@\n\n`;
+    });
+
+    source = source.replace(/\\\(([\s\S]+?)\\\)/g, (_m, tex: string) => {
+      const i = inlineMath.push(tex.trim()) - 1;
+      return `@@MATH_INLINE_${i}@@`;
+    });
+
+    source = source.replace(/(?<!\\)\$([^$\n]+?)\$/g, (_m, tex: string) => {
+      const cleaned = tex.trim();
+      if (!cleaned) return _m;
+      const i = inlineMath.push(cleaned) - 1;
+      return `@@MATH_INLINE_${i}@@`;
+    });
+
+    source = source.replaceAll(ESC_DOLLAR, '$');
+
+    function splitMarkdownPreservingFences(text: string): string[] {
+      const lines = text.split(/\n/);
+      const blocks: string[] = [];
+      let current: string[] = [];
+      let inFence = false;
+      let fenceMarker = '';
+
+      const flushCurrent = () => {
+        const block = current.join('\n').trimEnd();
+        if (block.trim()) {
+          blocks.push(block);
+        }
+        current = [];
+      };
+
+      for (const line of lines) {
+        const fenceMatch = line.match(/^\s*(```+|~~~+)\s*([^`]*)$/);
+        if (fenceMatch) {
+          const marker = fenceMatch[1];
+          if (!inFence) {
+            flushCurrent();
+            inFence = true;
+            fenceMarker = marker.slice(0, 3);
+            current.push(line);
+            continue;
+          }
+
+          current.push(line);
+          if (marker.startsWith(fenceMarker)) {
+            inFence = false;
+            fenceMarker = '';
+            flushCurrent();
+          }
+          continue;
+        }
+
+        if (inFence) {
+          current.push(line);
+          continue;
+        }
+
+        if (/^\s*$/.test(line)) {
+          flushCurrent();
+          continue;
+        }
+
+        current.push(line);
+      }
+
+      flushCurrent();
+      return blocks;
+    }
+
+    // Split into blocks while keeping fenced code blocks atomic.
+    const parts = splitMarkdownPreservingFences(source);
+    const renderedBlocks: string[] = [];
+
+    for (let i = 0; i < parts.length; i++) {
+      try {
+        const part = parts[i];
+        const trimmed = part.trim();
+
+        // Render this chunk to HTML
+        try {
+          let htmlBlock = md.render(part);
+
+          // If the chunk is a fenced code block, preserve it as a single content-block.
+          if (/^\s*```/.test(trimmed) || /^\s*~~~/.test(trimmed)) {
+            try {
+              const fenceMatch = trimmed.match(/^\s*(```+|~~~+)\s*([^\n]*)\n([\s\S]*?)\n\1\s*$/);
+              if (fenceMatch) {
+                const info = fenceMatch[2].trim();
+                const lang = info.split(/\s+/g)[0] || 'plain';
+                const code = fenceMatch[3] || '';
+                const lines = code.split('\n').length || 1;
+                const lineHeight = 20;
+                const height = Math.max(80, Math.min(360, lines * lineHeight + 24));
+                const safeLang = escapeHtml(lang || 'plain');
+                const highlightedCode = highlightCode(code, lang);
+
+                const chunkHtml = `
+                  <div class="code-chunk-container">
+                    <div class="editor-header">
+                      <div class="header-left">
+                        <select class="language-selector transparent-select" title="${safeLang}" disabled style="font-family: var(--app-font-stack);">
+                          <option value="${safeLang}" selected>${safeLang}</option>
+                        </select>
+                      </div>
+                      <div class="toolbar">
+                        <button class="icon-btn copy-btn" title="Copy" data-code="${escapeHtml(code)}" onclick="copyCode(this)">
+                          <svg class="copy-icon" width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="7" y="7" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.5"></rect><rect x="4" y="4" width="9" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"></rect></svg>
+                          <svg class="success-icon" width="18" height="18" viewBox="0 0 20 20" fill="none" style="display: none;"><path d="M4 10l3 3 9-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                        </button>
+                      </div>
+                    </div>
+                    <div class="editor-wrapper" style="height: ${height}px;">
+                      <div class="editor-content">
+                        <pre class="syntax-highlight" style="padding: 0.7rem 1.5rem 1.2rem 1.5rem; font-size: 13.5px; line-height: 1.3em; font-family: inherit; box-sizing: border-box;"><code>${highlightedCode}</code></pre>
+                        <textarea class="code-textarea" spellcheck="false" placeholder="" readonly >${escapeHtml(code)}</textarea>
+                      </div>
+                    </div>
+                    <div class="editor-footer"><span><span>${escapeHtml(String(code.length))} 字符</span> &nbsp;|&nbsp; <span>${lines} 行</span></span></div>
+                  </div>
+                `;
+
+                renderedBlocks.push(`<div class="content-block" data-block-index="${renderedBlocks.length}" data-type="code" data-language="${safeLang}">${chunkHtml}</div>`);
+                continue;
+              }
+            } catch (codeErr) {
+              console.warn(`[Post SSR] Code block render failed in ${contextLabel}`, {
+                blockIndex: i,
+                preview: trimmed.slice(0, 120),
+                error: codeErr,
+              });
+              renderedBlocks.push(`<div class="content-block" data-block-index="${renderedBlocks.length}"><pre class="code-placeholder md-placeholder">代码块解析失败</pre></div>`);
+              continue;
+            }
+          }
+
+          // Replace math placeholders with katex-placeholder elements (client will hydrate)
+          htmlBlock = htmlBlock.replace(/@@MATH_BLOCK_(\d+)@@/g, (_m, idx) => {
+            try {
+              const tex = blockMath[Number(idx)] || '';
+              if (!tex) return '';
+              try {
+                // Try to render KaTeX on the server during SSR
+                const rendered = katex.renderToString(tex, { throwOnError: false, displayMode: true });
+                return wrapRenderedKatex(tex, true, rendered);
+              } catch (e) {
+                // Fallback: include escaped TeX inside a visible placeholder
+                const uid = `math-${Date.now()}-${Math.random().toString(36).substr(2,9)}`;
+                return `<div class="katex-placeholder katex-interactive" data-tex="${escapeHtml(tex)}" data-type="block" data-unique-id="${uid}">${escapeHtml(tex)}</div>`;
+              }
+            } catch (e) {
+              return `<div class="md-placeholder">数学公式解析失败</div>`;
+            }
+          });
+          htmlBlock = htmlBlock.replace(/@@MATH_INLINE_(\d+)@@/g, (_m, idx) => {
+            try {
+              const tex = inlineMath[Number(idx)] || '';
+              if (!tex) return '';
+              try {
+                const rendered = katex.renderToString(tex, { throwOnError: false, displayMode: false });
+                return wrapRenderedKatex(tex, false, rendered);
+              } catch (e) {
+                const uid = `math-${Date.now()}-${Math.random().toString(36).substr(2,9)}`;
+                return `<span class="katex-placeholder katex-interactive" data-tex="${escapeHtml(tex)}" data-type="inline" data-unique-id="${uid}">${escapeHtml(tex)}</span>`;
+              }
+            } catch (e) {
+              return `<span class="md-placeholder">数学</span>`;
+            }
+          });
+
+          // Rewrite media links with error handling
+          try {
+            htmlBlock = rewriteMediaLinks(htmlBlock);
+          } catch (linkErr) {
+            // If media rewriting fails, keep original HTML
+          }
+
+          renderedBlocks.push(`<div class="content-block" data-block-index="${renderedBlocks.length}">${htmlBlock}</div>`);
+        } catch (renderErr) {
+          // Markdown rendering failed, show fallback
+          console.warn(`[Post SSR] Markdown block render failed in ${contextLabel}`, {
+            blockIndex: i,
+            preview: trimmed.slice(0, 120),
+            error: renderErr,
+          });
+          renderedBlocks.push(`<div class="content-block" data-block-index="${renderedBlocks.length}"><div class="md-placeholder">内容解析失败</div></div>`);
+        }
+      } catch (blockErr) {
+        // Block processing failed, continue to next block
+        console.warn(`[Post SSR] Markdown block processing failed in ${contextLabel}`, {
+          blockIndex: i,
+          error: blockErr,
+        });
+        renderedBlocks.push(`<div class="content-block" data-block-index="${renderedBlocks.length}"><div class="md-placeholder">部分内容无法解析</div></div>`);
+      }
+    }
+
+    return renderedBlocks.join('\n');
+  } catch (globalErr) {
+    // Global render failure, return minimal fallback
+    console.error(`[Post SSR] Markdown rendering failed for ${contextLabel}`, globalErr);
+    return `<div class="content-block"><div class="md-placeholder">文章内容解析失败，请稍后重试</div></div>`;
+  }
+}
+
+export async function getStaticPaths() {
+  try {
+    const res = await fetch(getApiUrl('/api/posts', true), { cache: 'no-store' });
+    if (res.ok) {
+      const responseText = await res.text();
+      let posts: any[] = [];
+
+      try {
+        const data = JSON.parse(responseText);
+        posts = Array.isArray(data) ? data : (data.posts || []);
+      } catch (parseError) {
+        const jsonMatch = responseText.match(/\[.*\]/);
+        if (jsonMatch) {
+          try {
+            posts = JSON.parse(jsonMatch[0]);
+          } catch (e) {
+            console.error('[Build] Manual JSON parse error:', e);
+          }
+        }
+      }
+
+      return posts.flatMap((post: any) => ([
+        { params: { lang: 'zh', id: String(post.id) } },
+        { params: { lang: 'en', id: String(post.id) } },
+      ]));
+    }
+  } catch (err) {
+    console.error('[Build] Failed to fetch posts for static paths:', err);
+  }
+
+  return [];
+}
+
+const routeLang = Astro.params.lang === 'en' ? 'en' : 'zh';
+const locale = toContentLocale(routeLang);
+const backToBlogs = buildLocalizedPath(routeLang, '/blogs');
+const searchForTags = buildLocalizedPath(routeLang, '/search?tags=');
+const t = (key: string) => getTranslation(locale, key);
+const { id } = Astro.params;
+
+let post: any = null;
+let error = null;
+let settings: Record<string, any> = {};
+
+try {
+  const postApiUrl = getApiUrl(`/api/post?id=${id}`, true);
+  
+  // 首先尝试主API获取settings
+  try {
+    const settingsRes = await fetch(getApiUrl('/api/settings?t=' + Date.now(), true), {
+      cache: 'no-store',
+    });
+    if (settingsRes.ok) {
+      settings = await settingsRes.json();
+      console.log('[Post Detail] Settings loaded from main API:', settings);
+      console.log('[Post Detail] Frontend background:', settings.frontendBackground);
+    }
+  } catch (e) {
+    console.error('[Post Detail] Failed to fetch settings from main API:', e);
+  }
+  
+  // 如果主API失败或没有数据，尝试public API作为后备
+  if (!settings || Object.keys(settings).length === 0) {
+    try {
+      const settingsRes = await fetch(getApiUrl('/api/public/settings?t=' + Date.now(), true), {
+        cache: 'no-store',
+      });
+      if (settingsRes.ok) {
+        settings = await settingsRes.json();
+        console.log('[Post Detail] Settings loaded from public API:', settings);
+        console.log('[Post Detail] Frontend background:', settings.frontendBackground);
+      }
+    } catch (e) {
+      console.error('[Post Detail] Failed to fetch settings from public API:', e);
+    }
+  }
+  
+  // 获取帖子内容
+  const postRes = await fetch(postApiUrl, { cache: 'no-store' });
+
+  if (postRes.ok) {
+    const responseText = await postRes.text();
+    try {
+      post = JSON.parse(responseText);
+      if (post && post.id && !post.content && post.html) {
+        post.content = post.html;
+      }
+    } catch (parseError) {
+      let fixedJson = responseText.replace(/("[^"]+")(?="[^"]+")/g, '$1,');
+      try {
+        post = JSON.parse(fixedJson);
+        if (post && post.id && !post.content && post.html) {
+          post.content = post.html;
+        }
+      } catch (secondError) {
+        try {
+          const idMatch = responseText.match(/"id":"([^"]+)"/);
+          const titleMatch = responseText.match(/"title":"([^"]+)"/);
+          const dateMatch = responseText.match(/"date":"([^"]+)"/);
+          const tagsMatch = responseText.match(/"tags":\[([^\]]+)\]/);
+          const contentMatch = responseText.match(/"content":"([^"]*)"/);
+          const htmlMatch = responseText.match(/"html":"([^"]*)"/);
+
+          if (idMatch && titleMatch) {
+            post = {
+              id: idMatch[1],
+              title: titleMatch[1],
+              date: dateMatch ? dateMatch[1] : new Date().toISOString(),
+              tags: tagsMatch ? tagsMatch[1].replace(/"/g, '').split(',') : [],
+              content: contentMatch ? contentMatch[1] : (htmlMatch ? htmlMatch[1] : ''),
+            };
+          } else {
+            error = 'Post not found';
+          }
+        } catch (manualError) {
+          error = 'Post not found';
+        }
+      }
+    }
+  } else {
+    error = postRes.status === 404 ? 'Post not found' : `Failed to load post (${postRes.status})`;
+  }
+} catch (err) {
+  error = 'Failed to load post detail';
+}
+
+if (!post && !error) {
+  error = 'Post not found';
+}
+
+let pageTitle = 'Post not found - Chronicle';
+if (post && post.title) {
+  pageTitle = `${post.title} - Chronicle`;
+}
+
+const createdAtText = post ? new Date(post.date).toLocaleDateString(locale) : '';
+const updatedAtText = post && post.updatedAt && post.updatedAt !== post.date
+  ? new Date(post.updatedAt).toLocaleDateString(locale)
+  : '';
+
+// 计算字数和阅读时间
+let wordCount = 0;
+let readingTime = 0;
+
+if (post && post.content) {
+  // 移除HTML标签，只统计纯文本字数
+  const textContent = post.content.replace(/<[^>]*>/g, '').trim();
+  
+  // 中文字数统计（每个中文字符算1个字）
+  const chineseChars = (textContent.match(/[\u4e00-\u9fa5]/g) || []).length;
+  
+  // 英文单词统计（按空格分隔）
+  const englishWords = textContent.replace(/[\u4e00-\u9fa5]/g, '').trim();
+  const englishWordCount = englishWords ? englishWords.split(/\s+/).length : 0;
+  
+  // 总字数（中文字数 + 英文单词数）
+  wordCount = chineseChars + englishWordCount;
+  
+  // 阅读时间估算（中文：300字/分钟，英文：200字/分钟）
+  const chineseReadingTime = chineseChars / 300;
+  const englishReadingTime = englishWordCount / 200;
+  readingTime = Math.ceil(chineseReadingTime + englishReadingTime);
+  
+  // 最少1分钟
+  if (readingTime < 1) readingTime = 1;
+}
+
+// 获取作者名和AI生成标记
+const authorName = post?.author || settings?.authorName || 'Eightyfor';
+const isAI = post?.aiGenerated || false;
+
+const rawPostContent = typeof post?.content === 'string' ? post.content : '';
+const hasKatexSyntax = /(?:\$\$[\s\S]+?\$\$|\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\]|(?<!\\)\$[^$\n]+\$)/.test(rawPostContent);
+const looksLikeHtml = !hasKatexSyntax && /<\/?(?:p|div|span|table|thead|tbody|tr|td|th|blockquote|pre|code|img|ul|ol|li|h[1-6])\b/i.test(rawPostContent);
+const renderContextLabel = `${post?.id || id || 'unknown-id'}${post?.title ? `:${post.title}` : ''}`;
+const tocItems = buildTocItems(rawPostContent, looksLikeHtml, post?.toc);
+
+let renderedPostContent = rawPostContent;
+if (rawPostContent) {
+  console.info('[Post SSR] Rendering post content', {
+    context: renderContextLabel,
+    length: rawPostContent.length,
+    hasKatexSyntax,
+    looksLikeHtml,
+  });
+  try {
+    renderedPostContent = looksLikeHtml
+      ? hydrateLegacyKatexPlaceholders(rawPostContent, renderContextLabel)
+      : renderStaticMarkdown(rawPostContent, renderContextLabel);
+    renderedPostContent = injectHeadingIds(renderedPostContent, tocItems);
+  } catch (renderErr) {
+    // If rendering fails completely, fall back to escaped raw content
+    console.error('[Post SSR] Rendering failed:', renderContextLabel, renderErr);
+    renderedPostContent = `<div class="md-placeholder">文章内容渲染失败</div><pre style="margin-top:1rem; padding: 1rem; background: var(--component-bg-primary); border-radius: 4px; overflow-x: auto; font-size: 12px;">${escapeHtml(rawPostContent.substring(0, 500))}</pre>`;
+  }
+}
+---
+
+<Layout title={pageTitle} settings={settings} locale={locale} navTitle={post?.title} navBackHref={backToBlogs} navBackLabel={t('inblog.backToBlogs')}>
+  <div class="post-detail-container" id="post-top">
+    {error ? (
+      <div class="error-container">
+        <h1>Post not found</h1>
+        <p>{error}</p>
+        <a href={backToBlogs} class="back-link" aria-label="Back to blogs">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            {t('inblog.backToBlogs')}
+        </a>
+      </div>
+    ) : post ? (
+      <article class={`post-content font-${post.font || 'sans'}`}>
+        <nav class="post-nav">
+          <a href={backToBlogs} class="nav-back" aria-label="Back to blogs">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            {t('inblog.backToBlogs')}
+          </a>
+        </nav>
+
+        <header class="post-header">
+          <h1 class="post-title">{post.title}</h1>
+
+          <div class="post-meta">
+            <!-- 第一行：作者和创建修改时间 -->
+            <div class="meta-row">
+              <span class="meta-item" title={`Author: ${authorName}`} aria-label={`Author: ${authorName}`}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                <span class="meta-value">{authorName}</span>
+              </span>
+              <span class="meta-item" title={createdAtText} aria-label={`Created ${createdAtText}`}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                <span class="meta-label">{t('inblog.created')}</span>
+                <time datetime={new Date(post.date).toISOString()}>{createdAtText}</time>
+              </span>
+              {updatedAtText && (
+                <span class="meta-item" title={updatedAtText} aria-label={`Updated ${updatedAtText}`}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+                  <span class="meta-label">{t('inblog.updated')}</span>
+                  <time datetime={new Date(post.updatedAt).toISOString()}>{updatedAtText}</time>
+                </span>
+              )}
+            </div>
+
+            <!-- 第二行：字数和阅读时间 -->
+            <div class="meta-row">
+              {wordCount > 0 && (
+                <span class="meta-item" title={`${wordCount} words`} aria-label={`${wordCount} words`}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14,2 14,8 20,8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10,9 9,9 8,9"></polyline></svg>
+                  <span class="meta-label">{t('inblog.words')}</span>
+                  <span class="meta-value">{wordCount.toLocaleString()}</span>
+                </span>
+              )}
+              {readingTime > 0 && (
+                <span class="meta-item" title={`${readingTime} minutes read`} aria-label={`${readingTime} minutes read`}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12,6 12,12 16,14"></polyline></svg>
+                  <span class="meta-label">{t('inblog.readingTime')}</span>
+                  <span class="meta-value">{readingTime} {t('inblog.min')}</span>
+                </span>
+              )}
+            </div>
+
+            <!-- 第三行：AI生成标记（如果有） -->
+            {isAI && (
+              <div class="meta-row">
+                <span class="meta-item warning" title="AI Generated Content" aria-label="AI Generated Content">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                  <span class="meta-label">{t('inblog.aiGeneratedTip')}</span>
+                </span>
+              </div>
+            )}
+
+            {post.tags && post.tags.length > 0 && (
+              <div class="post-tags">
+                {post.tags.map((tag: string) => (
+                <a href={searchForTags + encodeURIComponent(tag)} class="tag-link" aria-label={`Search for tag ${tag}`}>
+                  <span class="tag" class:list={[{ featured: tag === 'featured' || tag === '精选' }]} >
+                    {tag}
+                  </span>
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        </header>
+
+        {tocItems.length > 0 && (
+          <details class="markdown-toc">
+            <summary class="toc-summary" aria-label={t('inblog.toc-title')}>
+              <span class="toc-title">{t('inblog.toc-title')}</span>
+              <svg class="toc-toggle-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </summary>
+            <div class="toc-body">
+              <ul class="toc-list">
+                {tocItems.map((item) => (
+                  <li class={`toc-level-${item.level}`}>
+                    <a href={`#${item.id}`}>
+                      <span class="toc-text">{item.text}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </details>
+        )}
+
+        <div class="post-body">
+          <div class="markdown-content" set:html={renderedPostContent} />
+        </div>
+      </article>
+    ) : null}
+  </div>
+
+  {tocItems.length > 0 && (
+    <>
+      <DesktopFloatingToc
+        client:idle
+        toc={tocItems}
+        navLabel={t('inblog.toc-title')}
+        mountToBody={true}
+      />
+      <MobileTocPanel client:idle toc={tocItems} />
+    </>
+  )}
+
+  <CornerActions client:idle />
+
+  <style is:global>
+    @media (max-width: 768px) {
+      .post-detail-container {
+        padding: 1rem 0.5rem;
+      }
+
+      .post-title {
+        font-size: 2rem;
+      }
+
+      .meta-row {
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+    }
+    
+
+  </style>
+
+  <script>
+    // 复制代码功能 - 参考CodeChunk.vue实现
+    async function copyCode(button: HTMLElement) {
+      const code = button.getAttribute('data-code');
+      if (!code) return;
+      
+      try {
+        // 尝试使用现代 Clipboard API
+        await navigator.clipboard.writeText(code);
+        showCopySuccess(button);
+      } catch (err) {
+        // 备用方案：使用传统的复制方法
+        const textArea = document.createElement('textarea');
+        textArea.value = code;
+        document.body.appendChild(textArea);
+        textArea.select();
+        
+        try {
+          const successful = document.execCommand('copy');
+          if (successful) {
+            showCopySuccess(button);
+          }
+        } catch (backupErr) {
+          console.error('复制失败:', backupErr);
+        } finally {
+          document.body.removeChild(textArea);
+        }
+      }
+    }
+    
+    // 显示复制成功状态
+    function showCopySuccess(button: HTMLElement) {
+      const copyIcon = button.querySelector('.copy-icon') as HTMLElement;
+      const successIcon = button.querySelector('.success-icon') as HTMLElement;
+      
+      if (copyIcon) copyIcon.style.display = 'none';
+      if (successIcon) successIcon.style.display = 'block';
+      button.classList.add('success');
+      
+      // 1.5秒后恢复原状
+      setTimeout(() => {
+        if (copyIcon) copyIcon.style.display = 'block';
+        if (successIcon) successIcon.style.display = 'none';
+        button.classList.remove('success');
+      }, 1500);
+    }
+    
+    let copyClickBound = false;
+
+    function initPostPageFeatures() {
+      import('../../../utils/mathTooltip').then(({ initMathTooltip }) => {
+        initMathTooltip();
+      }).catch((err) => {
+        console.error('初始化数学公式 tooltip 失败:', err);
+      });
+
+      // 初始化复制按钮
+      const copyButtons = document.querySelectorAll('.copy-btn');
+      copyButtons.forEach(button => {
+        const copyIcon = button.querySelector('.copy-icon') as HTMLElement;
+        const successIcon = button.querySelector('.success-icon') as HTMLElement;
+
+        if (copyIcon) copyIcon.style.display = 'block';
+        if (successIcon) successIcon.style.display = 'none';
+      });
+
+      if (!copyClickBound) {
+        document.addEventListener('click', function(event) {
+          const target = event.target as HTMLElement;
+          const copyBtn = target.closest('.copy-btn') as HTMLElement;
+
+          if (copyBtn) {
+            copyCode(copyBtn);
+          }
+        });
+        copyClickBound = true;
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initPostPageFeatures, { once: true });
+    } else {
+      initPostPageFeatures();
+    }
+
+    document.addEventListener('astro:page-load', initPostPageFeatures);
+    
+    // Mermaid图表渲染函数（占位符，实际在服务端预渲染）
+    function renderMermaidDiagrams() {
+      // Mermaid图表已在服务端预渲染，客户端无需处理
+      console.log('Mermaid图表已在服务端预渲染');
+    }
+  </script>
+
+</Layout>

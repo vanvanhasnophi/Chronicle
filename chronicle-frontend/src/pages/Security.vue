@@ -3,7 +3,7 @@
     <h2>{{ $t('security.title') }}</h2>
     
     <div class="card highlight-card">
-        <h3 style="margin-top: 5px;">{{ $t('security.verificationTitle') }}</h3>
+        <h3>{{ $t('security.verificationTitle') }}</h3>
         <p class="hint">{{ $t('security.verificationHint') }}</p>
         
         <div v-if="verificationCode" class="code-display">
@@ -14,7 +14,7 @@
     </div>
 
     <div class="card">
-      <h3 style="margin-top: 5px;">{{ $t('security.changePasswordTitle') }}</h3>
+      <h3>{{ $t('security.changePasswordTitle') }}</h3>
       
       <div class="form-group">
         <label>{{ $t('security.currentPassword') }}</label>
@@ -41,7 +41,7 @@
     </div>
 
     <div class="card">
-      <h3 style="margin-top: 5px;">{{ $t('security.twoFactorTitle') }}</h3>
+      <h3>{{ $t('security.twoFactorTitle') }}</h3>
       <p class="hint">{{ $t('security.twoFactorHint') }}</p>
       
       <button @click="registerPasskey" :disabled="regLoading" class="secondary-btn">
@@ -68,7 +68,7 @@
     </div>
 
     <div class="card logout-card">
-      <h3 style="margin-top: 5px;">{{ $t('security.session') }}</h3>
+      <h3>{{ $t('security.session') }}</h3>
       <button class="logout-btn" @click="logout">{{ $t('security.logout') }}</button>
     </div>
   </div>
@@ -106,7 +106,7 @@ let timerInterval: any = null
 
 const generateCode = async () => {
     try {
-        const res = await fetch('/api/auth/code/generate')
+        const res = await fetch(`/api/auth/code/generate?t=${Date.now()}`)
         const data = await res.json()
         if (data.code) {
             verificationCode.value = data.code
@@ -136,12 +136,12 @@ const passkeys = ref<Passkey[]>([])
 const verifyPasskey = async () => {
     try {
             message.value = t('security.verifying')
-        const resp = await fetch('/api/auth/passkey/login/options', { method: 'POST' })
+        const resp = await fetch(`/api/auth/passkey/login/options?t=${Date.now()}`, { method: 'POST' })
         const options = await resp.json()
         
         const authResp = await startAuthentication(options)
         
-        const verResp = await fetch('/api/auth/passkey/login/verify', {
+        const verResp = await fetch(`/api/auth/passkey/login/verify?t=${Date.now()}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ response: authResp })
@@ -172,7 +172,7 @@ const changePassword = async (tokenOrEvent?: string | Event) => {
   message.value = ''
 
   try {
-    const res = await fetch('/api/auth/change', {
+    const res = await fetch(`/api/auth/change?t=${Date.now()}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -224,12 +224,12 @@ const registerPasskey = async () => {
     regLoading.value = true
     regMessage.value = ''
     try {
-        const resp = await fetch('/api/auth/passkey/register/options', { method: 'POST' })
+        const resp = await fetch(`/api/auth/passkey/register/options?t=${Date.now()}`, { method: 'POST' })
         const options = await resp.json()
         
         const attResp = await startRegistration(options)
         
-        const verResp = await fetch('/api/auth/passkey/register/verify', {
+        const verResp = await fetch(`/api/auth/passkey/register/verify?t=${Date.now()}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ response: attResp })
@@ -259,7 +259,7 @@ const registerPasskey = async () => {
 
 const fetchPasskeys = async () => {
     try {
-        const res = await fetch('/api/auth/passkeys')
+        const res = await fetch(`/api/auth/passkeys?t=${Date.now()}`)
         if (res.ok) {
           passkeys.value = await res.json()
         }
@@ -271,7 +271,7 @@ const fetchPasskeys = async () => {
 const deletePasskey = async (id: string) => {
     if (!confirm(t('security.confirmDeletePasskey'))) return;
     try {
-        const res = await fetch(`/api/auth/passkeys/${id}`, { method: 'DELETE' })
+        const res = await fetch(`/api/auth/passkeys/${id}?t=${Date.now()}`, { method: 'DELETE' })
         if (res.ok) {
             fetchPasskeys()
         }
@@ -285,7 +285,7 @@ const renamePasskey = async (id: string, currentName: string) => {
     if (!newName || newName === currentName) return;
     
     try {
-        const res = await fetch(`/api/auth/passkeys/${id}`, {
+        const res = await fetch(`/api/auth/passkeys/${id}?t=${Date.now()}`, {
             method: 'PATCH',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ name: newName })
@@ -310,9 +310,9 @@ onMounted(() => {
   padding: 2rem;
 }
 .card {
-  background: var(--bg-secondary);
+  background: var(--component-bg-blur);
   padding: 2rem;
-  border-radius: 8px;
+  border-radius: 12px;
   border: 1px solid var(--border-color);
   margin-bottom: 2rem;
 }
@@ -444,6 +444,10 @@ button:disabled {
     text-align: center;
     font-size: 1em;
   color: var(--component-text-secondary);
+}
+
+h3{
+  margin-top: 5px;
 }
 
 </style>

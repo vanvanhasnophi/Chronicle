@@ -1,0 +1,40 @@
+---
+import { getLocale } from "../utils/i18n";
+
+// 获取当前语言设置
+const locale = getLocale(Astro.locals);
+const routePrefix = locale === "zh-CN" ? "/zh" : "/en";
+
+// 构建基本重定向路径（不包含查询参数）
+const baseRedirectPath = `${routePrefix}/blogs`;
+
+// 使用meta标签进行立即重定向，用户看不到任何页面
+---
+
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Redirecting to Blogs</title>
+    <!-- 立即重定向，用户看不到任何页面 -->
+    <meta http-equiv="refresh" content={`0;url=${baseRedirectPath}`} />
+  </head>
+  <body>
+    <!-- 备用重定向，使用客户端JavaScript获取查询参数 -->
+    <script>
+      // 获取当前URL的查询参数
+      const searchParams = window.location.search;
+      const routePrefix = window.location.pathname.includes('/zh') ? '/zh' : '/en';
+      
+      // 构建完整重定向路径
+      const redirectPath = `${routePrefix}/blogs${searchParams}`;
+      
+      // 立即重定向
+      window.location.replace(redirectPath);
+    </script>
+    <!-- 最终备用方案 -->
+    <div style="display:none;">
+      <p>If you are not redirected, <a href={baseRedirectPath}>click here</a>.</p>
+    </div>
+  </body>
+</html>

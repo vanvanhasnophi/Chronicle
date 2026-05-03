@@ -840,8 +840,7 @@ watch(() => props.language, (n) => {
   font-size: 13.5px;
   line-height: 1.7em;
   overflow: auto;
-  white-space: pre-wrap;
-  word-wrap: break-word;
+  white-space: nowrap;
   tab-size: 2;
   vertical-align: top;
 }
@@ -932,12 +931,11 @@ watch(() => props.language, (n) => {
   font-family: inherit;
   font-size: 13.5px;
   line-height: 1.3em;
+  overflow-wrap: nowrap !important;
   overflow: auto;
-  pointer-events: none;
-  white-space: pre-wrap;
-  word-wrap: break-word;
   tab-size: 2;
   vertical-align: top;
+  z-index: 0;
 }
 .code-textarea {
   position: absolute;
@@ -956,13 +954,13 @@ watch(() => props.language, (n) => {
   font-size: 13.5px;
   line-height: 1.3em;
   overflow: auto;
-  white-space: pre-wrap;
-  word-wrap: break-word;
+  white-space: nowrap;
   tab-size: 2;
   vertical-align: top;
+  z-index: 1;
 }
 .code-textarea:read-only {
-  cursor: default;
+  display:  none;
 }
 .editor-footer {
   color: var(--component-text-secondary);
@@ -976,9 +974,16 @@ watch(() => props.language, (n) => {
 .syntax-highlight::-webkit-scrollbar,
 .code-textarea::-webkit-scrollbar {
   cursor: default;
-  width: 12px;
-  height: 12px;
+  width: 8px;
+  height: 8px;
 }
+
+
+.syntax-highlight::-webkit-scrollbar-corner,
+.code-textarea::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 .syntax-highlight::-webkit-scrollbar-track,
 .code-textarea::-webkit-scrollbar-track {
   background: transparent;
@@ -988,6 +993,15 @@ watch(() => props.language, (n) => {
   background: var(--component-bg-active);
   border-radius: 6px;
 }
+
+.code-textarea:not(:read-only) .syntax-highlight::-webkit-scrollbar-thumb{
+  background: transparent;
+}
+
+.code-textarea:not(:read-only) .syntax-highlight::-webkit-scrollbar-thumb:hover{
+  background: transparent;
+}
+
 .syntax-highlight::-webkit-scrollbar-thumb:hover,
 .code-textarea::-webkit-scrollbar-thumb:hover {
   background: var(--component-text-secondary);

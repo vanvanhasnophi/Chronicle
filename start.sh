@@ -20,8 +20,8 @@ else
     npm start -- "$@" &
 fi
 
-# 2. Start Frontend
-echo "[System] Starting Frontend (Vite)..."
+# 2. Start CMS (Vue Backend)
+echo "[System] Starting CMS (Vite)..."
 
 # Create symlink for faster image serving (bypassing Node proxy)
 echo "[System] Optimizing static assets..."
@@ -32,10 +32,35 @@ fi
 
 cd /opt/Chronicle/chronicle-frontend
 if [ ! -d "node_modules" ]; then
-    echo "Installing frontend dependencies..."
+    echo "Installing CMS dependencies..."
     npm install
 fi
-npm run dev -- --host 0.0.0.0 &
+npm run dev -- --host 0.0.0.0 --port 5173 &
+
+# 3. Start Frontend (Astro)
+echo "[System] Starting Frontend (Astro)..."
+
+# Create symlink for Astro public as well
+mkdir -p /opt/Chronicle/astro-frontend/public/server/data
+if [ ! -L "/opt/Chronicle/astro-frontend/public/server/data/upload" ]; then
+    ln -s /opt/Chronicle/server/data/upload /opt/Chronicle/astro-frontend/public/server/data/upload
+fi
+
+cd /opt/Chronicle/astro-frontend
+if [ ! -d "node_modules" ]; then
+    echo "Installing Astro dependencies..."
+    npm install
+fi
+
+if [[ "$*" == *"--dev"* ]]; then
+    # Dev mode: Slower secondary navigation due to live compilation
+    npm run dev -- --host 0.0.0.0 --port 4321 &
+else
+    # Prod mode: Instant secondary navigation
+    echo "[System] Building Astro for Production speed..."
+    npm run build
+    HOST=0.0.0.0 PORT=4321 npm run preview -- --host 0.0.0.0 --port 4321 &
+fi
 
 # Wait for all background processes
 wait
