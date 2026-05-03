@@ -11,6 +11,10 @@ WEB_ROOT_DEFAULT="${WEB_ROOT:-/var/www/blog.eightyfor.top}"
 NGINX_CONFIG_DIR="/etc/nginx/sites-available"
 BLOG_DOMAIN_DEFAULT="${BLOG_DOMAIN:-blog.eightyfor.top}"
 
+# 参数记忆配置
+CONFIG_DIR="${HOME}/.config/chronicle"
+CONFIG_FILE="$CONFIG_DIR/install.conf"
+
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 RED='\033[0;31m'
@@ -46,6 +50,35 @@ prompt_default() {
     value="$default_value"
   fi
   printf -v "$var_name" '%s' "$value"
+}
+
+command_exists() { command -v "$1" >/dev/null 2>&1; }
+
+save_config() {
+  local install_dir="$1"
+  local blog_domain="$2"
+  local web_root="$3"
+  
+  mkdir -p "$CONFIG_DIR"
+  cat > "$CONFIG_FILE" <<EOF
+INSTALL_DIR="$install_dir"
+BLOG_DOMAIN="$blog_domain"
+WEB_ROOT="$web_root"
+REPO_BRANCH="$REPO_BRANCH"
+SAVED_AT="$(date -Iseconds)"
+EOF
+  log INFO "配置已保存到: $CONFIG_FILE"
+}
+
+load_config() {
+  if [[ -f "$CONFIG_FILE" ]]; then
+    log INFO "加载保存的配置..."
+    source "$CONFIG_FILE"
+    INSTALL_DIR_DEFAULT="${INSTALL_DIR:-$INSTALL_DIR_DEFAULT}"
+    BLOG_DOMAIN_DEFAULT="${BLOG_DOMAIN:-$BLOG_DOMAIN_DEFAULT}"
+    WEB_ROOT_DEFAULT="${WEB_ROOT:-$WEB_ROOT_DEFAULT}"
+    REPO_BRANCH="${REPO_BRANCH:-main}"
+  fi
 }
 
 command_exists() { command -v "$1" >/dev/null 2>&1; }
@@ -92,20 +125,20 @@ install_base_packages() {
   log INFO "安装基础依赖 (${pm})..."
   case "$pm" in
     apt-get)
-      root_exec apt-get update
-      root_exec env DEBIAN_FRONTEND=noninteractive apt-get install -y git curl rsync tar ca-certificates build-essential python3
+      root_exec apt-get update >/dev/null 2>&1 || die "[ERROR] apt-get 更新失败"
+      root_exec env DEBIAN_FRONTEND=noninteractive apt-get install -y git curl rsync tar ca-certificates build-essential python3 >/dev/null 2>&1 || die "[ERROR] 依赖安装失败"
       ;;
     dnf)
-      root_exec dnf install -y git curl rsync tar ca-certificates gcc-c++ make python3
+      root_exec dnf install -y git curl rsync tar ca-certificates gcc-c++ make python3 >/dev/null 2>&1 || die "[ERROR] 依赖安装失败"
       ;;
     yum)
-      root_exec yum install -y git curl rsync tar ca-certificates gcc-c++ make python3
+      root_exec yum install -y git curl rsync tar ca-certificates gcc-c++ make python3 >/dev/null 2>&1 || die "[ERROR] 依赖安装失败"
       ;;
     pacman)
-      root_exec pacman -Sy --noconfirm git curl rsync tar ca-certificates base-devel python
+      root_exec pacman -Sy --noconfirm git curl rsync tar ca-certificates base-devel python >/dev/null 2>&1 || die "[ERROR] 依赖安装失败"
       ;;
     zypper)
-      root_exec zypper --non-interactive install git curl rsync tar ca-certificates gcc-c++ make python3
+      root_exec zypper --non-interactive install git curl rsync tar ca-certificates gcc-c++ make python3 >/dev/null 2>&1 || die "[ERROR] 依赖安装失败"
       ;;
   esac
 }
@@ -132,26 +165,26 @@ install_nodejs() {
   log INFO "安装 Node.js 20.x..."
   case "$pm" in
     apt-get)
-      curl -fsSL https://deb.nodesource.com/setup_20.x | root_exec bash -
-      root_exec env DEBIAN_FRONTEND=noninteractive apt-get install -y nodejs
+      curl -fsSL https://deb.nodesource.com/setup_20.x 2>/dev/null | root_exec bash - >/dev/null 2>&1 || die "[ERROR] Node.js 源配置失败"
+      root_exec env DEBIAN_FRONTEND=noninteractive apt-get install -y nodejs >/dev/null 2>&1 || die "[ERROR] Node.js 安装失败"
       ;;
     dnf|yum)
-      curl -fsSL https://rpm.nodesource.com/setup_20.x | root_exec bash -
-      root_exec "$pm" install -y nodejs
+      curl -fsSL https://rpm.nodesource.com/setup_20.x 2>/dev/null | root_exec bash - >/dev/null 2>&1 || die "[ERROR] Node.js 源配置失败"
+      root_exec "$pm" install -y nodejs >/dev/null 2>&1 || die "[ERROR] Node.js 安装失败"
       ;;
     pacman)
-      root_exec pacman -Sy --noconfirm nodejs npm
+      root_exec pacman -Sy --noconfirm nodejs npm >/dev/null 2>&1 || die "[ERROR] Node.js 安装失败"
       ;;
     zypper)
       warn "zypper 环境下未自动配置 NodeSource，尝试安装系统仓库里的 nodejs。"
-      root_exec zypper --non-interactive install nodejs npm
+      root_exec zypper --non-interactive install nodejs npm >/dev/null 2>&1 || die "[ERROR] Node.js 安装失败"
       ;;
   esac
 
-  command_exists node || die "Node.js 安装失败。"
-  command_exists npm || die "npm 安装失败。"
+  command_exists node || die "[ERROR] Node.js 安装失败，命令不可用"
+  command_exists npm || die "[ERROR] npm 安装失败，命令不可用"
   major="$(node_major_version)"
-  [[ "$major" -ge 18 ]] || die "Node.js 版本过低：$(node -v)。请安装 18 以上版本。"
+  [[ "$major" -ge 18 ]] || die "[ERROR] Node.js 版本过低：$(node -v)，需要 18 以上版本"
 }
 
 clone_or_update_repo() {
@@ -159,8 +192,8 @@ clone_or_update_repo() {
   if [[ -d "$target_dir/.git" ]]; then
     log INFO "检测到已有仓库，更新到最新代码..."
     git -C "$target_dir" remote set-url origin "$REPO_URL" >/dev/null 2>&1 || true
-    git -C "$target_dir" fetch origin "$REPO_BRANCH"
-    git -C "$target_dir" checkout -B "$REPO_BRANCH" "origin/$REPO_BRANCH"
+    git -C "$target_dir" fetch origin "$REPO_BRANCH" >/dev/null 2>&1 || die "[ERROR] Git fetch 失败"
+    git -C "$target_dir" checkout -B "$REPO_BRANCH" "origin/$REPO_BRANCH" >/dev/null 2>&1 || die "[ERROR] Git checkout 失败"
     return
   fi
 
@@ -173,7 +206,7 @@ clone_or_update_repo() {
 
   root_exec mkdir -p "$target_dir"
   log INFO "从 GitHub 克隆仓库到 $target_dir ..."
-  root_exec git clone --branch "$REPO_BRANCH" --depth 1 "$REPO_URL" "$target_dir"
+  root_exec git clone --branch "$REPO_BRANCH" --depth 1 "$REPO_URL" "$target_dir" >/dev/null 2>&1 || die "[ERROR] Git clone 失败"
 }
 
 ensure_symlink() {
@@ -189,13 +222,13 @@ ensure_symlink() {
 install_node_deps() {
   local repo_root="$1"
   log INFO "安装后端依赖..."
-  (cd "$repo_root/server" && npm install --omit=dev)
+  (cd "$repo_root/server" && npm install --omit=dev >/dev/null 2>&1) || die "[ERROR] 后端依赖安装失败"
 
   log INFO "安装 CMS 依赖..."
-  (cd "$repo_root/chronicle-frontend" && npm install)
+  (cd "$repo_root/chronicle-frontend" && npm install >/dev/null 2>&1) || die "[ERROR] CMS 依赖安装失败"
 
   log INFO "安装 Astro 依赖..."
-  (cd "$repo_root/astro-frontend" && npm install)
+  (cd "$repo_root/astro-frontend" && npm install >/dev/null 2>&1) || die "[ERROR] Astro 依赖安装失败"
 }
 
 prepare_runtime_dirs() {
@@ -307,25 +340,25 @@ install_nginx() {
   log INFO "安装 Nginx..."
   case "$pm" in
     apt-get)
-      root_exec apt-get update
-      root_exec env DEBIAN_FRONTEND=noninteractive apt-get install -y nginx
+      root_exec apt-get update >/dev/null 2>&1 || die "[ERROR] apt-get 更新失败"
+      root_exec env DEBIAN_FRONTEND=noninteractive apt-get install -y nginx >/dev/null 2>&1 || die "[ERROR] Nginx 安装失败"
       ;;
     dnf)
-      root_exec dnf install -y nginx
+      root_exec dnf install -y nginx >/dev/null 2>&1 || die "[ERROR] Nginx 安装失败"
       ;;
     yum)
-      root_exec yum install -y nginx
+      root_exec yum install -y nginx >/dev/null 2>&1 || die "[ERROR] Nginx 安装失败"
       ;;
     pacman)
-      root_exec pacman -Sy --noconfirm nginx
+      root_exec pacman -Sy --noconfirm nginx >/dev/null 2>&1 || die "[ERROR] Nginx 安装失败"
       ;;
     zypper)
-      root_exec zypper --non-interactive install nginx
+      root_exec zypper --non-interactive install nginx >/dev/null 2>&1 || die "[ERROR] Nginx 安装失败"
       ;;
   esac
   
-  root_exec systemctl enable nginx
-  root_exec systemctl start nginx
+  root_exec systemctl enable nginx >/dev/null 2>&1 || die "[ERROR] Nginx 启用失败"
+  root_exec systemctl start nginx >/dev/null 2>&1 || die "[ERROR] Nginx 启动失败"
   log INFO "Nginx 已启动"
 }
 
@@ -340,7 +373,7 @@ deploy_from_repo() {
   root_exec cp -r "$repo_root/dist/"* "$web_root/" 2>/dev/null || true
   
   log INFO "更新 Astro 源代码 ($astro_root)..."
-  root_exec rsync -av --delete --exclude='node_modules' --exclude='dist' --exclude='.astro' \
+  root_exec rsync -q --delete --exclude='node_modules' --exclude='dist' --exclude='.astro' \
     "$repo_root/astro-frontend/" "$astro_root/" || true
   
   log INFO "配置上传目录符号链接..."
@@ -350,7 +383,7 @@ deploy_from_repo() {
   
   log INFO "部署后端代码..."
   root_exec mkdir -p "$server_root"
-  root_exec rsync -av --delete --exclude='data' --exclude='log' --exclude='node_modules' \
+  root_exec rsync -q --delete --exclude='data' --exclude='log' --exclude='node_modules' \
     "$repo_root/server/" "$server_root/" || true
 }
 
@@ -361,12 +394,12 @@ rebuild_frontends() {
   
   if [[ -d "$repo_root/chronicle-frontend" ]]; then
     log INFO "构建 CMS..."
-    (cd "$repo_root/chronicle-frontend" && npm run build)
+    (cd "$repo_root/chronicle-frontend" && npm run build >/dev/null 2>&1) || die "[ERROR] CMS 构建失败"
   fi
   
   if [[ -d "$repo_root/astro-frontend" ]]; then
     log INFO "构建 Astro..."
-    (cd "$repo_root/astro-frontend" && npm run build)
+    (cd "$repo_root/astro-frontend" && npm run build >/dev/null 2>&1) || die "[ERROR] Astro 构建失败"
   fi
 }
 
@@ -374,10 +407,10 @@ reload_nginx() {
   if command_exists nginx; then
     if root_exec systemctl is-active --quiet nginx; then
       log INFO "重载 Nginx..."
-      root_exec systemctl reload nginx
+      root_exec systemctl reload nginx >/dev/null 2>&1 || die "[ERROR] Nginx 重载失败"
     else
       log INFO "启动 Nginx..."
-      root_exec systemctl start nginx
+      root_exec systemctl start nginx >/dev/null 2>&1 || die "[ERROR] Nginx 启动失败"
     fi
   fi
 }
@@ -385,26 +418,18 @@ reload_nginx() {
 restart_services() {
   local repo_root="$1"
   
-  log INFO "重启 Chronicle 服务..."
+  log INFO "重启 Chronicle 后端服务..."
   
   # 杀死旧进程
   killall node 2>/dev/null || true
   sleep 1
   
-  # 启动后端
-  log INFO "启动后端 (3000)..."
+  # 只启动后端
+  log INFO "启动后端 API (3000)..."
   (cd "$repo_root/server" && npm start > "$repo_root/server.log" 2>&1 &)
   
-  # 启动 CMS
-  log INFO "启动 CMS (5173)..."
-  (cd "$repo_root/chronicle-frontend" && npm run dev -- --host 0.0.0.0 --port 5173 > "$repo_root/cms.log" 2>&1 &)
-  
-  # 启动 Astro
-  log INFO "启动 Astro Preview (4321)..."
-  (cd "$repo_root/astro-frontend" && HOST=0.0.0.0 PORT=4321 npm run preview -- --host 0.0.0.0 --port 4321 > "$repo_root/astro.log" 2>&1 &)
-  
   sleep 2
-  log INFO "服务已启动"
+  log INFO "后端服务已启动"
 }
 
 do_install() {
@@ -415,9 +440,15 @@ do_install() {
   
   need_sudo
   
+  # 加载之前保存的配置
+  load_config
+  install_dir="$INSTALL_DIR_DEFAULT"
+  blog_domain="$BLOG_DOMAIN_DEFAULT"
+  web_root="$WEB_ROOT_DEFAULT"
+  
   log INFO "Chronicle 傻瓜式部署安装"
-  prompt_default install_dir "安装目录" "$INSTALL_DIR_DEFAULT"
-  prompt_default blog_domain "博客域名" "$BLOG_DOMAIN_DEFAULT"
+  prompt_default install_dir "安装目录" "$install_dir"
+  prompt_default blog_domain "博客域名" "$blog_domain"
   prompt_default REPO_BRANCH "Git 分支" "$REPO_BRANCH"
   
   # 创建安装目录
@@ -455,6 +486,9 @@ do_install() {
   # 启动服务
   restart_services "$repo_root"
   
+  # 保存配置
+  save_config "$install_dir" "$blog_domain" "$web_root"
+  
   cat <<EOF
 
 ${GREEN}╔════════════════════════════════════════════════════════╗${RESET}
@@ -468,8 +502,8 @@ ${GREEN}╚═══════════════════════
 
 📋 日志文件:
   - 后端: $repo_root/server.log
-  - CMS: $repo_root/cms.log
-  - Astro: $repo_root/astro.log
+
+📍 配置已保存到: $CONFIG_FILE
 
 🚀 快速命令:
   # 查看日志
@@ -486,22 +520,27 @@ EOF
 }
 
 do_update() {
-  local repo_root="${1:-$INSTALL_DIR_DEFAULT}"
+  local repo_root
+  local web_root
+  
+  # 加载保存的配置
+  load_config
+  repo_root="${INSTALL_DIR:-$INSTALL_DIR_DEFAULT}"
+  web_root="${WEB_ROOT:-$WEB_ROOT_DEFAULT}"
   
   [[ -d "$repo_root" ]] || die "安装目录不存在: $repo_root"
   
   log INFO "Chronicle 更新模式"
   log INFO "拉取最新代码..."
   
-  git -C "$repo_root" fetch origin "$REPO_BRANCH"
-  git -C "$repo_root" checkout -B "$REPO_BRANCH" "origin/$REPO_BRANCH"
+  git -C "$repo_root" fetch origin "$REPO_BRANCH" >/dev/null 2>&1 || die "[ERROR] Git fetch 失败"
+  git -C "$repo_root" checkout -B "$REPO_BRANCH" "origin/$REPO_BRANCH" >/dev/null 2>&1 || die "[ERROR] Git checkout 失败"
   
   # 重新构建和部署
   prepare_runtime_dirs "$repo_root"
   rebuild_frontends "$repo_root"
   
   log INFO "部署到生产环境..."
-  local web_root="$WEB_ROOT_DEFAULT"
   deploy_from_repo "$repo_root" "$web_root"
   
   reload_nginx
