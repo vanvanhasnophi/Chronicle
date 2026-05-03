@@ -14,6 +14,19 @@ const messages = {
 	'zh-CN': zh
 }
 
+const apiBaseUrl = String(import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '')
+
+if (typeof window !== 'undefined' && apiBaseUrl) {
+	const originalFetch = window.fetch.bind(window)
+	window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+		const requestUrl = typeof input === 'string' || input instanceof URL ? String(input) : ''
+		if (requestUrl.startsWith('/api/')) {
+			return originalFetch(`${apiBaseUrl}${requestUrl}`, init)
+		}
+		return originalFetch(input, init)
+	}) as typeof fetch
+}
+
 // Determine initial locale: prefer saved setting, otherwise browser language
 const saved = localStorage.getItem('locale')
 const browser = (typeof navigator !== 'undefined' && navigator.language) ? navigator.language : 'en'

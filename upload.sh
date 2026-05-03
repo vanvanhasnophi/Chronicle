@@ -36,6 +36,38 @@ for ef in "${env_files[@]}"; do
     fi
 done
 
+CONFIG_DIR="${HOME}/.config/chronicle"
+CONFIG_FILE="$CONFIG_DIR/upload.conf"
+
+prompt_default() {
+    local var_name="$1"
+    local prompt="$2"
+    local default_value="$3"
+    local value=""
+    read -r -p "$prompt [${default_value}]: " value || true
+    if [ -z "$value" ]; then
+        value="$default_value"
+    fi
+    printf -v "$var_name" '%s' "$value"
+}
+
+save_deploy_config() {
+    mkdir -p "$CONFIG_DIR"
+    cat > "$CONFIG_FILE" <<EOF
+SERVER_IP="$SERVER_IP"
+SERVER_USER="$SERVER_USER"
+REMOTE_PATH="$REMOTE_PATH"
+FRONTEND_API_BASE_URL="$FRONTEND_API_BASE_URL"
+ASTRO_API_BASE_URL="$ASTRO_API_BASE_URL"
+EOF
+}
+
+if [ -f "$CONFIG_FILE" ]; then
+    info "加载部署配置: $CONFIG_FILE"
+    # shellcheck disable=SC1090
+    . "$CONFIG_FILE"
+fi
+
 # 检查常用命令
 check_cmd npm
 check_cmd rsync
@@ -58,10 +90,15 @@ if [ -z "$REMOTE_PATH" ]; then
     read -p "请输入服务器目标路径（如 /opt/chronicle-deploy）: " REMOTE_PATH
 fi
 
+prompt_default FRONTEND_API_BASE_URL "请输入 chronicle-frontend 的 API 基址" "${FRONTEND_API_BASE_URL:-https://blog.eightyfor.top}"
+prompt_default ASTRO_API_BASE_URL "请输入 astro-frontend 的 API 基址（构建时使用）" "${ASTRO_API_BASE_URL:-http://127.0.0.1:3000}"
+
+save_deploy_config
+
 # 2. 前端打包
 echo "正在构建前端..."
 cd /opt/Chronicle/chronicle-frontend || die "无法进入 /opt/Chronicle/chronicle-frontend"
-if ! npm run build; then
+if ! VITE_API_BASE_URL="$FRONTEND_API_BASE_URL" npm run build; then
     die "前端打包失败，请检查错误输出。"
 fi
 
