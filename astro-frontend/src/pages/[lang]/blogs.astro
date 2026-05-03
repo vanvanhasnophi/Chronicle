@@ -575,10 +575,9 @@ const hasFeaturedPosts = initialFeaturedPosts.length > 0;
 
 <script type="module" define:vars={{ expandText: t('blog.expand'), collapseText: t('blog.collapse'), daySuffix: t('blog.daySuffix'), featuredLabel: t('tag.featured'), initialPosts, initialPostsRequestUrl, initialFeaturedPosts, initialFeaturedTotal, locale, postRoutePrefix }}>
   (function () {
-    const API_BASE_URL = window.location.protocol + '//' + window.location.hostname + ':3000';
     const getApiUrlClient = (endpoint) => {
       endpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-      return `${API_BASE_URL}${endpoint}`;
+      return endpoint;
     };
 
     const perPage = 10;

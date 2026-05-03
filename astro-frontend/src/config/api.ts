@@ -18,6 +18,6 @@ export const API_PATH = '/api';
  */
 export function getApiUrl(endpoint: string, isSSR: boolean = typeof window === 'undefined'): string {
   endpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-    return `${API_BASE_URL}${endpoint}`;
+  return isSSR ? `${API_BASE_URL}${endpoint}` : endpoint;
 
 }
