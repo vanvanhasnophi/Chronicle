@@ -555,10 +555,43 @@ function syncBuildOutputByGranularity(distDir, targetDir, granularity) {
     };
 }
 
+function normalizeAdminToken(input) {
+    if (!input) return { token: '' };
+
+    if (typeof input === 'object') {
+        return {
+            token: typeof input.token === 'string' ? input.token : '',
+            expiry: Number(input.expiry || 0) || 0,
+        };
+    }
+
+    const raw = String(input).trim();
+    if (!raw) return { token: '' };
+
+    if (raw.startsWith('{') && raw.endsWith('}')) {
+        try {
+            const parsed = JSON.parse(raw);
+            return normalizeAdminToken(parsed);
+        } catch (e) {
+            // fall through to legacy string token handling
+        }
+    }
+
+    return { token: raw };
+}
+
 function requireAdminToken(req, res) {
-    const headerToken = req.headers['x-chronicle-auth'];
-    const bodyToken = typeof req.body?.token === 'string' ? req.body.token : '';
-    const token = headerToken || bodyToken;
+    const headerToken = normalizeAdminToken(req.headers['x-chronicle-auth']);
+    const bodyToken = normalizeAdminToken(req.body?.token);
+    const tokenPayload = headerToken.token ? headerToken : bodyToken;
+    const token = tokenPayload.token || '';
+    const expiry = tokenPayload.expiry || 0;
+
+    if (expiry && Number.isFinite(expiry) && Date.now() > expiry) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return false;
+    }
+
     if (!token || (token !== 'session-valid' && token !== 'active')) {
         res.status(401).json({ success: false, message: 'Unauthorized' });
         return false;
