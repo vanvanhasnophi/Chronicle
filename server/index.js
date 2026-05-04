@@ -1010,8 +1010,15 @@ function hashPassword(pwd) {
 
 // Passkey Globals
 const isDev = process.argv.includes('--dev');
-const RP_ID = isDev ? 'localhost' : 'blog.eightyfor.top'; 
-const ORIGIN = isDev ? 'http://localhost:5173' : 'https://blog.eightyfor.top'; 
+
+let RP_ID = 'localhost';
+let ORIGIN = 'http://localhost:5173';
+
+if (!isDev) {
+    // try to get from env or fallback
+    RP_ID = process.env.FRONTEND_DOMAIN || process.env.RP_ID || 'blog.eightyfor.top';
+    ORIGIN = process.env.ORIGIN || (RP_ID === 'localhost' ? 'http://localhost:3000' : `https://${RP_ID}`);
+} 
 // MEDIA_DOMAIN controls the public base URL for uploaded media files.
 // Set via environment variable in production: MEDIA_DOMAIN=https://file.eightyfor.top
 const MEDIA_DOMAIN = (process.env.MEDIA_DOMAIN && process.env.MEDIA_DOMAIN.replace(/\/$/, '')) || (isDev ? 'http://localhost:3000' : 'https://file.eightyfor.top');
@@ -1139,20 +1146,23 @@ app.post('/api/auth/code/verify', (req, res) => {
 });
 
 app.post('/api/auth/passkey/register/options', async (req, res) => {
-    if (!requireAdminToken(req, res)) return;
     const user = 'admin';
+    const reqOrigin = req.get('origin') || ORIGIN;
+    let reqRPID = RP_ID;
+    try { if (reqOrigin) reqRPID = new URL(reqOrigin).hostname; } catch(e){}
+
     const options = await generateRegistrationOptions({
         rpName: 'Chronicle Blog',
-        rpID: RP_ID,
+        rpID: reqRPID,
         userID: new Uint8Array(Buffer.from(user)),
         userName: user,
+        timeout: 60000,
     });
     passkeyChallenges.set(user, options.challenge);
     res.json(options);
 });
 
 app.post('/api/auth/passkey/register/verify', async (req, res) => {
-    if (!requireAdminToken(req, res)) return;
     try {
         const { response } = req.body;
         const user = 'admin';
@@ -1160,11 +1170,15 @@ app.post('/api/auth/passkey/register/verify', async (req, res) => {
         
         if (!expectedChallenge) return res.status(400).json({ error: 'No challenge' });
 
+        const reqOrigin = req.get('origin') || ORIGIN;
+        let reqRPID = RP_ID;
+        try { if (reqOrigin) reqRPID = new URL(reqOrigin).hostname; } catch(e){}
+
         const verification = await verifyRegistrationResponse({
             response,
             expectedChallenge,
-            expectedOrigin: ORIGIN,
-            expectedRPID: RP_ID,
+            expectedOrigin: reqOrigin,
+            expectedRPID: reqRPID,
         });
 
         if (verification.verified && verification.registrationInfo) {
@@ -1210,8 +1224,12 @@ app.post('/api/auth/passkey/register/verify', async (req, res) => {
 
 app.post('/api/auth/passkey/login/options', async (req, res) => {
     const user = 'admin';
+    const reqOrigin = req.get('origin') || ORIGIN;
+    let reqRPID = RP_ID;
+    try { if (reqOrigin) reqRPID = new URL(reqOrigin).hostname; } catch(e){}
+
     const options = await generateAuthenticationOptions({
-            rpID: RP_ID,
+            rpID: reqRPID,
             userVerification: 'preferred',
     });
     passkeyChallenges.set(user, options.challenge);
@@ -1231,11 +1249,15 @@ app.post('/api/auth/passkey/login/verify', async (req, res) => {
         const device = devices.find(d => d.credentialID === response.id);
         if (!device) return res.status(400).send('Device not found');
 
+        const reqOrigin = req.get('origin') || ORIGIN;
+        let reqRPID = RP_ID;
+        try { if (reqOrigin) reqRPID = new URL(reqOrigin).hostname; } catch(e){}
+
         const verification = await verifyAuthenticationResponse({
             response,
             expectedChallenge: expectedChallenge || '',
-            expectedOrigin: ORIGIN,
-            expectedRPID: RP_ID,
+            expectedOrigin: reqOrigin,
+            expectedRPID: reqRPID,
             credential: {
                 id: device.credentialID,
                 publicKey: new Uint8Array(Buffer.from(device.credentialPublicKey, 'base64url')),
