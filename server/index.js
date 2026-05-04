@@ -37,7 +37,7 @@ const corsOptions = {
         return callback(new Error('Not allowed by CORS'));
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'X-Requested-With', 'X-Chronicle-Auth', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'X-Requested-With', 'X-Chronicle-Auth', 'Authorization' ,'X-Filename'],
     credentials: true,
     optionsSuccessStatus: 204,
     maxAge: 86400
