@@ -37,10 +37,12 @@ export function normalizeUploadRelPath(value: any) {
 
   const prefix = '/server/data/upload/'
   if (pathPart.startsWith(prefix)) pathPart = pathPart.slice(prefix.length)
+  else if (pathPart.startsWith('/server/data/background/')) pathPart = pathPart.slice('/server/data/background/'.length)
   else if (pathPart.startsWith('/')) pathPart = pathPart.slice(1)
 
   pathPart = pathPart.replace(/^\/+/, '')
   if (pathPart.startsWith('server/data/upload/')) pathPart = pathPart.slice('server/data/upload/'.length)
+  if (pathPart.startsWith('server/data/background/')) pathPart = pathPart.slice('server/data/background/'.length)
   if (pathPart.startsWith('..')) return ''
   return pathPart
 }
@@ -50,7 +52,10 @@ export function backgroundRelToUrl(rel: any) {
   const normalized = normalizeUploadRelPath(rel)
   if (!normalized) return ''
   const origin = typeof window !== 'undefined' && window.location ? window.location.origin : ''
-  return origin ? `${origin}/server/data/upload/${normalized}` : `/server/data/upload/${normalized}`
+  const base = normalized.startsWith('background/') || /^chr_[fb]_bg-/i.test(normalized.split('/').pop() || '')
+    ? '/server/data/background/'
+    : '/server/data/upload/'
+  return origin ? `${origin}${base}${normalized}` : `${base}${normalized}`
 }
 
 export function isBackgroundGeneratedRel(rel: any, scope: BackgroundScope) {
@@ -58,37 +63,18 @@ export function isBackgroundGeneratedRel(rel: any, scope: BackgroundScope) {
   if (!normalized) return false
   const base = normalized.split('/').pop() || ''
   const prefix = scope === 'frontend' ? 'chr_f_bg-' : 'chr_b_bg-'
-  return normalized.startsWith('background/') && base.startsWith(prefix) && base.endsWith('.webp')
+  return base.startsWith(prefix) && base.endsWith('.webp')
 }
 
-function getCompressionFromMeta(meta: any, sourceHeight?: any) {
+function getCompressionFromMeta(meta: any) {
   if (!meta) return 1
   const explicitCandidates = [meta.compressionFactor, meta.compression, meta.bgCompression, meta.scale]
   for (const value of explicitCandidates) {
     const num = Number(value)
-    if (Number.isFinite(num) && num > 1) return Math.min(30, num)
+    if (Number.isFinite(num) && num > 0) return Math.min(30, num)
   }
 
-  const blurCandidates = [
-    meta.blur,
-    meta.blurLight,
-    meta.blurDark,
-    meta.lightBlur,
-    meta.darkBlur,
-    meta.overlayLightBlur,
-    meta.overlayDarkBlur,
-  ]
-    .map((value) => Number(value))
-    .filter((value) => Number.isFinite(value) && value > 0)
-
-  if (!blurCandidates.length) return 1
-
-  const heightValue = Number(sourceHeight)
-  if (!Number.isFinite(heightValue) || heightValue <= 0) return 1
-
-  const factor = (heightValue / 1000) * 0.6 * Math.min(...blurCandidates)
-  if (!Number.isFinite(factor) || factor <= 1) return 1
-  return Math.min(30, factor)
+  return 1
 }
 
 export function normalizeBackgroundRecord(raw: any, scope: BackgroundScope): NormalizedBackgroundSetting | null {
@@ -116,7 +102,7 @@ export function normalizeBackgroundRecord(raw: any, scope: BackgroundScope): Nor
   const sourcePath = normalizeUploadRelPath(raw.sourcePath || raw.originalPath || raw.sourceUrl || raw.source || raw.path || raw.url || '')
   const generatedPath = normalizeUploadRelPath(raw.generatedPath || raw.outputPath || raw.path || raw.url || '')
   const sourceName = raw.sourceName || raw.originalName || raw.name || (sourcePath ? sourcePath.split('/').pop() : (generatedPath ? generatedPath.split('/').pop() : ''))
-  const compression = getCompressionFromMeta(raw, raw.originalHeight || raw.height)
+  const compression = getCompressionFromMeta(raw)
 
   return {
     ...raw,

@@ -182,6 +182,8 @@ const uiFrontendBackgroundSourceName = ref('')
 const uiBackendBackgroundSourceName = ref('')
 const uiFrontendBackgroundMeta = ref<any>(null)
 const uiBackendBackgroundMeta = ref<any>(null)
+const initialFrontendBackgroundKey = ref('')
+const initialBackendBackgroundKey = ref('')
 
 // Media picker state for background selection
 const bgPickerOpen = ref(false)
@@ -234,12 +236,14 @@ onMounted(() => {
           uiFrontendBackground.value = resolveBackgroundUrl(s.frontendBackground, 'frontend') || normalized?.url || ''
           uiFrontendBackgroundSourcePath.value = resolveBackgroundSourcePath(s.frontendBackground, 'frontend') || normalized?.sourcePath || ''
           uiFrontendBackgroundSourceName.value = resolveBackgroundSourceName(s.frontendBackground, 'frontend') || normalized?.sourceName || ''
+          initialFrontendBackgroundKey.value = normalizeBackgroundKey(normalized || s.frontendBackground)
         }
         if (s.backendBackground) {
           const normalized = normalizeBackgroundRecord(s.backendBackground, 'backend')
           uiBackendBackground.value = resolveBackgroundUrl(s.backendBackground, 'backend') || normalized?.url || ''
           uiBackendBackgroundSourcePath.value = resolveBackgroundSourcePath(s.backendBackground, 'backend') || normalized?.sourcePath || ''
           uiBackendBackgroundSourceName.value = resolveBackgroundSourceName(s.backendBackground, 'backend') || normalized?.sourceName || ''
+          initialBackendBackgroundKey.value = normalizeBackgroundKey(normalized || s.backendBackground)
         }
         try {
           uiFrontendBackgroundMeta.value = typeof s.frontendBackgroundMeta === 'string'
@@ -408,12 +412,79 @@ function buildBackgroundPayload(target:'frontend'|'backend') {
   }
 }
 
+function normalizeBackgroundKey(payload: any) {
+  if (!payload) return ''
+  if (typeof payload === 'string') return payload.trim()
+  const fields = [payload.url, payload.path, payload.sourcePath, payload.sourceName, payload.originalName, payload.generatedPath, payload.generatedName]
+  return JSON.stringify(fields.map((field) => String(field || '').trim()))
+}
+
+async function compressBackgroundIfNeeded(target: 'frontend' | 'backend', backgroundPayload: any, backgroundMeta: any) {
+  if (!backgroundPayload || !backgroundMeta) return { meta: backgroundMeta, background: backgroundPayload }
+
+  const initialKey = target === 'frontend' ? initialFrontendBackgroundKey.value : initialBackendBackgroundKey.value
+  const nextKey = normalizeBackgroundKey(backgroundPayload)
+  if (!nextKey || nextKey === initialKey) return { meta: backgroundMeta, background: backgroundPayload }
+
+  const res = await fetch(`/api/background/compress?t=${Date.now()}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      scope: target,
+      background: backgroundPayload,
+      meta: backgroundMeta,
+    }),
+  })
+
+  if (!res.ok) return { meta: backgroundMeta, background: backgroundPayload }
+
+  const data = await res.json().catch(() => ({}))
+  if (!data || !data.meta) return { meta: backgroundMeta, background: backgroundPayload }
+
+  return {
+    meta: data.meta,
+    background: data.background || backgroundPayload,
+  }
+}
+
 function openBackgroundEditor(target:'frontend'|'backend') {
   bgEditorTarget.value = target
   bgEditorOpen.value = true
 }
 
 async function save() {
+  const frontendBackgroundPayload = buildBackgroundPayload('frontend')
+  const backendBackgroundPayload = buildBackgroundPayload('backend')
+
+  let frontendBackgroundMeta = uiFrontendBackgroundMeta.value ? { ...uiFrontendBackgroundMeta.value } : undefined
+  let backendBackgroundMeta = uiBackendBackgroundMeta.value ? { ...uiBackendBackgroundMeta.value } : undefined
+  let frontendBackgroundToSave = frontendBackgroundPayload
+  let backendBackgroundToSave = backendBackgroundPayload
+
+  try {
+    const result = await compressBackgroundIfNeeded('frontend', frontendBackgroundPayload, frontendBackgroundMeta)
+    frontendBackgroundMeta = result.meta
+    frontendBackgroundToSave = result.background || frontendBackgroundPayload
+  } catch (e) {}
+
+  try {
+    const result = await compressBackgroundIfNeeded('backend', backendBackgroundPayload, backendBackgroundMeta)
+    backendBackgroundMeta = result.meta
+    backendBackgroundToSave = result.background || backendBackgroundPayload
+  } catch (e) {}
+
+  if (frontendBackgroundToSave && typeof frontendBackgroundToSave === 'object') {
+    uiFrontendBackground.value = frontendBackgroundToSave.url || uiFrontendBackground.value
+    uiFrontendBackgroundSourcePath.value = frontendBackgroundToSave.sourcePath || uiFrontendBackgroundSourcePath.value
+    uiFrontendBackgroundSourceName.value = frontendBackgroundToSave.sourceName || uiFrontendBackgroundSourceName.value
+  }
+
+  if (backendBackgroundToSave && typeof backendBackgroundToSave === 'object') {
+    uiBackendBackground.value = backendBackgroundToSave.url || uiBackendBackground.value
+    uiBackendBackgroundSourcePath.value = backendBackgroundToSave.sourcePath || uiBackendBackgroundSourcePath.value
+    uiBackendBackgroundSourceName.value = backendBackgroundToSave.sourceName || uiBackendBackgroundSourceName.value
+  }
+
   const cfg = {
     frontendLocale: uiFrontendLocale.value,
     backendLocale: uiBackendLocale.value,
@@ -422,10 +493,10 @@ async function save() {
     frontendTheme: uiThemeMode.value,
     frontendAccent: uiAccentColor.value,
     backendTheme: uiBackendTheme.value,
-    frontendBackground: buildBackgroundPayload('frontend'),
-    backendBackground: buildBackgroundPayload('backend'),
-    frontendBackgroundMeta: uiFrontendBackgroundMeta.value ? JSON.stringify(uiFrontendBackgroundMeta.value) : undefined,
-    backendBackgroundMeta: uiBackendBackgroundMeta.value ? JSON.stringify(uiBackendBackgroundMeta.value) : undefined
+    frontendBackground: frontendBackgroundToSave,
+    backendBackground: backendBackgroundToSave,
+    frontendBackgroundMeta: frontendBackgroundMeta ? JSON.stringify(frontendBackgroundMeta) : undefined,
+    backendBackgroundMeta: backendBackgroundMeta ? JSON.stringify(backendBackgroundMeta) : undefined
   }
 
   const applyBackgroundToDom = (target: 'frontend' | 'backend') => {
@@ -497,6 +568,10 @@ async function save() {
   // persist to backend
   try {
     await fetch(`/api/settings?t=${Date.now()}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cfg) })
+    if (frontendBackgroundMeta) uiFrontendBackgroundMeta.value = frontendBackgroundMeta
+    if (backendBackgroundMeta) uiBackendBackgroundMeta.value = backendBackgroundMeta
+    initialFrontendBackgroundKey.value = normalizeBackgroundKey(frontendBackgroundToSave)
+    initialBackendBackgroundKey.value = normalizeBackgroundKey(backendBackgroundToSave)
   } catch(e) {}
 
   // Apply frontend font immediately after Save

@@ -790,9 +790,9 @@ async function triggerAstroBuild(postId: string) {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'X-Chronicle-Auth': token,
             },
             body: JSON.stringify({
-                token,
                 postId,
                 reason: 'publish',
             }),

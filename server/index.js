@@ -21,7 +21,10 @@ console.log("Backend Version: 2026-02-11-FIX-RPID (blog.eightyfor.top)");
 // Enable CORS with a whitelist and preflight handling
 const allowedOrigins = [
     'https://blog.eightyfor.top',
-    'https://blogmanager.eightyfor.top'
+    'https://blogmanager.eightyfor.top',
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://localhost:4321'
 ];
 const corsOptions = {
     origin: function(origin, callback) {
@@ -123,6 +126,7 @@ app.use(morgan('combined', { stream: accessLogStream }));
 const BASE_DIR = __dirname;
 const DATA_DIR = path.join(BASE_DIR, 'data');
 const UPLOAD_DIR = path.join(DATA_DIR, 'upload');
+const BACKGROUND_DIR = path.join(DATA_DIR, 'background');
 const POSTS_DIR = path.join(DATA_DIR, 'posts');
 const SECURITY_FILE = path.join(DATA_DIR, 'security.json');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
@@ -175,6 +179,210 @@ function normalizeBuildGranularity(value) {
     const normalized = value.trim().toLowerCase();
     return VALID_BUILD_GRANULARITIES.has(normalized) ? normalized : 'full';
 }
+
+function parseBackgroundLikeValue(raw) {
+    if (!raw) return null;
+    if (typeof raw === 'object') return raw;
+    if (typeof raw !== 'string') return null;
+
+    try {
+        return JSON.parse(raw);
+    } catch (e) {
+        return { url: raw };
+    }
+}
+
+function normalizeBackgroundCompressionValue(meta) {
+    if (!meta || typeof meta !== 'object') return 1;
+    const explicitCandidates = [meta.compressionFactor, meta.compression, meta.bgCompression, meta.scale];
+    for (const candidate of explicitCandidates) {
+        const num = Number(candidate);
+        if (Number.isFinite(num) && num > 0) {
+            return Math.min(30, num);
+        }
+    }
+    return 1;
+}
+
+function normalizeBackgroundImagePath(rawValue) {
+    const raw = parseBackgroundLikeValue(rawValue);
+    const candidates = [];
+
+    if (typeof rawValue === 'string') {
+        candidates.push(rawValue);
+    }
+
+    if (raw && typeof raw === 'object') {
+        candidates.push(raw.sourcePath, raw.originalPath, raw.path, raw.url, raw.sourceUrl, raw.generatedPath);
+    }
+
+    for (const candidate of candidates) {
+        const value = String(candidate || '').trim();
+        if (!value) continue;
+
+        try {
+            const pathname = /^https?:\/\//i.test(value) ? (new URL(value)).pathname : value;
+            const normalized = pathname
+                .replace(/^\/+/, '')
+                .replace(/^server\/data\/upload\//, '')
+                .replace(/^server\/data\/background\//, '')
+                .trim();
+            if (!normalized || normalized.startsWith('..')) continue;
+            return normalized;
+        } catch (e) {
+            const normalized = value
+                .replace(/^\/+/, '')
+                .replace(/^server\/data\/upload\//, '')
+                .replace(/^server\/data\/background\//, '')
+                .trim();
+            if (!normalized || normalized.startsWith('..')) continue;
+            return normalized;
+        }
+    }
+
+    return '';
+}
+
+async function readBackgroundSourceHeight(rawValue) {
+    const relPath = normalizeBackgroundImagePath(rawValue);
+    if (!relPath) return null;
+
+    const absPath = path.resolve(UPLOAD_DIR, relPath);
+    if (!absPath.startsWith(UPLOAD_DIR) || !fs.existsSync(absPath)) return null;
+
+    try {
+        const sharp = require('sharp');
+        const metadata = await sharp(absPath).metadata();
+        const height = Number(metadata && metadata.height);
+        return Number.isFinite(height) && height > 0 ? height : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function sanitizeBackgroundStem(value) {
+    const base = String(value || '').trim().replace(/\.[^.]+$/, '');
+    const cleaned = base.replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+    return cleaned || 'background';
+}
+
+function getBackgroundOutputRel(scope, rawValue) {
+    const sourcePath = normalizeBackgroundImagePath(rawValue);
+    const sourceStem = sanitizeBackgroundStem(sourcePath.split('/').pop() || 'background');
+    const scopePrefix = scope === 'frontend' ? 'chr_f_bg' : 'chr_b_bg';
+    const hash = crypto.createHash('sha1').update(`${scope}:${sourcePath}`).digest('hex').slice(0, 10);
+    return path.join('background', `${scopePrefix}-${sourceStem}-${hash}.webp`).replace(/\\/g, '/');
+}
+
+function resolveBackgroundUrlByRel(relPath) {
+    const normalized = String(relPath || '').replace(/^\/+/, '').trim();
+    if (!normalized) return '';
+    const origin = process.env.MEDIA_DOMAIN ? process.env.MEDIA_DOMAIN.replace(/\/$/, '') : '';
+    const base = normalized.startsWith('background/') ? '/server/data/background/' : '/server/data/upload/';
+    return origin ? `${origin}${base}${normalized}` : `${base}${normalized}`;
+}
+
+async function computeBackgroundCompression(meta, rawBackgroundValue) {
+    if (!meta || typeof meta !== 'object') return 1;
+
+    const explicit = normalizeBackgroundCompressionValue(meta);
+    if (explicit > 1) return explicit;
+
+    const blurCandidates = [
+        meta.blur,
+        meta.blurLight,
+        meta.blurDark,
+        meta.lightBlur,
+        meta.darkBlur,
+        meta.overlayLightBlur,
+        meta.overlayDarkBlur,
+    ]
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value) && value > 0);
+
+    if (!blurCandidates.length) return 1;
+
+    const sourceHeight = Number(meta.originalHeight || meta.height || await readBackgroundSourceHeight(rawBackgroundValue));
+    if (!Number.isFinite(sourceHeight) || sourceHeight <= 0) return 1;
+
+    const factor = (sourceHeight / 1000) * 0.6 * Math.min(...blurCandidates);
+    if (!Number.isFinite(factor) || factor <= 1) return 1;
+    return Math.min(30, factor);
+}
+
+app.post('/api/background/compress', async (req, res) => {
+    try {
+        const body = req.body || {};
+        const scope = body.scope === 'backend' ? 'backend' : 'frontend';
+        const rawMeta = parseBackgroundLikeValue(body.meta);
+        if (!rawMeta || typeof rawMeta !== 'object') {
+            return res.status(400).json({ success: false, message: 'Missing meta' });
+        }
+
+        const compression = await computeBackgroundCompression(rawMeta, body.background);
+        const sourcePath = normalizeBackgroundImagePath(body.background);
+        if (!sourcePath) {
+            return res.status(400).json({ success: false, message: 'Missing background source' });
+        }
+
+        const sharp = require('sharp');
+        const absSourcePath = path.resolve(UPLOAD_DIR, sourcePath);
+        if (!absSourcePath.startsWith(UPLOAD_DIR) || !fs.existsSync(absSourcePath)) {
+            return res.status(404).json({ success: false, message: 'Background source not found' });
+        }
+
+        const relPath = getBackgroundOutputRel(scope, sourcePath);
+        const absTargetPath = path.resolve(BACKGROUND_DIR, relPath);
+        if (!absTargetPath.startsWith(BACKGROUND_DIR)) {
+            return res.status(400).json({ success: false, message: 'Invalid background target path' });
+        }
+
+        fs.mkdirSync(path.dirname(absTargetPath), { recursive: true, mode: 0o775 });
+
+        const sourceMeta = await sharp(absSourcePath).metadata();
+        const sourceWidth = Number(sourceMeta.width || 0);
+        const sourceHeight = Number(sourceMeta.height || 0);
+        const quality = Math.max(35, Math.min(92, Math.round(92 - (compression - 1) * 5)));
+        const resizeWidth = sourceWidth > 0 ? Math.max(128, Math.round(sourceWidth / Math.max(1, compression))) : undefined;
+
+        let transformer = sharp(absSourcePath, { failOnError: false }).webp({ quality, effort: 6 });
+        if (resizeWidth && resizeWidth > 0 && sourceWidth > resizeWidth) {
+            transformer = transformer.resize({ width: resizeWidth, withoutEnlargement: true });
+        }
+
+        await transformer.toFile(absTargetPath);
+
+        const nextMeta = {
+            ...rawMeta,
+            compressionFactor: compression,
+            compression,
+            bgCompression: compression,
+        };
+
+        const generatedPath = relPath;
+        const generatedName = path.basename(relPath);
+        const generatedUrl = resolveBackgroundUrlByRel(relPath);
+
+        res.json({
+            success: true,
+            scope,
+            compression,
+            meta: nextMeta,
+            background: {
+                url: generatedUrl,
+                path: generatedPath,
+                sourcePath,
+                sourceName: path.basename(sourcePath),
+                originalName: path.basename(sourcePath),
+                generatedPath,
+                generatedName,
+            },
+        });
+    } catch (e) {
+        console.error('[Background] Compression error', e);
+        res.status(500).json({ success: false, message: e.message || 'Compression failed' });
+    }
+});
 
 function ensureWritableTree(targetPath, dirMode = 0o775, fileMode = 0o664) {
     if (!targetPath || !fs.existsSync(targetPath)) return;
@@ -280,8 +488,10 @@ function syncBuildOutputByGranularity(distDir, targetDir, granularity) {
 }
 
 function requireAdminToken(req, res) {
-    const token = req.headers['x-chronicle-auth'];
-    if (token && token !== 'session-valid') {
+    const headerToken = req.headers['x-chronicle-auth'];
+    const bodyToken = typeof req.body?.token === 'string' ? req.body.token : '';
+    const token = headerToken || bodyToken;
+    if (token && token !== 'session-valid' && token !== 'active') {
         res.status(401).json({ success: false, message: 'Unauthorized' });
         return false;
     }
@@ -352,6 +562,7 @@ ensureDevSymlink();
 // Ensure directories exist
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+if (!fs.existsSync(BACKGROUND_DIR)) fs.mkdirSync(BACKGROUND_DIR, { recursive: true });
 CATEGORIES.forEach(cat => {
     const catDir = path.join(UPLOAD_DIR, cat);
     if (!fs.existsSync(catDir)) fs.mkdirSync(catDir, { recursive: true });
@@ -631,6 +842,11 @@ app.use((req, res, next) => {
 // 1. Static File Serving (Mimic /server/data/upload/...)
 // Frontend requests: /server/data/upload/pic/xxx.png
 app.use('/server/data/upload', express.static(UPLOAD_DIR, {
+    maxAge: '7d',
+    immutable: true
+}));
+
+app.use('/server/data/background', express.static(BACKGROUND_DIR, {
     maxAge: '7d',
     immutable: true
 }));
@@ -1053,15 +1269,38 @@ app.get('/api/settings', (req, res) => {
     }
 });
 
-app.post('/api/settings', (req, res) => {
+app.post('/api/settings', async (req, res) => {
     try {
         const body = req.body || {};
         let saved = {};
         if (fs.existsSync(SETTINGS_FILE)) {
             try { saved = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8')) } catch(e) { saved = {} }
         }
-        // Merge incoming values
+
+        // Merge incoming values first.
         saved = Object.assign({}, saved, body);
+
+        const frontendBackgroundMeta = parseBackgroundLikeValue(saved.frontendBackgroundMeta);
+        const backendBackgroundMeta = parseBackgroundLikeValue(saved.backendBackgroundMeta);
+
+        if (frontendBackgroundMeta && typeof frontendBackgroundMeta === 'object') {
+            const compression = await computeBackgroundCompression(frontendBackgroundMeta, saved.frontendBackground);
+            frontendBackgroundMeta.compressionFactor = compression;
+            frontendBackgroundMeta.compression = compression;
+            frontendBackgroundMeta.bgCompression = compression;
+            saved.frontendBackgroundCompression = compression;
+            saved.frontendBackgroundMeta = JSON.stringify(frontendBackgroundMeta);
+        }
+
+        if (backendBackgroundMeta && typeof backendBackgroundMeta === 'object') {
+            const compression = await computeBackgroundCompression(backendBackgroundMeta, saved.backendBackground);
+            backendBackgroundMeta.compressionFactor = compression;
+            backendBackgroundMeta.compression = compression;
+            backendBackgroundMeta.bgCompression = compression;
+            saved.backendBackgroundCompression = compression;
+            saved.backendBackgroundMeta = JSON.stringify(backendBackgroundMeta);
+        }
+
         fs.writeFileSync(SETTINGS_FILE, JSON.stringify(saved, null, 2));
         res.json(saved);
     } catch (e) {
