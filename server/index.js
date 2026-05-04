@@ -60,6 +60,8 @@ const DEFAULT_BUILD_SETTINGS = {
     frontendBuildTargetDir: '/var/www/blog.eightyfor.top'
 };
 
+const VALID_BUILD_GRANULARITIES = new Set(['full', 'posts', 'index']);
+
 const CATEGORIES = ['pic', 'sound', 'txt', 'video', 'doc', 'other'];
 
 function sortTags(tags) {
@@ -94,6 +96,115 @@ function getBuildSettings() {
     };
 }
 
+function normalizeBuildGranularity(value) {
+    if (typeof value !== 'string') return 'full';
+    const normalized = value.trim().toLowerCase();
+    return VALID_BUILD_GRANULARITIES.has(normalized) ? normalized : 'full';
+}
+
+function ensureWritableTree(targetPath, dirMode = 0o775, fileMode = 0o664) {
+    if (!targetPath || !fs.existsSync(targetPath)) return;
+
+    const stat = fs.lstatSync(targetPath);
+    if (stat.isDirectory()) {
+        try { fs.chmodSync(targetPath, dirMode); } catch (e) {}
+        for (const entry of fs.readdirSync(targetPath)) {
+            ensureWritableTree(path.join(targetPath, entry), dirMode, fileMode);
+        }
+        return;
+    }
+
+    try { fs.chmodSync(targetPath, fileMode); } catch (e) {}
+}
+
+function copyEntry(sourcePath, targetPath) {
+    if (!fs.existsSync(sourcePath)) return false;
+
+    const sourceStat = fs.lstatSync(sourcePath);
+    if (sourceStat.isDirectory()) {
+        fs.mkdirSync(targetPath, { recursive: true, mode: 0o775 });
+        fs.cpSync(sourcePath, targetPath, {
+            recursive: true,
+            force: true,
+            dereference: true,
+        });
+        return true;
+    }
+
+    fs.mkdirSync(path.dirname(targetPath), { recursive: true, mode: 0o775 });
+    fs.copyFileSync(sourcePath, targetPath);
+    return true;
+}
+
+function syncBuildOutputByGranularity(distDir, targetDir, granularity) {
+    const normalizedGranularity = normalizeBuildGranularity(granularity);
+
+    fs.mkdirSync(targetDir, { recursive: true, mode: 0o775 });
+
+    if (normalizedGranularity === 'full') {
+        const stageDir = `${targetDir}.stage-${Date.now()}`;
+        if (fs.existsSync(stageDir)) {
+            fs.rmSync(stageDir, { recursive: true, force: true });
+        }
+
+        fs.mkdirSync(stageDir, { recursive: true, mode: 0o775 });
+        fs.cpSync(distDir, stageDir, {
+            recursive: true,
+            force: true,
+            dereference: true,
+        });
+        ensureWritableTree(stageDir);
+        ensureWritableTree(targetDir);
+        fs.rmSync(targetDir, { recursive: true, force: true });
+        fs.renameSync(stageDir, targetDir);
+        ensureWritableTree(targetDir);
+
+        return {
+            granularity: normalizedGranularity,
+            copiedPaths: ['*'],
+            targetDir,
+        };
+    }
+
+    const copiedPaths = [];
+    const copyIfExists = (relativePath) => {
+        const sourcePath = path.join(distDir, relativePath);
+        const targetPath = path.join(targetDir, relativePath);
+        if (copyEntry(sourcePath, targetPath)) {
+            copiedPaths.push(relativePath);
+        }
+    };
+
+    // Shared build assets change across all granularities.
+    copyIfExists('assets');
+
+    if (normalizedGranularity === 'index') {
+        copyIfExists('index.html');
+        copyIfExists('blogs');
+        copyIfExists('friends');
+        copyIfExists('search');
+        copyIfExists('post');
+        copyIfExists(path.join('en', 'index.html'));
+        copyIfExists(path.join('zh', 'index.html'));
+    } else if (normalizedGranularity === 'posts') {
+        copyIfExists('blogs');
+        copyIfExists('friends');
+        copyIfExists('search');
+        copyIfExists('post');
+        copyIfExists(path.join('en', 'blogs'));
+        copyIfExists(path.join('zh', 'blogs'));
+        copyIfExists(path.join('en', 'post'));
+        copyIfExists(path.join('zh', 'post'));
+    }
+
+    ensureWritableTree(targetDir);
+    return {
+        granularity: normalizedGranularity,
+        copiedPaths,
+        targetDir,
+    };
+}
+
 function requireAdminToken(req, res) {
     const token = req.headers['x-chronicle-auth'];
     if (token && token !== 'session-valid') {
@@ -103,7 +214,8 @@ function requireAdminToken(req, res) {
     return true;
 }
 
-function buildAstroFrontend(settings) {
+function buildAstroFrontend(settings, options = {}) {
+    const granularity = normalizeBuildGranularity(options.granularity);
     const codeDir = path.resolve(settings.frontendCodeDir || DEFAULT_BUILD_SETTINGS.frontendCodeDir);
     const targetDir = path.resolve(settings.frontendBuildTargetDir || `/var/www/${settings.frontendUrl || DEFAULT_BUILD_SETTINGS.frontendUrl}`);
 
@@ -125,12 +237,9 @@ function buildAstroFrontend(settings) {
         throw new Error(`Build output not found: ${distDir}`);
     }
 
-    fs.mkdirSync(targetDir, { recursive: true });
-    fs.rmSync(targetDir, { recursive: true, force: true });
-    fs.mkdirSync(targetDir, { recursive: true });
-    fs.cpSync(distDir, targetDir, { recursive: true });
+    const syncResult = syncBuildOutputByGranularity(distDir, targetDir, granularity);
 
-    return { codeDir, targetDir };
+    return { codeDir, targetDir, granularity: syncResult.granularity, copiedPaths: syncResult.copiedPaths };
 }
 
 // Dev Static Link Helper
@@ -892,12 +1001,16 @@ app.post('/api/admin/build/astro', (req, res) => {
         if (!requireAdminToken(req, res)) return;
 
         const settings = getBuildSettings();
-        const result = buildAstroFrontend(settings);
+        const result = buildAstroFrontend(settings, {
+            granularity: req.body?.granularity,
+        });
         res.json({
             success: true,
             frontendUrl: settings.frontendUrl,
             frontendCodeDir: result.codeDir,
             frontendBuildTargetDir: result.targetDir,
+            granularity: result.granularity,
+            copiedPaths: result.copiedPaths,
         });
     } catch (e) {
         console.error('[Build] Astro build failed', e);
