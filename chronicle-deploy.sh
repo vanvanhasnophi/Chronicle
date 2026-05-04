@@ -269,7 +269,7 @@ rsync -a --delete "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME/dist/" "$BACKEND_ROOT/"
 log "构建 astro-frontend..."
 mkdir -p "$WEB_ROOT"
 cd "$REPO_ROOT/$REPO_ASTRO_SRC_NAME"
-API_BASE_URL="$ASTRO_API_BASE_URL" npm run build
+MEDIA_DOMAIN="$MEDIA_DOMAIN" API_BASE_URL="$ASTRO_API_BASE_URL" npm run build
 
 log "恢复 astro-frontend 源码中的 upload symlink..."
 ensure_symlink "$REPO_ROOT/$REPO_ASTRO_SRC_NAME/public/server/data/upload" "$REPO_ROOT/server/data/upload"

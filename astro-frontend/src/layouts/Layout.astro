@@ -16,13 +16,14 @@ interface Props {
 }
 
 const { title, settings, locale: propLocale, navTitle, navBackHref, navBackLabel } = Astro.props;
+const mediaDomain = String(process.env.MEDIA_DOMAIN || '').replace(/\/$/, '');
 
 function resolveMediaUrl(value: any) {
   const normalized = String(value || '').trim();
   if (!normalized) return '';
   if (/^https?:\/\//i.test(normalized)) return normalized;
   if (normalized.startsWith('/server/data/') || normalized.startsWith('server/data/')) {
-    const base = String(API_BASE_URL || '').replace(/\/$/, '');
+    const base = mediaDomain;
     const pathPart = normalized.replace(/^\/+/, '');
     return base ? `${base}/${pathPart}` : `/${pathPart}`;
   }
@@ -141,7 +142,7 @@ const htmlLang = locale === 'zh-CN' ? 'zh-CN' : 'en';
       };
     </script>
 
-    <script define:vars={{ mediaBaseUrl: API_BASE_URL }}>
+    <script define:vars={{ mediaBaseUrl: mediaDomain }}>
       window.__CHRONICLE_MEDIA_BASE_URL__ = mediaBaseUrl;
     </script>
 

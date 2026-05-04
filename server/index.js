@@ -1850,6 +1850,11 @@ app.get('/api/posts', (req, res) => {
             posts = posts.filter(p => p.status === 'published' || p.status === 'modifying' || !p.status);
         }
 
+        const featuredOnly = req.query.featured === 'true';
+        if (featuredOnly) {
+            posts = posts.filter((post) => Array.isArray(post.tags) && post.tags.some((tag) => String(tag) === 'featured' || String(tag) === '精选'));
+        }
+
         // Augment posts with hasHtml flag based on disk state
         posts = posts.map(p => {
             const html = readCompiledHtmlFromDisk(p)
@@ -1860,6 +1865,39 @@ app.get('/api/posts', (req, res) => {
         })
 
         posts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        const pageValue = Number.parseInt(req.query.page, 10);
+        const perPageValue = Number.parseInt(req.query.perPage, 10);
+        const hasPagination = Number.isFinite(pageValue) && Number.isFinite(perPageValue) && perPageValue > 0;
+
+        if (hasPagination) {
+            const page = pageValue > 0 ? pageValue : 1;
+            const perPage = perPageValue;
+            const total = posts.length;
+            const totalPages = total > 0 ? Math.ceil(total / perPage) : 0;
+
+            if (page > totalPages || total === 0) {
+                return res.json({
+                    posts: [],
+                    total,
+                    page,
+                    perPage,
+                    totalPages,
+                });
+            }
+
+            const start = (page - 1) * perPage;
+            const pagedPosts = posts.slice(start, start + perPage);
+
+            return res.json({
+                posts: pagedPosts,
+                total,
+                page,
+                perPage,
+                totalPages,
+            });
+        }
+
         res.json(posts);
     } catch(e) {
         res.status(500).send('[]');
