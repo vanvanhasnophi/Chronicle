@@ -200,7 +200,8 @@
       "en": "英文"
     },
     "copy_to_light": "复制到浅色模式",
-    "copy_to_dark": "复制到深色模式"
+    "copy_to_dark": "复制到深色模式",
+    "savedNeedRebuild": "已保存。请构建前端以确保生效。"
   },
   "post": {
     "manageTitle": "文章管理",

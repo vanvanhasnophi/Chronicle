@@ -195,6 +195,7 @@ const uploadedImagesLocal = ref<Array<any>>([])
 const bgSelectedCategory = ref('pic')
 
 const { show } = useToast()
+const { t } = useI18n()
 
 const previewVars = computed(() => ({
   '--preview-accent': uiAccentColor.value,
@@ -691,7 +692,7 @@ async function save() {
     // The frontend logic in App.vue should respect this setting for new/default visitors.
   } catch(e) {}
 
-  try { show('Saved') } catch(e) {}
+  try { show(t('settings.savedNeedRebuild') as string , {status: 'success'})} catch(e) {}
 }
 
 function reset() {

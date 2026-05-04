@@ -15,7 +15,7 @@ import { initPreloadSystem } from '../../utils/preload';
 // Get locale from Astro.locals (set by middleware)
 const locale = getLocale(Astro.locals);
 const t = (key: string) => getTranslation(locale, key);
-const themePostPath = buildLocalizedPath(locale, '/post/8a877784-76cd-4b0a-a669-4c30cc3a32ec');
+const themePostPath = buildLocalizedPath(locale, '/post/6d879241-fa6c-4099-82a5-066853046b9a');
 
 // Fetch settings from API (包含样式设置)
 let settings: Record<string, any> = {};
