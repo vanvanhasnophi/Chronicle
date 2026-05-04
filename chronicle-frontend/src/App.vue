@@ -35,7 +35,7 @@ document.body.addEventListener('touchstart', (e) => {
   }
 }, { passive: true }) // improve mobile click responsiveness
 
-const { locale } = useI18n()
+const { locale, t } = useI18n()
 const __VERSION__ = APP_VERSION // Replace with actual version
 const __YEAR__ = APP_YEAR // Replace with actual year
 let selectObserver: MutationObserver | null = null
@@ -886,18 +886,18 @@ async function rebuildFrontend() {
       } catch (e) { return '' }
     })()
 
-    showToast('触发前台构建...', { status: 'info', position: 'bottom-center', shape: 'capsule', duration: 2500 })
+    showToast(t('settings.buildTriggering'), { status: 'info', position: 'bottom-center', shape: 'capsule', duration: 2500 })
     const res = await fetch(`/api/admin/build/astro?t=${Date.now()}`, {
       method: 'POST',
       headers: authToken ? { 'X-Chronicle-Auth': authToken } : {}
     })
     if (res.ok) {
-      showToast('前台构建完成', { status: 'success', position: 'bottom-center', shape: 'capsule' })
+      showToast(t('settings.buildCompleted'), { status: 'success', position: 'bottom-center', shape: 'capsule' })
     } else {
-      showToast('前台构建失败', { status: 'error', position: 'bottom-center', shape: 'capsule' })
+      showToast(t('settings.buildFailed'), { status: 'error', position: 'bottom-center', shape: 'capsule' })
     }
   } catch (e) {
-    showToast('前台构建出错', { status: 'error', position: 'bottom-center', shape: 'capsule' })
+    showToast(t('settings.buildFailed'), { status: 'error', position: 'bottom-center', shape: 'capsule' })
   } finally {
     isRebuilding.value = false
   }

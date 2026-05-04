@@ -76,7 +76,7 @@
           <div class="form-row">
             <label>Frontend background</label>
             <div style="display:flex; gap:8px; align-items:center;">
-              <div v-if="uiFrontendBackground" class="bg-preview" :style="{ backgroundImage: `url(${uiFrontendBackground})` }"></div>
+              <div v-if="uiFrontendBackground" class="bg-preview" :style="{ backgroundImage: `url(${getBackgroundPreviewUrl('frontend')})` }"></div>
               <button class="secondary" @click.prevent="handleEditBackground('frontend')">{{ uiFrontendBackground ? 'Edit' : 'Add' }}</button>
               <button v-if="uiFrontendBackground" class="secondary" @click.prevent="clearBackground('frontend')">Clear</button>
             </div>
@@ -85,7 +85,7 @@
           <div class="form-row">
             <label>Backend background</label>
             <div style="display:flex; gap:8px; align-items:center;">
-              <div v-if="uiBackendBackground" class="bg-preview" :style="{ backgroundImage: `url(${uiBackendBackground})` }"></div>
+              <div v-if="uiBackendBackground" class="bg-preview" :style="{ backgroundImage: `url(${getBackgroundPreviewUrl('backend')})` }"></div>
               <button class="secondary" @click.prevent="handleEditBackground('backend')">{{ uiBackendBackground ? 'Edit' : 'Add' }}</button>
               <button v-if="uiBackendBackground" class="secondary" @click.prevent="clearBackground('backend')">Clear</button>
             </div>
@@ -135,7 +135,7 @@
         <div class="library-section">
           <div v-if="uploadedImagesLocal.length > 0" class="image-grid">
             <div v-for="(img, idx) in uploadedImagesLocal" :key="idx" class="library-item" @click="chooseBackgroundImage(img)">
-              <div class="img-thumb" v-if="img.thumb || img.url" :style="{ backgroundImage: `url(${img.thumb || img.url})` }"></div>
+              <div class="img-thumb" v-if="img.url || img.path" :style="{ backgroundImage: `url(${img.url || img.path})` }"></div>
               <span class="img-name">{{ img.name }}</span>
             </div>
           </div>
@@ -163,7 +163,7 @@ import { useI18n } from 'vue-i18n'
 import useToast from '../../composables/useToast'
 import BackgroundEditorModal from '../../components/BackgroundEditorModal.vue'
 import { hexToRgbString } from '../../utils/colorUtils'
-import { normalizeBackgroundRecord, resolveBackgroundSourceName, resolveBackgroundSourcePath, resolveBackgroundUrl } from '../../utils/backgroundSettings'
+import { normalizeBackgroundRecord, normalizeUploadRelPath, resolveBackgroundSourceName, resolveBackgroundSourcePath, resolveBackgroundUrl } from '../../utils/backgroundSettings'
 import { Icons } from '../../utils/icons'
 
 const { locale } = useI18n()
@@ -255,6 +255,26 @@ onMounted(() => {
             ? JSON.parse(s.backendBackgroundMeta)
             : (s.backendBackgroundMeta || uiBackendBackgroundMeta.value)
         } catch(e) {}
+        initialFrontendBackgroundKey.value = normalizeBackgroundChangeKey(
+          uiFrontendBackground.value ? {
+            url: uiFrontendBackground.value,
+            path: uiFrontendBackground.value,
+            sourcePath: uiFrontendBackgroundSourcePath.value,
+            sourceName: uiFrontendBackgroundSourceName.value,
+            originalName: uiFrontendBackgroundSourceName.value,
+          } : '',
+          uiFrontendBackgroundMeta.value
+        )
+        initialBackendBackgroundKey.value = normalizeBackgroundChangeKey(
+          uiBackendBackground.value ? {
+            url: uiBackendBackground.value,
+            path: uiBackendBackground.value,
+            sourcePath: uiBackendBackgroundSourcePath.value,
+            sourceName: uiBackendBackgroundSourceName.value,
+            originalName: uiBackendBackgroundSourceName.value,
+          } : '',
+          uiBackendBackgroundMeta.value
+        )
       })
       .catch(() => {})
   } catch(e) {}
@@ -322,11 +342,23 @@ async function fetchServerImages() {
       .filter((i:any) => i.type === 'file')
       .map((i:any) => ({
         name: i.name,
-        url: i.url || `/server/data/upload/${i.path}`,
-        path: i.url || `/server/data/upload/${i.path}`,
-        thumb: (i.url || `/server/data/upload/${i.path}`).replace('/server/data/upload/', '/server/data/upload/.thumbs/')
+        url: i.url || (i.path ? `/server/data/upload/${i.path}` : ''),
+        path: i.path || (i.url ? String(i.url).replace(/^https?:\/\/[^/]+\/server\/data\/upload\//, '').replace(/^\/server\/data\/upload\//, '') : ''),
+        thumb: i.thumb || (i.url || (i.path ? `/server/data/upload/${i.path}` : '')).replace('/server/data/upload/', '/server/data/upload/.thumbs/')
       }))
   } catch(e) { uploadedImagesLocal.value = [] }
+}
+
+function getBackgroundPreviewUrl(target: 'frontend' | 'backend') {
+  const displayUrl = target === 'frontend' ? uiFrontendBackground.value : uiBackendBackground.value
+  const sourcePath = target === 'frontend' ? uiFrontendBackgroundSourcePath.value : uiBackendBackgroundSourcePath.value
+  const candidate = normalizeUploadRelPath(sourcePath)
+  if (candidate) {
+    const origin = typeof window !== 'undefined' && window.location ? window.location.origin : ''
+    const thumbUrl = `${origin}/server/data/upload/.thumbs/${candidate}`
+    return thumbUrl
+  }
+  return displayUrl
 }
 
 function chooseBackgroundImage(img: any) {
@@ -419,11 +451,35 @@ function normalizeBackgroundKey(payload: any) {
   return JSON.stringify(fields.map((field) => String(field || '').trim()))
 }
 
+function normalizeBackgroundMetaKey(meta: any) {
+  if (!meta || typeof meta !== 'object') return ''
+  const fields = [
+    meta.posX,
+    meta.posY,
+    meta.size,
+    meta.blur,
+    meta.overlayLightColor,
+    meta.overlayLightOpacity,
+    meta.overlayDarkColor,
+    meta.overlayDarkOpacity,
+    meta.overlayColor,
+    meta.overlayOpacity,
+    meta.compressionFactor,
+    meta.compression,
+    meta.bgCompression,
+  ]
+  return JSON.stringify(fields.map((field) => String(field ?? '').trim()))
+}
+
+function normalizeBackgroundChangeKey(payload: any, meta: any) {
+  return `${normalizeBackgroundKey(payload)}|${normalizeBackgroundMetaKey(meta)}`
+}
+
 async function compressBackgroundIfNeeded(target: 'frontend' | 'backend', backgroundPayload: any, backgroundMeta: any) {
   if (!backgroundPayload || !backgroundMeta) return { meta: backgroundMeta, background: backgroundPayload }
 
   const initialKey = target === 'frontend' ? initialFrontendBackgroundKey.value : initialBackendBackgroundKey.value
-  const nextKey = normalizeBackgroundKey(backgroundPayload)
+  const nextKey = normalizeBackgroundChangeKey(backgroundPayload, backgroundMeta)
   if (!nextKey || nextKey === initialKey) return { meta: backgroundMeta, background: backgroundPayload }
 
   const res = await fetch(`/api/background/compress?t=${Date.now()}`, {
@@ -570,8 +626,8 @@ async function save() {
     await fetch(`/api/settings?t=${Date.now()}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cfg) })
     if (frontendBackgroundMeta) uiFrontendBackgroundMeta.value = frontendBackgroundMeta
     if (backendBackgroundMeta) uiBackendBackgroundMeta.value = backendBackgroundMeta
-    initialFrontendBackgroundKey.value = normalizeBackgroundKey(frontendBackgroundToSave)
-    initialBackendBackgroundKey.value = normalizeBackgroundKey(backendBackgroundToSave)
+    initialFrontendBackgroundKey.value = normalizeBackgroundChangeKey(frontendBackgroundToSave, frontendBackgroundMeta)
+    initialBackendBackgroundKey.value = normalizeBackgroundChangeKey(backendBackgroundToSave, backendBackgroundMeta)
   } catch(e) {}
 
   // Apply frontend font immediately after Save

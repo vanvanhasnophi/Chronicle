@@ -41,6 +41,7 @@ export function normalizeUploadRelPath(value: any) {
   else if (pathPart.startsWith('/')) pathPart = pathPart.slice(1)
 
   pathPart = pathPart.replace(/^\/+/, '')
+  if (pathPart.startsWith('background/')) pathPart = pathPart.slice('background/'.length)
   if (pathPart.startsWith('server/data/upload/')) pathPart = pathPart.slice('server/data/upload/'.length)
   if (pathPart.startsWith('server/data/background/')) pathPart = pathPart.slice('server/data/background/'.length)
   if (pathPart.startsWith('..')) return ''

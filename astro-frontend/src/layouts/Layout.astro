@@ -1,6 +1,7 @@
 ---
 import { ClientRouter } from 'astro:transitions';
 import NavHeader from '../components/NavHeader.astro';
+import { API_BASE_URL } from '../config/api';
 import { getLocale } from '../utils/i18n';
 import '../styles/global.css';
 import '../styles/app.css';
@@ -16,13 +17,39 @@ interface Props {
 
 const { title, settings, locale: propLocale, navTitle, navBackHref, navBackLabel } = Astro.props;
 
+function resolveMediaUrl(value: any) {
+  const normalized = String(value || '').trim();
+  if (!normalized) return '';
+  if (/^https?:\/\//i.test(normalized)) return normalized;
+  if (normalized.startsWith('/server/data/') || normalized.startsWith('server/data/')) {
+    const base = String(API_BASE_URL || '').replace(/\/$/, '');
+    const pathPart = normalized.replace(/^\/+/, '');
+    return base ? `${base}/${pathPart}` : `/${pathPart}`;
+  }
+  return normalized;
+}
+
+function normalizeLayoutBackground(raw: any) {
+  if (!raw) return '';
+  if (typeof raw === 'string') return resolveMediaUrl(raw);
+  if (typeof raw !== 'object') return '';
+
+  const backgroundUrl = resolveMediaUrl(raw.url || raw.path || raw.backgroundUrl || raw.generatedPath || raw.sourcePath || '');
+  return {
+    ...raw,
+    url: backgroundUrl,
+    path: String(raw.path || raw.generatedPath || raw.sourcePath || '').replace(/^\/+/, ''),
+    generatedPath: String(raw.generatedPath || raw.path || '').replace(/^\/+/, ''),
+  };
+}
+
 const siteTitle = settings?.siteName || 'Chronicle';
 const displayTitle = title ? `${title} - ${siteTitle}` : siteTitle;
 
 // 从settings获取样式配置
 const frontendTheme = settings?.frontendTheme || 'follow';
 const frontendAccent = settings?.frontendAccent || '#2ea35f';
-const frontendBackground = settings?.frontendBackground || '';
+const frontendBackground = normalizeLayoutBackground(settings?.frontendBackground || '');
 const frontendBackgroundMeta = settings?.frontendBackgroundMeta || null;
 const frontendFont = settings?.frontendFont || 'sans';
 
@@ -112,6 +139,10 @@ const htmlLang = locale === 'zh-CN' ? 'zh-CN' : 'en';
         frontendBackgroundMeta,
         frontendFont
       };
+    </script>
+
+    <script define:vars={{ mediaBaseUrl: API_BASE_URL }}>
+      window.__CHRONICLE_MEDIA_BASE_URL__ = mediaBaseUrl;
     </script>
 
     <!-- Theme Initialization (runs before page render) -->

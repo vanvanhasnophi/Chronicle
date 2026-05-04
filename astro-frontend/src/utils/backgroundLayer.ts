@@ -15,6 +15,31 @@ function resolveBackgroundUrl(value: any) {
   return '';
 }
 
+function getMediaBaseUrl() {
+  try {
+    const baseUrl = String((window as any).__CHRONICLE_MEDIA_BASE_URL__ || '').trim();
+    if (!baseUrl) return '';
+    return baseUrl.replace(/\/$/, '');
+  } catch (e) {
+    return '';
+  }
+}
+
+function resolveBrowserImageUrl(url: string) {
+  const normalized = String(url || '').trim();
+  if (!normalized) return '';
+
+  if (/^https?:\/\//i.test(normalized)) return normalized;
+
+  if (normalized.startsWith('/server/data/') || normalized.startsWith('server/data/')) {
+    const mediaBaseUrl = getMediaBaseUrl();
+    const pathPart = normalized.replace(/^\/+/, '');
+    return mediaBaseUrl ? `${mediaBaseUrl}/${pathPart}` : `/${pathPart}`;
+  }
+
+  return normalized;
+}
+
 // 初始化当前主题（仅在浏览器环境绑定）
 if (typeof document !== 'undefined') {
   document.addEventListener('DOMContentLoaded', () => {
@@ -114,7 +139,7 @@ export async function stageBackgroundLayer(
     const imgEl = layer.querySelector('.bg-image') as HTMLElement | null;
     const surfaceEl = layer.querySelector('.bg-surface') as HTMLElement | null;
     const overlayEl = layer.querySelector('.bg-overlay') as HTMLElement | null;
-    const normalizedUrl = resolveBackgroundUrl(imageUrl);
+    const normalizedUrl = resolveBrowserImageUrl(resolveBackgroundUrl(imageUrl));
     if (!normalizedUrl) return;
 
     // 如果URL没有变化，并且已经被渲染过，则仅更新样式而不要清除渲染状态，从而避免闪烁

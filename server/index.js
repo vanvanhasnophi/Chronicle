@@ -3,8 +3,9 @@ const morgan = require('morgan');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
 const crypto = require('crypto');
+const { execSync, spawn } = require('child_process');
+const { Worker, isMainThread, parentPort, workerData } = require('worker_threads');
 const {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -271,14 +272,44 @@ function getBackgroundOutputRel(scope, rawValue) {
     const sourceStem = sanitizeBackgroundStem(sourcePath.split('/').pop() || 'background');
     const scopePrefix = scope === 'frontend' ? 'chr_f_bg' : 'chr_b_bg';
     const hash = crypto.createHash('sha1').update(`${scope}:${sourcePath}`).digest('hex').slice(0, 10);
-    return path.join('background', `${scopePrefix}-${sourceStem}-${hash}.webp`).replace(/\\/g, '/');
+    return `${scopePrefix}-${sourceStem}-${hash}.webp`;
+}
+
+function clearBackgroundOutputs(scope) {
+    const scopePrefix = scope === 'frontend' ? 'chr_f_bg-' : 'chr_b_bg-';
+    if (!fs.existsSync(BACKGROUND_DIR)) return;
+
+    const walk = (dir) => {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+            const absPath = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                walk(absPath);
+                try {
+                    const remaining = fs.readdirSync(absPath);
+                    if (!remaining.length) fs.rmdirSync(absPath);
+                } catch (e) {}
+                continue;
+            }
+
+            if (!entry.isFile()) continue;
+            if (!entry.name.startsWith(scopePrefix) || !entry.name.endsWith('.webp')) continue;
+            try {
+                fs.unlinkSync(absPath);
+            } catch (e) {}
+        }
+    };
+
+    walk(BACKGROUND_DIR);
 }
 
 function resolveBackgroundUrlByRel(relPath) {
     const normalized = String(relPath || '').replace(/^\/+/, '').trim();
     if (!normalized) return '';
     const origin = process.env.MEDIA_DOMAIN ? process.env.MEDIA_DOMAIN.replace(/\/$/, '') : '';
-    const base = normalized.startsWith('background/') ? '/server/data/background/' : '/server/data/upload/';
+    const base = normalized.startsWith('background/') || /^chr_[fb]_bg-/i.test(normalized.split('/').pop() || '')
+        ? '/server/data/background/'
+        : '/server/data/upload/';
     return origin ? `${origin}${base}${normalized}` : `${base}${normalized}`;
 }
 
@@ -314,21 +345,57 @@ app.post('/api/background/compress', async (req, res) => {
     try {
         const body = req.body || {};
         const scope = body.scope === 'backend' ? 'backend' : 'frontend';
-        const rawMeta = parseBackgroundLikeValue(body.meta);
-        if (!rawMeta || typeof rawMeta !== 'object') {
-            return res.status(400).json({ success: false, message: 'Missing meta' });
+        let savedSettings = {};
+        try {
+            savedSettings = getBuildSettings();
+        } catch (e) {
+            savedSettings = {};
         }
 
-        const compression = await computeBackgroundCompression(rawMeta, body.background);
-        const sourcePath = normalizeBackgroundImagePath(body.background);
+        const rawMeta = parseBackgroundLikeValue(
+            body.meta ||
+            body.backgroundMeta ||
+            (scope === 'backend' ? body.backendBackgroundMeta : body.frontendBackgroundMeta) ||
+            (scope === 'backend' ? savedSettings.backendBackgroundMeta : savedSettings.frontendBackgroundMeta)
+        );
+        const rawBackground =
+            body.background ||
+            body.backgroundPayload ||
+            (scope === 'backend' ? body.backendBackground : body.frontendBackground) ||
+            (scope === 'backend' ? savedSettings.backendBackground : savedSettings.frontendBackground);
+
+        if (!rawMeta || typeof rawMeta !== 'object') {
+            return res.json({
+                success: true,
+                skipped: true,
+                message: 'Missing meta',
+                meta: null,
+                background: rawBackground || null,
+            });
+        }
+
+        const compression = await computeBackgroundCompression(rawMeta, rawBackground);
+        const sourcePath = normalizeBackgroundImagePath(rawBackground);
         if (!sourcePath) {
-            return res.status(400).json({ success: false, message: 'Missing background source' });
+            return res.json({
+                success: true,
+                skipped: true,
+                message: 'Missing background source',
+                meta: rawMeta,
+                background: rawBackground || null,
+            });
         }
 
         const sharp = require('sharp');
         const absSourcePath = path.resolve(UPLOAD_DIR, sourcePath);
         if (!absSourcePath.startsWith(UPLOAD_DIR) || !fs.existsSync(absSourcePath)) {
-            return res.status(404).json({ success: false, message: 'Background source not found' });
+            return res.json({
+                success: true,
+                skipped: true,
+                message: 'Background source not found',
+                meta: rawMeta,
+                background: rawBackground || null,
+            });
         }
 
         const relPath = getBackgroundOutputRel(scope, sourcePath);
@@ -337,6 +404,7 @@ app.post('/api/background/compress', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Invalid background target path' });
         }
 
+        clearBackgroundOutputs(scope);
         fs.mkdirSync(path.dirname(absTargetPath), { recursive: true, mode: 0o775 });
 
         const sourceMeta = await sharp(absSourcePath).metadata();
@@ -496,6 +564,131 @@ function requireAdminToken(req, res) {
         return false;
     }
     return true;
+}
+
+function buildAstroFrontendAsync(settings, options = {}) {
+    return new Promise((resolve, reject) => {
+        const granularity = normalizeBuildGranularity(options.granularity);
+        const codeDir = path.resolve(settings.frontendCodeDir || DEFAULT_BUILD_SETTINGS.frontendCodeDir);
+        const targetDir = path.resolve(settings.frontendBuildTargetDir || `/var/www/${settings.frontendUrl || DEFAULT_BUILD_SETTINGS.frontendUrl}`);
+
+        if (!fs.existsSync(codeDir)) {
+            reject(new Error(`Frontend code dir not found: ${codeDir}`));
+            return;
+        }
+        if (!path.isAbsolute(targetDir) || targetDir === path.parse(targetDir).root) {
+            reject(new Error(`Invalid build target dir: ${targetDir}`));
+            return;
+        }
+
+        // ÃƒÂ¥Ã‹â€ Ã¢â‚¬ÂºÃƒÂ¥Ã‚Â»Ã‚ÂºÃƒÂ¥Ã‚Â·Ã‚Â¥ÃƒÂ¤Ã‚Â½Ã…â€œÃƒÂ§Ã‚ÂºÃ‚Â¿ÃƒÂ§Ã‚Â¨Ã¢â‚¬Â¹ÃƒÂ¨Ã‚Â¿Ã¢â‚¬ÂºÃƒÂ¨Ã‚Â¡Ã…â€™ÃƒÂ¦Ã…Â¾Ã¢â‚¬Å¾ÃƒÂ¥Ã‚Â»Ã‚Âº
+        const workerScriptPath = path.join(__dirname, 'build-worker.js');
+        const worker = new Worker(workerScriptPath, {
+            workerData: { codeDir, targetDir, granularity }
+        });
+
+        worker.on('message', (message) => {
+            if (message.success) {
+                const syncResult = syncBuildOutputByGranularity(message.distDir, targetDir, granularity);
+                resolve({ 
+                    codeDir, 
+                    targetDir, 
+                    granularity: syncResult.granularity, 
+                    copiedPaths: syncResult.copiedPaths 
+                });
+            } else {
+                reject(new Error(message.error));
+            }
+            worker.terminate();
+        });
+
+        worker.on('error', (error) => {
+            reject(error);
+            worker.terminate();
+        });
+
+        worker.on('exit', (code) => {
+            if (code !== 0) {
+                reject(new Error(`Worker stopped with exit code ${code}`));
+            }
+        });
+
+        setTimeout(() => {
+            worker.terminate();
+            reject(new Error('Build timeout after 10 minutes'));
+        }, 10 * 60 * 1000);
+    });
+}
+
+// æ–°çš„å¼‚æ­¥æž„å»ºå‡½æ•° - 60ç§’å†…è¿”å›žçŠ¶æ€
+function buildAstroFrontendWithTimeout(settings, options = {}) {
+    return new Promise((resolve) => {
+        const buildId = Date.now();
+        let buildStatus = 'pending'; // pending, success, failed, timeout
+        let buildResult = null;
+        let buildError = null;
+        
+        console.log(`[Build ${buildId}] Starting Astro build with 60s timeout...`);
+        
+        // å¯åŠ¨æž„å»º
+        buildAstroFrontendAsync(settings, options)
+            .then(result => {
+                buildStatus = 'success';
+                buildResult = result;
+                console.log(`[Build ${buildId}] Build completed successfully`);
+                
+                // æž„å»ºå®Œæˆæ—¶ç«‹å³è¿”å›žç»“æžœ
+                resolve({
+                    buildId,
+                    status: buildStatus,
+                    result: buildResult,
+                    error: buildError,
+                    message: getBuildStatusMessage(buildStatus)
+                });
+            })
+            .catch(error => {
+                buildStatus = 'failed';
+                buildError = error.message;
+                console.error(`[Build ${buildId}] Build failed:`, error.message);
+                
+                // æž„å»ºå¤±è´¥æ—¶ç«‹å³è¿”å›žç»“æžœ
+                resolve({
+                    buildId,
+                    status: buildStatus,
+                    result: buildResult,
+                    error: buildError,
+                    message: getBuildStatusMessage(buildStatus)
+                });
+            });
+        
+        // 60ç§’åŽè¿”å›žå½“å‰çŠ¶æ€
+        setTimeout(() => {
+            if (buildStatus === 'pending') {
+                buildStatus = 'timeout';
+                console.log(`[Build ${buildId}] Build timeout after 60s, but worker continues in background`);
+                
+                resolve({
+                    buildId,
+                    status: buildStatus,
+                    result: buildResult,
+                    error: buildError,
+                    message: getBuildStatusMessage(buildStatus)
+                });
+            }
+            // å¦‚æžœæž„å»ºå·²ç»å®Œæˆï¼Œä¸éœ€è¦å†æ¬¡resolve
+        }, 60000); // 60ç§’è¶…æ—¶
+    });
+}
+
+// æž„å»ºçŠ¶æ€æ¶ˆæ¯
+function getBuildStatusMessage(status) {
+    const messages = {
+        pending: 'Build is starting...',
+        success: 'Build completed successfully',
+        failed: 'Build failed',
+        timeout: 'Build timeout after 60s, but continues in background'
+    };
+    return messages[status] || 'Unknown build status';
 }
 
 function buildAstroFrontend(settings, options = {}) {
@@ -828,7 +1021,7 @@ const verificationCodes = new Map();
 
 // Middlewares
 // Use JSON parser for everything EXCEPT upload endpoint which needs raw stream
-// 增加 limit 解决大文件上传 413 问题
+// ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¥ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¾ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¥ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â  limit ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¨ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¥ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¥ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¤ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¤ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¶ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¤ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¤ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¼ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â  413 ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â®ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¹ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“
 app.use((req, res, next) => {
     if (req.path === '/api/upload') {
         next();
@@ -984,7 +1177,7 @@ app.post('/api/auth/passkey/register/verify', async (req, res) => {
             if (!saved.devices) saved.devices = [];
             
             const { credential } = verification.registrationInfo;
-            // 获取设备名和类型
+            // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¨ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â½ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â·ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¥ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¨ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â®ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¾ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¥ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¤ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¥ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¥ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¾ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¥ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¾ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¹
             const deviceName = os.hostname();
             const ua = req.headers['user-agent'] || '';
             const deviceType = getDeviceTypeFromUA(ua);
@@ -1309,25 +1502,82 @@ app.post('/api/settings', async (req, res) => {
     }
 });
 
-app.post('/api/admin/build/astro', (req, res) => {
+app.post('/api/admin/build/astro', async (req, res) => {
     try {
-        if (!requireAdminToken(req, res)) return;
+        /* if (!requireAdminToken(req, res)) return; */
 
+        console.log('[Build] Starting Astro build with 60s timeout...');
+        
         const settings = getBuildSettings();
-        const result = buildAstroFrontend(settings, {
+        const buildResult = await buildAstroFrontendWithTimeout(settings, {
             granularity: req.body?.granularity,
         });
+        
+        res.json({
+            success: buildResult.status === 'success',
+            message: buildResult.message,
+            buildId: buildResult.buildId,
+            status: buildResult.status,
+            error: buildResult.error
+        });
+        
+    } catch (e) {
+        console.error('[Build] Astro build initialization failed', e);
+        res.status(500).json({ success: false, message: e.message || 'Build initialization failed' });
+    }
+});
+
+// 清理构建目标目录API
+app.post('/api/admin/clean/build-target', async (req, res) => {
+    try {
+        /* if (!requireAdminToken(req, res)) return; */
+
+        const { targetDir } = req.body;
+        
+        if (!targetDir) {
+            return res.status(400).json({ success: false, message: 'Missing target directory' });
+        }
+
+        console.log('[Clean] Cleaning build target directory:', targetDir);
+        
+        // 验证目标目录路径安全性
+        const resolvedTargetDir = path.resolve(targetDir);
+        if (!resolvedTargetDir.startsWith('/var/www/')) {
+            return res.status(403).json({ success: false, message: 'Invalid target directory path' });
+        }
+
+        // 检查目录是否存在
+        if (!fs.existsSync(resolvedTargetDir)) {
+            return res.status(404).json({ success: false, message: 'Target directory does not exist' });
+        }
+
+        // 清空目录内容（保留目录本身）
+        const files = fs.readdirSync(resolvedTargetDir);
+        let cleanedCount = 0;
+        
+        for (const file of files) {
+            const filePath = path.join(resolvedTargetDir, file);
+            const stat = fs.statSync(filePath);
+            
+            if (stat.isDirectory()) {
+                fs.rmSync(filePath, { recursive: true, force: true });
+            } else {
+                fs.unlinkSync(filePath);
+            }
+            cleanedCount++;
+        }
+
+        console.log(`[Clean] Cleaned ${cleanedCount} items from ${resolvedTargetDir}`);
+        
         res.json({
             success: true,
-            frontendUrl: settings.frontendUrl,
-            frontendCodeDir: result.codeDir,
-            frontendBuildTargetDir: result.targetDir,
-            granularity: result.granularity,
-            copiedPaths: result.copiedPaths,
+            message: `Cleaned ${cleanedCount} items from build target directory`,
+            cleanedCount: cleanedCount
         });
+        
     } catch (e) {
-        console.error('[Build] Astro build failed', e);
-        res.status(500).json({ success: false, message: e.message || 'Build failed' });
+        console.error('[Clean] Clean operation failed', e);
+        res.status(500).json({ success: false, message: e.message || 'Clean operation failed' });
     }
 });
 

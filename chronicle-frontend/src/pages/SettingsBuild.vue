@@ -284,6 +284,10 @@ function formResetAll() {
 async function triggerBuild() {
   if (building.value) return
   building.value = true
+  
+  // 与侧边栏构建按钮一致的反馈
+  show(t('settings.buildTriggering') as string, { status: 'info', position: 'bottom-center', shape: 'capsule', duration: 2500 })
+  
   try {
     const res = await fetch(`/api/admin/build/astro?t=${Date.now()}`, {
       method: 'POST',
@@ -293,26 +297,53 @@ async function triggerBuild() {
         granularity: build.value.granularity,
       })
     })
-    if (res.ok) show(t('settings.buildTriggered') as string, { status: 'success' })
-    else show(t('settings.buildFailed') as string, { status: 'error' })
+    
+    if (res.ok) {
+      const result = await res.json()
+      
+      // 根据构建状态显示不同的反馈
+      if (result.status === 'success') {
+        show(t('settings.buildCompleted') as string, { status: 'success', position: 'bottom-center', shape: 'capsule' })
+      } else if (result.status === 'timeout') {
+        show(t('settings.buildTimeout') as string, { status: 'warning', position: 'bottom-center', shape: 'capsule' })
+      } else if (result.status === 'failed') {
+        show(t('settings.buildFailed') as string + (result.error ? `: ${result.error}` : ''), { status: 'error', position: 'bottom-center', shape: 'capsule' })
+      } else {
+        show(t('settings.buildTriggered') as string, { status: 'success', position: 'bottom-center', shape: 'capsule' })
+      }
+    } else {
+      show(t('settings.buildFailed') as string, { status: 'error', position: 'bottom-center', shape: 'capsule' })
+    }
   } catch (e) {
-    show(t('settings.buildFailed') as string, { status: 'error' })
+    show(t('settings.buildFailed') as string, { status: 'error', position: 'bottom-center', shape: 'capsule' })
   } finally { building.value = false }
 }
 
 async function triggerClean() {
   if (building.value) return
   building.value = true
+  
+  // Clear操作只清空目录，不构建
+  show(t('settings.cleaning') as string, { status: 'info', position: 'bottom-center', shape: 'capsule', duration: 2500 })
+  
   try {
-    const res = await fetch(`/api/admin/build/astro?t=${Date.now()}`, {
+    // 调用专门的清理API，而不是构建API
+    const res = await fetch(`/api/admin/clean/build-target?t=${Date.now()}`, {
       method: 'POST',
       headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
-      body: JSON.stringify({ clean: true, reason: 'clean' })
+      body: JSON.stringify({ 
+        targetDir: frontendBuildTargetDir.value,
+        reason: 'manual_clean' 
+      })
     })
-    if (res.ok) show(t('settings.cleanTriggered') as string, { status: 'success' })
-    else show(t('settings.cleanFailed') as string, { status: 'error' })
+    
+    if (res.ok) {
+      show(t('settings.cleanCompleted') as string, { status: 'success', position: 'bottom-center', shape: 'capsule' })
+    } else {
+      show(t('settings.cleanFailed') as string, { status: 'error', position: 'bottom-center', shape: 'capsule' })
+    }
   } catch (e) {
-    show(t('settings.cleanFailed') as string, { status: 'error' })
+    show(t('settings.cleanFailed') as string, { status: 'error', position: 'bottom-center', shape: 'capsule' })
   } finally { building.value = false }
 }
 
