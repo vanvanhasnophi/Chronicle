@@ -559,7 +559,7 @@ function requireAdminToken(req, res) {
     const headerToken = req.headers['x-chronicle-auth'];
     const bodyToken = typeof req.body?.token === 'string' ? req.body.token : '';
     const token = headerToken || bodyToken;
-    if (token && token !== 'session-valid' && token !== 'active') {
+    if (!token || (token !== 'session-valid' && token !== 'active')) {
         res.status(401).json({ success: false, message: 'Unauthorized' });
         return false;
     }
@@ -1139,6 +1139,7 @@ app.post('/api/auth/code/verify', (req, res) => {
 });
 
 app.post('/api/auth/passkey/register/options', async (req, res) => {
+    if (!requireAdminToken(req, res)) return;
     const user = 'admin';
     const options = await generateRegistrationOptions({
         rpName: 'Chronicle Blog',
@@ -1151,6 +1152,7 @@ app.post('/api/auth/passkey/register/options', async (req, res) => {
 });
 
 app.post('/api/auth/passkey/register/verify', async (req, res) => {
+    if (!requireAdminToken(req, res)) return;
     try {
         const { response } = req.body;
         const user = 'admin';
@@ -1257,6 +1259,7 @@ app.post('/api/auth/passkey/login/verify', async (req, res) => {
 });
 
 app.get('/api/auth/passkeys', (req, res) => {
+    if (!requireAdminToken(req, res)) return;
     try {
         if (!fs.existsSync(SECURITY_FILE)) return res.json([]);
         const saved = JSON.parse(fs.readFileSync(SECURITY_FILE, 'utf-8'));
@@ -1273,6 +1276,7 @@ app.get('/api/auth/passkeys', (req, res) => {
 });
 
 app.delete('/api/auth/passkeys/:id', (req, res) => {
+    if (!requireAdminToken(req, res)) return;
     try {
         const { id } = req.params;
         if (!fs.existsSync(SECURITY_FILE)) return res.status(404).send('No file');
@@ -1295,6 +1299,7 @@ app.delete('/api/auth/passkeys/:id', (req, res) => {
 });
 
 app.patch('/api/auth/passkeys/:id', (req, res) => {
+    if (!requireAdminToken(req, res)) return;
     try {
         const { id } = req.params;
         const { name } = req.body;
@@ -1504,7 +1509,7 @@ app.post('/api/settings', async (req, res) => {
 
 app.post('/api/admin/build/astro', async (req, res) => {
     try {
-        /* if (!requireAdminToken(req, res)) return; */
+        if (!requireAdminToken(req, res)) return;
 
         console.log('[Build] Starting Astro build with 60s timeout...');
         
@@ -1530,7 +1535,7 @@ app.post('/api/admin/build/astro', async (req, res) => {
 // 清理构建目标目录API
 app.post('/api/admin/clean/build-target', async (req, res) => {
     try {
-        /* if (!requireAdminToken(req, res)) return; */
+        if (!requireAdminToken(req, res)) return;
 
         const { targetDir } = req.body;
         

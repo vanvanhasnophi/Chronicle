@@ -234,6 +234,11 @@ log "同步后端源码到部署目录..."
 mkdir -p "$SERVER_ROOT"
 rsync -av --delete --exclude='data' --exclude='log' --exclude='node_modules' "$REPO_ROOT/server/" "$SERVER_ROOT/"
 
+cd "$SERVER_ROOT"
+if [ ! -d "node_modules" ]; then
+    npm install
+fi
+
 RUN_WRAPPER="$SERVER_ROOT/run.sh"
 cat > "$RUN_WRAPPER" <<EOF
 #!/bin/bash
@@ -242,6 +247,13 @@ cd "$SERVER_ROOT"
 exec node index.js
 EOF
 chmod +x "$RUN_WRAPPER"
+
+log "重启/启动后端服务器..."
+if command -v pm2 &> /dev/null; then
+    pm2 restart chronicle-server || pm2 start "$RUN_WRAPPER" --name chronicle-server
+else
+    warn "pm2 not found. Cannot restart backend automatically."
+fi
 
 log "构建 chronicle-frontend..."
 mkdir -p "$BACKEND_ROOT"
@@ -271,13 +283,7 @@ ensure_symlink "$WEB_ROOT/server/data/upload" "$SERVER_ROOT/data/upload"
 log "配置后台上传目录符号链接..."
 ensure_symlink "$BACKEND_ROOT/server/data/upload" "$SERVER_ROOT/data/upload"
 
-log "重载服务..."
-if command -v pm2 &> /dev/null; then
-    pm2 restart chronicle-server || pm2 start "$RUN_WRAPPER" --name chronicle-server
-else
-    warn "pm2 not found. Cannot restart backend automatically."
-fi
-
+log "重载 Web 服务..."
 if systemctl is-active --quiet nginx; then
     systemctl reload nginx
     log "Nginx reloaded."
