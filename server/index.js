@@ -38,6 +38,73 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
+// Verbose per-request result logger when running in dev mode
+app.use((req, res, next) => {
+    const devMode = process.argv.includes('--dev');
+    const start = Date.now();
+
+    // wrap res.json and res.send to log outcome when they are called
+    const _json = res.json.bind(res);
+    const _send = res.send.bind(res);
+
+    function logOutcome(statusCode, responseBody) {
+        const duration = Date.now() - start;
+        const brief = `${req.method} ${req.originalUrl} ${statusCode} ${duration}ms`;
+        if (!devMode) {
+            // always print simple success/failure in non-dev too
+            if (statusCode >= 400) {
+                console.error('[API]', brief);
+            } else {
+                console.log('[API]', brief);
+            }
+            return;
+        }
+
+        if (statusCode >= 400) {
+            console.error('[API ERROR]', brief);
+            try {
+                console.error('  Query:', req.query);
+                console.error('  Body :', req.body);
+                console.error('  Response:', typeof responseBody === 'object' ? JSON.stringify(responseBody) : String(responseBody));
+            } catch (e) {
+                console.error('[API ERROR] failed to serialize debug info', e);
+            }
+        } else {
+            console.log('[API]', brief);
+        }
+    }
+
+    res.json = function (body) {
+        try {
+            logOutcome(res.statusCode || 200, body);
+        } catch (e) {}
+        return _json(body);
+    };
+
+    res.send = function (body) {
+        try {
+            logOutcome(res.statusCode || 200, body);
+        } catch (e) {}
+        return _send(body);
+    };
+
+    next();
+});
+// Global error handler to ensure uncaught errors are logged with stack
+app.use((err, req, res, next) => {
+    console.error('[Unhandled API Error]', err && (err.stack || err.message || String(err)));
+    try {
+        console.error('  Request:', req.method, req.originalUrl);
+        console.error('  Query  :', req.query);
+        console.error('  Body   :', req.body);
+    } catch (e) {}
+    if (!res.headersSent) {
+        res.status(500).json({ success: false, message: err.message || 'Internal Server Error' });
+    } else {
+        next(err);
+    }
+});
+
 // Logger
 const LOG_DIR = path.join(__dirname, 'log');
 const ACCESS_LOG = path.join(LOG_DIR, 'access.log');
