@@ -75,6 +75,7 @@
 </template>
 
 <script setup lang="ts">
+import { fetchWithAuth } from '../utils/fetchWithAuth';
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -106,7 +107,7 @@ let timerInterval: any = null
 
 const generateCode = async () => {
     try {
-        const res = await fetch(`/api/auth/code/generate?t=${Date.now()}`)
+        const res = await fetchWithAuth(`/api/auth/code/generate?t=${Date.now()}`)
         const data = await res.json()
         if (data.code) {
             verificationCode.value = data.code
@@ -136,12 +137,12 @@ const passkeys = ref<Passkey[]>([])
 const verifyPasskey = async () => {
     try {
             message.value = t('security.verifying')
-        const resp = await fetch(`/api/auth/passkey/login/options?t=${Date.now()}`, { method: 'POST' })
+        const resp = await fetchWithAuth(`/api/auth/passkey/login/options?t=${Date.now()}`, { method: 'POST' })
         const options = await resp.json()
         
         const authResp = await startAuthentication(options)
         
-        const verResp = await fetch(`/api/auth/passkey/login/verify?t=${Date.now()}`, {
+        const verResp = await fetchWithAuth(`/api/auth/passkey/login/verify?t=${Date.now()}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ response: authResp })
@@ -172,7 +173,7 @@ const changePassword = async (tokenOrEvent?: string | Event) => {
   message.value = ''
 
   try {
-    const res = await fetch(`/api/auth/change?t=${Date.now()}`, {
+    const res = await fetchWithAuth(`/api/auth/change?t=${Date.now()}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -224,12 +225,12 @@ const registerPasskey = async () => {
     regLoading.value = true
     regMessage.value = ''
     try {
-        const resp = await fetch(`/api/auth/passkey/register/options?t=${Date.now()}`, { method: 'POST' })
+        const resp = await fetchWithAuth(`/api/auth/passkey/register/options?t=${Date.now()}`, { method: 'POST' })
         const options = await resp.json()
         
         const attResp = await startRegistration(options)
         
-        const verResp = await fetch(`/api/auth/passkey/register/verify?t=${Date.now()}`, {
+        const verResp = await fetchWithAuth(`/api/auth/passkey/register/verify?t=${Date.now()}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ response: attResp })
@@ -259,7 +260,7 @@ const registerPasskey = async () => {
 
 const fetchPasskeys = async () => {
     try {
-        const res = await fetch(`/api/auth/passkeys?t=${Date.now()}`)
+        const res = await fetchWithAuth(`/api/auth/passkeys?t=${Date.now()}`)
         if (res.ok) {
           passkeys.value = await res.json()
         }
@@ -271,7 +272,7 @@ const fetchPasskeys = async () => {
 const deletePasskey = async (id: string) => {
     if (!confirm(t('security.confirmDeletePasskey'))) return;
     try {
-        const res = await fetch(`/api/auth/passkeys/${id}?t=${Date.now()}`, { method: 'DELETE' })
+        const res = await fetchWithAuth(`/api/auth/passkeys/${id}?t=${Date.now()}`, { method: 'DELETE' })
         if (res.ok) {
             fetchPasskeys()
         }
@@ -285,7 +286,7 @@ const renamePasskey = async (id: string, currentName: string) => {
     if (!newName || newName === currentName) return;
     
     try {
-        const res = await fetch(`/api/auth/passkeys/${id}?t=${Date.now()}`, {
+        const res = await fetchWithAuth(`/api/auth/passkeys/${id}?t=${Date.now()}`, {
             method: 'PATCH',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ name: newName })

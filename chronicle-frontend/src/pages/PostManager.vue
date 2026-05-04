@@ -60,6 +60,7 @@
 </template>
 
 <script setup lang="ts">
+import { fetchWithAuth } from '../utils/fetchWithAuth';
 import { ref, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -100,7 +101,7 @@ async function saveRename(post: Post) {
     
     if (newTitle && newTitle !== post.title) {
          try {
-             const res = await fetch(`/api/post?t=${Date.now()}`, {
+             const res = await fetchWithAuth(`/api/post?t=${Date.now()}`, {
                  method: 'POST',
                  body: JSON.stringify({
                      id: post.id,
@@ -161,7 +162,7 @@ const deletePost = async (id: string) => {
       }
     })()
 
-        const res = await fetch(`/api/post?id=${id}&t=${Date.now()}`, {
+        const res = await fetchWithAuth(`/api/post?id=${id}&t=${Date.now()}`, {
           method: 'DELETE',
           headers: authToken ? { 'X-Chronicle-Auth': authToken } : {},
         })
@@ -180,7 +181,7 @@ const deletePost = async (id: string) => {
 async function loadPosts() {
     loading.value = true
     try {
-        const res = await fetch(`/api/posts?includeDrafts=true&t=${Date.now()}`)
+        const res = await fetchWithAuth(`/api/posts?includeDrafts=true&t=${Date.now()}`)
         if (res.ok) {
         posts.value = await res.json()
         }

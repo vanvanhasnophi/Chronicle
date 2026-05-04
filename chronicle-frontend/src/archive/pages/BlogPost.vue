@@ -94,6 +94,7 @@
 </template>
 
 <script setup lang="ts">
+import { fetchWithAuth } from '../../utils/fetchWithAuth';
 import { ref, onMounted, computed, nextTick, watch, onBeforeUnmount, defineAsyncComponent } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -609,7 +610,7 @@ onMounted(async () => {
     }
 
     try {
-        const res = await fetch(`/api/post?id=${id}&t=${Date.now()}`)
+        const res = await fetchWithAuth(`/api/post?id=${id}&t=${Date.now()}`)
         if (res.ok) {
             post.value = await res.json()
         }

@@ -58,6 +58,7 @@
 </template>
 
 <script setup lang="ts">
+import { fetchWithAuth } from '../utils/fetchWithAuth';
 import { ref, watch } from 'vue'
 import { usePreview } from '../composables/usePreview'
 import { Icons } from '../utils/icons'
@@ -75,7 +76,7 @@ watch([() => state.file, encoding], async ([newFile, newEncoding]) => {
     if (newFile.type === 'Code/Text' || newFile.name.match(/\.(txt|md|json|js|ts|css|html|xml|log|csv|py|java|c|cpp|h|sh|bat)$/i)) {
        loading.value = true
        try {
-         const res = await fetch(newFile.path)
+         const res = await fetchWithAuth(newFile.path)
          if(res.ok) {
              const buffer = await res.arrayBuffer()
              const decoder = new TextDecoder(newEncoding as string)

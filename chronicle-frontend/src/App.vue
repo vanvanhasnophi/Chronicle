@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { fetchWithAuth } from './utils/fetchWithAuth';
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { Icons } from './utils/icons'
@@ -155,7 +156,7 @@ function ensureBackgroundImagePrepared(url: string): Promise<{ ok: boolean; prep
     const p = (async () => {
       // Prefer fully downloaded blob url to avoid progressive display artifacts.
       try {
-        const resp = await fetch(normalizedUrl, { cache: 'force-cache' })
+        const resp = await fetchWithAuth(normalizedUrl, { cache: 'force-cache' })
         if (resp.ok) {
           const blob = await resp.blob()
           if (blob && blob.size > 0) {
@@ -450,7 +451,7 @@ function updateResolvedOverlays() {
 async function getSettings() {
   try {
     try {
-      const resp = await fetch(`/api/settings?t=${Date.now()}`)
+      const resp = await fetchWithAuth(`/api/settings?t=${Date.now()}`)
       if (resp.ok) {
         const s = await resp.json()
         return s || {}
@@ -887,7 +888,7 @@ async function rebuildFrontend() {
     })()
 
     showToast(t('settings.buildTriggering'), { status: 'info', position: 'bottom-center', shape: 'capsule', duration: 2500 })
-    const res = await fetch(`/api/admin/build/astro?t=${Date.now()}`, {
+    const res = await fetchWithAuth(`/api/admin/build/astro?t=${Date.now()}`, {
       method: 'POST',
       headers: authToken ? { 'X-Chronicle-Auth': authToken } : {}
     })

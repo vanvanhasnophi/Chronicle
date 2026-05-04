@@ -88,6 +88,7 @@
 </template>
 
 <script setup lang="ts">
+import { fetchWithAuth } from '../../utils/fetchWithAuth';
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -198,7 +199,7 @@ const formatDate = (isoStr: string) => {
 
 onMounted(async () => {
     try {
-        const res = await fetch(`/api/posts?t=${Date.now()}`)
+        const res = await fetchWithAuth(`/api/posts?t=${Date.now()}`)
         if (res.ok) {
             posts.value = await res.json()
         }

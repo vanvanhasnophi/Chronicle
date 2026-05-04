@@ -18,13 +18,19 @@ const apiBaseUrl = String(import.meta.env.VITE_API_BASE_URL || '').trim().replac
 
 if (typeof window !== 'undefined' && apiBaseUrl) {
 	const originalFetch = window.fetch.bind(window)
-	window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
-		const requestUrl = typeof input === 'string' || input instanceof URL ? String(input) : ''
-		if (requestUrl.startsWith('/api/')) {
-			return originalFetch(`${apiBaseUrl}${requestUrl}`, init)
-		}
-		return originalFetch(input, init)
-	}) as typeof fetch
+		window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+			const requestUrl = typeof input === 'string' || input instanceof URL ? String(input) : ''
+			if (requestUrl.startsWith('/api/')) {
+				const token = typeof window !== 'undefined' ? (localStorage.getItem('chronicle_auth') || '') : ''
+				// clone/init headers safely and set x-chronicle-auth when present
+				const newInit: RequestInit = { ...(init || {}) };
+				const headers = new Headers(init && init.headers ? init.headers as HeadersInit : undefined);
+				if (token && !headers.has('x-chronicle-auth')) headers.set('x-chronicle-auth', token);
+				newInit.headers = headers;
+				return originalFetch(`${apiBaseUrl}${requestUrl}`, newInit)
+			}
+			return originalFetch(input, init)
+		}) as typeof fetch
 }
 
 // Determine initial locale: prefer saved setting, otherwise browser language

@@ -428,6 +428,7 @@
 </template>
 
 <script setup lang="ts">
+import { fetchWithAuth } from '../utils/fetchWithAuth';
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, reactive } from 'vue'
 import { useRoute, useRouter, onBeforeRouteUpdate, onBeforeRouteLeave } from 'vue-router'
 import MdParser from './MdParser.vue'
@@ -543,7 +544,7 @@ async function handleFileTabChange(tab: string) {
     if (tab === 'open') {
         fileLoading.value = true
         try {
-            const res = await fetch(`/api/posts?includeDrafts=true&t=${Date.now()}`)
+            const res = await fetchWithAuth(`/api/posts?includeDrafts=true&t=${Date.now()}`)
             if (res.ok) {
                 filePosts.value = await res.json()
             }
@@ -706,7 +707,7 @@ async function doRestore() {
     if (!postId.value) return
 
     try {
-        const res = await fetch(`/api/restore?id=${postId.value}&t=${Date.now()}`, { method: 'POST' })
+        const res = await fetchWithAuth(`/api/restore?id=${postId.value}&t=${Date.now()}`, { method: 'POST' })
         if (res.ok) {
             // clear local draft too
             localStorage.removeItem(draftKey.value)
@@ -786,7 +787,7 @@ async function triggerAstroBuild(postId: string) {
     isBuilding.value = true
     postStatus.value = 'building'
     try {
-        const res = await fetch(`/api/admin/build/astro?t=${Date.now()}`, {
+        const res = await fetchWithAuth(`/api/admin/build/astro?t=${Date.now()}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -839,7 +840,7 @@ async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
 
         // Ã¤Â¸Â¥Ã¦Â Â¼Ã¦Å’â€°Ã§â€¦Â§MarkdownÃ¥Å½Å¸Ã¦â€“â€¡Ã¤Â¿ÂÃ¥Â­ËœÃ¯Â¼Å’Ã¤Â¸ÂÃ¨Â½Â¬Ã¦ÂÂ¢MermaidÃ¤Â»Â£Ã§Â ÂÃ¥Ââ€”
         const contentToSend = localValue.value
-        const res = await fetch(`/api/post?t=${Date.now()}`, {
+        const res = await fetchWithAuth(`/api/post?t=${Date.now()}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1023,7 +1024,7 @@ async function loadPostById(id: string) {
         if (draft) {
             // We have a local unsaved draft for this ID
             // Load base from server to get metadata, then override content
-            const detailRes = await fetch(`/api/post?id=${id}&mode=edit&t=${Date.now()}`)
+            const detailRes = await fetchWithAuth(`/api/post?id=${id}&mode=edit&t=${Date.now()}`)
             if (detailRes.ok) {
                 const detail = await detailRes.json()
                 postId.value = detail.id
@@ -1056,7 +1057,7 @@ async function loadPostById(id: string) {
             return
         }
 
-        const detailRes = await fetch(`/api/post?id=${id}&mode=edit&t=${Date.now()}`)
+        const detailRes = await fetchWithAuth(`/api/post?id=${id}&mode=edit&t=${Date.now()}`)
         if (detailRes.ok) {
             const detail = await detailRes.json()
             postId.value = detail.id
@@ -1299,7 +1300,7 @@ const getIconForFile = (name: string) => {
 async function fetchServerImages() {
     try {
         const path = selectedCategory.value
-        const res = await fetch(`/api/files?path=${encodeURIComponent(path)}&t=${Date.now()}`)
+        const res = await fetchWithAuth(`/api/files?path=${encodeURIComponent(path)}&t=${Date.now()}`)
         if (res.ok) {
             const items = await res.json()
             uploadedImages.value = items

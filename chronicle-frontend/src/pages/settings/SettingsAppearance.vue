@@ -158,6 +158,7 @@
 </template>
 
 <script setup lang="ts">
+import { fetchWithAuth } from '../../utils/fetchWithAuth';
 import { computed, ref, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import useToast from '../../composables/useToast'
@@ -220,8 +221,8 @@ function buildDarkerColor(accent: string) {
 onMounted(() => {
   // try to load server-side persisted settings (merge)
   try {
-    fetch(`/api/settings?t=${Date.now()}`)
-      .then(r => r.ok ? r.json() : Promise.resolve({}))
+    fetchWithAuth(`/api/settings?t=${Date.now()}`)
+      .then((r: any) => r.ok ? r.json() : Promise.resolve({}))
       .then((s: any) => {
         if (!s) return
         if (s.backendLocale) uiBackendLocale.value = s.backendLocale
@@ -335,7 +336,7 @@ onMounted(() => {
 
 async function fetchServerImages() {
   try {
-    const res = await fetch(`/api/files?path=pic&t=${Date.now()}`)
+    const res = await fetchWithAuth(`/api/files?path=pic&t=${Date.now()}`)
     if (!res.ok) return
     const items = await res.json()
     uploadedImagesLocal.value = items
@@ -482,7 +483,7 @@ async function compressBackgroundIfNeeded(target: 'frontend' | 'backend', backgr
   const nextKey = normalizeBackgroundChangeKey(backgroundPayload, backgroundMeta)
   if (!nextKey || nextKey === initialKey) return { meta: backgroundMeta, background: backgroundPayload }
 
-  const res = await fetch(`/api/background/compress?t=${Date.now()}`, {
+  const res = await fetchWithAuth(`/api/background/compress?t=${Date.now()}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -623,7 +624,7 @@ async function save() {
 
   // persist to backend
   try {
-    await fetch(`/api/settings?t=${Date.now()}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cfg) })
+    await fetchWithAuth(`/api/settings?t=${Date.now()}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cfg) })
     if (frontendBackgroundMeta) uiFrontendBackgroundMeta.value = frontendBackgroundMeta
     if (backendBackgroundMeta) uiBackendBackgroundMeta.value = backendBackgroundMeta
     initialFrontendBackgroundKey.value = normalizeBackgroundChangeKey(frontendBackgroundToSave, frontendBackgroundMeta)

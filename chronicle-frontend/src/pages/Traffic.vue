@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { fetchWithAuth } from '../utils/fetchWithAuth';
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -39,7 +40,7 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const response = await fetch(`/api/traffic?days=${range.value}&t=${Date.now()}`, { cache: 'no-store' })
+    const response = await fetchWithAuth(`/api/traffic?days=${range.value}&t=${Date.now()}`, { cache: 'no-store' })
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
     data.value = await response.json()
   } catch (err) {

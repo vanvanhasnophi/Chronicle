@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { fetchWithAuth } from '../utils/fetchWithAuth';
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -31,7 +32,7 @@ function formatDate(value: string) {
 
 onMounted(async () => {
   try {
-    const response = await fetch('/api/dashboard?days=30&t=' + Date.now(), { cache: 'no-store' })
+    const response = await fetchWithAuth('/api/dashboard?days=30&t=' + Date.now(), { cache: 'no-store' })
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
     data.value = await response.json()
   } catch (err) {

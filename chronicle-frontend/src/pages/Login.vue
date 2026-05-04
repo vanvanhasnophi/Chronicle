@@ -51,6 +51,7 @@
 </template>
 
 <script setup lang="ts">
+import { fetchWithAuth } from '../utils/fetchWithAuth';
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { startAuthentication } from '@simplewebauthn/browser'
@@ -88,7 +89,7 @@ const handleLogin = async () => {
   error.value = ''
   
   try {
-    const res = await fetch(`/api/auth/login?t=${Date.now()}`, {
+    const res = await fetchWithAuth(`/api/auth/login?t=${Date.now()}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password: password.value })
@@ -115,7 +116,7 @@ const handleCodeVerify = async () => {
     loading.value = true
     error.value = ''
     try {
-        const res = await fetch(`/api/auth/code/verify?t=${Date.now()}`, {
+        const res = await fetchWithAuth(`/api/auth/code/verify?t=${Date.now()}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ code: inputCode.value })
@@ -139,12 +140,12 @@ const handlePasskeyLogin = async (is2FA = false) => {
     else error.value = ''
 
     try {
-        const resp = await fetch(`/api/auth/passkey/login/options?t=${Date.now()}`, { method: 'POST' })
+        const resp = await fetchWithAuth(`/api/auth/passkey/login/options?t=${Date.now()}`, { method: 'POST' })
         const options = await resp.json()
         
         const authResp = await startAuthentication(options)
         
-        const verResp = await fetch(`/api/auth/passkey/login/verify?t=${Date.now()}`, {
+        const verResp = await fetchWithAuth(`/api/auth/passkey/login/verify?t=${Date.now()}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ response: authResp })

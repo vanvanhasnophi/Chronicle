@@ -152,6 +152,7 @@
 </template>
 
 <script setup lang="ts">
+import { fetchWithAuth } from '../utils/fetchWithAuth';
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import useToast from '../composables/useToast'
@@ -289,7 +290,7 @@ async function triggerBuild() {
   show(t('settings.buildTriggering') as string, { status: 'info', position: 'bottom-center', shape: 'capsule', duration: 2500 })
   
   try {
-    const res = await fetch(`/api/admin/build/astro?t=${Date.now()}`, {
+    const res = await fetchWithAuth(`/api/admin/build/astro?t=${Date.now()}`, {
       method: 'POST',
       headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
       body: JSON.stringify({
@@ -328,7 +329,7 @@ async function triggerClean() {
   
   try {
     // 调用专门的清理API，而不是构建API
-    const res = await fetch(`/api/admin/clean/build-target?t=${Date.now()}`, {
+    const res = await fetchWithAuth(`/api/admin/clean/build-target?t=${Date.now()}`, {
       method: 'POST',
       headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
       body: JSON.stringify({ 
@@ -351,7 +352,7 @@ async function load() {
   if (loading.value) return
   loading.value = true
   try {
-    const res = await fetch(`/api/settings?t=${Date.now()}`)
+    const res = await fetchWithAuth(`/api/settings?t=${Date.now()}`)
     if (!res.ok) return
     const s = await res.json()
     if (!s) return
@@ -389,7 +390,7 @@ async function save() {
     }
     const headers: Record<string,string> = { 'Content-Type': 'application/json' }
     Object.assign(headers, authHeaders())
-    const res = await fetch(`/api/settings?t=${Date.now()}`, { method: 'POST', headers, body: JSON.stringify(body) })
+    const res = await fetchWithAuth(`/api/settings?t=${Date.now()}`, { method: 'POST', headers, body: JSON.stringify(body) })
     if (res.ok) {
       show(t('settings.saveSuccess') as string, { status: 'success' })
       if (schedule.value.enabled && !cronInstalled.value) {
