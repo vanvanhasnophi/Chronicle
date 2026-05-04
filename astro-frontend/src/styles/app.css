@@ -290,6 +290,10 @@ pre{
   scroll-padding-top: var(--toc-scroll-offset);
 }
 
+.main-content.unscrollable {
+  overflow: hidden;
+}
+
 .main-content.no-nav {
   padding-top: 0;
   overflow: hidden;

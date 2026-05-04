@@ -42,7 +42,7 @@ if (!settings || Object.keys(settings).length === 0) {
   } catch (e) {}
 }
 ---
-<Layout title={t('nav.home')} settings={settings}>
+<Layout title={t('nav.home')} settings={settings} scrollable={false}>
   <div class="home-container">
     <div class="hero">
       <h1 class="ink-minimal">
@@ -60,9 +60,7 @@ if (!settings || Object.keys(settings).length === 0) {
 </Layout>
 
 <style>
-.main-content {
-    overflow: hidden !important;
-}
+
 .home-container {
     margin: 0;
     top: -70px;

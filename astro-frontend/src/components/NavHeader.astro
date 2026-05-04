@@ -725,6 +725,7 @@ const isActive = (path: string) => {
       document.cookie = `locale=${cookieValue}; path=/; max-age=31536000`;
     }
 
+    /*
     function maybePromptLocaleMismatch() {
       const routeLocale = getCurrentRouteLocale();
       const browserLocale = getBrowserLocale();
@@ -747,6 +748,7 @@ const isActive = (path: string) => {
 
       return false;
     }
+      */
 
     // Update checkmarks
     function updateMenuState() {
@@ -818,7 +820,7 @@ const isActive = (path: string) => {
         settingsMenu.style.display = "none";
       } else {
         updateMenuState();
-        if (maybePromptLocaleMismatch()) return;
+        // if (maybePromptLocaleMismatch()) return;
         positionSettingsMenu();
       }
     });
