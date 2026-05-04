@@ -132,8 +132,7 @@ if [ -f "$CONFIG_FILE" ]; then
             read -r -p "Astro 源码目录名 (例如 astro-frontend): " REPO_ASTRO_SRC_NAME || true
             REPO_ASTRO_SRC_NAME=${REPO_ASTRO_SRC_NAME:-astro-frontend}
         fi
-    fi
-else
+    else
     log "未找到已保存部署配置，转为扫描仓库以检测源码目录并初始化配置。"
     CANDIDATES=()
     log "扫描仓库根目录以检测源码目录..."
