@@ -38,9 +38,8 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
-// Verbose per-request result logger when running in dev mode
+// Verbose per-request result logger
 app.use((req, res, next) => {
-    const devMode = process.argv.includes('--dev');
     const start = Date.now();
 
     // wrap res.json and res.send to log outcome when they are called
@@ -50,28 +49,36 @@ app.use((req, res, next) => {
     function logOutcome(statusCode, responseBody) {
         const duration = Date.now() - start;
         const brief = `${req.method} ${req.originalUrl} ${statusCode} ${duration}ms`;
-        if (!devMode) {
-            // always print simple success/failure in non-dev too
-            if (statusCode >= 400) {
-                console.error('[API]', brief);
-            } else {
-                console.log('[API]', brief);
-            }
-            return;
-        }
 
         if (statusCode >= 400) {
-            console.error('[API ERROR]', brief);
+            // Always print detailed info for failures
             try {
-                console.error('  Query:', req.query);
-                console.error('  Body :', req.body);
+                console.error('[API ERROR]', brief);
+                console.error('  Query   :', JSON.stringify(req.query || {}));
+                console.error('  Body    :', JSON.stringify(req.body || {}));
                 console.error('  Response:', typeof responseBody === 'object' ? JSON.stringify(responseBody) : String(responseBody));
+                if (process.env.VERBOSE_ERRORS === '1') {
+                    console.error('  Headers :', JSON.stringify(req.headers || {}));
+                }
             } catch (e) {
                 console.error('[API ERROR] failed to serialize debug info', e);
             }
-        } else {
-            console.log('[API]', brief);
+
+            // persist to error log when available
+            try {
+                const out = [`[${new Date().toISOString()}] ${brief}`,
+                    `  Query: ${JSON.stringify(req.query || {})}`,
+                    `  Body: ${JSON.stringify(req.body || {})}`,
+                    `  Response: ${typeof responseBody === 'object' ? JSON.stringify(responseBody) : String(responseBody)}`,
+                    '\n'].join('\n');
+                fs.appendFile(path.join(__dirname, 'log', 'error.log'), out, () => {});
+            } catch (e) {}
+
+            return;
         }
+
+        // success - short log
+        console.log('[API]', brief);
     }
 
     res.json = function (body) {
