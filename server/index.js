@@ -32,12 +32,15 @@ const corsOptions = {
         // Allow requests with no origin (e.g. curl, server-to-server)
         if (!origin) return callback(null, true);
         if (allowedOrigins.indexOf(origin) !== -1) return callback(null, true);
+        // Log rejected origins for debugging CORS issues
+        console.warn('[CORS] Rejected origin:', origin);
         return callback(new Error('Not allowed by CORS'));
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'X-Requested-With', 'X-Chronicle-Auth'],
+    allowedHeaders: ['Content-Type', 'X-Requested-With', 'X-Chronicle-Auth', 'Authorization'],
     credentials: true,
-    optionsSuccessStatus: 204
+    optionsSuccessStatus: 204,
+    maxAge: 86400
 };
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));

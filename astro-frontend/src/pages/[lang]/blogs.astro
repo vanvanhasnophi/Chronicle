@@ -26,9 +26,9 @@ try {
   console.error('[blogs] Failed to fetch settings:', e);
 }
 
-const PAGE_SIZE = 10;
+const SSR_PAGE_SIZE = 20;
 const initialPostsRequestUrl = getApiUrl(
-  `/api/posts?page=1&perPage=${PAGE_SIZE}&timeline=desc&t=${Date.now()}`,
+  `/api/posts?page=1&perPage=${SSR_PAGE_SIZE}&timeline=desc&t=${Date.now()}`,
   true,
 );
 
@@ -581,7 +581,7 @@ const hasFeaturedPosts = initialFeaturedPosts.length > 0;
     };
 
     const perPage = 10;
-    let page = initialPosts.length > 0 ? 1 : 0;
+    let page = initialPosts.length > 0 ? 2 : 1;
     let loading = false;
     let done = false;
     let loadedAny = initialPosts.length > 0;
@@ -853,7 +853,7 @@ const hasFeaturedPosts = initialFeaturedPosts.length > 0;
         }
         const data = await res.json();
         const arr = Array.isArray(data) ? data : data.posts || [];
-        if (page === 1 && placeholder) placeholder.style.display = 'none';
+        if (page === 2 && placeholder) placeholder.style.display = 'none';
         if (!arr.length) {
           done = true;
           if (!loadedAny && empty) empty.style.display = 'block';
@@ -866,7 +866,7 @@ const hasFeaturedPosts = initialFeaturedPosts.length > 0;
       } catch (e) {
         console.error('[blogs] Error loading posts:', e);
         done = true;
-        if (page === 1 && placeholder) placeholder.style.display = 'none';
+        if (page === 2 && placeholder) placeholder.style.display = 'none';
         if (!loadedAny && empty) empty.style.display = 'block';
       } finally {
         loading = false;

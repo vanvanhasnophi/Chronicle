@@ -87,8 +87,11 @@ if (!settings || Object.keys(settings).length === 0) {
     background: radial-gradient(circle, rgba(173, 255, 47, 0.4) 0%, rgba(173, 255, 47, 0.2) 30%, transparent 70%);
     border-radius: 50%;
     pointer-events: none;
-    filter: blur(40px);
-    z-index: 1;
+  filter: blur(40px);
+  z-index: 1;
+  transform: translateX(0);
+  will-change: transform, opacity;
+  animation: move-lr-1 16s ease-in-out infinite alternate, glow-flicker 16s ease-in-out infinite;
 }
 
 .home-container::after {
@@ -101,8 +104,11 @@ if (!settings || Object.keys(settings).length === 0) {
     background: radial-gradient(circle, rgba(127, 255, 0, 0.35) 0%, rgba(127, 255, 0, 0.15) 35%, transparent 75%);
     border-radius: 50%;
     pointer-events: none;
-    filter: blur(50px);
-    z-index: 1;
+  filter: blur(50px);
+  z-index: 1;
+  transform: translateX(0);
+  will-change: transform, opacity;
+  animation: move-lr-2 20s ease-in-out infinite alternate-reverse, glow-flicker 16s ease-in-out infinite;
 }
 
 .hero p {
@@ -200,12 +206,28 @@ if (!settings || Object.keys(settings).length === 0) {
 
 
 @keyframes glow-flicker {
-  0% { transform: translateX(-50%) scale(1); opacity: 0.55; filter: blur(60px); }
-  20% { transform: translateX(-48%) scale(1.03); opacity: 0.72; filter: blur(55px); }
-  40% { transform: translateX(-52%) scale(0.98); opacity: 0.48; filter: blur(62px); }
-  60% { transform: translateX(-49%) scale(1.06); opacity: 0.8; filter: blur(50px); }
-  80% { transform: translateX(-51%) scale(0.97); opacity: 0.5; filter: blur(65px); }
-  100% { transform: translateX(-50%) scale(1); opacity: 0.6; filter: blur(60px); }
+  0% { opacity: 0.55; filter: blur(60px); }
+  20% { opacity: 0.72; filter: blur(55px); }
+  40% { opacity: 0.48; filter: blur(62px); }
+  60% { opacity: 0.8; filter: blur(50px); }
+  80% { opacity: 0.5; filter: blur(65px); }
+  100% { opacity: 0.6; filter: blur(60px); }
+}
+
+@keyframes move-lr-1 {
+  0% { transform: translateX(0); }
+  25% { transform: translateX(-8%); }
+  50% { transform: translateX(0); }
+  75% { transform: translateX(8%); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes move-lr-2 {
+  0% { transform: translateX(0); }
+  25% { transform: translateX(10%); }
+  50% { transform: translateX(0); }
+  75% { transform: translateX(-10%); }
+  100% { transform: translateX(0); }
 }
 </style>
 
