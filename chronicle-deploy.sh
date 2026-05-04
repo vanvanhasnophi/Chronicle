@@ -58,20 +58,39 @@ FRONTEND_API_BASE_URL_DEFAULT="${FRONTEND_API_BASE_URL:-https://${FRONTEND_DOMAI
 ASTRO_API_BASE_URL_DEFAULT="${ASTRO_API_BASE_URL:-http://127.0.0.1:3000}"
 
 # 首先检查是否存在已保存的配置文件；如果存在，列出并询问是否采用
+ADOPTED_CONFIG=0
 if [ -f "$CONFIG_FILE" ]; then
     log "找到已保存的部署配置: $CONFIG_FILE"
     echo "--- 当前保存的配置 ---"
     nl -ba "$CONFIG_FILE" | sed -n '1,200p'
     echo "----------------------"
-    read -r -p "是否采用上述已保存配置并继续？ [Y/n]: " adopt_choice || true
+    # 将已保存配置 source 为默认值（不会立刻完全采用）
+    # shellcheck disable=SC1090
+    . "$CONFIG_FILE" || true
+
+    read -r -p "是否完全采用上述已保存配置并跳过未填写项的交互？ [Y/n]: " adopt_choice || true
     adopt_choice=${adopt_choice:-y}
+    # 仅在配置文件包含所有必需项时，才允许“完全采用”并跳过交互填写
     if [ "${adopt_choice,,}" = "y" ]; then
-        log "采用已保存配置：$CONFIG_FILE"
-        # shellcheck disable=SC1090
-        . "$CONFIG_FILE"
+        MISSING_COUNT=0
+        REQUIRED_VARS=("FRONTEND_DOMAIN" "BACKEND_DOMAIN" "WEB_ROOT" "BACKEND_ROOT" "SERVER_ROOT" "ASTRO_ROOT" "FRONTEND_API_BASE_URL" "ASTRO_API_BASE_URL" "MEDIA_DOMAIN" "REPO_FRONTEND_SRC_NAME" "REPO_ASTRO_SRC_NAME")
+        for v in "${REQUIRED_VARS[@]}"; do
+            if [ -z "${!v:-}" ]; then
+                MISSING_COUNT=$((MISSING_COUNT+1))
+            fi
+        done
+        if [ "$MISSING_COUNT" -eq 0 ]; then
+            log "采用已保存配置：$CONFIG_FILE（配置完整，跳过交互）"
+            ADOPTED_CONFIG=1
+        else
+            warn "已保存配置存在但缺少 $MISSING_COUNT 项，将使用已保存配置作为默认值并提示补全缺失项。"
+            ADOPTED_CONFIG=0
+            log "转为扫描仓库以检测源码目录并初始化（保留已保存配置作为默认）。"
+        fi
     else
-        log "用户拒绝采用已保存配置，转为扫描仓库以检测源码目录并初始化配置。"
-        # fall-through to scan repository
+        log "用户选择不完全采用已保存配置，将使用其作为默认值并提示补全缺失项。"
+    fi
+    # fall-through to scan repository
         CANDIDATES=()
         log "扫描仓库根目录以检测源码目录..."
         for d in "$REPO_ROOT"/*; do
@@ -188,17 +207,19 @@ EOF
 
 log "Starting Chronicle Deployment..."
 
-prompt_default FRONTEND_DOMAIN "请输入前台域名" "$FRONTEND_DOMAIN"
-prompt_default BACKEND_DOMAIN "请输入后台域名" "$BACKEND_DOMAIN"
-prompt_default WEB_ROOT "请输入前台部署目录" "$WEB_ROOT"
-prompt_default BACKEND_ROOT "请输入后台部署目录" "$BACKEND_ROOT"
-prompt_default SERVER_ROOT "请输入后端目录" "$SERVER_ROOT"
-prompt_default ASTRO_ROOT "请输入 Astro 源码目录" "$ASTRO_ROOT"
-prompt_default FRONTEND_API_BASE_URL "请输入 chronicle-frontend 的 API 基址" "$FRONTEND_API_BASE_URL"
-prompt_default ASTRO_API_BASE_URL "请输入 Astro 构建时 API 基址" "$ASTRO_API_BASE_URL"
-prompt_default MEDIA_DOMAIN "请输入媒体域名" "$MEDIA_DOMAIN"
+if [ "$ADOPTED_CONFIG" -eq 0 ]; then
+    prompt_default FRONTEND_DOMAIN "请输入前台域名" "$FRONTEND_DOMAIN"
+    prompt_default BACKEND_DOMAIN "请输入后台域名" "$BACKEND_DOMAIN"
+    prompt_default WEB_ROOT "请输入前台部署目录" "$WEB_ROOT"
+    prompt_default BACKEND_ROOT "请输入后台部署目录" "$BACKEND_ROOT"
+    prompt_default SERVER_ROOT "请输入后端目录" "$SERVER_ROOT"
+    prompt_default ASTRO_ROOT "请输入 Astro 源码目录" "$ASTRO_ROOT"
+    prompt_default FRONTEND_API_BASE_URL "请输入 chronicle-frontend 的 API 基址" "$FRONTEND_API_BASE_URL"
+    prompt_default ASTRO_API_BASE_URL "请输入 Astro 构建时 API 基址" "$ASTRO_API_BASE_URL"
+    prompt_default MEDIA_DOMAIN "请输入媒体域名" "$MEDIA_DOMAIN"
 
-save_config
+    save_config
+fi
 
 if ! command_exists npm; then
     echo "Error: npm not found."
@@ -253,7 +274,7 @@ ensure_symlink "$BACKEND_ROOT/server/data/upload" "$SERVER_ROOT/data/upload"
 
 log "重载服务..."
 if command -v pm2 &> /dev/null; then
-    pm2 restart chronicle || pm2 start "$RUN_WRAPPER" --name chronicle
+    pm2 restart chronicle-server || pm2 start "$RUN_WRAPPER" --name chronicle-server
 else
     warn "pm2 not found. Cannot restart backend automatically."
 fi
