@@ -36,7 +36,7 @@ const corsOptions = {
         console.warn('[CORS] Rejected origin:', origin);
         return callback(new Error('Not allowed by CORS'));
     },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'X-Requested-With', 'X-Chronicle-Auth', 'Authorization' ,'X-Filename'],
     credentials: true,
     optionsSuccessStatus: 204,
@@ -146,7 +146,125 @@ const DEFAULT_BUILD_SETTINGS = {
     frontendBuildTargetDir: '/var/www/blog.eightyfor.top'
 };
 
+const DEFAULT_MANAGER_DOMAIN = 'blogmanager.eightyfor.top';
+
+const BACKEND_APP_DIR = path.resolve(BASE_DIR, '..', 'chronicle-frontend');
+
 const VALID_BUILD_GRANULARITIES = new Set(['full', 'posts', 'index']);
+
+function safeDirectorySize(dirPath) {
+    try {
+        if (!dirPath || !fs.existsSync(dirPath)) return 0;
+        const stat = fs.lstatSync(dirPath);
+        if (!stat.isDirectory()) return stat.size || 0;
+
+        let total = 0;
+        const walk = (target) => {
+            let entries = [];
+            try {
+                entries = fs.readdirSync(target, { withFileTypes: true });
+            } catch (e) {
+                return;
+            }
+
+            for (const entry of entries) {
+                const abs = path.join(target, entry.name);
+                let st;
+                try {
+                    st = fs.lstatSync(abs);
+                } catch (e) {
+                    continue;
+                }
+
+                if (st.isSymbolicLink()) continue;
+                if (st.isDirectory()) {
+                    walk(abs);
+                } else {
+                    total += Number(st.size) || 0;
+                }
+            }
+        };
+
+        walk(dirPath);
+        return total;
+    } catch (e) {
+        return 0;
+    }
+}
+
+function getDiskStatsByPath(targetPath) {
+    try {
+        if (typeof fs.statfsSync === 'function') {
+            const stats = fs.statfsSync(targetPath);
+            const bsize = Number(stats.bsize) || 0;
+            const blocks = Number(stats.blocks) || 0;
+            const bavail = Number(stats.bavail) || 0;
+            const bfree = Number(stats.bfree) || 0;
+            const totalBytes = bsize * blocks;
+            const availableBytes = bsize * bavail;
+            const usedBytes = bsize * Math.max(0, blocks - bfree);
+            if (totalBytes > 0) {
+                return { totalBytes, availableBytes, usedBytes };
+            }
+        }
+    } catch (e) {
+        // Fall through to df parsing.
+    }
+
+    try {
+        const escaped = String(targetPath || '').replace(/"/g, '\\"');
+        const output = execSync(`df -kP "${escaped}"`, { stdio: ['ignore', 'pipe', 'ignore'] }).toString();
+        const lines = output.trim().split(/\r?\n/);
+        if (lines.length < 2) {
+            return { totalBytes: 0, availableBytes: 0, usedBytes: 0 };
+        }
+        const parts = lines[1].trim().split(/\s+/);
+        const totalKb = Number(parts[1]) || 0;
+        const usedKb = Number(parts[2]) || 0;
+        const availableKb = Number(parts[3]) || 0;
+        return {
+            totalBytes: totalKb * 1024,
+            usedBytes: usedKb * 1024,
+            availableBytes: availableKb * 1024,
+        };
+    } catch (e) {
+        return { totalBytes: 0, availableBytes: 0, usedBytes: 0 };
+    }
+}
+
+function resolveManagerDomain(settings) {
+    const candidates = [
+        settings && settings.managerDomain,
+        settings && settings.managerUrl,
+        settings && settings.backendUrl,
+        settings && settings.backendDomain,
+        settings && settings.backendHost,
+    ];
+    for (const raw of candidates) {
+        const value = String(raw || '').trim();
+        if (!value) continue;
+        try {
+            const host = /^https?:\/\//i.test(value) ? new URL(value).host : value;
+            if (host) return host;
+        } catch (e) {
+            if (value) return value;
+        }
+    }
+    return DEFAULT_MANAGER_DOMAIN;
+}
+
+function resolveApiSourcePath(baseDir) {
+    const parentDir = path.resolve(baseDir, '..');
+    const parentName = path.basename(parentDir).toLowerCase();
+
+    const looksLikeChronicleRepo = parentName === 'chronicle' || (
+        fs.existsSync(path.join(parentDir, 'package.json')) &&
+        fs.existsSync(path.join(parentDir, 'server')) &&
+        fs.existsSync(path.join(parentDir, 'chronicle-frontend'))
+    );
+
+    return looksLikeChronicleRepo ? parentDir : baseDir;
+}
 
 const CATEGORIES = ['pic', 'sound', 'txt', 'video', 'doc', 'other'];
 
@@ -912,6 +1030,8 @@ function stringifyFrontMatter(attributes, body) {
     if (attributes.title) fm += `title: ${attributes.title}\n`;
     if (attributes.date) fm += `date: ${attributes.date}\n`;
     if (attributes.font) fm += `font: ${attributes.font}\n`;
+    if (attributes.author) fm += `author: ${attributes.author}\n`;
+    if (typeof attributes.aiGenerated === 'boolean') fm += `aiGenerated: ${attributes.aiGenerated}\n`;
     if (attributes.tags) fm += `tags: ${JSON.stringify(attributes.tags)}\n`;
     fm += '---\n';
     return fm + body;
@@ -1029,6 +1149,18 @@ function syncIndexWithFiles() {
                     post.font = attributes.font;
                     modified = true;
                     console.log(`[Sync] Updated font for ${post.id} from file metadata: ${post.font}`);
+                }
+                const author = typeof attributes.author === 'string' ? attributes.author.trim() : '';
+                if ((author || '') !== (post.author || '')) {
+                    post.author = author;
+                    modified = true;
+                    console.log(`[Sync] Updated author for ${post.id} from file metadata`);
+                }
+                const aiGenerated = attributes.aiGenerated === true || attributes.aiGenerated === 'true' || attributes.aiGenerated === '1';
+                if (!!aiGenerated !== !!post.aiGenerated) {
+                    post.aiGenerated = !!aiGenerated;
+                    modified = true;
+                    console.log(`[Sync] Updated aiGenerated for ${post.id} from file metadata`);
                 }
             }
         });
@@ -1604,6 +1736,73 @@ app.post('/api/settings', async (req, res) => {
     }
 });
 
+app.get('/api/system/storage', (req, res) => {
+    try {
+        const settings = getBuildSettings();
+        const contentPagePath = path.resolve(settings.frontendBuildTargetDir || `/var/www/${settings.frontendUrl || DEFAULT_BUILD_SETTINGS.frontendUrl}`);
+        const managerDomain = resolveManagerDomain(settings);
+        const managerPagePath = path.resolve(`/var/www/${managerDomain}`);
+        const apiSourcePath = resolveApiSourcePath(BASE_DIR);
+
+        const frontendBytes = safeDirectorySize(contentPagePath);
+        const backendBytes = safeDirectorySize(managerPagePath);
+        const apiSourceBytes = safeDirectorySize(apiSourcePath);
+        const uploadBytes = safeDirectorySize(UPLOAD_DIR);
+        const apiBytes = Math.max(0, apiSourceBytes - uploadBytes);
+
+        const disk = getDiskStatsByPath(BASE_DIR);
+        const serverTotalBytes = Number(disk.totalBytes) || 0;
+        const serverAvailableBytes = Number(disk.availableBytes) || 0;
+        const serverUsedBytes = Number(disk.usedBytes) || Math.max(0, serverTotalBytes - serverAvailableBytes);
+        const knownUsedBytes = frontendBytes + backendBytes + apiBytes + uploadBytes;
+        const otherBytes = Math.max(0, serverUsedBytes - knownUsedBytes);
+
+        const segments = [
+            { key: 'frontend', label: 'Content Page', bytes: frontendBytes },
+            { key: 'backend', label: 'Manager Page', bytes: backendBytes },
+            { key: 'api', label: 'API', bytes: apiBytes },
+            { key: 'upload', label: 'Upload', bytes: uploadBytes },
+            { key: 'other', label: 'Other Used', bytes: otherBytes },
+            { key: 'available', label: 'Available', bytes: serverAvailableBytes },
+        ].map((item) => ({
+            ...item,
+            ratio: serverTotalBytes > 0 ? item.bytes / serverTotalBytes : 0,
+        }));
+
+        res.json({
+            generatedAt: new Date().toISOString(),
+            paths: {
+                frontendPath: contentPagePath,
+                backendPath: managerPagePath,
+                apiPath: apiSourcePath,
+                uploadPath: UPLOAD_DIR,
+            },
+            usage: {
+                frontendBytes,
+                backendBytes,
+                apiBytes,
+                otherBytes,
+                uploadBytes,
+            },
+            server: {
+                totalBytes: serverTotalBytes,
+                availableBytes: serverAvailableBytes,
+                usedBytes: serverUsedBytes,
+            },
+            segments,
+        });
+    } catch (e) {
+        console.error('[Storage] GET error', e);
+        res.status(500).json({
+            generatedAt: new Date().toISOString(),
+            paths: {},
+            usage: { frontendBytes: 0, backendBytes: 0, apiBytes: 0, otherBytes: 0, uploadBytes: 0 },
+            server: { totalBytes: 0, availableBytes: 0, usedBytes: 0 },
+            segments: [],
+        });
+    }
+});
+
 app.post('/api/admin/build/astro', async (req, res) => {
     try {
         if (!requireAdminToken(req, res)) return;
@@ -1989,6 +2188,8 @@ app.post('/api/post', (req, res) => {
             post = posts.find(p => p.id === data.id);
             if (post) {
                 post.title = data.title || post.title;
+                if (data.author !== undefined) post.author = String(data.author || '').trim();
+                if (data.aiGenerated !== undefined) post.aiGenerated = !!data.aiGenerated;
                 if (content !== undefined) {
                     post.summary = content.slice(0, 200).replace(/[#*`\[\]]/g, '');
                 }
@@ -2026,6 +2227,8 @@ app.post('/api/post', (req, res) => {
                 summary: (content || '').slice(0, 200).replace(/[#*`\[\]]/g, ''),
                 tags: sortTags(data.tags || []),
                 font: data.font || 'sans',
+                author: String(data.author || '').trim(),
+                aiGenerated: !!data.aiGenerated,
                 status: status || 'draft'
             };
             posts.push(post);
@@ -2064,7 +2267,9 @@ app.post('/api/post', (req, res) => {
                         date: post.date,
                         updatedAt: post.updatedAt,
                         tags: post.tags || [],
-                        font: post.font || 'sans'
+                                font: post.font || 'sans',
+                                author: post.author || '',
+                                aiGenerated: !!post.aiGenerated,
                     }, body);
                     fs.writeFileSync(existingPath, encrypt(newContent));
                 } catch(e) { console.error('Failed to update file metadata', e); }

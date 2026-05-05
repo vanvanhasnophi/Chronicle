@@ -46,7 +46,7 @@ const SettingsSecurity = () => import(/* webpackChunkName: "settings-security" *
 const TextEditorLazy = () => import(/* webpackChunkName: "text-editor" */ '../pages/TextEditor.vue')
 
 const routes = [
-  { path: '/', redirect: '/login' },
+  { path: '/', redirect: '/dashboard' },
   {
     path: '/login',
     name: 'Login',
@@ -71,10 +71,10 @@ const routes = [
     component: Settings,
     meta: { requiresAuth: true, title: 'settings.home' },
     children: [
-      { path: 'homepage', name: 'SettingsHome', component: SettingsHome, meta: { title: 'settings.home' } },
-      { path: 'friends', name: 'SettingsFriends', component: SettingsFriends, meta: { title: 'settings.friends' } },
+      { path: 'homepage', name: 'SettingsHome', component: SettingsHome, meta: { requiresAuth: true, title: 'settings.home' } },
+      { path: 'friends', name: 'SettingsFriends', component: SettingsFriends, meta: { requiresAuth: true, title: 'settings.friends' } },
       { path: 'i18n', redirect: 'appearance' },
-      { path: 'appearance', name: 'SettingsAppearance', component: SettingsAppearance, meta: { title: 'settings.appearance' } },
+      { path: 'appearance', name: 'SettingsAppearance', component: SettingsAppearance, meta: { requiresAuth: true, title: 'settings.appearance' } },
       { path: 'security', name: 'SettingsSecurity', component: SettingsSecurity, meta: { requiresAuth: true, title: 'settings.security' } },
       { path: 'build', name: 'SettingsBuild', component: () => import(/* webpackChunkName: "settings-build" */ '../pages/SettingsBuild.vue'), meta: { requiresAuth: true, title: 'settings.build' } }
     ]
@@ -132,6 +132,17 @@ router.beforeEach((to, from, next) => {
     }
   }
 
+  // 处理根路径：已认证跳转到dashboard，未认证跳转到login
+  if (to.path === '/') {
+    if (isAuthenticated) {
+      next('/dashboard')
+    } else {
+      next('/login')
+    }
+    return
+  }
+
+  // 其他需要认证的页面
   if (to.meta.requiresAuth && !isAuthenticated) {
     next('/login')
   } else {

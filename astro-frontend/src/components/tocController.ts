@@ -20,6 +20,48 @@ let scrollContainerBound: HTMLElement | null = null;
 let listeningOnWindowScroll = false;
 let scrollSyncRafId: number | undefined;
 
+function removeBoundScrollListener() {
+  if (scrollContainerBound) {
+    scrollContainerBound.removeEventListener('scroll', onScroll);
+    scrollContainerBound = null;
+  }
+  if (listeningOnWindowScroll) {
+    window.removeEventListener('scroll', onScroll);
+    listeningOnWindowScroll = false;
+  }
+}
+
+function bindScrollListenerToCurrentContainer() {
+  const container = getContainer();
+  const validBoundContainer = scrollContainerBound && scrollContainerBound.isConnected;
+
+  // Rebind when route swap replaced the scroll container element.
+  if (!container) {
+    if (validBoundContainer) {
+      scrollContainerBound?.removeEventListener('scroll', onScroll);
+      scrollContainerBound = null;
+    }
+    if (!listeningOnWindowScroll) {
+      window.addEventListener('scroll', onScroll, { passive: true });
+      listeningOnWindowScroll = true;
+    }
+    return;
+  }
+
+  if (listeningOnWindowScroll) {
+    window.removeEventListener('scroll', onScroll);
+    listeningOnWindowScroll = false;
+  }
+
+  if (!validBoundContainer || scrollContainerBound !== container) {
+    if (scrollContainerBound) {
+      scrollContainerBound.removeEventListener('scroll', onScroll);
+    }
+    container.addEventListener('scroll', onScroll, { passive: true });
+    scrollContainerBound = container;
+  }
+}
+
 function getContainer() {
   const primary = document.querySelector(containerSelector) as HTMLElement | null;
   if (primary) return primary;
@@ -237,26 +279,21 @@ export function setTocGetter(getter: () => TocItem[]) {
 
 export function initController(opts?: { containerSelector?: string; inlineSelector?: string; baselineOffset?: number }) {
   if (typeof window === 'undefined') return;
-  if (state.initialized) return;
-  state.initialized = true;
+
   if (opts?.containerSelector) containerSelector = opts.containerSelector;
   if (opts?.inlineSelector) inlineSelector = opts.inlineSelector;
   if (typeof opts?.baselineOffset === 'number') baselineOffset = opts.baselineOffset;
 
-  const container = getContainer();
-  if (container) {
-    container.addEventListener('scroll', onScroll, { passive: true });
-    scrollContainerBound = container;
-  } else {
-    window.addEventListener('scroll', onScroll, { passive: true });
-    listeningOnWindowScroll = true;
+  if (!state.initialized) {
+    state.initialized = true;
+    window.addEventListener('hashchange', syncFromHash);
+    window.addEventListener('resize', onScroll);
+    window.addEventListener('wheel', onUserScrollIntent, { passive: true });
+    window.addEventListener('touchmove', onUserScrollIntent, { passive: true });
+    window.addEventListener('keydown', onUserScrollIntent);
   }
 
-  window.addEventListener('hashchange', syncFromHash);
-  window.addEventListener('resize', onScroll);
-  window.addEventListener('wheel', onUserScrollIntent, { passive: true });
-  window.addEventListener('touchmove', onUserScrollIntent, { passive: true });
-  window.addEventListener('keydown', onUserScrollIntent);
+  bindScrollListenerToCurrentContainer();
 
   // initial run
   runScrollSync();
@@ -267,14 +304,7 @@ export function destroyController() {
   if (typeof window === 'undefined') return;
   if (!state.initialized) return;
   state.initialized = false;
-  if (scrollContainerBound) {
-    scrollContainerBound.removeEventListener('scroll', onScroll);
-    scrollContainerBound = null;
-  }
-  if (listeningOnWindowScroll) {
-    window.removeEventListener('scroll', onScroll);
-    listeningOnWindowScroll = false;
-  }
+  removeBoundScrollListener();
   window.removeEventListener('hashchange', syncFromHash);
   window.removeEventListener('resize', onScroll);
   window.removeEventListener('wheel', onUserScrollIntent);

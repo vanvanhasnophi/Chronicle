@@ -467,6 +467,8 @@ function renderStaticMarkdown(markdown: string, contextLabel = 'unknown-post'): 
       }
     };
 
+    md.renderer.rules.hr = () => '<hr class="markdown-hr">';
+
     md.renderer.rules.blockquote_open = () => '<blockquote class="md-quote-block">';
 
     // Extract math expressions into placeholders so the client-side Vue
@@ -1014,7 +1016,7 @@ if (rawPostContent) {
     </>
   )}
 
-  <CornerActions client:idle />
+  <CornerActions client:idle hasToc={tocItems.length > 0} />
 
   <style is:global>
     @media (max-width: 768px) {

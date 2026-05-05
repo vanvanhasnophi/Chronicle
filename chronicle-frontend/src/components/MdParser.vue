@@ -641,6 +641,12 @@ defineExpose({
     flex-shrink: 0;
 }
 
+hr {
+  border: none;
+  border-top: 1px solid var(--border-color);
+  margin: 16px 0;
+}
+
 .math-tooltip-actions .icon-btn:hover {
   background-color: var(--component-bg-active);
   border-color: var(--accent-color);

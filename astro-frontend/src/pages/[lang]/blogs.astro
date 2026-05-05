@@ -71,7 +71,16 @@ if (!settings || Object.keys(settings).length === 0) {
   }
 }
 
-const isFeaturedTag = (tag: string) => tag === 'featured' || tag === '精选';
+const normalizeTag = (tag: unknown) =>
+  String(tag || '')
+    .trim()
+    .replace(/^#+/, '')
+    .toLowerCase();
+
+const isFeaturedTag = (tag: unknown) => {
+  const normalized = normalizeTag(tag);
+  return normalized === 'featured' || normalized === '精选';
+};
 
 const hasFeaturedTag = (tags: unknown) =>
   Array.isArray(tags) && tags.some((tag) => isFeaturedTag(String(tag)));
@@ -133,7 +142,7 @@ const renderArchiveCard = (post: any) => {
     <article class="post-card compact-card">
       <div class="post-card-line">
         <span class="post-card-time">${escapeHtml(dateText)}</span>
-        ${featured ? '' : '<span class="post-featured-star" aria-hidden="true">★</span>'}
+        ${featured ? '<span class="post-featured-star" aria-hidden="true">★</span>' : ''}
         <h4 class="post-title">${escapeHtml(post.title)}</h4>
       </div>
       ${tagHtml}
@@ -599,8 +608,16 @@ const hasFeaturedPosts = initialFeaturedPosts.length > 0;
       return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
+    function normalizeTag(tag) {
+      return String(tag || '')
+        .trim()
+        .replace(/^#+/, '')
+        .toLowerCase();
+    }
+
     function isFeaturedTag(tag) {
-      return tag === 'featured' || tag === '精选';
+      const normalized = normalizeTag(tag);
+      return normalized === 'featured' || normalized === '精选';
     }
 
     function sortTagsList(tags) {
@@ -644,7 +661,7 @@ const hasFeaturedPosts = initialFeaturedPosts.length > 0;
       return `
         <div class="post-card-line">
           <span class="post-card-time">${escapeHtml(dateText)}</span>
-          ${featured ? '' : '<span class="post-featured-star" aria-hidden="true">★</span>'}
+          ${featured ? '<span class="post-featured-star" aria-hidden="true">★</span>' : ''}
           <span class="post-title">${escapeHtml(post.title)}</span>
         </div>
       `;

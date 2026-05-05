@@ -680,6 +680,23 @@ const saveToLocalStorage = debounce(() => {
 
 // Tag Management
 const tagInput = ref('')
+
+function readAuthorFromDetail(detail: any): string {
+    const raw = detail?.author ?? detail?.meta?.author ?? ''
+    return String(raw || '').trim()
+}
+
+function readAiGeneratedFromDetail(detail: any): boolean {
+    const raw = detail?.aiGenerated ?? detail?.ai_generated ?? detail?.meta?.aiGenerated ?? detail?.meta?.ai_generated
+    if (typeof raw === 'boolean') return raw
+    if (typeof raw === 'number') return raw === 1
+    if (typeof raw === 'string') {
+        const normalized = raw.trim().toLowerCase()
+        return normalized === 'true' || normalized === '1' || normalized === 'yes'
+    }
+    return false
+}
+
 function addTag() {
     const val = tagInput.value.trim()
     if (val && !postTags.value.includes(val)) {
@@ -1017,6 +1034,10 @@ watch(() => route.query.id, async (newId, oldId) => {
 
 async function loadPostById(id: string) {
     try {
+        // reset metadata first to avoid carrying values from another post
+        postAuthor.value = ''
+        postAIGenerated.value = false
+
         // First check for local draft
         const draft = localStorage.getItem(`chronicle_draft_${id}`)
         const sessionHistory = sessionStorage.getItem(`chronicle_history_${id}`)
@@ -1034,6 +1055,8 @@ async function loadPostById(id: string) {
                 postUpdated.value = detail.updatedAt || detail.date || ''
                 postTags.value = detail.tags || []
                 postFont.value = detail.font || 'sans'
+                postAuthor.value = readAuthorFromDetail(detail)
+                postAIGenerated.value = readAiGeneratedFromDetail(detail)
 
                 savedContent.value = detail.content // Base is server content
                 savedTitle.value = detail.title
@@ -1068,6 +1091,8 @@ async function loadPostById(id: string) {
             postUpdated.value = detail.updatedAt || detail.date || ''
             postTags.value = detail.tags || []
             postFont.value = detail.font || 'sans'
+            postAuthor.value = readAuthorFromDetail(detail)
+            postAIGenerated.value = readAiGeneratedFromDetail(detail)
             localValue.value = detail.content
 
             // Update baseline
@@ -1117,6 +1142,8 @@ async function initLoad() {
         postStatus.value = 'draft'
         postTags.value = []
         postFont.value = 'sans'
+        postAuthor.value = ''
+        postAIGenerated.value = false
         localValue.value = ''
 
         savedContent.value = ''
@@ -1162,6 +1189,8 @@ async function initLoad() {
     postStatus.value = 'draft'
     postDate.value = ''
     postUpdated.value = ''
+    postAuthor.value = ''
+    postAIGenerated.value = false
     localValue.value = ''
     savedContent.value = ''
     savedTitle.value = t('editor.untitled')

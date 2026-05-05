@@ -10,7 +10,7 @@ function escapeAttr(s: string) {
 }
 
 export interface ContentBlock {
-  type: 'text' | 'code' | 'table' | 'heading' | 'list' | 'quote' | 'paraWithBackslash' | 'para-backslash' | 'softBreakPara' | 'math';
+  type: 'text' | 'code' | 'table' | 'heading' | 'list' | 'quote' | 'hr' | 'paraWithBackslash' | 'para-backslash' | 'softBreakPara' | 'math';
   content: string;
   language?: string;
   header?: string[];
@@ -391,6 +391,12 @@ export function parseMarkdown(content: string, cacheKey?: number): Array<Content
       i++
       continue
     }
+    // 分割线：仅匹配纯横线/星号/下划线行，不要和表格分隔线混淆
+    if (/^\s{0,3}(?:[-*_]\s*){3,}\s*$/.test(line) && !/\|/.test(line)) {
+      blocks.push({ type: 'hr', content: line })
+      i++
+      continue
+    }
     // 引用块递归解析（不解析代码块、表格、嵌套引用），不再处理软换行
     if (/^\s*> /.test(line)) {
       let quoteLines: string[] = [];
@@ -518,6 +524,9 @@ export function convertToHtml(text: any): string {
   }
   // 支持list/quote类型的block渲染
   function renderBlock(block: any): string {
+    if (block && block.type === 'hr') {
+      return '<hr />'
+    }
     // Math Block
     if (block && block.type === 'math') {
       // Return a lightweight placeholder that also contains the raw TeX as
@@ -679,6 +688,9 @@ export function blocksToMarkdown(blocks: ContentBlock[]): string {
       case 'list':
         md += (block.content || '') + '\n\n';
         break;
+      case 'hr':
+        md += '---\n\n';
+        break;
       case 'quote': {
         // ...existing code...
         if (Array.isArray(block.content)) {
@@ -745,6 +757,7 @@ export function stripMarkdown(md: string): string {
     // HTML tags
     text = text.replace(/<[^>]+>/g, '')
     // Horizontal rules
+    text = text.replace(/^\s{0,3}(?:[-*_]\s*){3,}\s*$/gm, '')
     text = text.replace(/^[-*_]{3,}\s*$/gm, '')
     // List elements
     text = text.replace(/^[\s-]*[-+*]\s+/gm, '')

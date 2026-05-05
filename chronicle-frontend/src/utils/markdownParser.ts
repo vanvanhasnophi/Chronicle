@@ -10,7 +10,7 @@ function escapeAttr(s: string) {
 }
 
 export interface ContentBlock {
-  type: 'text' | 'code' | 'table' | 'heading' | 'list' | 'quote' | 'paraWithBackslash' | 'para-backslash' | 'softBreakPara' | 'math';
+  type: 'text' | 'code' | 'table' | 'heading' | 'list' | 'quote' | 'hr' | 'paraWithBackslash' | 'para-backslash' | 'softBreakPara' | 'math';
   content: string;
   language?: string;
   header?: string[];
@@ -391,6 +391,12 @@ export function parseMarkdown(content: string, cacheKey?: number): Array<Content
       i++
       continue
     }
+    // 分割线：只匹配独立一行的 --- / *** / ___，避免和表格分隔线混淆
+    if (/^\s{0,3}(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
+      blocks.push({ type: 'hr', content: line })
+      i++
+      continue
+    }
     // 引用块递归解析（不解析代码块、表格、嵌套引用），不再处理软换行
     if (/^\s*> /.test(line)) {
       let quoteLines: string[] = [];
@@ -467,6 +473,9 @@ export function convertToHtml(text: any): string {
     // 渲染每个段落
   // 新的段落换行与反斜杠处理逻辑
   function renderParaBlock(block: string) {
+    if (/^\s{0,3}(?:-{3,}|\*{3,}|_{3,})\s*$/.test(block)) {
+      return '<hr />'
+    }
     // 代码块、列表原样输出
     if (/^\s*```/.test(block) || /^\s*([-*]|\d+\.) /.test(block)) {
       return block
@@ -668,6 +677,9 @@ export function blocksToMarkdown(blocks: ContentBlock[]): string {
       case 'heading':
       case 'list':
         md += (block.content || '') + '\n\n';
+        break;
+      case 'hr':
+        md += '---\n\n';
         break;
       case 'quote': {
         // ...existing code...

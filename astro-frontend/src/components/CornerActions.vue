@@ -2,6 +2,10 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import tocController from './tocController';
 
+const props = withDefaults(defineProps<{ hasToc?: boolean }>(), {
+  hasToc: true,
+});
+
 const root = ref<HTMLElement | null>(null);
 let handleAstroPageLoad: (() => void) | null = null;
 const showBackToTop = computed(() => tocController.state.showBackToTop);
@@ -38,7 +42,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="root" class="corner-actions" data-corner-actions="true">
-    <button class="corner-button primary mobile-toggle" id="mobile-toc-trigger" @click="openMobile" title="目录"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
+    <button v-if="props.hasToc" class="corner-button primary mobile-toggle" id="mobile-toc-trigger" @click="openMobile" title="目录"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
     <button class="corner-button btt" :class="{ visible: showBackToTop }" id="back-to-top" @click="backToTop" title="回到顶部"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg></button>
   </div>
 </template>

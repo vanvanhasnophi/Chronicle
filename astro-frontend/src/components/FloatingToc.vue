@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { TocItem } from '../utils/toc';
 import tocController, { initController, setTocGetter } from './tocController';
 
@@ -21,6 +21,7 @@ const props = withDefaults(defineProps<{
 const islandRoot = ref<HTMLElement | null>(null);
 const tocNav = ref<HTMLElement | null>(null);
 let floatCollapseTimer: number | undefined;
+let handleAstroRouteSync: (() => void) | null = null;
 
 const state = tocController.state;
 const liveActiveId = computed(() => state.liveActiveId);
@@ -71,6 +72,35 @@ function onTocClick(id: string) {
   tocController.scrollToHeading(id);
 }
 
+function syncActiveIdWithToc() {
+  const toc = props.toc || [];
+  if (!toc.length) {
+    state.liveActiveId = '';
+    return;
+  }
+
+  const hashId = decodeURIComponent(window.location.hash.replace(/^#/, '').trim());
+  if (hashId && toc.some((item) => item.id === hashId)) {
+    state.liveActiveId = hashId;
+    return;
+  }
+
+  if (!toc.some((item) => item.id === state.liveActiveId)) {
+    state.liveActiveId = toc[0].id;
+  }
+}
+
+function syncControllerForRoute() {
+  moveIslandToBody();
+  setTocGetter(() => props.toc || []);
+  initController({ containerSelector: props.containerSelector, inlineSelector: props.inlineSelector, baselineOffset: props.baselineOffset });
+  syncActiveIdWithToc();
+  void nextTick(() => {
+    tocController.computeLiveActiveFromBaseline();
+    ensureActiveItemVisible();
+  });
+}
+
 function moveIslandToBody() {
   if (!props.mountToBody) return;
   const root = islandRoot.value;
@@ -79,14 +109,38 @@ function moveIslandToBody() {
 }
 
 onMounted(() => {
-  moveIslandToBody();
-  // register the toc getter and init controller (idempotent)
-  setTocGetter(() => props.toc || []);
-  initController({ containerSelector: props.containerSelector, inlineSelector: props.inlineSelector, baselineOffset: props.baselineOffset });
-  void nextTick(() => {
-    ensureActiveItemVisible();
-  });
+  handleAstroRouteSync = () => {
+    syncControllerForRoute();
+  };
+  document.addEventListener('astro:page-load', handleAstroRouteSync);
+  document.addEventListener('astro:after-swap', handleAstroRouteSync);
+  syncControllerForRoute();
 });
+
+onBeforeUnmount(() => {
+  if (handleAstroRouteSync) {
+    document.removeEventListener('astro:page-load', handleAstroRouteSync);
+    document.removeEventListener('astro:after-swap', handleAstroRouteSync);
+    handleAstroRouteSync = null;
+  }
+  if (floatCollapseTimer) {
+    clearTimeout(floatCollapseTimer);
+    floatCollapseTimer = undefined;
+  }
+
+  const root = islandRoot.value;
+  if (root && root.parentElement) {
+    root.parentElement.removeChild(root);
+  }
+});
+
+watch(
+  () => props.toc,
+  () => {
+    syncControllerForRoute();
+  },
+  { deep: true }
+);
 
 watch(
   liveActiveId,
