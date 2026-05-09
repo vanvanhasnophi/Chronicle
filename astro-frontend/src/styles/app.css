@@ -11,6 +11,15 @@ pre{
 
 }
 
+html.is-mobile .nav-header {
+  height:50px;
+}
+
+html.is-mobile .app-title{
+  font-size: 1.35rem;
+  vertical-align: middle;
+}
+
 .nav-header {
   background: var(--component-bg-blur);
   backdrop-filter: blur(16px);
@@ -78,7 +87,7 @@ pre{
 
 .reading-title {
   color: var(--text-primary);
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   font-weight: 600;
   font-variation-settings: 'wght' 600;
   line-height: 1;
@@ -288,6 +297,10 @@ pre{
   --toc-scroll-offset: 70px;
   scroll-behavior: smooth;
   scroll-padding-top: var(--toc-scroll-offset);
+}
+
+html.is-mobile .main-content {
+  padding-top: 50px;
 }
 
 .main-content.unscrollable {

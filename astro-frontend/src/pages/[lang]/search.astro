@@ -83,7 +83,7 @@ const resultsTitleText = t("search.resultsTitle");
 const resultsCountText = t("search.resultsCount").replace("{count}", "0");
 ---
 
-<Layout title={t("nav.search")} settings={settings}>
+<Layout title={t("nav.search")} settings={settings} scrollable={false}>
   <div class="page-container centered-mode" id="search-page">
     <div class="search-box-wrapper">
       <div class="search-box">
@@ -217,9 +217,18 @@ const resultsCountText = t("search.resultsCount").replace("{count}", "0");
     transition: all 0.3s ease;
   }
 
+  html.is-mobile .page-container{
+    padding: 10px 15px 0;
+  }
+
   /* Centered Mode */
   .page-container.centered-mode .search-box-wrapper {
     transform: translateY(20vh);
+  }
+
+  /* Centered Mode */
+  html.is-mobile .page-container.centered-mode .search-box-wrapper {
+    transform: translateY(30vh);
   }
 
   /* Search Box */
@@ -733,7 +742,6 @@ const resultsCountText = t("search.resultsCount").replace("{count}", "0");
 
 <script
   define:vars={{
-    postsJSON: JSON.stringify(posts),
     initialTitle,
     initialTagsJSON: JSON.stringify(initialTags),
     locale,
@@ -783,8 +791,6 @@ const resultsCountText = t("search.resultsCount").replace("{count}", "0");
       return key;
     };
     
-    // Parse posts
-    const allPosts = JSON.parse(postsJSON);
     const parsedInitialTags = JSON.parse(initialTagsJSON);
 
     // State
@@ -1014,12 +1020,34 @@ const resultsCountText = t("search.resultsCount").replace("{count}", "0");
       }
     }
 
+    function buildSearchUrl(keyword, tags = []) {
+      const searchParams = new URLSearchParams();
+      if (String(keyword || '').trim()) {
+        searchParams.set('keyword', String(keyword || '').trim());
+      }
+      if (tags.length > 0) {
+        searchParams.set('tags', tags.join(','));
+      }
+      searchParams.set('t', String(Date.now()));
+      return `/api/search?${searchParams.toString()}`;
+    }
+
+    async function fetchSearchResults(keyword, tags = []) {
+      const searchUrl = buildSearchUrl(keyword, tags);
+      const res = await fetch(searchUrl, { cache: "no-store" });
+      if (!res.ok) {
+        throw new Error(`Search request failed: ${res.status}`);
+      }
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    }
+
     async function filterPosts() {
       if (!resultsContent) return;
-      const query = searchQuery.toLowerCase();
+      const query = searchQuery.trim();
 
       // Avoid rendering full list when search is inactive (empty query + no tags)
-      if (!query.trim() && selectedTags.length === 0) {
+      if (!query && selectedTags.length === 0) {
         resultsContent.innerHTML = "";
         const loadingState = document.getElementById("loading-state");
         if (loadingState) loadingState.style.display = "none";
@@ -1033,31 +1061,7 @@ const resultsCountText = t("search.resultsCount").replace("{count}", "0");
       if (loadingState) loadingState.style.display = "block";
 
       try {
-        // 调用搜索API
-        let filtered = [];
-        if (query.trim()) {
-          // 有搜索关键词时调用搜索API
-          const searchUrl = `/api/public/search?keyword=${encodeURIComponent(query)}&t=${Date.now()}`;
-          const res = await fetch(searchUrl, { cache: "no-store" });
-          if (res.ok) {
-            filtered = await res.json();
-          }
-        } else {
-          // 没有搜索关键词时，只根据标签过滤（使用本地数据）
-          filtered = allPosts.filter((post) => {
-            return (
-              selectedTags.length === 0 ||
-              selectedTags.every((t) => (post.tags || []).includes(t))
-            );
-          });
-        }
-
-        // 如果选择了标签，进一步过滤搜索结果
-        if (selectedTags.length > 0) {
-          filtered = filtered.filter((post) => {
-            return selectedTags.every((t) => (post.tags || []).includes(t));
-          });
-        }
+        const filtered = await fetchSearchResults(query, selectedTags);
 
         if (loadingState) loadingState.style.display = "none";
 

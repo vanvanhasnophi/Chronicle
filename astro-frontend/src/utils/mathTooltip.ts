@@ -1,6 +1,7 @@
 type TooltipState = {
   root: HTMLElement | null
   trigger: HTMLElement | null
+  container: HTMLElement | null
   tex: string
   displayMode: boolean
   visible: boolean
@@ -53,6 +54,7 @@ function highlightKatexSource(tex: string) {
 let state: TooltipState = {
   root: null,
   trigger: null,
+  container: null,
   tex: '',
   displayMode: false,
   visible: false,
@@ -106,6 +108,7 @@ function copyTex() {
 function positionRoot() {
   const root = state.root
   const trigger = state.trigger
+  const container = state.container
   if (!root || !trigger) return
 
   const rect = trigger.getBoundingClientRect()
@@ -113,15 +116,33 @@ function positionRoot() {
   const margin = 10
   const vw = window.innerWidth
   const vh = window.innerHeight
+  const bounds = container ? container.getBoundingClientRect() : null
 
   let left = rect.left
   let top = rect.bottom + margin
 
-  if (left + rootRect.width + margin > vw) {
+  if (bounds) {
+    const minLeft = bounds.left + margin
+    const maxLeft = bounds.right - rootRect.width - margin
+    left = Math.min(Math.max(left, minLeft), Math.max(minLeft, maxLeft))
+  } else if (left + rootRect.width + margin > vw) {
     left = Math.max(margin, vw - rootRect.width - margin)
   }
 
-  if (top + rootRect.height + margin > vh) {
+  if (bounds) {
+    const below = rect.bottom + margin
+    const above = rect.top - rootRect.height - margin
+    const minTop = bounds.top + margin
+    const maxTop = bounds.bottom - rootRect.height - margin
+
+    if (below + rootRect.height <= bounds.bottom - margin) {
+      top = Math.max(minTop, below)
+    } else if (above >= minTop) {
+      top = above
+    } else {
+      top = Math.min(Math.max(minTop, below), Math.max(minTop, maxTop))
+    }
+  } else if (top + rootRect.height + margin > vh) {
     const above = rect.top - rootRect.height - margin
     top = above > margin ? above : Math.max(margin, vh - rootRect.height - margin)
   }
@@ -183,6 +204,12 @@ function onDocumentPointerDown(event: PointerEvent) {
   const root = state.root
   if (root && root.contains(target)) return
 
+  const container = state.container
+  if (container && !container.contains(target)) {
+    if (state.visible) hideTooltip()
+    return
+  }
+
   const trigger = target.closest('.katex-interactive') as HTMLElement | null
   if (!trigger) {
     if (state.visible) hideTooltip()
@@ -209,12 +236,11 @@ function onKeyDown(event: KeyboardEvent) {
   if (event.key === 'Escape') hideTooltip()
 }
 
-export function initMathTooltip(container: ParentNode = document) {
+export function initMathTooltip(container: ParentNode | null = document) {
   if (typeof window === 'undefined' || typeof document === 'undefined') return
-  if (container !== document) {
-    void container
-  }
+  const host = container instanceof HTMLElement ? container : document.body
 
+  state.container = host
   ensureRoot()
   document.removeEventListener('pointerdown', onDocumentPointerDown, true)
   document.addEventListener('pointerdown', onDocumentPointerDown, true)
@@ -235,6 +261,7 @@ export function destroyMathTooltip() {
   state = {
     root: null,
     trigger: null,
+    container: null,
     tex: '',
     displayMode: false,
     visible: false,

@@ -2106,6 +2106,67 @@ app.get('/api/posts', (req, res) => {
     }
 });
 
+function searchPostsFromIndex(posts, keyword) {
+    const normalizedKeyword = String(keyword || '').trim().toLowerCase();
+    if (!normalizedKeyword) return posts;
+
+    return posts.filter((post) => {
+        const title = String(post.title || '').toLowerCase();
+        const summary = String(post.summary || '').toLowerCase();
+        const tags = Array.isArray(post.tags) ? post.tags.map((tag) => String(tag || '').toLowerCase()) : [];
+
+        if (title.includes(normalizedKeyword)) return true;
+        if (summary.includes(normalizedKeyword)) return true;
+        if (tags.some((tag) => tag.includes(normalizedKeyword))) return true;
+
+        const content = readPostContentFromDisk(post);
+        return String(content || '').toLowerCase().includes(normalizedKeyword);
+    });
+}
+
+function normalizeSearchTags(rawTags) {
+    if (Array.isArray(rawTags)) {
+        return rawTags.map((tag) => String(tag || '').trim()).filter(Boolean);
+    }
+
+    return String(rawTags || '')
+        .split(',')
+        .map((tag) => String(tag || '').trim())
+        .filter(Boolean);
+}
+
+function handleSearchRequest(req, res) {
+    try {
+        const indexContent = fs.readFileSync(INDEX_FILE, 'utf-8');
+        let posts = JSON.parse(indexContent || '[]');
+
+        posts = posts.filter((post) => post.status === 'published' || post.status === 'modifying' || !post.status);
+
+        const keyword = req.query.keyword || req.query.q || req.query.title || '';
+        const tags = normalizeSearchTags(req.query.tags || req.query.tag);
+
+        let filtered = posts;
+
+        if (tags.length > 0) {
+            filtered = filtered.filter((post) => {
+                const postTags = Array.isArray(post.tags) ? post.tags.map((tag) => String(tag || '').trim()) : [];
+                return tags.every((tag) => postTags.includes(tag));
+            });
+        }
+
+        filtered = searchPostsFromIndex(filtered, keyword);
+
+        filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        res.json(filtered);
+    } catch (e) {
+        res.status(500).send('[]');
+    }
+}
+
+app.get('/api/search', handleSearchRequest);
+app.get('/api/public/search', handleSearchRequest);
+
 app.get('/api/post', (req, res) => {
     const { id, mode } = req.query;
     if (!id) return res.status(400).send('Missing ID');

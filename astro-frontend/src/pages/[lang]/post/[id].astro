@@ -1003,6 +1003,7 @@ if (rawPostContent) {
       </article>
     ) : null}
   </div>
+  <div class="scroll-blank"/>
 
   {tocItems.length > 0 && (
     <>
@@ -1031,6 +1032,14 @@ if (rawPostContent) {
       .meta-row {
         flex-direction: column;
         gap: 0.5rem;
+      }
+
+      .post-nav {
+        margin-bottom: 0;
+      }
+
+      .scroll-blank {
+        height: 80px;
       }
     }
     
@@ -1088,7 +1097,7 @@ if (rawPostContent) {
 
     function initPostPageFeatures() {
       import('../../../utils/mathTooltip').then(({ initMathTooltip }) => {
-        initMathTooltip();
+        initMathTooltip(document.querySelector('.post-content'));
       }).catch((err) => {
         console.error('初始化数学公式 tooltip 失败:', err);
       });
