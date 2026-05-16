@@ -14,8 +14,7 @@
     "files": "Files",
     "settings": "Settings",
     "newPost": "New Post",
-    "about": "About"
-    ,
+    "about": "About",
     "openFrontend": "Open Frontend",
     "rebuildFrontend": "Rebuild Frontend",
     "build": "Build",
@@ -30,7 +29,6 @@
     "created": "Created",
     "updated": "Updated"
   },
-  
   "misc": {
     "backToTop": "Back to Top"
   },
@@ -145,10 +143,33 @@
   "settings": {
     "home": "Content Topics & Home Page",
     "shortHome": "Topics & Home",
+    "collection": "Collection",
+    "shortCollection": "Collection",
+    "collectionHint": "Edit the collection",
     "homeHint": "Edit the HTML content of your homepage (stored in local config)",
     "friends": "Friends Page",
     "friendsHint": "Edit the HTML content of your friends page (stored in local config)",
+    "about": "About Page",
+    "shortAbout": "About Page",
+    "aboutHint": "Edit the HTML content of your about page (stored in local config)",
     "appearance": "Appearance",
+    "features": "Feature Toggles",
+    "featureToggle": "Enable this Feature",
+    "shortFeatures": "Feature Toggles",
+    "featuresHint": "Enable or disable site-level features and store them in backend settings.",
+    "featureSearchSuggestions": "Search Suggestions",
+    "featureSearchSuggestionsHint": "Show autocomplete suggestions in the search UI.",
+    "featureRelatedPosts": "Related Posts",
+    "featureRelatedPostsHint": "Show related-content recommendations on post pages.",
+    "featureCollection": "Collection",
+    "featureCollectionHint": "Enable the collection and related display.",
+    "featureAboutPage": "About Page",
+    "featureAboutPageHint": "Enable the about page entry and related display.",
+    "featureFriendsPage": "Friends Page",
+    "featureFriendsPageHint": "Enable the friends page entry and related display.",
+    "todo": "(TODO)",
+    "addCollection": "Add Collection",
+    "loadDefaultCollections": "Load Default",
     "build": "Build",
     "buildHint": "Configure frontend location and build options.",
     "frontLocation": "Frontend Location",
@@ -205,6 +226,7 @@
     "cleanFailed": "Cleanup failed",
     "save": "Save",
     "reset": "Reset",
+    "resetConfirm": "Are you sure you want to reset the current settings?",
     "saveSuccess": "Settings saved",
     "saveFailed": "Failed to save settings",
     "frontendDetected": "Frontend URL detected",
@@ -312,10 +334,9 @@
     "session": "Session",
     "logout": "Log Out"
   },
-  "tag":{
+  "tag": {
     "featured": "featured"
-  }
-  ,
+  },
   "status": {
     "draft": "Draft",
     "published": "Published",
@@ -361,8 +382,7 @@
     "saveDraft": "Save Draft",
     "publishNow": "Publish Now",
     "createNewPost": "Create New Post",
-    "toggleFeatured": "Toggle Featured"
-    ,
+    "toggleFeatured": "Toggle Featured",
     "undo": "Undo",
     "redo": "Redo",
     "postTitle": "Post Title",
@@ -384,18 +404,17 @@
       "charsNoSpaces": "Characters (no spaces)",
       "nonWestern": "Non-Western Characters",
       "markdownChars": "Original Markdown Chars"
-    }
-    ,
+    },
     "countWords": "{count} word",
     "countWordsPlural": "{count} words",
     "rows": "Rows",
     "cols": "Cols",
     "code": {
-        "lineCol": "Line: {line} | Col: {col}",
-        "charSing": "{count} Char",
-        "charPlural": "{count} Chars",
-        "lineSing": "{count} Line",
-        "linePlural": "{count} Lines"
+      "lineCol": "Line: {line} | Col: {col}",
+      "charSing": "{count} Char",
+      "charPlural": "{count} Chars",
+      "lineSing": "{count} Line",
+      "linePlural": "{count} Lines"
     },
     "view": {
       "split": "Split View",
@@ -403,8 +422,7 @@
       "preview": "Preview Only"
     }
   },
-    "formula": {
-      "copied": "Formula copied"
-    }
-    
+  "formula": {
+    "copied": "Formula copied"
+  }
 }

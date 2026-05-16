@@ -40,8 +40,11 @@ const Dashboard = () => import(/* webpackChunkName: "dashboard" */ '../pages/Das
 const Traffic = () => import(/* webpackChunkName: "traffic" */ '../pages/Traffic.vue')
 const Settings = () => import(/* webpackChunkName: "settings" */ '../pages/Settings.vue')
 const SettingsHome = () => import(/* webpackChunkName: "settings-home" */ '../pages/SettingsHome.vue')
+const SettingsCollection = () => import(/* webpackChunkName: "settings-collection" */ '../pages/SettingsCollection.vue')
 const SettingsFriends = () => import(/* webpackChunkName: "settings-friends" */ '../pages/SettingsFriends.vue')
+const SettingsAbout = () => import(/* webpackChunkName: "settings-about" */ '../pages/SettingsAbout.vue')
 const SettingsAppearance = () => import(/* webpackChunkName: "settings-appearance" */ '../pages/settings/SettingsAppearance.vue')
+const SettingsFeatures = () => import(/* webpackChunkName: "settings-features" */ '../pages/settings/SettingsFeatures.vue')
 const SettingsSecurity = () => import(/* webpackChunkName: "settings-security" */ '../pages/settings/SettingsSecurity.vue')
 const TextEditorLazy = () => import(/* webpackChunkName: "text-editor" */ '../pages/TextEditor.vue')
 
@@ -72,9 +75,12 @@ const routes = [
     meta: { requiresAuth: true, title: 'settings.home' },
     children: [
       { path: 'homepage', name: 'SettingsHome', component: SettingsHome, meta: { requiresAuth: true, title: 'settings.home' } },
+      { path: 'collection', name: 'SettingsCollection', component: SettingsCollection, meta: { requiresAuth: true, title: 'settings.collection' } },
       { path: 'friends', name: 'SettingsFriends', component: SettingsFriends, meta: { requiresAuth: true, title: 'settings.friends' } },
+      { path: 'about', name: 'SettingsAbout', component: SettingsAbout, meta: { requiresAuth: true, title: 'settings.about' } },
       { path: 'i18n', redirect: 'appearance' },
       { path: 'appearance', name: 'SettingsAppearance', component: SettingsAppearance, meta: { requiresAuth: true, title: 'settings.appearance' } },
+      { path: 'features', name: 'SettingsFeatures', component: SettingsFeatures, meta: { requiresAuth: true, title: 'settings.features' } },
       { path: 'security', name: 'SettingsSecurity', component: SettingsSecurity, meta: { requiresAuth: true, title: 'settings.security' } },
       { path: 'build', name: 'SettingsBuild', component: () => import(/* webpackChunkName: "settings-build" */ '../pages/SettingsBuild.vue'), meta: { requiresAuth: true, title: 'settings.build' } }
     ]

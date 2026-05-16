@@ -708,6 +708,60 @@ html.is-mobile .toc-float { display: none !important; }
   color: var(--component-text-secondary-disabled);
 }
 
+
+.settings-page {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.5rem;
+}
+
+/* Shared floating action surface for settings save/reset groups */
+.settings-card .actions,
+.settings-page .actions,
+.build-page .actions {
+  position: sticky;
+  bottom: 1rem;
+  z-index: 40;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border-color-blur);
+  border-radius: 14px;
+  background: var(--component-bg-blur);
+  box-shadow: var(--shadow-elev-1);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+/* Shared styles for feature toggles used across settings pages */
+.feature-card {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border-radius: 12px;
+  background: var(--component-bg-blur);
+  border: 1px solid var(--border-color);
+  margin-bottom: 0.75rem;
+}
+.feature-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 10px;
+  background: var(--component-bg);
+  border: 1px solid var(--border-color-blur);
+}
+.feature-row input { width:18px; height:18px; accent-color:var(--accent); }
+.feature-copy { display:flex; flex-direction:column; gap:0.18rem }
+.feature-copy small { color:var(--component-text-secondary); line-height:1.4 }
+.feature-disabled { opacity:0.6; pointer-events:none }
+.disabled-note { color:var(--component-text-secondary); font-size:0.95rem }
+
 /* Wrapper for select so we can draw arrow via pseudo-element (select doesn't support ::after) */
 .select-wrap {
   display: inline-block;
@@ -797,9 +851,6 @@ body {
      occluded by the body's own background color. */
   background-color: transparent;
   background-repeat: no-repeat;
-}
-
-body.backend {
 }
 
 /* Disabled on purpose: all background media/overlay now render only via #chronicle-bg-layer. */

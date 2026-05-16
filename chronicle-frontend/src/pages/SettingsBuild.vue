@@ -11,7 +11,7 @@
             <div class="inline-actions">
               <input class="modern-input" v-model="frontendUrl" />
               <button class="primary" @click="visitFrontend">{{ $t('settings.visitNow') }}</button>
-              <button class="secondary" @click="resetFrontendUrl">{{ $t('settings.reset') }}</button>
+              <button class="secondary" @click="() => resetFrontendUrl()">{{ $t('settings.reset') }}</button>
             </div>
             <p class="small muted">{{ $t('settings.frontendLocationHint') }}</p>
           </div>
@@ -20,7 +20,7 @@
             <label>{{ $t('settings.frontendCodeLocation') }}</label>
             <div class="inline-actions">
               <input class="modern-input" v-model="frontendCodeDir" />
-              <button class="secondary" @click="resetFrontendCodeDir">{{ $t('settings.reset') }}</button>
+              <button class="secondary" @click="() => resetFrontendCodeDir()">{{ $t('settings.reset') }}</button>
             </div>
             <p class="small muted">{{ $t('settings.frontendCodeLocationHint') }}</p>
           </div>
@@ -29,7 +29,7 @@
             <label>{{ $t('settings.frontendBuildTargetLocation') }}</label>
             <div class="inline-actions">
               <input class="modern-input" v-model="frontendBuildTargetDir" />
-              <button class="secondary" @click="resetFrontendBuildTargetDir">{{ $t('settings.reset') }}</button>
+              <button class="secondary" @click="() => resetFrontendBuildTargetDir()">{{ $t('settings.reset') }}</button>
             </div>
             <p class="small muted">{{ $t('settings.frontendBuildTargetLocationHint') }}</p>
           </div>
@@ -258,25 +258,33 @@ function defaultBuildTargetFor(domain: string) {
   return `/var/www/${d}`
 }
 
-function resetFrontendUrl() {
+function confirmReset() {
+  return window.confirm(t('settings.resetConfirm') as string)
+}
+
+function resetFrontendUrl(skipConfirm = false) {
+  if (!skipConfirm && !confirmReset()) return
   frontendUrl.value = DEFAULT_FRONTEND_DOMAIN
   // also update build target to match domain
   frontendBuildTargetDir.value = defaultBuildTargetFor(frontendUrl.value)
 }
 
-function resetFrontendCodeDir() {
+function resetFrontendCodeDir(skipConfirm = false) {
+  if (!skipConfirm && !confirmReset()) return
   frontendCodeDir.value = DEFAULT_FRONTEND_CODE_DIR
 }
 
-function resetFrontendBuildTargetDir() {
+function resetFrontendBuildTargetDir(skipConfirm = false) {
+  if (!skipConfirm && !confirmReset()) return
   frontendBuildTargetDir.value = defaultBuildTargetFor(frontendUrl.value)
 }
 
 // detect* removed; use reset buttons and formResetAll instead
 
 function formResetAll() {
-  resetFrontendUrl()
-  resetFrontendCodeDir()
+  if (!confirmReset()) return
+  resetFrontendUrl(true)
+  resetFrontendCodeDir(true)
   // ensure build target updated after domain reset
   frontendBuildTargetDir.value = defaultBuildTargetFor(frontendUrl.value)
   show(t('settings.reset') as string, { status: 'success' })
@@ -405,12 +413,6 @@ onMounted(() => { load() })
 </script>
 
 <style scoped>
-.settings-page{
-  flex-direction: column;
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 2rem;
-}
 .page-hint {
   margin: 0 0 1.5rem;
   color: var(--component-text-secondary);

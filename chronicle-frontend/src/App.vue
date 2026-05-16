@@ -827,12 +827,13 @@ watch(route, () => {
 const isMenuOpen = ref(false)
 const isBuildActive = computed(() => route.path.startsWith('/settings/build'))
 import { APP_VERSION, APP_YEAR } from './version'
+import { isVariableDeclaration } from 'typescript';
 const docTitle = ref(typeof document !== 'undefined' ? document.title : '')
 let titleObserver: MutationObserver | null = null
 
 const showBackendShell = computed(() => route.path !== '/editor' && route.path !== '/login' && isBackend.value)
-const isContentRoute = computed(() => route.path.startsWith('/manage') || route.path.startsWith('/settings/homepage') || route.path.startsWith('/settings/friends'))
-const isSettingsRoute = computed(() => route.path.startsWith('/settings/appearance') || route.path.startsWith('/settings/security'))
+const isContentRoute = computed(() => route.path.startsWith('/manage') || route.path.startsWith('/settings/homepage') || route.path.startsWith('/settings/collection') || route.path.startsWith('/settings/friends') || route.path.startsWith('/settings/about'))
+const isSettingsRoute = computed(() => route.path.startsWith('/settings/appearance') || route.path.startsWith('/settings/features') || route.path.startsWith('/settings/security'))
 const backendContentOpen = ref(isContentRoute.value)
 const backendSettingsOpen = ref(isSettingsRoute.value)
 
@@ -859,6 +860,7 @@ watch(route, () => {
 // Sidebar actions: open frontend and trigger astro rebuild
 const { show: showToast } = useToast()
 const isRebuilding = ref(false)
+const isAvailable = ref(true)
 
 function normalizeFrontendUrl(frontendUrl: string) {
   if (!frontendUrl) return '/'
@@ -877,6 +879,7 @@ async function openFrontend() {
 async function rebuildFrontend() {
   if (isRebuilding.value) return
   isRebuilding.value = true
+  isAvailable.value = false
   try {
     const authToken = (() => {
       try {
@@ -901,6 +904,7 @@ async function rebuildFrontend() {
     showToast(t('settings.buildFailed'), { status: 'error', position: 'bottom-center', shape: 'capsule' })
   } finally {
     isRebuilding.value = false
+    isAvailable.value = true
   }
 }
 </script>
@@ -934,8 +938,10 @@ async function rebuildFrontend() {
             </button>
             <div v-show="backendContentOpen" class="backend-tree-children">
               <RouterLink to="/manage" class="nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('nav.posts') }}</RouterLink>
+              <RouterLink to="/settings/collection" class="nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.shortCollection') }}</RouterLink>
               <RouterLink to="/settings/homepage" class="nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.shortHome') }}</RouterLink>
               <RouterLink to="/settings/friends" class="nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.friends') }}</RouterLink>
+              <RouterLink to="/settings/about" class="nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.shortAbout') }}</RouterLink>
             </div>
           </div>
           <div class="backend-tree-group" :class="{ expanded: backendSettingsOpen, active: isSettingsRoute }">
@@ -946,6 +952,7 @@ async function rebuildFrontend() {
             </button>
             <div v-show="backendSettingsOpen" class="backend-tree-children">
               <RouterLink to="/settings/appearance" class="nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.appearance') }}</RouterLink>
+              <RouterLink to="/settings/features" class="nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.shortFeatures') }}</RouterLink>
               <RouterLink to="/settings/security" class="nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.security') }}</RouterLink>
             </div>
           </div>
@@ -956,7 +963,7 @@ async function rebuildFrontend() {
             <span class="footer-label">{{ $t('nav.build') }}</span>
           </RouterLink>
 
-          <button class="sidebar-footer-item sidebar-footer-icon-btn" type="button" @click="rebuildFrontend" :disabled="isRebuilding" :title="$t('nav.buildNow')" aria-label="{{ $t('nav.buildNow') }}">
+          <button class="sidebar-footer-item sidebar-footer-icon-btn" type="button" @click="rebuildFrontend" :disabled="!isAvailable" :class="{ 'inprogress': isRebuilding }" :title="$t('nav.buildNow')" aria-label="{{ $t('nav.buildNow') }}">
             <span class="icon-svg footer-icon" v-html="Icons.refresh"></span>
           </button>
 
@@ -1287,14 +1294,26 @@ async function rebuildFrontend() {
 }
 
 
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .sidebar-footer-icon-btn { justify-content: center; width: 44px; height: 36px; }
 .sidebar-footer-item:disabled { opacity: 0.6; cursor: not-allowed; }
+.sidebar-footer-item:disabled:hover { background: transparent; color: var(--text-inactive); }
+:deep(.sidebar-footer-icon-btn.inprogress svg) { animation: spin 5s linear infinite; }
 .sidebar-footer-item:hover { background: var(--component-bg-hover); color: var(--component-text-primary-hover); }
+
 
 /* Ensure v-html injected SVGs are vertically centered inside footer items */
 .footer-icon { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; line-height: 0; }
 /* scoped styles need :deep to target injected SVG elements */
-:deep(.footer-icon) svg { width: 20px !important; height: 20px !important; display: block !important; vertical-align: middle !important; }
+:deep(.footer-icon) svg { width: 20px !important; height: 20px !important; display: block !important; }
 .footer-label { font-size: 1rem; }
 
 </style>

@@ -696,6 +696,7 @@ async function save() {
 }
 
 function reset() {
+  if (!window.confirm(t('settings.resetConfirm') as string)) return
   uiFrontendLocale.value = 'follow'
   uiBackendLocale.value = 'follow'
   uiFrontendFont.value = 'sans'
