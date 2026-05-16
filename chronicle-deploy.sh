@@ -258,7 +258,27 @@ fi
 log "构建 chronicle-frontend..."
 mkdir -p "$BACKEND_ROOT"
 cd "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME"
-VITE_API_BASE_URL="$FRONTEND_API_BASE_URL" npm run build
+
+# 在每次构建前询问是否使用现成 dist（如果用户选择 yes 且 dist 存在，则跳过构建）
+FRONTEND_DIST_DIR="$REPO_ROOT/$REPO_FRONTEND_SRC_NAME/dist"
+read -r -p "是否使用现成 ${REPO_FRONTEND_SRC_NAME}/dist 并跳过构建？ [y/N]: " use_existing_dist || true
+use_existing_dist=${use_existing_dist:-n}
+SKIP_BUILD_FRONTEND=0
+if [ "${use_existing_dist,,}" = "y" ]; then
+    if [ -d "$FRONTEND_DIST_DIR" ]; then
+        log "用户选择使用现成 dist，跳过构建。"
+        SKIP_BUILD_FRONTEND=1
+    else
+        warn "用户选择跳过构建但未找到 $FRONTEND_DIST_DIR，继续构建。"
+        SKIP_BUILD_FRONTEND=0
+    fi
+fi
+
+if [ "$SKIP_BUILD_FRONTEND" -eq 0 ]; then
+    VITE_API_BASE_URL="$FRONTEND_API_BASE_URL" npm run build
+else
+    log "跳过构建，使用现成 dist。"
+fi
 
 log "恢复 chronicle-frontend 源码中的 upload symlink..."
 ensure_symlink "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME/public/server/data/upload" "$REPO_ROOT/server/data/upload"
