@@ -9,34 +9,36 @@
         />
         <section class="card">
 
-            <div class="editor-area">
-                <div class="tree-actions">
-                    <button class="primary" @click="addRoot">{{ $t('settings.addCollection') }}</button>
-                    <button class="secondary" @click="loadDefault">{{ $t('settings.loadDefaultCollections') }}</button>
-                </div>
-                <ul class="collection-tree">
-                    <li v-for="node in nodes" :key="node.id">
-                        <div class="node-row">
-                            <input v-model="node.title" class="node-title" />
-                            <div class="node-actions">
-                                <button class="secondary" @click="addChild(node)">+</button>
-                                <button class="danger" @click="removeNode(node)">×</button>
-                            </div>
-                        </div>
-                        <ul v-if="node.children && node.children.length">
-                            <li v-for="child in node.children" :key="child.id">
-                                <div class="node-row child">
-                                    <input v-model="child.title" class="node-title" />
-                                    <div class="node-actions">
-                                        <button class="secondary" @click="addChild(child)">+</button>
-                                        <button class="danger" @click="removeNode(child)">×</button>
-                                    </div>
+                <div class="editor-area">
+                    <div class="tree-actions">
+                        <button class="primary" @click="addCollection">{{ $t('settings.addCollection') }}</button>
+                    </div>
+
+                    <ul class="collection-list">
+                        <li v-for="(col, cidx) in nodes" :key="col.name + '-' + cidx" class="collection-item">
+                            <div class="collection-header">
+                                <input v-model="col.name" placeholder="Collection name" class="collection-name" />
+                                <input v-model="col.description" placeholder="Description" class="collection-desc" />
+                                <div class="collection-actions">
+                                    <button class="action-btn action-add icon-only" aria-label="新增节点" title="新增节点" @click="addNode(col)">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                                        </svg>
+                                    </button>
+                                    <button class="action-btn action-delete icon-only" aria-label="删除合集" title="删除合集" @click="removeCollection(cidx)">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                                        </svg>
+                                    </button>
                                 </div>
-                            </li>
-                        </ul>
-                    </li>
-                </ul>
-            </div>
+                            </div>
+
+                            <CollectionNodeEditor :nodes="col.nodes" />
+                        </li>
+                    </ul>
+                </div>
         </section>
 
         <div class="actions">
@@ -51,6 +53,7 @@ import { ref, onMounted } from 'vue'
 import { fetchWithAuth } from '../utils/fetchWithAuth'
 import { useI18n } from 'vue-i18n'
 import CheckRow from '../components/ui/CheckRow.vue'
+import CollectionNodeEditor from '../components/CollectionNodeEditor.vue'
 import useToast from '../composables/useToast'
 
 const { t } = useI18n()
@@ -61,23 +64,15 @@ const enabled = ref(true)
 const saving = ref(false)
 const nodes = ref<any[]>([])
 
-function makeId() { return 'c_' + Math.random().toString(36).slice(2, 9) }
+function makeId() { return 'n_' + Math.random().toString(36).slice(2, 9) }
 
-function addRoot() { nodes.value.push({ id: makeId(), title: 'New Collection', children: [] }) }
-function addChild(parent: any) { parent.children = parent.children || []; parent.children.push({ id: makeId(), title: 'New Item', children: [] }) }
-function removeNode(target: any) {
-    function walk(list: any[]): boolean {
-        const idx = list.findIndex((n: any) => n.id === target.id)
-        if (idx >= 0) { list.splice(idx, 1); return true }
-        for (const n of list) { if (n.children && walk(n.children)) return true }
-        return false
-    }
-    walk(nodes.value)
-}
+function addCollection() { nodes.value.push({ name: 'New Collection', description: '', nodes: [] }) }
+function removeCollection(idx: number) { nodes.value.splice(idx, 1) }
+function addNode(col: any) { col.nodes = col.nodes || []; col.nodes.push({ id: '', type: 'post' }) }
 
 function resetTree() { if (window.confirm(t('settings.resetConfirm') as string)) { nodes.value = []; localStorage.removeItem('chronicle.settings.collections') } }
 
-function loadDefault() { nodes.value = [{ id: makeId(), title: 'Default Collection', children: [] }] }
+function loadDefault() { nodes.value = [{ name: 'Default Collection', description: '', nodes: [] }] }
 
 async function saveFlag() {
     saving.value = true
@@ -95,9 +90,9 @@ async function saveFlag() {
 }
 
 async function saveCollections() {
-    // persist tree to backend under `collections`
+    // persist collections to backend under `server/data/collection.json`
     try {
-        const resp = await fetchWithAuth(`/api/settings?t=${Date.now()}`, {
+        const resp = await fetchWithAuth(`/api/collections?t=${Date.now()}`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ collections: nodes.value })
         })
         return resp.ok
@@ -130,11 +125,15 @@ onMounted(async () => {
         if (r.ok) {
             const settings = await r.json()
             enabled.value = settings?.featureFlags?.collectionPage !== false
-            if (settings.collections) nodes.value = settings.collections
-            else {
-                const v = localStorage.getItem('chronicle.settings.collections')
-                if (v) nodes.value = JSON.parse(v)
-            }
+        }
+
+        const cr = await fetchWithAuth(`/api/collections?t=${Date.now()}`)
+        if (cr.ok) {
+            const data = await cr.json()
+            nodes.value = data?.collections || []
+        } else {
+            const v = localStorage.getItem('chronicle.settings.collections')
+            if (v) nodes.value = JSON.parse(v)
         }
     } catch (e) { }
 })
@@ -150,6 +149,12 @@ onMounted(async () => {
     border: 1px solid var(--border-color);
 }
 
+.editor-area {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
 .editor-area textarea {
     width: 100%;
     font-family: var(--app-font-stack);
@@ -159,4 +164,56 @@ onMounted(async () => {
     display: flex;
     gap: 0.5rem
 }
+
+.collection-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px }
+.collection-item { border: 1px solid var(--border-color); border-radius: 10px; padding: 10px; background: var(--component-bg); }
+.collection-header { display:flex; gap:8px; align-items:center; margin-bottom:8px }
+.collection-name { flex: 1 1 200px; padding:6px 8px; border-radius:6px; border:1px solid var(--border-color); }
+.collection-desc { flex: 2 1 300px; padding:6px 8px; border-radius:6px; border:1px solid var(--border-color); }
+.collection-actions { margin-left: auto; display:flex; gap:6px }
+
+.action-btn {
+    height: 30px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-primary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 0;
+    cursor: pointer;
+    transition: color .15s ease, background .15s ease, transform .08s ease;
+}
+
+.action-btn:hover {
+    color: var(--text-primary);
+    background: var(--component-bg-hover);
+}
+
+.action-btn.icon-only {
+    width: 30px;
+    min-width: 30px;
+}
+
+.action-btn.icon-only svg {
+    width: 18px;
+    height: 18px;
+    display: block;
+}
+
+.action-delete {
+    color: var(--status-error);
+    background: transparent;
+}
+
+.action-delete:hover {
+    background: var(--code-bg);
+    color: var(--status-error);
+}
+
+.danger { background: #fff0f0; border: 1px solid #ffcccc }
+.secondary { background: transparent; border: 1px solid var(--border-color) }
+.primary { background: var(--accent-color); color: white }
 </style>

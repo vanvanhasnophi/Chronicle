@@ -246,6 +246,16 @@
     "copy_to_dark": "Copy to Dark",
     "savedNeedRebuild": "Saved. Rebuild to ensure changes take effect."
   },
+  "postPicker": {
+    "inputPlaceholder": "Search and select a published post",
+    "searchPlaceholder": "Search by title or id",
+    "loading": "Loading...",
+    "empty": "No matching published posts",
+    "openAriaLabel": "Select post",
+    "openTitle": "Select post",
+    "clearAriaLabel": "Clear selected post",
+    "clearTitle": "Clear"
+  },
   "post": {
     "manageTitle": "Manage Posts",
     "newPost": "New Post",
@@ -420,7 +430,10 @@
       "split": "Split View",
       "edit": "Editor Only",
       "preview": "Preview Only"
-    }
+    },
+    "aiGeneratedLabel": "AI Generated",
+    "authorLabel": "Author",
+    "authorPlaceholder": "Enter author name (eightyfor as default)"
   },
   "formula": {
     "copied": "Formula copied"

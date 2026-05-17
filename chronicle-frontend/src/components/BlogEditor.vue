@@ -324,11 +324,10 @@
                     </div>
 
                     <div v-if="activeModal === 'publish'" class="form-group">
-                        <label class="checkbox-label">
-                            <input type="checkbox" v-model="postAIGenerated" class="checkbox-input" />
-                            <span class="checkbox-custom"></span>
-                            {{ t('editor.aiGeneratedLabel') }}
-                        </label>
+                    <CheckRow 
+                        v-model="postAIGenerated"
+                        :title="$t('editor.aiGeneratedLabel')"
+                    />
                     </div>
 
                     <div class="modal-actions">
@@ -437,7 +436,9 @@ import { Icons } from '../utils/icons'
 import { getStats } from '../utils/markdownParser'
 import { sortTags } from '../utils/tagUtils'
 import { useI18n } from 'vue-i18n'
+import CheckRow from './ui/CheckRow.vue';
 import { formatDate as formatDateUtil, formatDateTime } from '../utils/dateUtils'
+import { Check } from 'lucide-vue-next';
 
 const route = useRoute()
 const router = useRouter()

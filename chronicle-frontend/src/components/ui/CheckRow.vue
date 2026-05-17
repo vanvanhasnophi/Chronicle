@@ -85,7 +85,7 @@ function onChange(event: Event) {
 	font-size: 0.9rem;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 400px) {
 	.check-row {
 		grid-template-columns: 1fr;
 		align-items: start;

@@ -14,8 +14,7 @@
     "files": "文件管理",
     "settings": "设置",
     "newPost": "写文章",
-    "about": "关于"
-    ,
+    "about": "关于",
     "openFrontend": "前往前台",
     "rebuildFrontend": "重新构建前台",
     "build": "构建",
@@ -247,6 +246,16 @@
     "copy_to_dark": "复制到深色模式",
     "savedNeedRebuild": "已保存。请构建前端以确保生效。"
   },
+  "postPicker": {
+    "inputPlaceholder": "搜索并选择已发布帖子",
+    "searchPlaceholder": "搜索标题或 id",
+    "loading": "加载中...",
+    "empty": "没有匹配的已发布帖子",
+    "openAriaLabel": "选择帖子",
+    "openTitle": "选择帖子",
+    "clearAriaLabel": "清除已选帖子",
+    "clearTitle": "清除"
+  },
   "post": {
     "manageTitle": "文章管理",
     "newPost": "新建文章",
@@ -335,10 +344,9 @@
     "session": "会话",
     "logout": "退出登录"
   },
-  "tag":{
+  "tag": {
     "featured": "精选"
-  }
-  ,
+  },
   "status": {
     "draft": "草稿",
     "published": "已发布",
@@ -384,14 +392,13 @@
     "saveDraft": "保存草稿",
     "publishNow": "立即发布",
     "createNewPost": "创建文章",
-    "toggleFeatured": "切换为精选"
-    ,
+    "toggleFeatured": "切换为精选",
     "undo": "撤销",
     "redo": "重做",
     "postTitle": "文章标题",
     "titlePlaceholder": "为文章填写标题...",
     "authorLabel": "作者",
-    "authorPlaceholder": "填写作者名称...",
+    "authorPlaceholder": "填写作者名称（默认为 eightyfor）...",
     "aiGeneratedLabel": "AI生成内容",
     "tagsLabel": "标签",
     "addTagPlaceholder": "添加标签...",
@@ -410,19 +417,16 @@
       "charsNoSpaces": "字符数（不含空格）",
       "nonWestern": "非西文字符数",
       "markdownChars": "原始 Markdown 字符数"
-    }
-    ,
+    },
     "countWords": "{count} 字",
-    "countWordsPlural": "{count} 字"
-  ,
-  "code": {
-    "lineCol": "行：{line} | 列：{col}",
-    "charSing": "{count} 字符",
-    "charPlural": "{count} 字符",
-    "lineSing": "{count} 行",
-    "linePlural": "{count} 行"
-  }
-    ,
+    "countWordsPlural": "{count} 字",
+    "code": {
+      "lineCol": "行：{line} | 列：{col}",
+      "charSing": "{count} 字符",
+      "charPlural": "{count} 字符",
+      "lineSing": "{count} 行",
+      "linePlural": "{count} 行"
+    },
     "rows": "行数",
     "cols": "列数",
     "view": {
@@ -434,5 +438,4 @@
   "formula": {
     "copied": "公式已复制"
   }
-    
 }

@@ -38,7 +38,7 @@
   "featureFlags": {
     "searchSuggestions": true,
     "relatedPosts": true,
-    "collectionPage": true,
+    "collectionPage": false,
     "aboutPage": true,
     "friendsPage": true
   }
