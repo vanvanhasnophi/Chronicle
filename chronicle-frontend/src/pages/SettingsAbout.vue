@@ -3,13 +3,11 @@
         <h2 style="margin-bottom: 0;">{{ $t('settings.about') }}</h2>
         <p class="hint">{{ $t('settings.aboutHint') }}</p>
 
-        <label class="feature-row" style="padding: 1rem;">
-            <span class="feature-copy">
-                <strong>{{ $t('settings.featureToggle') }}</strong>
-                <small>{{ $t('settings.featureAboutPageHint') }}</small>
-            </span>
-            <input type="checkbox" v-model="enabled" />
-        </label>
+        <CheckRow 
+            v-model="enabled" 
+            :title="$t('settings.featureToggle')"
+            :hint="$t('settings.featureAboutPageHint')" 
+        />
 
         <section class="card">
 
@@ -30,6 +28,7 @@
 import { ref, onMounted } from 'vue'
 import { fetchWithAuth } from '../utils/fetchWithAuth'
 import { useI18n } from 'vue-i18n'
+import CheckRow from '../components/ui/CheckRow.vue'
 import useToast from '../composables/useToast'
 
 const { t } = useI18n()

@@ -8,6 +8,7 @@ export async function getStaticPaths() {
 import Layout from '../../layouts/Layout.astro';
 import { getTranslation, getLocale } from '../../utils/i18n';
 import { getApiUrl } from '../../config/api';
+import { resolveFeatureFlags } from '../../utils/featureFlags';
 
 // Get locale from Astro.locals (set by middleware)
 const locale = getLocale(Astro.locals);
@@ -30,19 +31,31 @@ if (!settings || Object.keys(settings).length === 0) {
     if (res.ok) settings = await res.json();
   } catch (e) {}
 }
+
+const featureFlags = resolveFeatureFlags(settings?.featureFlags);
+const friendsEnabled = featureFlags.friendsPage !== false;
 ---
 
 <Layout title={t('friends.title')} settings={settings}>
   <div class="page-container">
-    <h1>{t('friends.title')}</h1>
-    <div class="friends-list">
-      <div class="friend-item">
-        <h3>Waiwai</h3>
-        <h4>非常乐意并享受被人挂网上的感觉</h4>
-        <img src="https://file.eightyfor.top/data/upload/pic/1770999133303_vne7_177099908700-992.webp" alt="Waiwai" />
-        <p>（据说这位是家属）</p>
+    {friendsEnabled ? (
+      <>
+        <h1>{t('friends.title')}</h1>
+        <div class="friends-list">
+          <div class="friend-item">
+            <h3>Waiwai</h3>
+            <h4>非常乐意并享受被人挂网上的感觉</h4>
+            <img src="https://file.eightyfor.top/data/upload/pic/1770999133303_vne7_177099908700-992.webp" alt="Waiwai" />
+            <p>（据说这位是家属）</p>
+          </div>
+        </div>
+      </>
+    ) : (
+      <div class="feature-disabled-page">
+        <h1>{t('friends.title')}</h1>
+        <p>该页面已被功能开关关闭。</p>
       </div>
-    </div>
+    )}
   </div>
 </Layout>
 
@@ -84,5 +97,11 @@ if (!settings || Object.keys(settings).length === 0) {
 .friend-item p {
   color: var(--component-text-secondary);
   font-style: italic;
+}
+
+.feature-disabled-page {
+  padding: 48px 20px;
+  text-align: center;
+  color: var(--component-text-secondary);
 }
 </style>

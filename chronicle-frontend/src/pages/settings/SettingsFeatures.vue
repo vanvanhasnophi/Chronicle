@@ -1,47 +1,40 @@
 <template>
-  <div class="settings-page features-page">
+  <div class="settings-page">
     <h2 style="margin-bottom: 0;">{{ $t('settings.features') }}</h2>
     <p class="hint">{{ $t('settings.featuresHint') }}</p>
 
     <section class="feature-card">
-        <label class="feature-row feature-disabled">
-          <span class="feature-copy">
-            <strong>{{ $t('settings.featureSearchSuggestions') }}</strong>
-            <small>{{ $t('settings.featureSearchSuggestionsHint') }}</small>
-          </span>
-          <div class="disabled-note">{{ $t('settings.todo') }}</div>
-        </label>
+      <CheckRow
+        :disabled="true"
+        :disabled-text="$t('settings.nslasha')"
+        :hint="$t('settings.featureSearchSuggestionsHint')"
+        :title="$t('settings.featureSearchSuggestions')"
+      />
 
-        <label class="feature-row feature-disabled">
-          <span class="feature-copy">
-            <strong>{{ $t('settings.featureRelatedPosts') }}</strong>
-            <small>{{ $t('settings.featureRelatedPostsHint') }}</small>
-          </span>
-          <div class="disabled-note">{{ $t('settings.todo') }}</div>
-        </label>
+      <CheckRow
+        :disabled="true"
+        :disabled-text="$t('settings.nslasha')"
+        :hint="$t('settings.featureRelatedPostsHint')"
+        :title="$t('settings.featureRelatedPosts')"
+      />
 
-      <label class="feature-row">
-        <span class="feature-copy">
-          <strong>{{ $t('settings.featureCollection') }}</strong>
-          <small>{{ $t('settings.featureCollectionHint') }}</small>
-        </span>
-        <input v-model="flags.collectionPage" type="checkbox" />
-      </label>
+      <CheckRow
+        v-model="flags.collectionPage"
+        :hint="$t('settings.featureCollectionHint')"
+        :title="$t('settings.featureCollection')"
+      />
 
-      <label class="feature-row">
-        <span class="feature-copy">
-          <strong>{{ $t('settings.featureAboutPage') }}</strong>
-          <small>{{ $t('settings.featureAboutPageHint') }}</small>
-        </span>
-        <input v-model="flags.aboutPage" type="checkbox" />
-      </label>
-      <label class="feature-row">
-        <span class="feature-copy">
-          <strong>{{ $t('settings.featureFriendsPage') }}</strong>
-          <small>{{ $t('settings.featureFriendsPageHint') }}</small>
-        </span>
-        <input v-model="flags.friendsPage" type="checkbox" />
-      </label>
+      <CheckRow
+        v-model="flags.aboutPage"
+        :hint="$t('settings.featureAboutPageHint')"
+        :title="$t('settings.featureAboutPage')"
+      />
+
+      <CheckRow
+        v-model="flags.friendsPage"
+        :hint="$t('settings.featureFriendsPageHint')"
+        :title="$t('settings.featureFriendsPage')"
+      />
     </section>
 
     <div class="actions">
@@ -54,6 +47,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import CheckRow from '../../components/ui/CheckRow.vue'
 import { fetchWithAuth } from '../../utils/fetchWithAuth'
 import useToast from '../../composables/useToast'
 
@@ -124,14 +118,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.features-page {
-  max-width: 840px;
-  margin: 0 auto;
-  padding: 2rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
 
 .feature-card {
   display: grid;
@@ -140,49 +126,6 @@ onMounted(() => {
   border-radius: 12px;
   background: var(--component-bg-blur);
   border: 1px solid var(--border-color);
-}
-
-.feature-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.9rem 1rem;
-  border-radius: 10px;
-  background: var(--component-bg);
-  border: 1px solid var(--border-color-blur);
-}
-
-.feature-row input {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--accent);
-  flex: 0 0 auto;
-}
-
-.feature-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.feature-copy strong {
-  font-size: 0.98rem;
-}
-
-.feature-copy small {
-  color: var(--component-text-secondary);
-  line-height: 1.4;
-}
-
-.feature-disabled {
-  opacity: 0.6;
-  pointer-events: none;
-}
-
-.disabled-note {
-  color: var(--component-text-secondary);
-  font-size: 0.9rem;
 }
 
 .actions {
@@ -194,15 +137,6 @@ onMounted(() => {
 @media (max-width: 640px) {
   .features-page {
     padding: 1.25rem;
-  }
-
-  .feature-row {
-    grid-template-columns: 1fr;
-    align-items: start;
-  }
-
-  .feature-row input {
-    justify-self: start;
   }
 }
 </style>

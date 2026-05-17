@@ -8,16 +8,21 @@ interface Props {
   articleTitle?: string;
   articleBackHref?: string;
   articleBackLabel?: string;
+  featureFlags?: Record<string, boolean>;
 }
 
-const { currentPath, locale: propLocale, articleTitle, articleBackHref, articleBackLabel } = Astro.props;
+const { currentPath, locale: propLocale, articleTitle, articleBackHref, articleBackLabel, featureFlags } = Astro.props;
 const locale = propLocale || getLocale(Astro.locals);
 const t = (key: string) => getTranslation(locale, key);
 const activePath = stripRouteLocale(currentPath);
 const homeHref = buildLocalizedPath(locale, "/");
 const blogsHref = buildLocalizedPath(locale, "/blogs");
 const searchHref = buildLocalizedPath(locale, "/search");
+const collectionHref = buildLocalizedPath(locale, "/collection");
 const friendsHref = buildLocalizedPath(locale, "/friends");
+const showFriends = featureFlags?.friendsPage !== false;
+const showAbout = featureFlags?.aboutPage !== false;
+const showCollection = featureFlags?.collectionPage !== false;
 
 // Determine active route for highlighting
 const isActive = (path: string) => {
@@ -119,6 +124,14 @@ const isActive = (path: string) => {
         >
           {t("nav.blogs")}
         </a>
+        {showCollection && (
+          <a
+            href={collectionHref}
+            class:list={["nav-link", { "router-link-active": isActive("/collection") }]}
+          >
+            {t("nav.collection")}
+          </a>
+        )}
         <a
           href={searchHref}
           class:list={[
@@ -128,15 +141,14 @@ const isActive = (path: string) => {
         >
           {t("nav.search")}
         </a>
-        <a
-          href={friendsHref}
-          class:list={[
-            "nav-link",
-            { "router-link-active": isActive("/friends") },
-          ]}
-        >
-          {t("nav.friends")}
-        </a>
+        {showFriends && (
+          <a
+            href={friendsHref}
+            class:list={["nav-link", { "router-link-active": isActive("/friends") }]}
+          >
+            {t("nav.friends")}
+          </a>
+        )}
       </div>
 
       <!-- Settings Button -->
@@ -260,9 +272,11 @@ const isActive = (path: string) => {
         />
 
         <!-- About -->
-        <a href="/about" class="popup-item popup-item-link">
-          <span class="popup-label">{t("nav.about")}</span>
-        </a>
+        {showAbout && (
+          <a href="/about" class:list={["popup-item", "popup-item-link"]}>
+            <span class="popup-label">{t("nav.about")}</span>
+          </a>
+        )}
 
         <div
           style="font-size: 0.8em; padding: 2px 10px 0 10px; color: var(--component-text-secondary);"
@@ -654,12 +668,15 @@ const isActive = (path: string) => {
       });
     }
 
-    // Close menu when clicking nav links
-    navLinks.querySelectorAll(".nav-link").forEach((link) => {
-      link.addEventListener("click", () => {
+    // Close menu when clicking nav links (use event delegation so removal/addition of links won't break handlers)
+    navLinks.addEventListener("click", (e) => {
+      const target = e.target;
+      // @ts-ignore
+      const link = target && target.closest && target.closest('.nav-link');
+      if (link) {
         navLinks.classList.remove("mobile-open");
         menuToggle.classList.remove("active");
-      });
+      }
     });
   }
 

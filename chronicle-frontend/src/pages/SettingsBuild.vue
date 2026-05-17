@@ -40,16 +40,13 @@
         <h3>{{ $t('settings.buildOptions') }}</h3>
 
         <!-- Segment 1: Enable Scheduled Build -->
-        <div class="settings-segment">
-          <h4 class="segment-title">{{ $t('settings.scheduledBuild') }}</h4>
-          <div class="form-row">
-            <label class="toggle-row">
-              <input type="checkbox" v-model="schedule.enabled" />
-              <span>{{ $t('settings.scheduledBuildEnabled') }}</span>
-            </label>
+        <div style="margin-bottom: 1rem; "> 
+            <CheckRow 
+            v-model="schedule.enabled" 
+            :title="$t('settings.scheduledBuildEnabled')"
+            />
             <p v-if="!cronInstalled" class="warning-text">{{ $t('settings.cronUnavailable') }}</p>
             <p v-else class="small muted">{{ cronHint }}</p>
-          </div>
         </div>
 
         <!-- Segment 2: Schedule Settings -->
@@ -155,6 +152,7 @@
 import { fetchWithAuth } from '../utils/fetchWithAuth';
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import CheckRow from '../components/ui/CheckRow.vue'
 import useToast from '../composables/useToast'
 
 const { t } = useI18n()

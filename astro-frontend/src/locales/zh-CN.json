@@ -7,6 +7,7 @@
     "blogs": "博客",
     "search": "搜索",
     "friends": "朋友",
+    "collection": "合集",
     "posts": "文章",
     "files": "文件管理",
     "settings": "设置",
@@ -24,6 +25,10 @@
     "words": "字数",
     "readingTime": "阅读时间",
     "aiGeneratedTip": "文章含 AI 生成内容"
+  },
+  "collection": {
+    "title": "合集",
+    "backToList": "返回合集列表"
   },
   "misc": {
     "backToTop": "回到顶部"

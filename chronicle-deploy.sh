@@ -289,6 +289,20 @@ rsync -a --delete "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME/dist/" "$BACKEND_ROOT/"
 log "构建 astro-frontend..."
 mkdir -p "$WEB_ROOT"
 cd "$REPO_ROOT/$REPO_ASTRO_SRC_NAME"
+# 在构建前把后端 settings.json 复制到 Astro 项目，以便在构建时/运行时读取 feature flags
+SETTINGS_SRC="$REPO_ROOT/server/data/settings.json"
+ASTRO_PUBLIC_DIR="$REPO_ROOT/$REPO_ASTRO_SRC_NAME/public/server/data"
+ASTRO_SRC_DATA_DIR="$REPO_ROOT/$REPO_ASTRO_SRC_NAME/src/data"
+if [ -f "$SETTINGS_SRC" ]; then
+    mkdir -p "$ASTRO_PUBLIC_DIR"
+    mkdir -p "$ASTRO_SRC_DATA_DIR"
+    cp "$SETTINGS_SRC" "$ASTRO_PUBLIC_DIR/settings.json"
+    cp "$SETTINGS_SRC" "$ASTRO_SRC_DATA_DIR/settings.json"
+    log "已将 settings.json 复制到 Astro 的 public 和 src/data（供运行时与构建时使用）"
+else
+    warn "未找到 $SETTINGS_SRC，构建时将无法使用后端 settings。"
+fi
+
 MEDIA_DOMAIN="$MEDIA_DOMAIN" API_BASE_URL="$ASTRO_API_BASE_URL" npm run build
 
 log "恢复 astro-frontend 源码中的 upload symlink..."

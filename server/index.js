@@ -138,6 +138,7 @@ const BACKGROUND_DIR = path.join(DATA_DIR, 'background');
 const POSTS_DIR = path.join(DATA_DIR, 'posts');
 const SECURITY_FILE = path.join(DATA_DIR, 'security.json');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
+const COLLECTION_FILE = path.join(DATA_DIR, 'collection.json');
 const INDEX_FILE = path.join(POSTS_DIR, 'index.json');
 
 const DEFAULT_BUILD_SETTINGS = {
@@ -304,6 +305,24 @@ function normalizeBuildGranularity(value) {
     if (typeof value !== 'string') return 'full';
     const normalized = value.trim().toLowerCase();
     return VALID_BUILD_GRANULARITIES.has(normalized) ? normalized : 'full';
+}
+
+function syncAstroBuildSettings(codeDir) {
+    const settingsSource = path.join(DATA_DIR, 'settings.json');
+    if (!fs.existsSync(settingsSource)) {
+        throw new Error(`Settings file not found: ${settingsSource}`);
+    }
+
+    const settingsContent = fs.readFileSync(settingsSource, 'utf-8');
+    const targetDirs = [
+        path.join(codeDir, 'public', 'server', 'data'),
+        path.join(codeDir, 'src', 'data'),
+    ];
+
+    for (const targetDir of targetDirs) {
+        fs.mkdirSync(targetDir, { recursive: true });
+        fs.writeFileSync(path.join(targetDir, 'settings.json'), settingsContent);
+    }
 }
 
 function parseBackgroundLikeValue(raw) {
@@ -757,6 +776,7 @@ function buildAstroFrontendAsync(settings, options = {}) {
         }
 
         // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ÃƒÆ’Ã¢â‚¬Â¹ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂºÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â·ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¥ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¤ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â½ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¿ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¨ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¹ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¨ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¿ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂºÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¨ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¾ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¾ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âº
+        syncAstroBuildSettings(codeDir);
         const workerScriptPath = path.join(__dirname, 'build-worker.js');
         const worker = new Worker(workerScriptPath, {
             workerData: { codeDir, targetDir, granularity }
@@ -878,6 +898,7 @@ function buildAstroFrontend(settings, options = {}) {
         throw new Error(`Invalid build target dir: ${targetDir}`);
     }
 
+    syncAstroBuildSettings(codeDir);
     execSync('npm run build', {
         cwd: codeDir,
         stdio: 'inherit',
@@ -1732,6 +1753,41 @@ app.post('/api/settings', async (req, res) => {
         res.json(saved);
     } catch (e) {
         console.error('[Settings] POST error', e);
+        res.status(500).send('Error');
+    }
+});
+
+// Collections API - store/load collections under server/data/collection.json
+app.get('/api/collections', (req, res) => {
+    try {
+        if (!fs.existsSync(COLLECTION_FILE)) return res.json({ collections: [] });
+        const data = JSON.parse(fs.readFileSync(COLLECTION_FILE, 'utf-8') || '{}') || {};
+        return res.json(data);
+    } catch (e) {
+        console.error('[Collections] GET error', e);
+        return res.status(500).json({ collections: [] });
+    }
+});
+
+app.post('/api/collections', (req, res) => {
+    try {
+        const body = req.body || {};
+        let saved = {};
+        if (fs.existsSync(COLLECTION_FILE)) {
+            try { saved = JSON.parse(fs.readFileSync(COLLECTION_FILE, 'utf-8')) || {} } catch(e) { saved = {} }
+        }
+
+        // Merge top-level, but ensure collections is an array
+        if (Array.isArray(body.collections)) {
+            saved.collections = body.collections;
+        } else {
+            saved = Object.assign({}, saved, body);
+        }
+
+        fs.writeFileSync(COLLECTION_FILE, JSON.stringify(saved, null, 2));
+        res.json(saved);
+    } catch (e) {
+        console.error('[Collections] POST error', e);
         res.status(500).send('Error');
     }
 });

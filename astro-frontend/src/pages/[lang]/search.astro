@@ -10,6 +10,7 @@ import { getTranslation, getLocale } from "../../utils/i18n";
 import { buildLocalizedPath } from "../../utils/routeLocale";
 import { sortTags } from "../../utils/tagUtils";
 import { getApiUrl } from "../../config/api";
+import { resolveFeatureFlags } from "../../utils/featureFlags";
 
 const locale = getLocale(Astro.locals);
 const t = (key: string) => getTranslation(locale, key);
@@ -35,6 +36,9 @@ if (!settings || Object.keys(settings).length === 0) {
     if (res.ok) settings = await res.json();
   } catch (e) {}
 }
+
+const featureFlags = resolveFeatureFlags(settings?.featureFlags);
+const searchSuggestionsEnabled = featureFlags.searchSuggestions !== false;
 
 // Fetch posts
 interface Post {
@@ -87,28 +91,32 @@ const resultsCountText = t("search.resultsCount").replace("{count}", "0");
   <div class="page-container centered-mode" id="search-page">
     <div class="search-box-wrapper">
       <div class="search-box">
-        <button
-          class="tag-trigger"
-          id="tag-trigger"
-          title={t("search.selectTags")}
-        >
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <line x1="4" y1="9" x2="20" y2="9"></line>
-            <line x1="4" y1="15" x2="20" y2="15"></line>
-            <line x1="10" y1="3" x2="8" y2="21"></line>
-            <line x1="16" y1="3" x2="14" y2="21"></line>
-          </svg>
-        </button>
-        <span class="divider"></span>
+        {searchSuggestionsEnabled && (
+          <>
+            <button
+              class="tag-trigger"
+              id="tag-trigger"
+              title={t("search.selectTags")}
+            >
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <line x1="4" y1="9" x2="20" y2="9"></line>
+                <line x1="4" y1="15" x2="20" y2="15"></line>
+                <line x1="10" y1="3" x2="8" y2="21"></line>
+                <line x1="16" y1="3" x2="14" y2="21"></line>
+              </svg>
+            </button>
+            <span class="divider"></span>
+          </>
+        )}
         <div class="input-area" id="input-area">
           <input
             id="search-input"
@@ -143,7 +151,8 @@ const resultsCountText = t("search.resultsCount").replace("{count}", "0");
     </div>
 
     <div class="content-wrapper" id="content-wrapper" style="display:none;">
-      <div class="tag-cloud-container" id="tag-cloud" style="display:none;">
+    {searchSuggestionsEnabled && (
+    <div class="tag-cloud-container" id="tag-cloud" style="display:none;">
         <div
           class="selected-tags-header"
           id="selected-tags-header"
@@ -181,6 +190,7 @@ const resultsCountText = t("search.resultsCount").replace("{count}", "0");
           </div>
         </div>
       </div>
+      )}
 
       <div class="results-container" id="results-container">
         <div class="results-header" id="results-header" style="display:none;">
