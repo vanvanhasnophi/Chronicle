@@ -15,7 +15,7 @@
                     </div>
 
                     <ul class="collection-list">
-                        <li v-for="(col, cidx) in nodes" :key="col.name + '-' + cidx" class="collection-item">
+                        <li v-for="(col, cidx) in nodes" :key="col._localId || (col.name + '-' + cidx)" class="collection-item">
                             <div class="collection-header">
                                 <input v-model="col.name" placeholder="Collection name" class="collection-name" />
                                 <input v-model="col.description" placeholder="Description" class="collection-desc" />
@@ -65,10 +65,29 @@ const saving = ref(false)
 const nodes = ref<any[]>([])
 
 function makeId() { return 'n_' + Math.random().toString(36).slice(2, 9) }
+function ensureLocalIds(cols: any[]) {
+    if (!Array.isArray(cols)) return cols
+    for (const c of cols) {
+        if (!c) continue
+        if (!c._localId) c._localId = makeId()
+        if (Array.isArray(c.nodes)) {
+            function walk(list: any[]) {
+                if (!Array.isArray(list)) return
+                for (const n of list) {
+                    if (!n) continue
+                    if (!n._localId) n._localId = makeId()
+                    if (n.type === 'group' && Array.isArray(n.children)) walk(n.children)
+                }
+            }
+            walk(c.nodes)
+        }
+    }
+    return cols
+}
 
-function addCollection() { nodes.value.push({ name: 'New Collection', description: '', nodes: [] }) }
+function addCollection() { nodes.value.push({ _localId: makeId(), name: 'New Collection', description: '', nodes: [] }) }
 function removeCollection(idx: number) { nodes.value.splice(idx, 1) }
-function addNode(col: any) { col.nodes = col.nodes || []; col.nodes.push({ id: '', type: 'post' }) }
+function addNode(col: any) { col.nodes = col.nodes || []; col.nodes.push({ _localId: makeId(), id: '', type: 'post' }) }
 
 function resetTree() { if (window.confirm(t('settings.resetConfirm') as string)) { nodes.value = []; localStorage.removeItem('chronicle.settings.collections') } }
 
@@ -92,9 +111,26 @@ async function saveFlag() {
 async function saveCollections() {
     // persist collections to backend under `server/data/collection.json`
     try {
-        const resp = await fetchWithAuth(`/api/collections?t=${Date.now()}`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ collections: nodes.value })
-        })
+            // send a sanitized copy without local-only fields
+            const payload = JSON.parse(JSON.stringify({ collections: nodes.value }))
+            if (Array.isArray(payload.collections)) {
+                function strip(list: any[]) {
+                    if (!Array.isArray(list)) return
+                    for (const n of list) {
+                        if (!n) continue
+                        delete n._localId
+                        if (n.type === 'group' && Array.isArray(n.children)) strip(n.children)
+                    }
+                }
+                for (const c of payload.collections) {
+                    if (!c) continue
+                    delete c._localId
+                    if (Array.isArray(c.nodes)) strip(c.nodes)
+                }
+            }
+            const resp = await fetchWithAuth(`/api/collections?t=${Date.now()}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+            })
         return resp.ok
     } catch (e) { return false }
 }
@@ -159,10 +195,10 @@ onMounted(async () => {
         const cr = await fetchWithAuth(`/api/collections?t=${Date.now()}`)
         if (cr.ok) {
             const data = await cr.json()
-            nodes.value = data?.collections || []
+            nodes.value = ensureLocalIds(data?.collections || [])
         } else {
             const v = localStorage.getItem('chronicle.settings.collections')
-            if (v) nodes.value = JSON.parse(v)
+            if (v) nodes.value = ensureLocalIds(JSON.parse(v))
         }
     } catch (e) { }
 })

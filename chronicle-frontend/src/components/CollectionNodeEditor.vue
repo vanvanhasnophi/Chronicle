@@ -1,8 +1,8 @@
 <template>
   <ul class="collection-tree" :class="{ nested: depth > 0 }">
-    <li v-for="(node, idx) in nodes" :key="idx">
+    <li v-for="(node, idx) in nodes" :key="node._localId || idx">
       <div class="node-row">
-        <select v-model="node.type" class="node-type" @change="onTypeChange(node)">
+        <select v-model="node.type" class="node-type" @change="onTypeChange(node)" :disabled="isTypeLocked(node)">
           <option value="post">Post</option>
           <option value="group">Group</option>
         </select>
@@ -56,16 +56,31 @@ const props = withDefaults(defineProps<{
   depth: 0,
 })
 
+function makeId() { return 'n_' + Math.random().toString(36).slice(2, 9) }
+
 function addChild(parent: any) {
   if (parent?.type !== 'group') return
   parent.children = parent.children || []
-  parent.children.push({ id: '', type: 'post' })
+  parent.children.push({ _localId: makeId(), id: '', type: 'post' })
 }
 
 function onTypeChange(node: any) {
   if (node?.type !== 'group' && Array.isArray(node?.children)) {
     node.children = []
   }
+}
+
+function isTypeLocked(node: any) {
+  if (!node) return false
+  if (node.type === 'group') {
+    // group locked if has children
+    return Array.isArray(node.children) && node.children.length > 0
+  }
+  if (node.type === 'post') {
+    // post locked if has an id
+    return !!String(node.id || '').trim()
+  }
+  return false
 }
 
 function removeNode(idx: number) {
