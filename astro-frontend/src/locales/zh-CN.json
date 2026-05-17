@@ -28,7 +28,8 @@
   },
   "collection": {
     "title": "合集",
-    "backToList": "返回合集列表"
+    "backToList": "返回合集列表",
+    "navTitlePattern": "合集：{name}"
   },
   "misc": {
     "backToTop": "回到顶部"

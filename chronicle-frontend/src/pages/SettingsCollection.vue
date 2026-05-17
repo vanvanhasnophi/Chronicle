@@ -35,7 +35,7 @@
                                 </div>
                             </div>
 
-                            <CollectionNodeEditor :nodes="col.nodes" />
+                            <CollectionNodeEditor :nodes="col.nodes" :onPostPicked="handlePostPicked" />
                         </li>
                     </ul>
                 </div>
@@ -109,6 +109,35 @@ async function saveAll() {
         if (okFlag && okCollections) show(t('settings.saveSuccess') as string, { status: 'success' })
         else show(t('settings.saveFailed') as string, { status: 'error' })
     } catch (e) { show(t('settings.saveFailed') as string, { status: 'error' }) } finally { saving.value = false }
+}
+
+function handlePostPicked(targetNode: any, pickedId: string) {
+    if (!pickedId) return
+
+    // normalize
+    const id = String(pickedId)
+
+    // iterate all collections and clear other occurrences of this id
+    for (const col of nodes.value || []) {
+        function walk(list: any[]) {
+            if (!Array.isArray(list)) return
+            for (const n of list) {
+                if (!n) continue
+                if (n === targetNode) continue
+                if (n.type === 'post') {
+                    if (String(n.id || '') === id) {
+                        n.id = ''
+                    }
+                } else if (n.type === 'group') {
+                    walk(n.children || [])
+                }
+            }
+        }
+        walk(col.nodes || [])
+    }
+
+    // ensure target node has the id
+    try { targetNode.id = id } catch (e) {}
 }
 
 async function resetAll() {

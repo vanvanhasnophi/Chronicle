@@ -8,7 +8,10 @@
         </select>
 
         <template v-if="node.type === 'post'">
-          <PostIdPicker v-model="node.id" />
+          <PostIdPicker
+            :modelValue="node.id"
+            @update:modelValue="(val) => onPickerUpdate(node, val)"
+          />
         </template>
         <template v-else>
           <input v-model="node.title" placeholder="Group title" class="node-title" />
@@ -34,6 +37,7 @@
         v-if="node.type === 'group' && Array.isArray(node.children) && node.children.length > 0"
         :nodes="node.children"
         :depth="depth + 1"
+        :onPostPicked="props.onPostPicked"
       />
     </li>
   </ul>
@@ -47,6 +51,7 @@ defineOptions({ name: 'CollectionNodeEditor' })
 const props = withDefaults(defineProps<{
   nodes: any[]
   depth?: number
+  onPostPicked?: (node: any, id: string) => void
 }>(), {
   depth: 0,
 })
@@ -66,6 +71,20 @@ function onTypeChange(node: any) {
 function removeNode(idx: number) {
   if (!Array.isArray(props.nodes)) return
   props.nodes.splice(idx, 1)
+}
+
+function onPickerUpdate(node: any, val: any) {
+  let id = ''
+  if (!val) id = ''
+  else if (typeof val === 'string') id = val
+  else if (typeof val === 'object' && val.id) id = String(val.id)
+  else id = ''
+
+  node.id = id
+
+  try {
+    if (typeof props.onPostPicked === 'function') props.onPostPicked(node, id)
+  } catch (e) {}
 }
 </script>
 

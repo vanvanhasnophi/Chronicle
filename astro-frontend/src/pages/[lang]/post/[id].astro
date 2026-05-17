@@ -7,6 +7,7 @@ import { buildTocItems, injectHeadingIds } from '../../../utils/toc';
 import DesktopFloatingToc from '../../../components/FloatingToc.vue';
 import MobileTocPanel from '../../../components/MobileTocPanel.vue';
 import CornerActions from '../../../components/CornerActions.vue';
+import CollectionNav from '../../../components/CollectionNav.vue';
 import MarkdownIt from 'markdown-it';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
@@ -1015,6 +1016,10 @@ if (rawPostContent) {
       />
       <MobileTocPanel client:idle toc={tocItems} />
     </>
+  )}
+
+  {post?.collection && (
+    <CollectionNav client:idle postId={post?.id || id} />
   )}
 
   <CornerActions client:idle hasToc={tocItems.length > 0} />

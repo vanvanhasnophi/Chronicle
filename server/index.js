@@ -1664,6 +1664,23 @@ app.get('/api/files', (req, res) => {
                     } catch(e) {}
                 }
             });
+
+        // Normalize existing collectionPath values to unix-style (slashes) and ignore empty ids
+        posts.forEach(post => {
+            if (post && typeof post.collectionPath === 'string' && post.collectionPath.indexOf('-') !== -1) {
+                const normalized = String(post.collectionPath).replace(/-/g, '/');
+                if (normalized !== post.collectionPath) {
+                    post.collectionPath = normalized;
+                    modified = true;
+                    console.log(`[Sync] Normalized collectionPath for ${post.id} -> ${post.collectionPath}`);
+                }
+            }
+            // ignore empty collection values
+            if (post && post.collection === '') {
+                delete post.collection
+                modified = true
+            }
+        });
             return res.json(allFiles);
     }
 
@@ -1772,20 +1789,166 @@ app.get('/api/collections', (req, res) => {
 app.post('/api/collections', (req, res) => {
     try {
         const body = req.body || {};
-        let saved = {};
+        let oldSaved = {};
         if (fs.existsSync(COLLECTION_FILE)) {
-            try { saved = JSON.parse(fs.readFileSync(COLLECTION_FILE, 'utf-8')) || {} } catch(e) { saved = {} }
+            try { oldSaved = JSON.parse(fs.readFileSync(COLLECTION_FILE, 'utf-8')) || {} } catch(e) { oldSaved = {} }
         }
+
+        const oldCollections = Array.isArray(oldSaved.collections) ? oldSaved.collections : [];
+        const newSaved = Object.assign({}, oldSaved);
 
         // Merge top-level, but ensure collections is an array
         if (Array.isArray(body.collections)) {
-            saved.collections = body.collections;
+            newSaved.collections = body.collections;
         } else {
-            saved = Object.assign({}, saved, body);
+            Object.assign(newSaved, body);
         }
 
-        fs.writeFileSync(COLLECTION_FILE, JSON.stringify(saved, null, 2));
-        res.json(saved);
+        // Helper: sanitize collections (remove post nodes with empty id)
+        function sanitizeCollections(collections) {
+            if (!Array.isArray(collections)) return [];
+            function sanitizeNodes(nodes) {
+                if (!Array.isArray(nodes)) return [];
+                const out = [];
+                for (const node of nodes) {
+                    if (!node) continue;
+                    if (node.type === 'post') {
+                        const id = String(node.id || '').trim();
+                        if (!id) continue; // skip posts with empty id
+                        out.push({ ...node, id });
+                    } else if (node.type === 'group') {
+                        const children = sanitizeNodes(node.children || []);
+                        out.push(Object.assign({}, node, { children }));
+                    } else {
+                        // unknown node shape: preserve if has children after sanitize
+                        const children = sanitizeNodes(node.children || []);
+                        if (children.length > 0) out.push(Object.assign({}, node, { children }));
+                    }
+                }
+                return out;
+            }
+
+            const outCols = [];
+            for (const col of collections) {
+                if (!col) continue;
+                const nodes = sanitizeNodes(col.nodes || []);
+                outCols.push(Object.assign({}, col, { nodes }));
+            }
+            return outCols;
+        }
+
+        // Helper: traverse collections and build map postId -> { name, path }
+        function buildPostMap(collections) {
+            const map = Object.create(null);
+            if (!Array.isArray(collections)) return map;
+
+            function traverseNodes(nodes, pathPrefix, collectionName) {
+                if (!Array.isArray(nodes)) return;
+                for (let i = 0; i < nodes.length; i++) {
+                    const node = nodes[i];
+                    const nodePath = `${pathPrefix}/${i}`;
+                    if (!node) continue;
+                    if (node.type === 'post') {
+                        const id = String(node.id || '').trim();
+                        if (id) {
+                            // Keep last occurrence if duplicated in collections (client intent overrides)
+                            map[id] = { collectionName: collectionName || '', nodePath };
+                        }
+                    } else if (node.type === 'group') {
+                        traverseNodes(node.children, nodePath, collectionName);
+                    } else {
+                        // heuristics: if node has children treat as group, else ignore
+                        if (Array.isArray(node.children)) traverseNodes(node.children, nodePath, collectionName);
+                    }
+                }
+            }
+
+            for (let ci = 0; ci < collections.length; ci++) {
+                const col = collections[ci];
+                const name = col && col.name ? String(col.name) : '';
+                traverseNodes(col.nodes, `r/${ci}`, name);
+            }
+
+            return map;
+        }
+
+        // sanitize new collections to avoid saving empty post nodes
+        newSaved.collections = sanitizeCollections(newSaved.collections || []);
+
+        const oldMap = buildPostMap(oldCollections);
+        const newMap = buildPostMap(newSaved.collections || []);
+
+        // compute diffs
+        const idsToAddOrUpdate = [];
+        const idsToRemove = [];
+
+        // additions or changed mappings
+        for (const id of Object.keys(newMap)) {
+            const nm = newMap[id];
+            const om = oldMap[id];
+            if (!om || om.collectionName !== nm.collectionName || om.nodePath !== nm.nodePath) idsToAddOrUpdate.push(id);
+        }
+
+        // removed from collections or moved
+        for (const id of Object.keys(oldMap)) {
+            if (!newMap[id]) idsToRemove.push(id);
+        }
+
+        // persist new collections file
+        fs.writeFileSync(COLLECTION_FILE, JSON.stringify(newSaved, null, 2));
+
+        // If there are changes, update posts index incrementally
+        if (idsToAddOrUpdate.length > 0 || idsToRemove.length > 0) {
+            try {
+                let posts = [];
+                try { posts = JSON.parse(fs.readFileSync(INDEX_FILE, 'utf-8') || '[]'); } catch (e) { posts = [] }
+
+                const postById = Object.create(null);
+                posts.forEach(p => { if (p && p.id) postById[String(p.id)] = p; });
+
+                let modified = false;
+
+                // Remove collection fields for removed ids
+                for (const id of idsToRemove) {
+                    const p = postById[id];
+                    if (p && (p.collection || p.collectionPath)) {
+                        delete p.collection;
+                        delete p.collectionPath;
+                        modified = true;
+                        console.log(`[Collections] Cleared collection for post ${id}`);
+                    }
+                }
+
+                // Add/update for additions
+                for (const id of idsToAddOrUpdate) {
+                    const mapping = newMap[id];
+                    if (!mapping) continue;
+                    const p = postById[id];
+                    if (p) {
+                        const collName = mapping.collectionName || '';
+                        const collPath = mapping.nodePath || '';
+                        if (p.collection !== collName || p.collectionPath !== collPath) {
+                            p.collection = collName;
+                            p.collectionPath = collPath;
+                            modified = true;
+                            console.log(`[Collections] Set collection=${collName} path=${collPath} for post ${id}`);
+                        }
+                    } else {
+                        // If post not present in index, ignore (index rebuild will pick it up later)
+                        console.warn(`[Collections] Post ${id} not found in index.json while applying collection mapping`);
+                    }
+                }
+
+                if (modified) {
+                    fs.writeFileSync(INDEX_FILE, JSON.stringify(posts, null, 2));
+                    console.log('[Collections] posts/index.json updated for collection changes');
+                }
+            } catch (err) {
+                console.error('[Collections] Failed to update posts index for collection changes', err);
+            }
+        }
+
+        res.json(newSaved);
     } catch (e) {
         console.error('[Collections] POST error', e);
         res.status(500).send('Error');

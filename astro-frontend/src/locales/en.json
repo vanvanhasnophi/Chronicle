@@ -28,7 +28,8 @@
   },
   "collection": {
     "title": "Collections",
-    "backToList": "Back to collections"
+    "backToList": "Back to collections",
+    "navTitlePattern": "Collection: {name}"
   },
 
   "misc": {
