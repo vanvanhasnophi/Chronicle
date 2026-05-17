@@ -1665,22 +1665,6 @@ app.get('/api/files', (req, res) => {
                 }
             });
 
-        // Normalize existing collectionPath values to unix-style (slashes) and ignore empty ids
-        posts.forEach(post => {
-            if (post && typeof post.collectionPath === 'string' && post.collectionPath.indexOf('-') !== -1) {
-                const normalized = String(post.collectionPath).replace(/-/g, '/');
-                if (normalized !== post.collectionPath) {
-                    post.collectionPath = normalized;
-                    modified = true;
-                    console.log(`[Sync] Normalized collectionPath for ${post.id} -> ${post.collectionPath}`);
-                }
-            }
-            // ignore empty collection values
-            if (post && post.collection === '') {
-                delete post.collection
-                modified = true
-            }
-        });
             return res.json(allFiles);
     }
 
