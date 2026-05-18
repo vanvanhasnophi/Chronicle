@@ -79,11 +79,11 @@ try {
       <>
         <!-- GA SSR: traffic={String((featureFlags && (featureFlags as any).traffic) === true)} gaMeasurementId={GA_MEASUREMENT_ID || ''} injected={String(Boolean(GA_MEASUREMENT_ID && (featureFlags && (featureFlags as any).traffic) === true))} -->
         <script async src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}></script>
-        <script is:inline>
+        <script is:inline define:vars={{ GA_MEASUREMENT_ID }}>
           window.dataLayer = window.dataLayer || [];
           function gtag(){dataLayer.push(arguments);}
           gtag('js', new Date());
-          gtag('config', '${GA_MEASUREMENT_ID}', { send_page_view: false });
+          gtag('config', GA_MEASUREMENT_ID, { send_page_view: false });
         </script>
         <script is:inline>
             (function(){
