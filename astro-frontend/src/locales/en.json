@@ -76,13 +76,12 @@
     }
   },
   "friends": {
-    "title": "Friends"
+    "title": "Friends",
+    "viewStory": "View Story"
   },
   "settings": {
     "home": "Content Theme & Homepage",
     "homeHint": "Edit the HTML content of your homepage (stored in local config)",
-    "friends": "Friends Page",
-    "friendsHint": "Edit the HTML content of your friends page (stored in local config)",
     "appearance": "Appearance",
     "appearanceHint": "Configure language, typography and theme colors for frontend/backend with a live preview.",
     "i18n": "Language & Fonts",

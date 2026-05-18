@@ -40,6 +40,33 @@
     "relatedPosts": true,
     "collectionPage": true,
     "aboutPage": true,
-    "friendsPage": true
-  }
+    "friendsPage": true,
+    "traffic": true
+  },
+  "gaMeasurementId": "G-VPZBFWJ7FJ",
+  "gaPropertyId": "",
+  "friendsCards": [
+    {
+      "name": "",
+      "avatar": "https://file.eightyfor.top/data/upload/pic/1770999133303_vne7_177099908700-992.webp",
+      "intro": "",
+      "homeUrl": "",
+      "storyPostId": ""
+    },
+    {
+      "name": "Waiwai",
+      "avatar": "https://file.eightyfor.top/data/upload/pic/1770999133303_vne7_177099908700-992.webp",
+      "intro": "非常乐意并享受被人挂网上的感觉",
+      "homeUrl": "https://example.com",
+      "storyPostId": "6c96284f-a6ec-44d8-a0ed-acce66641cde"
+    },
+    {
+      "name": "",
+      "avatar": "https://file.eightyfor.top/data/upload/pic/1770999133303_vne7_177099908700-992.webp",
+      "intro": "",
+      "homeUrl": "",
+      "storyPostId": ""
+    }
+  ],
+  "friendsGlobalStyle": "left-sm"
 }
