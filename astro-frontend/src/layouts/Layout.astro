@@ -62,6 +62,14 @@ const frontendFont = settings?.frontendFont || 'sans';
 const locale = propLocale || getLocale(Astro.locals);
 const htmlLang = locale === 'zh-CN' ? 'zh-CN' : 'en';
 const GA_MEASUREMENT_ID = String(process.env.GA_MEASUREMENT_ID || settings?.gaMeasurementId || '').trim();
+
+// SSR-time diagnostics: record whether traffic feature and GA are configured
+const _ssr_traffic_flag = !!(featureFlags && (featureFlags as any).traffic === true)
+const _ssr_ga_id = GA_MEASUREMENT_ID || ''
+const _ssr_will_inject = Boolean(_ssr_ga_id && _ssr_traffic_flag)
+try {
+  console.info(`[GA SSR] traffic=${_ssr_traffic_flag} gaMeasurementId=${_ssr_ga_id || '<none>'} injected=${_ssr_will_inject}`)
+} catch (e) { }
 ---
 <!DOCTYPE html>
 <html lang={htmlLang}>
@@ -207,6 +215,7 @@ const GA_MEASUREMENT_ID = String(process.env.GA_MEASUREMENT_ID || settings?.gaMe
     <!-- Google Analytics (gtag) 注入：仅当 GA ID 存在且流量开关启用时注入 -->
     {(GA_MEASUREMENT_ID && ((featureFlags && (featureFlags as any).traffic) === true)) ? (
       <>
+        <!-- GA SSR: traffic={String((featureFlags && (featureFlags as any).traffic) === true)} gaMeasurementId={GA_MEASUREMENT_ID || ''} injected={String(Boolean(GA_MEASUREMENT_ID && (featureFlags && (featureFlags as any).traffic) === true))} -->
         <script async src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}></script>
         <script is:inline>
           window.dataLayer = window.dataLayer || [];

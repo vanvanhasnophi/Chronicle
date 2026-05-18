@@ -5,7 +5,8 @@ export type FeatureFlagKey =
   | 'relatedPosts'
   | 'collectionPage'
   | 'aboutPage'
-  | 'friendsPage';
+  | 'friendsPage'
+  | 'traffic';
 
 export type FeatureFlags = Record<FeatureFlagKey, boolean>;
 
@@ -15,6 +16,7 @@ const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   collectionPage: true,
   aboutPage: true,
   friendsPage: true,
+  traffic: false,
 };
 
 export function normalizeFeatureFlags(input: any): FeatureFlags {
@@ -24,6 +26,7 @@ export function normalizeFeatureFlags(input: any): FeatureFlags {
     collectionPage: input?.collectionPage !== false,
     aboutPage: input?.aboutPage !== false,
     friendsPage: input?.friendsPage !== false,
+    traffic: input?.traffic !== false,
   };
 }
 
