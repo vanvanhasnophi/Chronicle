@@ -4,8 +4,9 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 type TrafficResponse = {
-  range: { days: string | number; start: string | null; end: string | null }
+  range: { value?: string; days: string | number; granularity?: string; start: string | null; end: string | null }
   summary: Record<string, any>
+  series?: Array<{ key?: string; label?: string; start?: string; end?: string; count: number; pageViews: number; apiCalls: number; uniqueVisitors: number }>
   daily: Array<{ date: string; count: number; pageViews: number; apiCalls: number; uniqueVisitors: number }>
   topRoutes: Array<any>
   topPages: Array<{ path: string; count: number }>
@@ -23,17 +24,18 @@ const loading = ref(true)
 const error = ref('')
 const disabled = ref(false)
 const trafficEnabled = ref(false)
-const range = ref<'7' | '30' | '90' | 'all'>('30')
+const range = ref<'30min' | '12h' | '1d' | '7d' | '30d'>('1d')
 
 const disabledHtml = computed(() => {
   return t('traffic.disabledMessage', { link: `<a href="/settings/features">${t('settings.features')}</a>` })
 })
 
 const ranges = computed(() => ([
-  { value: '7', label: t('traffic.range7d') },
-  { value: '30', label: t('traffic.range30d') },
-  { value: '90', label: t('traffic.range90d') },
-  { value: 'all', label: t('traffic.rangeAll') },
+  { value: '30min', label: t('traffic.range30min') },
+  { value: '12h', label: t('traffic.range12h') },
+  { value: '1d', label: t('traffic.range1d') },
+  { value: '7d', label: t('traffic.range7d') },
+  { value: '30d', label: t('traffic.range30d') },
 ]))
 
 function formatDate(value: string) {
@@ -46,7 +48,7 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const response = await fetchWithAuth(`/api/traffic?days=${range.value}&t=${Date.now()}`, { cache: 'no-store' })
+    const response = await fetchWithAuth(`/api/traffic?range=${range.value}&t=${Date.now()}`, { cache: 'no-store' })
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
     data.value = await response.json()
   } catch (err) {
@@ -92,12 +94,23 @@ const summaryCards = computed(() => {
 })
 
 const maxDaily = computed(() => Math.max(1, ...(data.value?.daily || []).map((item) => item.count)))
+const seriesList = computed(() => data.value?.series || data.value?.daily.map((item) => ({
+  key: item.date,
+  label: item.date,
+  start: item.date,
+  end: item.date,
+  count: item.count,
+  pageViews: item.pageViews,
+  apiCalls: item.apiCalls,
+  uniqueVisitors: item.uniqueVisitors,
+})) || [])
+const maxSeries = computed(() => Math.max(1, ...seriesList.value.map((item) => item.count || 0)))
 
 const dailySorted = computed(() => {
-  const arr = (data.value?.daily || []).slice()
+  const arr = seriesList.value.slice()
   return arr.sort((a, b) => {
-    const ta = new Date(a.date).getTime() || 0
-    const tb = new Date(b.date).getTime() || 0
+    const ta = new Date(a.start || a.key || '').getTime() || 0
+    const tb = new Date(b.start || b.key || '').getTime() || 0
     return tb - ta
   })
 })
@@ -158,17 +171,17 @@ const topStatuses = computed(() => data.value?.topStatuses || [])
             <span class="panel-note">{{ formatDate(data?.range?.start || '') }} - {{ formatDate(data?.range?.end || '') }}</span>
           </div>
           <div class="daily-chart">
-            <div v-for="item in dailySorted" :key="item.date" class="day-item">
-              <div class="day-label">{{ item.date.slice(5) }}</div>
+            <div v-for="item in dailySorted" :key="item.key || item.label" class="day-item">
+              <div class="day-label">{{ item.label || item.key }}</div>
               <div class="day-bars">
                 <div class="bar-line">
                   <span>{{ t('traffic.requests') }}</span>
-                  <div class="bar-track"><span :style="{ width: `${(item.count / maxDaily) * 100}%` }"></span></div>
+                  <div class="bar-track"><span :style="{ width: `${(item.count / maxSeries) * 100}%` }"></span></div>
                   <strong>{{ item.count }}</strong>
                 </div>
                 <div class="bar-line subtle">
                   <span>{{ t('traffic.pageViews') }}</span>
-                  <div class="bar-track"><span :style="{ width: `${(item.pageViews / maxDaily) * 100}%` }"></span></div>
+                  <div class="bar-track"><span :style="{ width: `${(item.pageViews / maxSeries) * 100}%` }"></span></div>
                   <strong>{{ item.pageViews }}</strong>
                 </div>
               </div>

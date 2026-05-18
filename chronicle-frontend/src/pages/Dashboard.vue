@@ -51,7 +51,15 @@ const posts = ref<PostRecord[]>([])
 const totalUploads = ref(0)
 const storage = ref<StorageResponse | null>(null)
 const trafficEnabled = ref(true)
-const trafficData = ref<{last24h: number, last7d: number} | null>(null)
+const trafficData = ref<{
+  source?: string
+  range?: { value?: string; days?: string | number; granularity?: string; start?: string | null; end?: string | null }
+  summary?: { totalRequests?: number; pageViews?: number; apiCalls?: number; uniqueVisitors?: number }
+  series?: Array<{ key?: string; label?: string; count?: number; pageViews?: number; apiCalls?: number; uniqueVisitors?: number }>
+  last24h?: number
+  last7d?: number
+} | null>(null)
+const trafficRange = ref<'30min' | '12h' | '1d' | '7d' | '30d'>('1d')
 
 function formatBytes(bytes: number, short?: boolean) {
   if (!bytes) return '0 B'
@@ -103,13 +111,9 @@ onMounted(async () => {
 
     // 处理流量数据
     if (trafficEnabled.value) {
-      const trafficRes = await fetchWithAuth('/api/traffic?t=' + stamp, { cache: 'no-store' }).catch(() => null)
+      const trafficRes = await fetchWithAuth(`/api/traffic?range=${trafficRange.value}&t=${stamp}`, { cache: 'no-store' }).catch(() => null)
       if (trafficRes && trafficRes.ok) {
-        const traffic = await trafficRes.json()
-        trafficData.value = {
-          last24h: traffic.last24h || 0,
-          last7d: traffic.last7d || 0
-        }
+        trafficData.value = await trafficRes.json()
       }
     }
   } catch (err) {
@@ -151,12 +155,11 @@ const overviewCards = computed(() => {
   }
 
   // 流量数据
-  const traffic24h = trafficEnabled.value ? (trafficData.value?.last24h ?? NaN) : 0
-  const traffic7d = trafficData.value?.last7d ?? NaN
+  const trafficSeriesTotal = trafficData.value?.summary?.totalRequests ?? NaN
   const trafficNote = !trafficEnabled.value
     ? t('dashboard.trafficDisabled')
     : trafficData.value
-      ? t('dashboard.trafficLast7d', { count: traffic7d })
+      ? t('dashboard.trafficLast7d', { count: trafficSeriesTotal })
       : t('dashboard.fetchError')
 
   return [
@@ -174,7 +177,7 @@ const overviewCards = computed(() => {
     },
     { 
       label: t('dashboard.traffic24h'), 
-      value: trafficEnabled.value ? (isNaN(traffic24h) ? 'NaN' : traffic24h) : 'N/A',
+      value: trafficEnabled.value ? (isNaN(trafficSeriesTotal) ? 'NaN' : trafficSeriesTotal) : 'N/A',
       note: trafficNote,
       noteClass: !trafficEnabled.value ? 'warning-note' : (!trafficData.value ? 'error-note' : '')
     },
@@ -273,27 +276,11 @@ const monthlyPosts = computed(() => {
   return entries.map(([key, count]) => ({ key, label: key.slice(5), count }))
 })
 
-const trafficChartDays = computed(() => {
-  return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-})
+const trafficChartDays = computed(() => (trafficData.value?.series || []).map((item) => item.label || item.key || '-'))
 
-const trafficChartValues = computed(() => {
-  if (!trafficData.value) return []
-  
-  return [
-    trafficData.value.last7d || 0,
-    Math.floor((trafficData.value.last7d || 0) * 0.8),
-    Math.floor((trafficData.value.last7d || 0) * 0.6),
-    Math.floor((trafficData.value.last7d || 0) * 0.9),
-    Math.floor((trafficData.value.last7d || 0) * 0.7),
-    Math.floor((trafficData.value.last7d || 0) * 0.5),
-    Math.floor((trafficData.value.last7d || 0) * 0.4)
-  ]
-})
+const trafficChartValues = computed(() => (trafficData.value?.series || []).map((item) => Number(item.count) || 0))
 
-const maxTrafficValue = computed(() => {
-  return Math.max(1, ...trafficChartValues.value)
-})
+const maxTrafficValue = computed(() => Math.max(1, ...trafficChartValues.value))
 
 const recentPosts = computed(() => {
   const sorted = (posts.value || []).slice().sort((a, b) => {

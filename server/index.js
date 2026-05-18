@@ -271,6 +271,15 @@ function resolveApiSourcePath(baseDir) {
 const CATEGORIES = ['pic', 'sound', 'txt', 'video', 'doc', 'other'];
 const trafficGaCache = new Map();
 let trafficGaClient = null;
+const TRAFFIC_RANGE_ALIASES = {
+    '1': '1d',
+    '7': '7d',
+    '12': '12h',
+    '30': '30d',
+    '90': '30d',
+    all: '30d',
+};
+const VALID_TRAFFIC_RANGES = new Set(['30min', '12h', '1d', '7d', '30d']);
 
 function sortTags(tags) {
     if (!tags || !Array.isArray(tags)) return [];
@@ -354,12 +363,125 @@ function formatGaDate(raw) {
     return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
 }
 
-function makeTrafficEmptyPayload(days) {
+function normalizeTrafficRange(value) {
+    const raw = String(value || '').trim().toLowerCase();
+    if (VALID_TRAFFIC_RANGES.has(raw)) return raw;
+    if (TRAFFIC_RANGE_ALIASES[raw]) return TRAFFIC_RANGE_ALIASES[raw];
+    return '1d';
+}
+
+function trafficRangeGranularity(range) {
+    if (range === '30min') return 'minute';
+    if (range === '12h' || range === '1d') return 'hour';
+    return 'day';
+}
+
+function trafficRangeSlotCount(range) {
+    if (range === '30min') return 30;
+    if (range === '12h') return 12;
+    if (range === '1d') return 24;
+    if (range === '7d') return 7;
+    return 30;
+}
+
+function trafficRangeStepMs(range) {
+    if (range === '30min') return 60 * 1000;
+    if (range === '12h' || range === '1d') return 60 * 60 * 1000;
+    return 24 * 60 * 60 * 1000;
+}
+
+function trafficRangeDateRanges(range) {
+    if (range === '7d') return [{ startDate: '7daysAgo', endDate: 'today' }];
+    if (range === '30d') return [{ startDate: '30daysAgo', endDate: 'today' }];
+    if (range === '12h') return [{ startDate: '1daysAgo', endDate: 'today' }];
+    return [{ startDate: '1daysAgo', endDate: 'today' }];
+}
+
+function trafficSlotKey(timestamp, range) {
+    const date = new Date(timestamp);
+    if (range === '30min') {
+        return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+    }
+    if (range === '12h' || range === '1d') {
+        return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ${pad2(date.getHours())}`;
+    }
+    return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+
+function trafficSlotLabel(timestamp, range) {
+    const date = new Date(timestamp);
+    if (range === '30min') {
+        return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+    }
+    if (range === '12h' || range === '1d') {
+        return `${pad2(date.getHours())}:00`;
+    }
+    return `${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+
+function buildTrafficSlots(range, now = Date.now()) {
+    const slotCount = trafficRangeSlotCount(range);
+    const stepMs = trafficRangeStepMs(range);
+    const slots = [];
+    const start = now - (slotCount - 1) * stepMs;
+
+    for (let index = 0; index < slotCount; index += 1) {
+        const timestamp = start + index * stepMs;
+        slots.push({
+            key: trafficSlotKey(timestamp, range),
+            label: trafficSlotLabel(timestamp, range),
+            start: new Date(timestamp).toISOString(),
+            end: new Date(timestamp + stepMs).toISOString(),
+            count: 0,
+            pageViews: 0,
+            apiCalls: 0,
+            uniqueVisitors: 0,
+        });
+    }
+
+    return slots;
+}
+
+function buildTrafficSeriesFromRows(range, rows) {
+    const slots = buildTrafficSlots(range);
+    const slotMap = new Map(slots.map((slot) => [slot.key, slot]));
+
+    for (const row of rows || []) {
+        const values = row?.dimensionValues || [];
+        const key = range === '30min'
+            ? `${pad2(Number(values[0]?.value) || 0)}:${pad2(Number(values[1]?.value) || 0)}`
+            : range === '12h' || range === '1d'
+                ? `${formatGaDate(values[0]?.value || '')} ${pad2(Number(values[1]?.value) || 0)}`
+                : formatGaDate(values[0]?.value || '');
+        const slot = slotMap.get(key);
+        if (!slot) continue;
+
+        const count = gaMetricValue(row, 0);
+        const pageViews = gaMetricValue(row, 1);
+        const uniqueVisitors = gaMetricValue(row, 2);
+        slot.count += count;
+        slot.pageViews += pageViews;
+        slot.apiCalls += Math.max(0, count - pageViews);
+        slot.uniqueVisitors += uniqueVisitors;
+    }
+
+    return slots;
+}
+
+function makeTrafficEmptyPayload(range) {
+    const normalizedRange = normalizeTrafficRange(range);
+    const series = buildTrafficSlots(normalizedRange);
     return {
         source: 'access-log',
+        range: {
+            value: normalizedRange,
+            days: normalizedRange,
+            granularity: trafficRangeGranularity(normalizedRange),
+            start: null,
+            end: null,
+        },
         last24h: 0,
         last7d: 0,
-        range: { days, start: null, end: null },
         summary: {
             totalRequests: 0,
             pageViews: 0,
@@ -368,7 +490,8 @@ function makeTrafficEmptyPayload(days) {
             errors: 0,
             uniqueRoutes: 0,
         },
-        daily: [],
+        series,
+        daily: series,
         topRoutes: [],
         topPages: [],
         topApis: [],
@@ -393,108 +516,114 @@ async function buildTrafficGaPayload(days) {
     const config = getTrafficGaConfig();
     if (!config.propertyId) return null;
 
-    const cacheKey = `${config.propertyId}:${days}`;
+    const range = normalizeTrafficRange(days);
+
+    const cacheKey = `${config.propertyId}:${range}`;
     const cached = trafficGaCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
         return cached.payload;
     }
 
-    const dayCount = days === 'all' ? 3650 : Math.max(1, Number(days) || 30);
-    const startDate = dayCount >= 3650 ? '3650daysAgo' : `${Math.max(1, dayCount - 1)}daysAgo`;
-    const endDate = 'today';
-    const startAt = new Date(Date.now() - Math.max(1, dayCount - 1) * 24 * 60 * 60 * 1000).toISOString();
-
-    const baseDateRange = [{ startDate, endDate }];
-    const shortRanges = {
-        last24h: [{ startDate: '1daysAgo', endDate }],
-        last7d: [{ startDate: '7daysAgo', endDate }],
-    };
+    const now = Date.now();
+    const dateRanges = trafficRangeDateRanges(range);
+    const series = buildTrafficSlots(range, now);
+    const startAt = series[0] ? series[0].start : null;
+    const endAt = series[series.length - 1] ? series[series.length - 1].end : null;
 
     try {
-        const [summaryRes, dailyRes, routesRes, referrersRes, devicesRes, browsersRes, methodsRes, statusesRes, last24hRes, last7dRes] = await Promise.all([
+        const summaryPromise = range === '30min'
+            ? clientRunRealtimeReport(config.propertyId, {
+                minuteRanges: [{ startMinutesAgo: 29, endMinutesAgo: 0, name: '30min' }],
+                metrics: [{ name: 'eventCount' }, { name: 'screenPageViews' }, { name: 'totalUsers' }],
+            })
+            : runGaReport(config.propertyId, {
+                dateRanges,
+                metrics: [{ name: 'eventCount' }, { name: 'screenPageViews' }, { name: 'totalUsers' }],
+            });
+
+        const trendPromise = range === '30min'
+            ? clientRunRealtimeReport(config.propertyId, {
+                minuteRanges: [{ startMinutesAgo: 29, endMinutesAgo: 0, name: '30min' }],
+                dimensions: [{ name: 'hour' }, { name: 'minute' }],
+                metrics: [{ name: 'eventCount' }, { name: 'screenPageViews' }, { name: 'totalUsers' }],
+            })
+            : range === '12h' || range === '1d'
+                ? runGaReport(config.propertyId, {
+                    dateRanges,
+                    dimensions: [{ name: 'date' }, { name: 'hour' }],
+                    metrics: [{ name: 'eventCount' }, { name: 'screenPageViews' }, { name: 'totalUsers' }],
+                    orderBys: [{ dimension: { dimensionName: 'date' } }, { dimension: { dimensionName: 'hour' } }],
+                })
+                : runGaReport(config.propertyId, {
+                    dateRanges,
+                    dimensions: [{ name: 'date' }],
+                    metrics: [{ name: 'eventCount' }, { name: 'screenPageViews' }, { name: 'totalUsers' }],
+                    orderBys: [{ dimension: { dimensionName: 'date' } }],
+                });
+
+        const [summaryRes, trendRes, routesRes, referrersRes, devicesRes, browsersRes, methodsRes, statusesRes] = await Promise.all([
+            summaryPromise,
+            trendPromise,
             runGaReport(config.propertyId, {
-                dateRanges: baseDateRange,
-                metrics: [
-                    { name: 'sessions' },
-                    { name: 'screenPageViews' },
-                    { name: 'totalUsers' },
-                    { name: 'eventCount' },
-                ],
-            }),
-            runGaReport(config.propertyId, {
-                dateRanges: baseDateRange,
-                dimensions: [{ name: 'date' }],
-                metrics: [{ name: 'screenPageViews' }, { name: 'totalUsers' }],
-                orderBys: [{ dimension: { dimensionName: 'date' } }],
-            }),
-            runGaReport(config.propertyId, {
-                dateRanges: baseDateRange,
+                dateRanges,
                 dimensions: [{ name: 'pagePathPlusQueryString' }],
                 metrics: [{ name: 'screenPageViews' }],
                 orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
                 limit: 12,
             }),
             runGaReport(config.propertyId, {
-                dateRanges: baseDateRange,
+                dateRanges,
                 dimensions: [{ name: 'pageReferrer' }],
                 metrics: [{ name: 'screenPageViews' }],
                 orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
                 limit: 10,
             }),
             runGaReport(config.propertyId, {
-                dateRanges: baseDateRange,
+                dateRanges,
                 dimensions: [{ name: 'deviceCategory' }],
                 metrics: [{ name: 'sessions' }],
                 orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
                 limit: 10,
             }),
             runGaReport(config.propertyId, {
-                dateRanges: baseDateRange,
+                dateRanges,
                 dimensions: [{ name: 'browser' }],
                 metrics: [{ name: 'sessions' }],
                 orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
                 limit: 10,
             }),
             runGaReport(config.propertyId, {
-                dateRanges: baseDateRange,
+                dateRanges,
                 dimensions: [{ name: 'eventName' }],
                 metrics: [{ name: 'eventCount' }],
                 orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
                 limit: 10,
             }),
             runGaReport(config.propertyId, {
-                dateRanges: baseDateRange,
+                dateRanges,
                 dimensions: [{ name: 'sessionDefaultChannelGroup' }],
                 metrics: [{ name: 'sessions' }],
                 orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
                 limit: 10,
             }),
-            runGaReport(config.propertyId, {
-                dateRanges: shortRanges.last24h,
-                metrics: [{ name: 'sessions' }],
-            }),
-            runGaReport(config.propertyId, {
-                dateRanges: shortRanges.last7d,
-                metrics: [{ name: 'sessions' }],
-            }),
         ]);
 
         const summaryRow = summaryRes.rows?.[0];
+        const seriesRows = trendRes.rows || [];
+        const seriesData = buildTrafficSeriesFromRows(range, seriesRows);
         const summary = {
             totalRequests: gaMetricValue(summaryRow, 0),
             pageViews: gaMetricValue(summaryRow, 1),
             uniqueVisitors: gaMetricValue(summaryRow, 2),
-            apiCalls: gaMetricValue(summaryRow, 3),
+            apiCalls: Math.max(0, gaMetricValue(summaryRow, 0) - gaMetricValue(summaryRow, 1)),
             errors: 0,
             uniqueRoutes: routesRes.rows?.length || 0,
         };
 
-        const daily = (dailyRes.rows || []).map((row) => ({
-            date: formatGaDate(gaDimensionValue(row, 0)),
-            count: gaMetricValue(row, 0),
-            pageViews: gaMetricValue(row, 0),
-            apiCalls: 0,
-            uniqueVisitors: gaMetricValue(row, 1),
+        const series = seriesData.map((slot, index) => ({
+            ...slot,
+            key: slot.key || `${index}`,
+            label: slot.label || String(index + 1),
         }));
 
         const topRoutes = (routesRes.rows || []).map((row) => ({
@@ -514,15 +643,18 @@ async function buildTrafficGaPayload(days) {
 
         const payload = {
             source: 'google-analytics',
-            last24h: gaMetricValue(last24hRes.rows?.[0], 0),
-            last7d: gaMetricValue(last7dRes.rows?.[0], 0),
+            last24h: summary.totalRequests,
+            last7d: summary.totalRequests,
             range: {
-                days,
+                value: range,
+                days: range,
+                granularity: trafficRangeGranularity(range),
                 start: startAt,
-                end: new Date().toISOString(),
+                end: endAt,
             },
             summary,
-            daily,
+            series,
+            daily: series,
             topRoutes,
             topPages,
             topApis,
@@ -539,6 +671,15 @@ async function buildTrafficGaPayload(days) {
         console.error('[Traffic][GA] report error', error && (error.message || error.stack || error));
         return null;
     }
+}
+
+async function clientRunRealtimeReport(propertyId, request) {
+    const client = getTrafficGaClient();
+    const [response] = await client.runRealtimeReport({
+        property: `properties/${propertyId}`,
+        ...request,
+    });
+    return response || {};
 }
 
 function normalizeBuildGranularity(value) {
@@ -2288,14 +2429,16 @@ app.post('/api/settings', async (req, res) => {
 
 app.get('/api/traffic', async (req, res) => {
     try {
-        const days = typeof req.query.days === 'string' && req.query.days.trim() ? req.query.days.trim() : '30';
-        const gaPayload = await buildTrafficGaPayload(days);
-        const payload = gaPayload || buildTrafficPayload(days);
+        const range = typeof req.query.range === 'string' && req.query.range.trim()
+            ? req.query.range.trim()
+            : (typeof req.query.days === 'string' && req.query.days.trim() ? req.query.days.trim() : '1d');
+        const gaPayload = await buildTrafficGaPayload(range);
+        const payload = gaPayload || buildTrafficPayload(range);
         res.set('Cache-Control', 'no-store');
         res.json(payload);
     } catch (e) {
         console.error('[Traffic] GET error', e);
-        res.status(500).json(makeTrafficEmptyPayload('30'));
+        res.status(500).json(makeTrafficEmptyPayload('1d'));
     }
 });
 
