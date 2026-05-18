@@ -76,7 +76,7 @@ try {
   <head>
     <!-- Google Analytics (gtag) 注入：仅当 GA ID 存在且流量开关启用时注入 -->
     {(GA_MEASUREMENT_ID && ((featureFlags && (featureFlags as any).traffic) === true)) ? (
-      <>
+      
         <!-- GA SSR: traffic={String((featureFlags && (featureFlags as any).traffic) === true)} gaMeasurementId={GA_MEASUREMENT_ID || ''} injected={String(Boolean(GA_MEASUREMENT_ID && (featureFlags && (featureFlags as any).traffic) === true))} -->
         <script async src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}></script>
         <script is:inline define:vars={{ GA_MEASUREMENT_ID }}>
@@ -103,7 +103,7 @@ try {
             document.addEventListener('astro:after-swap', sendPageView);
           })();
         </script>
-      </>
+      
     ) : null}
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
