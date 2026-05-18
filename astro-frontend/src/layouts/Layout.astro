@@ -215,7 +215,7 @@ const GA_MEASUREMENT_ID = String(process.env.GA_MEASUREMENT_ID || settings?.gaMe
           gtag('config', '${GA_MEASUREMENT_ID}', { send_page_view: false });
         </script>
         <script is:inline>
-          (function(){
+            (function(){
             if (typeof window === 'undefined') return;
             function sendPageView() {
               try {

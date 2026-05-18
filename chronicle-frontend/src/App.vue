@@ -464,9 +464,20 @@ async function getSettings() {
   }
 }
 
+
 async function applySettings() {
   try {
     const s = await getSettings()
+    try {
+      ;(window as any).__CHRONICLE_SETTINGS__ = {
+        ...(window as any).__CHRONICLE_SETTINGS__,
+        ...s,
+        gaMeasurementId: s?.gaMeasurementId || ''
+      }
+    } catch (e) { }
+
+    // Note: do not inject gtag in the Vue management UI; traffic is only
+    // collected for the public Astro site when the feature flag is enabled.
     // Apply Languages
     if (isBackend.value) {
       if (s.backendLocale && s.backendLocale !== 'follow') {

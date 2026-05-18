@@ -235,8 +235,11 @@ mkdir -p "$SERVER_ROOT"
 rsync -av --delete --exclude='data' --exclude='log' --exclude='node_modules' "$REPO_ROOT/server/" "$SERVER_ROOT/"
 
 cd "$SERVER_ROOT"
-if [ ! -d "node_modules" ]; then
-    npm install
+if [ -f package.json ]; then
+    log "Installing server dependencies (npm install)..."
+    npm install || warn "npm install failed in $SERVER_ROOT"
+else
+    warn "No package.json in $SERVER_ROOT, skipping npm install."
 fi
 
 RUN_WRAPPER="$SERVER_ROOT/run.sh"
@@ -258,6 +261,14 @@ fi
 log "构建 chronicle-frontend..."
 mkdir -p "$BACKEND_ROOT"
 cd "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME"
+
+# Ensure frontend dependencies are installed before build
+if [ -f "package.json" ]; then
+    log "Installing ${REPO_FRONTEND_SRC_NAME} dependencies (npm install)..."
+    (cd "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME" && npm install) || warn "npm install failed in $REPO_ROOT/$REPO_FRONTEND_SRC_NAME"
+else
+    warn "No package.json in $REPO_ROOT/$REPO_FRONTEND_SRC_NAME, skipping npm install."
+fi
 
 # 在每次构建前询问是否使用现成 dist（如果用户选择 yes 且 dist 存在，则跳过构建）
 FRONTEND_DIST_DIR="$REPO_ROOT/$REPO_FRONTEND_SRC_NAME/dist"
@@ -301,6 +312,14 @@ if [ -f "$SETTINGS_SRC" ]; then
     log "已将 settings.json 复制到 Astro 的 public 和 src/data（供运行时与构建时使用）"
 else
     warn "未找到 $SETTINGS_SRC，构建时将无法使用后端 settings。"
+fi
+
+# Ensure Astro dependencies are installed before build
+if [ -f "package.json" ]; then
+    log "Installing ${REPO_ASTRO_SRC_NAME} dependencies (npm install)..."
+    (cd "$REPO_ROOT/$REPO_ASTRO_SRC_NAME" && npm install) || warn "npm install failed in $REPO_ROOT/$REPO_ASTRO_SRC_NAME"
+else
+    warn "No package.json in $REPO_ROOT/$REPO_ASTRO_SRC_NAME, skipping npm install."
 fi
 
 MEDIA_DOMAIN="$MEDIA_DOMAIN" API_BASE_URL="$ASTRO_API_BASE_URL" npm run build
