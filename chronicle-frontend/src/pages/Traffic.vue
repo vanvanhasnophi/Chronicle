@@ -21,7 +21,13 @@ const { t } = useI18n()
 const data = ref<TrafficResponse | null>(null)
 const loading = ref(true)
 const error = ref('')
+const disabled = ref(false)
+const trafficEnabled = ref(false)
 const range = ref<'7' | '30' | '90' | 'all'>('30')
+
+const disabledHtml = computed(() => {
+  return t('traffic.disabledMessage', { link: `<a href="/settings/features">${t('settings.features')}</a>` })
+})
 
 const ranges = computed(() => ([
   { value: '7', label: t('traffic.range7d') },
@@ -50,8 +56,28 @@ async function load() {
   }
 }
 
-watch(range, load)
-onMounted(load)
+async function initFeatureState() {
+  try {
+    const response = await fetchWithAuth(`/api/settings?t=${Date.now()}`, { cache: 'no-store' })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    const settings = await response.json()
+    trafficEnabled.value = settings?.featureFlags?.traffic === true
+    disabled.value = !trafficEnabled.value
+  } catch (err) {
+    trafficEnabled.value = false
+    disabled.value = false
+    error.value = t('traffic.loadFailed')
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(async () => {
+  await initFeatureState()
+  if (error.value || !trafficEnabled.value) return
+  watch(range, load)
+  await load()
+})
 
 const summaryCards = computed(() => {
   const summary = data.value?.summary || {}
@@ -86,119 +112,136 @@ const topStatuses = computed(() => data.value?.topStatuses || [])
 
 <template>
   <div class="page-traffic">
-    <header class="page-header">
-      <div>
-        <h2>{{ t('traffic.title') }}</h2>
-        <p>{{ t('traffic.subtitle') }}</p>
-      </div>
-      <div class="range-switcher">
-        <button
-          v-for="item in ranges"
-          :key="item.value"
-          class="range-btn"
-          :class="{ active: range === item.value }"
-          @click="range = item.value as any"
-        >
-          {{ item.label }}
-        </button>
-      </div>
-    </header>
-
-    <div v-if="loading" class="state-card">{{ t('traffic.loading') }}</div>
-    <div v-else-if="error" class="state-card error">{{ error }}</div>
-    <template v-else>
-      <section class="summary-grid">
-        <article v-for="card in summaryCards" :key="card.label" class="metric-card">
-          <span class="metric-label">{{ card.label }}</span>
-          <strong class="metric-value">{{ card.value }}</strong>
-        </article>
-      </section>
-
-      <section class="panel">
-        <div class="panel-header">
-          <h3>{{ t('traffic.dailyRequests') }}</h3>
-          <span class="panel-note">{{ formatDate(data?.range?.start || '') }} - {{ formatDate(data?.range?.end || '') }}</span>
-        </div>
-        <div class="daily-chart">
-          <div v-for="item in dailySorted" :key="item.date" class="day-item">
-            <div class="day-label">{{ item.date.slice(5) }}</div>
-            <div class="day-bars">
-              <div class="bar-line">
-                <span>{{ t('traffic.requests') }}</span>
-                <div class="bar-track"><span :style="{ width: `${(item.count / maxDaily) * 100}%` }"></span></div>
-                <strong>{{ item.count }}</strong>
-              </div>
-              <div class="bar-line subtle">
-                <span>{{ t('traffic.pageViews') }}</span>
-                <div class="bar-track"><span :style="{ width: `${(item.pageViews / maxDaily) * 100}%` }"></span></div>
-                <strong>{{ item.pageViews }}</strong>
-              </div>
-            </div>
+    <template v-if="disabled">
+      <section class="placeholder-card">
+        <div class="placeholder-hero">
+          <div>
+            <h2>{{ t('traffic.title') }}</h2>
+            <p v-html="disabledHtml"></p>
           </div>
         </div>
       </section>
+    </template>
 
-      <section class="grid-two">
-        <article class="panel">
-          <div class="panel-header"><h3>{{ t('traffic.topRoutes') }}</h3></div>
-          <ul class="rank-list">
-            <li v-for="route in topRouteList" :key="route.path">
-              <div class="rank-main">
-                <strong>{{ route.path }}</strong>
-                <small>{{ route.pageCount }} {{ t('traffic.pageViews') }}, {{ route.apiCount }} {{ t('traffic.apiCalls') }}</small>
+    <template v-else>
+      <header class="page-header">
+        <div>
+          <h2>{{ t('traffic.title') }}</h2>
+          <p>{{ t('traffic.subtitle') }}</p>
+        </div>
+        <div class="range-switcher">
+          <button
+            v-for="item in ranges"
+            :key="item.value"
+            class="range-btn"
+            :class="{ active: range === item.value }"
+            @click="range = item.value as any"
+          >
+            {{ item.label }}
+          </button>
+        </div>
+      </header>
+
+      <div v-if="loading" class="state-card">{{ t('traffic.loading') }}</div>
+      <div v-else-if="error" class="state-card error">{{ error }}</div>
+      <template v-else>
+        <section class="summary-grid">
+          <article v-for="card in summaryCards" :key="card.label" class="metric-card">
+            <span class="metric-label">{{ card.label }}</span>
+            <strong class="metric-value">{{ card.value }}</strong>
+          </article>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h3>{{ t('traffic.dailyRequests') }}</h3>
+            <span class="panel-note">{{ formatDate(data?.range?.start || '') }} - {{ formatDate(data?.range?.end || '') }}</span>
+          </div>
+          <div class="daily-chart">
+            <div v-for="item in dailySorted" :key="item.date" class="day-item">
+              <div class="day-label">{{ item.date.slice(5) }}</div>
+              <div class="day-bars">
+                <div class="bar-line">
+                  <span>{{ t('traffic.requests') }}</span>
+                  <div class="bar-track"><span :style="{ width: `${(item.count / maxDaily) * 100}%` }"></span></div>
+                  <strong>{{ item.count }}</strong>
+                </div>
+                <div class="bar-line subtle">
+                  <span>{{ t('traffic.pageViews') }}</span>
+                  <div class="bar-track"><span :style="{ width: `${(item.pageViews / maxDaily) * 100}%` }"></span></div>
+                  <strong>{{ item.pageViews }}</strong>
+                </div>
               </div>
-              <span class="rank-count">{{ route.count }}</span>
-            </li>
-          </ul>
-        </article>
+            </div>
+          </div>
+        </section>
 
-        <article class="panel">
-          <div class="panel-header"><h3>{{ t('traffic.devices') }}</h3></div>
-          <ul class="chips-list">
-            <li v-for="item in topDevices" :key="item.name">
-              <span>{{ item.name }}</span><strong>{{ item.count }}</strong>
-            </li>
-          </ul>
-        </article>
-      </section>
+        <section class="grid-two">
+          <article class="panel">
+            <div class="panel-header"><h3>{{ t('traffic.topRoutes') }}</h3></div>
+            <ul class="rank-list">
+              <li v-for="route in topRouteList" :key="route.path">
+                <div class="rank-main">
+                  <strong>{{ route.path }}</strong>
+                  <small>{{ route.pageCount }} {{ t('traffic.pageViews') }}, {{ route.apiCount }} {{ t('traffic.apiCalls') }}</small>
+                </div>
+                <span class="rank-count">{{ route.count }}</span>
+              </li>
+            </ul>
+          </article>
 
-      <section class="grid-two">
-        <article class="panel">
-          <div class="panel-header"><h3>{{ t('traffic.referrers') }}</h3></div>
-          <ul class="chips-list">
-            <li v-for="item in topReferrers" :key="item.name"><span>{{ item.name }}</span><strong>{{ item.count }}</strong></li>
-          </ul>
-        </article>
+          <article class="panel">
+            <div class="panel-header"><h3>{{ t('traffic.devices') }}</h3></div>
+            <ul class="chips-list">
+              <li v-for="item in topDevices" :key="item.name">
+                <span>{{ item.name }}</span><strong>{{ item.count }}</strong>
+              </li>
+            </ul>
+          </article>
+        </section>
 
-        <article class="panel">
-          <div class="panel-header"><h3>{{ t('traffic.statuses') }}</h3></div>
-          <ul class="chips-list">
-            <li v-for="item in topStatuses" :key="item.status"><span>{{ item.status }}</span><strong>{{ item.count }}</strong></li>
-          </ul>
-        </article>
-      </section>
+        <section class="grid-two">
+          <article class="panel">
+            <div class="panel-header"><h3>{{ t('traffic.referrers') }}</h3></div>
+            <ul class="chips-list">
+              <li v-for="item in topReferrers" :key="item.name"><span>{{ item.name }}</span><strong>{{ item.count }}</strong></li>
+            </ul>
+          </article>
 
-      <section class="grid-two">
-        <article class="panel">
-          <div class="panel-header"><h3>{{ t('traffic.browsers') }}</h3></div>
-          <ul class="chips-list">
-            <li v-for="item in topBrowsers" :key="item.name"><span>{{ item.name }}</span><strong>{{ item.count }}</strong></li>
-          </ul>
-        </article>
+          <article class="panel">
+            <div class="panel-header"><h3>{{ t('traffic.statuses') }}</h3></div>
+            <ul class="chips-list">
+              <li v-for="item in topStatuses" :key="item.status"><span>{{ item.status }}</span><strong>{{ item.count }}</strong></li>
+            </ul>
+          </article>
+        </section>
 
-        <article class="panel">
-          <div class="panel-header"><h3>{{ t('traffic.methods') }}</h3></div>
-          <ul class="chips-list">
-            <li v-for="item in topMethods" :key="item.method"><span>{{ item.method }}</span><strong>{{ item.count }}</strong></li>
-          </ul>
-        </article>
-      </section>
+        <section class="grid-two">
+          <article class="panel">
+            <div class="panel-header"><h3>{{ t('traffic.browsers') }}</h3></div>
+            <ul class="chips-list">
+              <li v-for="item in topBrowsers" :key="item.name"><span>{{ item.name }}</span><strong>{{ item.count }}</strong></li>
+            </ul>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header"><h3>{{ t('traffic.methods') }}</h3></div>
+            <ul class="chips-list">
+              <li v-for="item in topMethods" :key="item.method"><span>{{ item.method }}</span><strong>{{ item.count }}</strong></li>
+            </ul>
+          </article>
+        </section>
+      </template>
     </template>
   </div>
 </template>
 
 <style scoped>
 .page-traffic { padding: 1.2rem; display: grid; gap: 1rem; }
+.placeholder-card { min-height: 60vh; display: grid; place-items: center; background: transparent; padding: 2rem; }
+.placeholder-hero { display: flex; align-items: center; gap: 1rem; max-width: 720px; width: 100%; }
+.placeholder-hero h2 { margin: 0 0 .4rem; font-size: 1.6rem; }
+.placeholder-hero p { margin: 0; color: var(--component-text-secondary); line-height: 1.7; }
 .page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
 .page-header h2 { margin: 0; font-size: 1.6rem; }
 .page-header p { margin: .35rem 0 0; color: var(--component-text-secondary); }

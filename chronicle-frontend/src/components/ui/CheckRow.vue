@@ -13,6 +13,13 @@
 				@change="onChange"
 			/>
 		</slot>
+
+		<!-- details slot: only render when default slot provided, and render inside the card under the checkbox -->
+		<template v-if="$slots.default">
+			<div class="check-row__details" :class="{ 'check-row__details--disabled': (!modelValue || disabled) }">
+				<slot />
+			</div>
+		</template>
 	</label>
 </template>
 
@@ -83,6 +90,22 @@ function onChange(event: Event) {
 .check-row__disabled-note {
 	color: var(--component-text-secondary);
 	font-size: 0.9rem;
+}
+
+.check-row__details {
+	margin-top: 0.5rem;
+	padding: 0 0.5rem 0.5rem 0.5rem;
+	color: var(--component-text-primary);
+}
+
+.check-row--disabled .check-row__details {
+	opacity: 0.6;
+	pointer-events: none;
+}
+
+.check-row__details--disabled {
+	opacity: 0.6;
+	pointer-events: none;
 }
 
 @media (max-width: 400px) {

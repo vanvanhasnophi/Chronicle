@@ -35,6 +35,22 @@
         :hint="$t('settings.featureFriendsPageHint')"
         :title="$t('settings.featureFriendsPage')"
       />
+
+      <CheckRow
+        v-model="flags.traffic"
+        :hint="$t('settings.featureTrafficHint')"
+        :title="$t('settings.featureTraffic')"
+      >
+        <div class="ga-row">
+          <label class="ga-label">{{ $t('settings.gaPropertyId') }}</label>
+          <input class="ga-input" :disabled="!flags.traffic" v-model="gaPropertyId" placeholder="123456789" />
+          <p class="hint small">{{ $t('settings.gaPropertyIdHint') }}</p>
+
+          <label class="ga-label">{{ $t('settings.gaMeasurementId') }}</label>
+          <input class="ga-input" :disabled="!flags.traffic" v-model="gaId" placeholder="G-XXXXXXXXXX" />
+          <p class="hint small">{{ $t('settings.gaMeasurementIdHint') }}</p>
+        </div>
+      </CheckRow>
     </section>
 
     <div class="actions">
@@ -59,7 +75,10 @@ const flags = ref({
   collectionPage: true,
   aboutPage: true,
   friendsPage: true,
+  traffic: true,
 })
+const gaPropertyId = ref('')
+const gaId = ref('')
 const saving = ref(false)
 const defaultFlags = { ...flags.value }
 
@@ -70,6 +89,7 @@ function normalizeFlags(input: any) {
     collectionPage: input?.collectionPage !== false,
     aboutPage: input?.aboutPage !== false,
     friendsPage: input?.friendsPage !== false,
+    traffic: input?.traffic !== false,
   }
 }
 
@@ -80,6 +100,12 @@ async function load() {
     const settings = await response.json()
     if (settings?.featureFlags) {
       flags.value = normalizeFlags(settings.featureFlags)
+    }
+    if (settings?.gaPropertyId) {
+      gaPropertyId.value = String(settings.gaPropertyId || '')
+    }
+    if (settings?.gaMeasurementId) {
+      gaId.value = String(settings.gaMeasurementId || '')
     }
   } catch (error) {
     // Keep local defaults when the settings API is unavailable.
@@ -93,10 +119,10 @@ async function save() {
     const response = await fetchWithAuth(`/api/settings?t=${Date.now()}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ featureFlags: flags.value }),
+      body: JSON.stringify({ featureFlags: flags.value, gaPropertyId: gaPropertyId.value, gaMeasurementId: gaId.value }),
     })
     if (response.ok) {
-      show(t('settings.saveSuccess') as string, { status: 'success' })
+      show(t('settings.savedNeedRebuild') as string, { status: 'info' })
     } else {
       show(t('settings.saveFailed') as string, { status: 'error' })
     }
@@ -139,4 +165,14 @@ onMounted(() => {
     padding: 1.25rem;
   }
 }
+
+.ga-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.ga-label { font-weight: 600; }
+.ga-input { padding: 0.5rem 0.6rem; border-radius: 8px; border:1px solid var(--border-color); background: var(--component-bg); width: 320px; max-width:100%; }
+.hint.small { margin: 0; font-size: 0.85rem; color: var(--component-text-secondary); }
+.ga-input[disabled] { opacity: 0.6; cursor: not-allowed; }
 </style>

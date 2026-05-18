@@ -50,6 +50,7 @@ const error = ref('')
 const posts = ref<PostRecord[]>([])
 const totalUploads = ref(0)
 const storage = ref<StorageResponse | null>(null)
+const trafficEnabled = ref(true)
 const trafficData = ref<{last24h: number, last7d: number} | null>(null)
 
 function formatBytes(bytes: number, short?: boolean) {
@@ -79,11 +80,11 @@ function parsePostsPayload(payload: any): PostRecord[] {
 onMounted(async () => {
   try {
     const stamp = Date.now()
-    const [postsRes, filesRes, storageRes, trafficRes] = await Promise.all([
+    const [postsRes, filesRes, storageRes, settingsRes] = await Promise.all([
       fetchWithAuth('/api/posts?includeDrafts=true&t=' + stamp, { cache: 'no-store' }),
       fetchWithAuth('/api/files?path=all&t=' + stamp, { cache: 'no-store' }),
       fetchWithAuth('/api/system/storage?t=' + stamp, { cache: 'no-store' }),
-      fetchWithAuth('/api/traffic?t=' + stamp, { cache: 'no-store' }).catch(() => null),
+      fetchWithAuth('/api/settings?t=' + stamp, { cache: 'no-store' }).catch(() => null),
     ])
 
     if (!postsRes.ok) throw new Error(`posts: HTTP ${postsRes.status}`)
@@ -97,12 +98,18 @@ onMounted(async () => {
 
     storage.value = await storageRes.json()
 
+    const settings = settingsRes && settingsRes.ok ? await settingsRes.json() : null
+    trafficEnabled.value = settings?.featureFlags?.traffic === true
+
     // 处理流量数据
-    if (trafficRes && trafficRes.ok) {
-      const traffic = await trafficRes.json()
-      trafficData.value = {
-        last24h: traffic.last24h || 0,
-        last7d: traffic.last7d || 0
+    if (trafficEnabled.value) {
+      const trafficRes = await fetchWithAuth('/api/traffic?t=' + stamp, { cache: 'no-store' }).catch(() => null)
+      if (trafficRes && trafficRes.ok) {
+        const traffic = await trafficRes.json()
+        trafficData.value = {
+          last24h: traffic.last24h || 0,
+          last7d: traffic.last7d || 0
+        }
       }
     }
   } catch (err) {
@@ -144,9 +151,13 @@ const overviewCards = computed(() => {
   }
 
   // 流量数据
-  const traffic24h = trafficData.value?.last24h ?? NaN
+  const traffic24h = trafficEnabled.value ? (trafficData.value?.last24h ?? NaN) : 0
   const traffic7d = trafficData.value?.last7d ?? NaN
-  const trafficNote = trafficData.value ? t('dashboard.trafficLast7d', { count: traffic7d }) : t('dashboard.fetchError')
+  const trafficNote = !trafficEnabled.value
+    ? t('dashboard.trafficDisabled')
+    : trafficData.value
+      ? t('dashboard.trafficLast7d', { count: traffic7d })
+      : t('dashboard.fetchError')
 
   return [
     { 
@@ -163,9 +174,9 @@ const overviewCards = computed(() => {
     },
     { 
       label: t('dashboard.traffic24h'), 
-      value: isNaN(traffic24h) ? 'NaN' : traffic24h,
+      value: trafficEnabled.value ? (isNaN(traffic24h) ? 'NaN' : traffic24h) : 'N/A',
       note: trafficNote,
-      noteClass: !trafficData.value ? 'error-note' : ''
+      noteClass: !trafficEnabled.value ? 'warning-note' : (!trafficData.value ? 'error-note' : '')
     },
     { 
       label: t('dashboard.storageUsage'), 
@@ -371,7 +382,7 @@ const projectUsed = computed(() => {
             </div>
           </div>
           <div v-else class="traffic-error">
-            <span>{{t('dashboard.trafficFetchError')}}</span>
+            <span>{{ !trafficEnabled ? t('dashboard.trafficDisabled') : t('dashboard.trafficFetchError') }}</span>
           </div>
         </article>
 

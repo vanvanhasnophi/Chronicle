@@ -61,6 +61,7 @@ const frontendFont = settings?.frontendFont || 'sans';
 // 从Astro.locals获取locale（由middleware设置）
 const locale = propLocale || getLocale(Astro.locals);
 const htmlLang = locale === 'zh-CN' ? 'zh-CN' : 'en';
+const GA_MEASUREMENT_ID = String(process.env.GA_MEASUREMENT_ID || settings?.gaMeasurementId || '').trim();
 ---
 <!DOCTYPE html>
 <html lang={htmlLang}>
@@ -135,7 +136,7 @@ const htmlLang = locale === 'zh-CN' ? 'zh-CN' : 'en';
       }
     </style>
 
-    <script define:vars={{ frontendTheme, frontendAccent, frontendBackground, frontendBackgroundMeta, frontendFont, featureFlags }}>
+    <script define:vars={{ frontendTheme, frontendAccent, frontendBackground, frontendBackgroundMeta, frontendFont, featureFlags, GA_MEASUREMENT_ID }}>
       // 将settings传递给客户端
       window.__CHRONICLE_SETTINGS__ = {
         frontendTheme,
@@ -143,7 +144,8 @@ const htmlLang = locale === 'zh-CN' ? 'zh-CN' : 'en';
         frontendBackground,
         frontendBackgroundMeta,
         frontendFont,
-        featureFlags
+        featureFlags,
+        gaMeasurementId: GA_MEASUREMENT_ID
       };
     </script>
 
@@ -201,6 +203,37 @@ const htmlLang = locale === 'zh-CN' ? 'zh-CN' : 'en';
         document.addEventListener('astro:after-swap', syncMobileClass);
       })();
     </script>
+
+    <!-- Google Analytics (gtag) 注入：仅当 GA ID 存在且流量开关启用时注入 -->
+    {(GA_MEASUREMENT_ID && ((featureFlags && (featureFlags as any).traffic) === true)) ? (
+      <>
+        <script async src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}></script>
+        <script is:inline>
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', '${GA_MEASUREMENT_ID}', { send_page_view: false });
+        </script>
+        <script is:inline>
+          (function(){
+            if (typeof window === 'undefined') return;
+            function sendPageView() {
+              try {
+                const settings = (window.__CHRONICLE_SETTINGS__ || {});
+                const trafficEnabled = settings?.featureFlags?.traffic !== false;
+                if (!trafficEnabled) return;
+                if (typeof window.gtag === 'function') {
+                  window.gtag('event', 'page_view', { page_path: location.pathname, page_title: document.title });
+                }
+              } catch (e) { console.warn('[GA] page_view failed', e); }
+            }
+
+            document.addEventListener('astro:page-load', sendPageView);
+            document.addEventListener('astro:after-swap', sendPageView);
+          })();
+        </script>
+      </>
+    ) : null}
   </head>
   <body class="frontend-body">
     <!-- 背景层 - 使用transition:persist保持跨页面持久化 -->

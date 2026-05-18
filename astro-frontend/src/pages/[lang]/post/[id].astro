@@ -1119,10 +1119,10 @@ if (rawPostContent) {
 
       if (!copyClickBound) {
         document.addEventListener('click', function(event) {
-          const target = event.target as HTMLElement;
-          const copyBtn = target.closest('.copy-btn') as HTMLElement;
+          const target = event.target;
+          const copyBtn = target instanceof HTMLElement ? target.closest('.copy-btn') : null;
 
-          if (copyBtn) {
+          if (copyBtn instanceof HTMLElement) {
             copyCode(copyBtn);
           }
         });
@@ -1138,11 +1138,35 @@ if (rawPostContent) {
 
     document.addEventListener('astro:page-load', initPostPageFeatures);
     
+    // Google Analytics: post_view handling moved to standalone script below
+    
     // Mermaid图表渲染函数（占位符，实际在服务端预渲染）
     function renderMermaidDiagrams() {
       // Mermaid图表已在服务端预渲染，客户端无需处理
       console.log('Mermaid图表已在服务端预渲染');
     }
+  </script>
+
+  <script define:vars={{ POST_ID: JSON.stringify(post?.id || id), POST_TITLE: JSON.stringify(post?.title || '') }} is:inline>
+    (function() {
+      function sendPostView() {
+        try {
+          if (typeof window !== 'undefined' && typeof window.gtag === 'function') {
+            window.gtag('event', 'post_view', { post_id: POST_ID, post_title: POST_TITLE, page_path: location.pathname });
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', sendPostView, { once: true });
+      } else {
+        sendPostView();
+      }
+
+      document.addEventListener('astro:page-load', sendPostView);
+    })();
   </script>
 
 </Layout>

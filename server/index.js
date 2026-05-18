@@ -6,6 +6,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { execSync, spawn } = require('child_process');
 const { Worker, isMainThread, parentPort, workerData } = require('worker_threads');
+const { BetaAnalyticsDataClient } = require('@google-analytics/data');
 const {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -268,6 +269,8 @@ function resolveApiSourcePath(baseDir) {
 }
 
 const CATEGORIES = ['pic', 'sound', 'txt', 'video', 'doc', 'other'];
+const trafficGaCache = new Map();
+let trafficGaClient = null;
 
 function sortTags(tags) {
     if (!tags || !Array.isArray(tags)) return [];
@@ -299,6 +302,243 @@ function getBuildSettings() {
         frontendCodeDir,
         frontendBuildTargetDir,
     };
+}
+
+function getTrafficGaConfig() {
+    const settings = getBuildSettings();
+    const propertyId = String(settings.gaPropertyId || process.env.GA_PROPERTY_ID || '').trim();
+    const measurementId = String(settings.gaMeasurementId || process.env.GA_MEASUREMENT_ID || '').trim();
+    const serviceAccountJson = String(process.env.GA_SERVICE_ACCOUNT_JSON || '').trim();
+    const serviceAccountKeyFilename = String(process.env.GOOGLE_APPLICATION_CREDENTIALS || '').trim();
+
+    return {
+        propertyId,
+        measurementId,
+        serviceAccountJson,
+        serviceAccountKeyFilename,
+    };
+}
+
+function getTrafficGaClient() {
+    if (trafficGaClient) return trafficGaClient;
+
+    const config = getTrafficGaConfig();
+    const options = {};
+
+    if (config.serviceAccountKeyFilename) {
+        options.keyFilename = config.serviceAccountKeyFilename;
+    } else if (config.serviceAccountJson) {
+        try {
+            options.credentials = JSON.parse(config.serviceAccountJson);
+        } catch (e) {
+            throw new Error('Invalid GA service account JSON');
+        }
+    }
+
+    trafficGaClient = new BetaAnalyticsDataClient(options);
+    return trafficGaClient;
+}
+
+function gaMetricValue(row, index) {
+    const raw = row?.metricValues?.[index]?.value;
+    const value = Number(raw);
+    return Number.isFinite(value) ? value : 0;
+}
+
+function gaDimensionValue(row, index) {
+    return String(row?.dimensionValues?.[index]?.value || '').trim();
+}
+
+function formatGaDate(raw) {
+    if (!raw || raw.length < 8) return raw || '';
+    return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
+}
+
+function makeTrafficEmptyPayload(days) {
+    return {
+        source: 'access-log',
+        last24h: 0,
+        last7d: 0,
+        range: { days, start: null, end: null },
+        summary: {
+            totalRequests: 0,
+            pageViews: 0,
+            apiCalls: 0,
+            uniqueVisitors: 0,
+            errors: 0,
+            uniqueRoutes: 0,
+        },
+        daily: [],
+        topRoutes: [],
+        topPages: [],
+        topApis: [],
+        topReferrers: [],
+        topDevices: [],
+        topBrowsers: [],
+        topMethods: [],
+        topStatuses: [],
+    };
+}
+
+async function runGaReport(propertyId, request) {
+    const client = getTrafficGaClient();
+    const [response] = await client.runReport({
+        property: `properties/${propertyId}`,
+        ...request,
+    });
+    return response || {};
+}
+
+async function buildTrafficGaPayload(days) {
+    const config = getTrafficGaConfig();
+    if (!config.propertyId) return null;
+
+    const cacheKey = `${config.propertyId}:${days}`;
+    const cached = trafficGaCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+        return cached.payload;
+    }
+
+    const dayCount = days === 'all' ? 3650 : Math.max(1, Number(days) || 30);
+    const startDate = dayCount >= 3650 ? '3650daysAgo' : `${Math.max(1, dayCount - 1)}daysAgo`;
+    const endDate = 'today';
+    const startAt = new Date(Date.now() - Math.max(1, dayCount - 1) * 24 * 60 * 60 * 1000).toISOString();
+
+    const baseDateRange = [{ startDate, endDate }];
+    const shortRanges = {
+        last24h: [{ startDate: '1daysAgo', endDate }],
+        last7d: [{ startDate: '7daysAgo', endDate }],
+    };
+
+    try {
+        const [summaryRes, dailyRes, routesRes, referrersRes, devicesRes, browsersRes, methodsRes, statusesRes, last24hRes, last7dRes] = await Promise.all([
+            runGaReport(config.propertyId, {
+                dateRanges: baseDateRange,
+                metrics: [
+                    { name: 'sessions' },
+                    { name: 'screenPageViews' },
+                    { name: 'totalUsers' },
+                    { name: 'eventCount' },
+                ],
+            }),
+            runGaReport(config.propertyId, {
+                dateRanges: baseDateRange,
+                dimensions: [{ name: 'date' }],
+                metrics: [{ name: 'screenPageViews' }, { name: 'totalUsers' }],
+                orderBys: [{ dimension: { dimensionName: 'date' } }],
+            }),
+            runGaReport(config.propertyId, {
+                dateRanges: baseDateRange,
+                dimensions: [{ name: 'pagePathPlusQueryString' }],
+                metrics: [{ name: 'screenPageViews' }],
+                orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
+                limit: 12,
+            }),
+            runGaReport(config.propertyId, {
+                dateRanges: baseDateRange,
+                dimensions: [{ name: 'pageReferrer' }],
+                metrics: [{ name: 'screenPageViews' }],
+                orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
+                limit: 10,
+            }),
+            runGaReport(config.propertyId, {
+                dateRanges: baseDateRange,
+                dimensions: [{ name: 'deviceCategory' }],
+                metrics: [{ name: 'sessions' }],
+                orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+                limit: 10,
+            }),
+            runGaReport(config.propertyId, {
+                dateRanges: baseDateRange,
+                dimensions: [{ name: 'browser' }],
+                metrics: [{ name: 'sessions' }],
+                orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+                limit: 10,
+            }),
+            runGaReport(config.propertyId, {
+                dateRanges: baseDateRange,
+                dimensions: [{ name: 'eventName' }],
+                metrics: [{ name: 'eventCount' }],
+                orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
+                limit: 10,
+            }),
+            runGaReport(config.propertyId, {
+                dateRanges: baseDateRange,
+                dimensions: [{ name: 'sessionDefaultChannelGroup' }],
+                metrics: [{ name: 'sessions' }],
+                orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+                limit: 10,
+            }),
+            runGaReport(config.propertyId, {
+                dateRanges: shortRanges.last24h,
+                metrics: [{ name: 'sessions' }],
+            }),
+            runGaReport(config.propertyId, {
+                dateRanges: shortRanges.last7d,
+                metrics: [{ name: 'sessions' }],
+            }),
+        ]);
+
+        const summaryRow = summaryRes.rows?.[0];
+        const summary = {
+            totalRequests: gaMetricValue(summaryRow, 0),
+            pageViews: gaMetricValue(summaryRow, 1),
+            uniqueVisitors: gaMetricValue(summaryRow, 2),
+            apiCalls: gaMetricValue(summaryRow, 3),
+            errors: 0,
+            uniqueRoutes: routesRes.rows?.length || 0,
+        };
+
+        const daily = (dailyRes.rows || []).map((row) => ({
+            date: formatGaDate(gaDimensionValue(row, 0)),
+            count: gaMetricValue(row, 0),
+            pageViews: gaMetricValue(row, 0),
+            apiCalls: 0,
+            uniqueVisitors: gaMetricValue(row, 1),
+        }));
+
+        const topRoutes = (routesRes.rows || []).map((row) => ({
+            path: gaDimensionValue(row, 0) || '/',
+            count: gaMetricValue(row, 0),
+            pageCount: gaMetricValue(row, 0),
+            apiCount: 0,
+        }));
+
+        const topPages = topRoutes.map((item) => ({ path: item.path, count: item.count }));
+        const topApis = (methodsRes.rows || []).map((row) => ({ path: gaDimensionValue(row, 0) || 'event', count: gaMetricValue(row, 0) }));
+        const topReferrers = (referrersRes.rows || []).map((row) => ({ name: gaDimensionValue(row, 0) || 'Direct', count: gaMetricValue(row, 0) }));
+        const topDevices = (devicesRes.rows || []).map((row) => ({ name: gaDimensionValue(row, 0) || 'Desktop', count: gaMetricValue(row, 0) }));
+        const topBrowsers = (browsersRes.rows || []).map((row) => ({ name: gaDimensionValue(row, 0) || 'Other', count: gaMetricValue(row, 0) }));
+        const topMethods = [];
+        const topStatuses = [];
+
+        const payload = {
+            source: 'google-analytics',
+            last24h: gaMetricValue(last24hRes.rows?.[0], 0),
+            last7d: gaMetricValue(last7dRes.rows?.[0], 0),
+            range: {
+                days,
+                start: startAt,
+                end: new Date().toISOString(),
+            },
+            summary,
+            daily,
+            topRoutes,
+            topPages,
+            topApis,
+            topReferrers,
+            topDevices,
+            topBrowsers,
+            topMethods,
+            topStatuses,
+        };
+
+        trafficGaCache.set(cacheKey, { expiresAt: Date.now() + 5 * 60 * 1000, payload });
+        return payload;
+    } catch (error) {
+        console.error('[Traffic][GA] report error', error && (error.message || error.stack || error));
+        return null;
+    }
 }
 
 function normalizeBuildGranularity(value) {
@@ -483,6 +723,294 @@ async function computeBackgroundCompression(meta, rawBackgroundValue) {
     const factor = (sourceHeight / 1000) * 0.6 * Math.min(...blurCandidates);
     if (!Number.isFinite(factor) || factor <= 1) return 1;
     return Math.min(30, factor);
+}
+
+const TRAFFIC_LOG_FILE = ACCESS_LOG;
+let trafficLogCache = { signature: '', records: [] };
+
+function pad2(value) {
+    return String(value).padStart(2, '0');
+}
+
+function getFileSignature(filePath) {
+    try {
+        const stat = fs.statSync(filePath);
+        return `${stat.size}:${stat.mtimeMs}`;
+    } catch (e) {
+        return '';
+    }
+}
+
+function parseTrafficLogLine(line) {
+    const match = String(line || '').match(/^(\S+) \S+ \S+ \[([^\]]+)\] "([A-Z]+) ([^"]*?) HTTP\/[^"]*" (\d{3}) (\S+) "([^"]*)" "([^"]*)"$/);
+    if (!match) return null;
+
+    const [, ip, timeRaw, method, rawUrl, statusRaw, sizeRaw, referrerRaw, userAgentRaw] = match;
+    const timestamp = new Date(timeRaw).getTime();
+    if (!Number.isFinite(timestamp)) return null;
+
+    let pathname = '/';
+    try {
+        const parsedUrl = /^https?:\/\//i.test(rawUrl) ? new URL(rawUrl) : new URL(rawUrl, 'http://localhost');
+        pathname = parsedUrl.pathname || '/';
+    } catch (e) {
+        pathname = String(rawUrl || '/').split('?')[0] || '/';
+    }
+
+    return {
+        ip: String(ip || '').trim(),
+        timestamp,
+        method: String(method || '').trim().toUpperCase(),
+        path: pathname,
+        status: Number(statusRaw) || 0,
+        size: Number(sizeRaw) || 0,
+        referrer: String(referrerRaw || '').trim(),
+        userAgent: String(userAgentRaw || '').trim(),
+    };
+}
+
+function loadTrafficLogRecords() {
+    const signature = getFileSignature(TRAFFIC_LOG_FILE);
+    if (!signature) {
+        trafficLogCache = { signature: '', records: [] };
+        return trafficLogCache.records;
+    }
+
+    if (trafficLogCache.signature === signature) {
+        return trafficLogCache.records;
+    }
+
+    let content = '';
+    try {
+        content = fs.readFileSync(TRAFFIC_LOG_FILE, 'utf-8');
+    } catch (e) {
+        trafficLogCache = { signature, records: [] };
+        return trafficLogCache.records;
+    }
+
+    const records = content
+        .split(/\r?\n/)
+        .map(parseTrafficLogLine)
+        .filter(Boolean)
+        .sort((a, b) => a.timestamp - b.timestamp);
+
+    trafficLogCache = { signature, records };
+    return records;
+}
+
+function isAssetPath(pathname) {
+    return /\.[a-z0-9]{2,}$/i.test(String(pathname || ''));
+}
+
+function isPageRequest(record) {
+    return record.method === 'GET' && !String(record.path || '').startsWith('/api/') && !isAssetPath(record.path);
+}
+
+function isApiRequest(record) {
+    return String(record.path || '').startsWith('/api/');
+}
+
+function dateKeyFromTimestamp(timestamp) {
+    const date = new Date(timestamp);
+    return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+
+function classifyDevice(userAgent) {
+    const ua = String(userAgent || '').toLowerCase();
+    if (/ipad|tablet/.test(ua)) return 'Tablet';
+    if (/mobi|iphone|android/.test(ua)) return 'Mobile';
+    return 'Desktop';
+}
+
+function classifyBrowser(userAgent) {
+    const ua = String(userAgent || '');
+    if (/edg\//i.test(ua)) return 'Edge';
+    if (/chrome\//i.test(ua) && !/edg\//i.test(ua)) return 'Chrome';
+    if (/firefox\//i.test(ua)) return 'Firefox';
+    if (/safari\//i.test(ua) && !/chrome\//i.test(ua) && !/chromium\//i.test(ua)) return 'Safari';
+    if (/opera|opr\//i.test(ua)) return 'Opera';
+    return 'Other';
+}
+
+function classifyReferrer(referrer) {
+    const value = String(referrer || '').trim();
+    if (!value || value === '-') return 'Direct';
+    try {
+        return new URL(value).host || 'Direct';
+    } catch (e) {
+        return value.replace(/^https?:\/\//i, '').split('/')[0] || 'Direct';
+    }
+}
+
+function mapToTopEntries(map, keyName = 'name') {
+    return Array.from(map.entries())
+        .map(([key, value]) => ({
+            [keyName]: key,
+            ...(typeof value === 'object' && value !== null ? value : {}),
+            count: typeof value === 'number' ? value : Number(value && value.count) || 0,
+        }))
+        .sort((a, b) => {
+            const diff = (b.count || 0) - (a.count || 0);
+            return diff !== 0 ? diff : String(a[keyName]).localeCompare(String(b[keyName]));
+        });
+}
+
+function buildTrafficPayload(days) {
+    const records = loadTrafficLogRecords();
+    const now = Date.now();
+    const normalizedDays = days === 'all' ? 'all' : Math.max(1, Number(days) || 30);
+    const startTimestamp = normalizedDays === 'all' ? null : now - normalizedDays * 24 * 60 * 60 * 1000;
+    const endTimestamp = now;
+
+    const rangedRecords = records.filter((record) => {
+        if (startTimestamp === null) return record.timestamp <= endTimestamp;
+        return record.timestamp >= startTimestamp && record.timestamp <= endTimestamp;
+    });
+
+    const totalRequests = rangedRecords.length;
+    const uniqueVisitors = new Set();
+    const uniqueRoutes = new Set();
+    const dailyMap = new Map();
+    const routeMap = new Map();
+    const pageMap = new Map();
+    const apiMap = new Map();
+    const referrerMap = new Map();
+    const deviceMap = new Map();
+    const browserMap = new Map();
+    const methodMap = new Map();
+    const statusMap = new Map();
+
+    let pageViews = 0;
+    let apiCalls = 0;
+    let errors = 0;
+    let last24h = 0;
+    let last7d = 0;
+
+    const day24h = now - 24 * 60 * 60 * 1000;
+    const day7d = now - 7 * 24 * 60 * 60 * 1000;
+
+    for (const record of records) {
+        if (record.timestamp >= day24h) last24h += 1;
+        if (record.timestamp >= day7d) last7d += 1;
+    }
+
+    for (const record of rangedRecords) {
+        const pathName = record.path || '/';
+        const isApi = isApiRequest(record);
+        const isPage = isPageRequest(record);
+        const dateKey = dateKeyFromTimestamp(record.timestamp);
+        const dailyEntry = dailyMap.get(dateKey) || {
+            date: dateKey,
+            count: 0,
+            pageViews: 0,
+            apiCalls: 0,
+            uniqueVisitors: new Set(),
+        };
+
+        dailyEntry.count += 1;
+        if (isPage) dailyEntry.pageViews += 1;
+        if (isApi) dailyEntry.apiCalls += 1;
+        dailyEntry.uniqueVisitors.add(record.ip || 'unknown');
+        dailyMap.set(dateKey, dailyEntry);
+
+        if (record.ip) uniqueVisitors.add(record.ip);
+        if (!isAssetPath(pathName)) uniqueRoutes.add(pathName);
+
+        const routeEntry = routeMap.get(pathName) || { count: 0, pageCount: 0, apiCount: 0 };
+        routeEntry.count += 1;
+        if (isPage) routeEntry.pageCount += 1;
+        if (isApi) routeEntry.apiCount += 1;
+        routeMap.set(pathName, routeEntry);
+
+        if (isPage) {
+            pageViews += 1;
+            pageMap.set(pathName, (pageMap.get(pathName) || 0) + 1);
+        }
+        if (isApi) {
+            apiCalls += 1;
+            apiMap.set(pathName, (apiMap.get(pathName) || 0) + 1);
+        }
+
+        const referrerName = classifyReferrer(record.referrer);
+        const deviceName = classifyDevice(record.userAgent);
+        const browserName = classifyBrowser(record.userAgent);
+        const methodName = record.method || 'GET';
+        const statusCode = record.status || 0;
+
+        referrerMap.set(referrerName, (referrerMap.get(referrerName) || 0) + 1);
+        deviceMap.set(deviceName, (deviceMap.get(deviceName) || 0) + 1);
+        browserMap.set(browserName, (browserMap.get(browserName) || 0) + 1);
+        methodMap.set(methodName, (methodMap.get(methodName) || 0) + 1);
+        statusMap.set(statusCode, (statusMap.get(statusCode) || 0) + 1);
+
+        if (statusCode >= 400) errors += 1;
+    }
+
+    const daily = Array.from(dailyMap.values())
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .map((item) => ({
+            date: item.date,
+            count: item.count,
+            pageViews: item.pageViews,
+            apiCalls: item.apiCalls,
+            uniqueVisitors: item.uniqueVisitors.size,
+        }));
+
+    const topRoutes = mapToTopEntries(routeMap, 'path')
+        .slice(0, 12)
+        .map((item) => ({
+            path: item.path,
+            count: item.count,
+            pageCount: item.pageCount || 0,
+            apiCount: item.apiCount || 0,
+        }));
+
+    const topPages = Array.from(pageMap.entries())
+        .map(([pathName, count]) => ({ path: pathName, count }))
+        .sort((a, b) => b.count - a.count || a.path.localeCompare(b.path))
+        .slice(0, 12);
+
+    const topApis = Array.from(apiMap.entries())
+        .map(([pathName, count]) => ({ path: pathName, count }))
+        .sort((a, b) => b.count - a.count || a.path.localeCompare(b.path))
+        .slice(0, 12);
+
+    const topReferrers = mapToTopEntries(referrerMap).slice(0, 10);
+    const topDevices = mapToTopEntries(deviceMap).slice(0, 10);
+    const topBrowsers = mapToTopEntries(browserMap).slice(0, 10);
+    const topMethods = Array.from(methodMap.entries())
+        .map(([method, count]) => ({ method, count }))
+        .sort((a, b) => b.count - a.count || a.method.localeCompare(b.method));
+    const topStatuses = Array.from(statusMap.entries())
+        .map(([status, count]) => ({ status, count }))
+        .sort((a, b) => b.count - a.count || a.status - b.status);
+
+    return {
+        last24h,
+        last7d,
+        range: {
+            days: normalizedDays,
+            start: startTimestamp === null ? null : new Date(startTimestamp).toISOString(),
+            end: new Date(endTimestamp).toISOString(),
+        },
+        summary: {
+            totalRequests,
+            pageViews,
+            apiCalls,
+            uniqueVisitors: uniqueVisitors.size,
+            errors,
+            uniqueRoutes: uniqueRoutes.size,
+        },
+        daily,
+        topRoutes,
+        topPages,
+        topApis,
+        topReferrers,
+        topDevices,
+        topBrowsers,
+        topMethods,
+        topStatuses,
+    };
 }
 
 app.post('/api/background/compress', async (req, res) => {
@@ -1755,6 +2283,19 @@ app.post('/api/settings', async (req, res) => {
     } catch (e) {
         console.error('[Settings] POST error', e);
         res.status(500).send('Error');
+    }
+});
+
+app.get('/api/traffic', async (req, res) => {
+    try {
+        const days = typeof req.query.days === 'string' && req.query.days.trim() ? req.query.days.trim() : '30';
+        const gaPayload = await buildTrafficGaPayload(days);
+        const payload = gaPayload || buildTrafficPayload(days);
+        res.set('Cache-Control', 'no-store');
+        res.json(payload);
+    } catch (e) {
+        console.error('[Traffic] GET error', e);
+        res.status(500).json(makeTrafficEmptyPayload('30'));
     }
 });
 

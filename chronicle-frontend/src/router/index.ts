@@ -177,6 +177,17 @@ router.afterEach((to) => {
     // but we should avoid leaving the previous route's title visible.
     document.title = appName
   }
+
+  // Google Analytics page_view for SPA backend routes
+  try {
+    const settings = (window as any).__CHRONICLE_SETTINGS__ || {};
+    const trafficEnabled = settings?.featureFlags?.traffic !== false;
+    if (trafficEnabled && typeof window !== 'undefined' && (window as any).gtag) {
+      (window as any).gtag('event', 'page_view', { page_path: to.fullPath || to.path, page_title: document.title });
+    }
+  } catch (e) {
+    // fail silently
+  }
 })
 
 export default router
