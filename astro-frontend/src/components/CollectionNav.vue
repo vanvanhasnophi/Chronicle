@@ -1,11 +1,14 @@
 <template>
-  <div ref="root" class="collection-nav" :class="{ collapsed: isCollapsed, expanded: isExpanded }" @pointerenter="onPointerEnter" @pointerleave="onPointerLeave">
+  <div ref="root" class="collection-nav" :class="{ collapsed: isCollapsed, expanded: isExpanded }"
+    @pointerenter="onPointerEnter" @pointerleave="onPointerLeave">
     <div class="collection-nav-header">
       <div class="collection-nav-title">
         <span class="collection-title-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">
-            <path d="M12 11 Q16 13 20 16 Q16 19 12 21 Q8 19 4 16 Q8 13 12 11 Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
-            <path d="M12 5 Q16 7 20 10 Q16 13 12 15 Q8 13 4 10 Q8 7 12 5 Z" :fill="'var(--component-bg-blur)'" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" />
+            <path d="M12 11 Q16 13 20 16 Q16 19 12 21 Q8 19 4 16 Q8 13 12 11 Z" stroke="currentColor" stroke-width="1.5"
+              stroke-linejoin="round" stroke-linecap="round" fill="none" />
+            <path d="M12 5 Q16 7 20 10 Q16 13 12 15 Q8 13 4 10 Q8 7 12 5 Z" :fill="'var(--component-bg-blur)'"
+              stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" />
           </svg>
         </span>
         <span class="collection-title-text">{{ navTitle }}</span>
@@ -15,14 +18,8 @@
     <div class="collection-nav-body">
       <div v-if="loading" class="loading">{{ loadingText }}</div>
       <div v-else-if="!treeHtml" class="empty">{{ emptyText }}</div>
-      <div
-        v-else
-        ref="treeRoot"
-        class="collection-tree"
-        @click="onTreeClick"
-        @keydown="onTreeKeydown"
-        v-html="treeHtml"
-      ></div>
+      <div v-else ref="treeRoot" class="collection-tree" @click="onTreeClick" @keydown="onTreeKeydown"
+        v-html="treeHtml"></div>
     </div>
   </div>
 </template>
@@ -51,8 +48,8 @@ if (import.meta.env.DEV) {
   if (!g.__VUE_HMR_RUNTIME__) {
     g.__VUE_HMR_RUNTIME__ = {
       createRecord: () => true,
-      rerender: () => {},
-      reload: () => {},
+      rerender: () => { },
+      reload: () => { },
     };
   }
 }
@@ -308,7 +305,7 @@ function onPointerEnter() {
 }
 
 function onPointerLeave() {
-  if (window.innerWidth < 1000) {
+  if (window.innerWidth < 1200) {
     collapseTimer = setTimeout(() => {
       isCollapsed.value = true;
       isExpanded.value = false;
@@ -377,7 +374,7 @@ onBeforeUnmount(() => {
     if (el && el.parentElement === document.body) {
       document.body.removeChild(el);
     }
-  } catch (e) {}
+  } catch (e) { }
 });
 </script>
 
@@ -386,9 +383,6 @@ onBeforeUnmount(() => {
   --nav-width: 260px;
   --visible-edge: 0px;
   width: var(--nav-width);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
-  background: var(--component-bg-blur);
-  backdrop-filter: blur(12px);
   border-radius: 8px;
   min-height: 200px;
   overflow: auto;
@@ -556,11 +550,11 @@ onBeforeUnmount(() => {
 }
 
 .collection-tree :deep(.mini-card.post.active .caret svg) {
-  color:var(--component-text-primary-hover);
+  color: var(--component-text-primary-hover);
 }
 
 .collection-tree :deep(.mini-card.post.active .mini-icon svg) {
-  color:var(--component-text-primary-hover);
+  color: var(--component-text-primary-hover);
 }
 
 .loading,
@@ -584,6 +578,10 @@ onBeforeUnmount(() => {
     position: fixed;
     top: 90px;
     left: 20px;
+    background: var(--component-bg-blur);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+
   }
 
   .collection-nav.collapsed {

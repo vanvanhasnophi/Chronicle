@@ -32,7 +32,7 @@ const isActive = (path: string) => {
 };
 ---
 
-<nav class:list={["nav-header", { "at-top": true, "swap-enabled": articleTitle && articleBackHref }]} id="main-nav">
+<nav class:list={["nav-header", {"at-top": true, "swap-enabled": articleTitle && articleBackHref }]} id="main-nav">
   <div class="nav-content">
     <div class="header-swap">
       <div class:list={["site-header", { "entering-up": articleTitle && articleBackHref }]}>
@@ -306,6 +306,13 @@ const isActive = (path: string) => {
       background 0.3s ease,
       border-color 0.3s ease,
       backdrop-filter 0.3s ease;
+  }
+
+  html.immersive .nav-header{
+    background: transparent;
+    border-bottom: none;
+    backdrop-filter: blur(1px);
+    -webkit-backdrop-filter: blur(1px);
   }
 
   .nav-header.at-top {

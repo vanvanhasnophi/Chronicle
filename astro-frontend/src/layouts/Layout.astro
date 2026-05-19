@@ -72,7 +72,7 @@ try {
 } catch (e) { }
 ---
 <!DOCTYPE html>
-<html lang={htmlLang}>
+<html lang={htmlLang} class={"immersive"}>
   <head>
     <!-- Google Analytics (gtag) 注入：仅当 GA ID 存在且流量开关启用时注入 -->
     {(GA_MEASUREMENT_ID && ((featureFlags && (featureFlags as any).traffic) === true)) ? (
@@ -257,7 +257,7 @@ try {
       <NavHeader currentPath={Astro.url.pathname} locale={locale} articleTitle={navTitle} articleBackHref={navBackHref} articleBackLabel={navBackLabel} featureFlags={featureFlags} />
 
       <div class={`main-content ${scrollable === false ? 'unscrollable' : ''}`} transition:animate="fade" >
-         <slot />
+        <slot />
       </div>
     </div>
 
