@@ -433,7 +433,7 @@ import { useRoute, useRouter, onBeforeRouteUpdate, onBeforeRouteLeave } from 'vu
 import MdParser from './MdParser.vue'
 import { debounce } from '../utils/debounce'
 import { Icons } from '../utils/icons'
-import { getStats } from '../utils/markdownParser'
+import { convertToHtml, injectHeadingIds, getStats } from '../utils/markdownParser'
 import { sortTags } from '../utils/tagUtils'
 import { useI18n } from 'vue-i18n'
 import CheckRow from './ui/CheckRow.vue';
@@ -531,6 +531,51 @@ const wordCountLabel = computed(() => {
     if (n === 1) return t('editor.countWords', { count: n })
     return t('editor.countWordsPlural', { count: n })
 })
+
+function escapeTocText(text: string) {
+    return String(text || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+}
+
+function buildTocFromMarkdown(markdown: string) {
+    const items: Array<{ id: string; text: string; level: number }> = []
+    const used = new Set<string>()
+    const headingRegex = /^\s*(#{1,6})\s+(.*)$/gm
+    let match: RegExpExecArray | null
+
+    while ((match = headingRegex.exec(markdown || '')) !== null) {
+        const level = match[1].length
+        const text = String(match[2] || '').replace(/<[^>]+>/g, '').trim()
+        if (!text) continue
+
+        const base = escapeTocText(text)
+            .replace(/&[a-z]+;|&#\d+;/gi, ' ')
+            .replace(/\s+/g, '-')
+            .replace(/[^\w\-\u4E00-\u9FFF]/g, '')
+            .replace(/-+/g, '-')
+            .replace(/^-|-$/g, '')
+
+        let id = base || 'heading'
+        let suffix = 1
+        while (used.has(id)) {
+            id = `${base || 'heading'}-${suffix++}`
+        }
+        used.add(id)
+        items.push({ id, text, level })
+    }
+
+    if (!items.length) return []
+    const minLevel = Math.min(...items.map((item) => item.level))
+    return items.map((item) => ({
+        id: item.id,
+        text: item.text,
+        level: item.level - minLevel + 1,
+    }))
+}
 
 // File Menu Logic
 async function openFileMenu() {
@@ -856,8 +901,14 @@ async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
             ? tempTitle.value
             : (isDefaultTitle.value ? t('editor.untitled') : postTitle.value)
 
-        // Ã¤Â¸Â¥Ã¦Â Â¼Ã¦Å’â€°Ã§â€¦Â§MarkdownÃ¥Å½Å¸Ã¦â€“â€¡Ã¤Â¿ÂÃ¥Â­ËœÃ¯Â¼Å’Ã¤Â¸ÂÃ¨Â½Â¬Ã¦ÂÂ¢MermaidÃ¤Â»Â£Ã§Â ÂÃ¥Ââ€”
+        // 原文始终保留为 Markdown；发布时同步提交预编译 HTML 和 TOC
         const contentToSend = localValue.value
+        const toc = status === 'published' ? buildTocFromMarkdown(contentToSend) : []
+        let compiledHtml = ''
+        if (status === 'published') {
+            compiledHtml = convertToHtml(contentToSend, { wrapBlocks: true })
+            compiledHtml = injectHeadingIds(compiledHtml, toc)
+        }
         const res = await fetchWithAuth(`/api/post?t=${Date.now()}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -869,7 +920,9 @@ async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
                 tags: postTags.value,
                 font: postFont.value,
                 author: postAuthor.value, // Ã¦â€“Â°Ã¥Â¢Å¾Ã¤Â½Å“Ã¨â‚¬â€¦Ã¥Â­â€”Ã¦Â®Âµ
-                aiGenerated: postAIGenerated.value // Ã¦â€“Â°Ã¥Â¢Å¾AIÃ§â€Å¸Ã¦Ë†ÂÃ¥Â­â€”Ã¦Â®Âµ
+                aiGenerated: postAIGenerated.value, // Ã¦â€“Â°Ã¥Â¢Å¾AIÃ§â€Å¸Ã¦Ë†ÂÃ¥Â­â€”Ã¦Â®Âµ
+                compiledHtml,
+                toc,
             })
         })
         if (res.ok) {

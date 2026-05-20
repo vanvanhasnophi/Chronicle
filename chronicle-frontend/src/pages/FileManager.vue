@@ -177,12 +177,18 @@ const openPreview = async (file: any) => {
 }
 
 const getThumbUrl = (file: any) => {
-    // Prefer server-provided absolute URL. Convert to thumbnail path when possible.
+    // Prefer server-provided thumb URL first so CDN-mounted thumbnails work immediately.
+    if (file.thumb && typeof file.thumb === 'string') {
+        return file.thumb
+    }
+
+    // If only the original URL is available, derive the thumbnail URL from it.
     if (file.url && typeof file.url === 'string') {
         return file.url.replace('/server/data/upload/', '/server/data/upload/.thumbs/')
     }
-    // fallback to relative thumb path
-    return `/.thumbs/${file.path}`
+
+    // Fallback to the canonical static path under the upload directory.
+    return `/server/data/upload/.thumbs/${file.path}`
 }
 
 const refresh = () => loadItems()

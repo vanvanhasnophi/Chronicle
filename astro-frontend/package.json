@@ -1,11 +1,11 @@
 {
   "name": "astro-frontend",
-  "version": "1.6.2",
+  "version": "1.6.3",
   "type": "module",
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
-    "build": "rm -f public/server/data/upload && astro build",
+    "build": "astro build",
     "preview": "astro preview",
     "astro": "astro"
   },

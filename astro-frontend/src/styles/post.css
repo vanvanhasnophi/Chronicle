@@ -1036,6 +1036,14 @@
   background: var(--component-text-secondary);
 }
 
+.para-backslash{
+  margin: .5rem 0;
+}
+
+.md-quote-block{
+  margin: 6px 0;
+}
+
 .icon-btn {
   background: transparent;
   color: var(--component-text-secondary);
@@ -1095,7 +1103,7 @@
 .syntax-highlight .katexoperator { color: var(--component-text-secondary); }
 .syntax-highlight .bracket { color: var(--featured); }
 .syntax-highlight .katexbracket { color: var(--component-text-secondary); }
-.syntax-highlight .tag { color: var(--code-tag); }
+.syntax-highlight .htmlTag { color: var(--code-tag); }
 .syntax-highlight .attribute { color: var(--code-attribute); }
 .syntax-highlight .property { color: var(--code-property); }
 .syntax-highlight .selector { color: var(--code-selector); }

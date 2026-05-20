@@ -200,6 +200,295 @@ export function parseTableMarkdown(text: string): Array<{header: string[], body:
   return results;
 }
 
+// Server-like syntax highlighting rules (copied/adapted from Astro page)
+const syntaxRules: Record<string, Array<{ pattern: RegExp; className: string }>> = {
+  c: [
+    { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
+    { pattern: /(["'])(?:(?!(\\|\1)).|\\.)*(\\|\1)/g, className: 'string' },
+    { pattern: /\b(auto|break|case|char|const|continue|default|do|double|else|enum|extern|float|for|goto|if|inline|int|long|register|restrict|return|short|signed|sizeof|static|struct|switch|typedef|union|unsigned|void|volatile|while|_Alignas|_Alignof|_Atomic|_Bool|_Complex|_Generic|_Imaginary|_Noreturn|_Static_assert|_Thread_local)\b/g, className: 'keyword' },
+    { pattern: /\b(true|false|NULL)\b/g, className: 'boolean' },
+    { pattern: /\b\d+\.?\d*(e[+-]?\d+)?[ulULfF]?\b/gi, className: 'number' },
+    { pattern: /[{}[\]()]/g, className: 'bracket' },
+    { pattern: /[+\-*/%=<>!&|?:.]/g, className: 'operator' }
+  ],
+  cpp: [
+    { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
+    { pattern: /(["'])(?:(?!(\\|\1)).|\\.)*(\\|\1)/g, className: 'string' },
+    { pattern: /\b(alignas|alignof|and|and_eq|asm|auto|bitand|bitor|bool|break|case|catch|char|char16_t|char32_t|class|compl|const|constexpr|const_cast|continue|decltype|default|delete|do|double|dynamic_cast|else|enum|explicit|export|extern|false|float|for|friend|goto|if|inline|int|long|mutable|namespace|new|noexcept|not|not_eq|nullptr|operator|or|or_eq|private|protected|public|register|reinterpret_cast|return|short|signed|sizeof|static|static_assert|static_cast|struct|switch|template|this|thread_local|throw|true|try|typedef|typeid|typename|union|unsigned|using|virtual|void|volatile|wchar_t|while|xor|xor_eq)\b/g, className: 'keyword' },
+    { pattern: /\b(true|false|nullptr)\b/g, className: 'boolean' },
+    { pattern: /\b\d+\.?\d*(e[+-]?\d+)?[ulULfF]?\b/gi, className: 'number' },
+    { pattern: /[{}[\]()]/g, className: 'bracket' },
+    { pattern: /[+\-*/%=<>!&|?:.]/g, className: 'operator' }
+  ],
+  css: [
+    { pattern: /\/\*([\s\S]*?)\*\//g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b([a-z-]+)(?=\s*:)/gi, className: 'property' },
+    { pattern: /#[0-9a-fA-F]{3,6}\b/g, className: 'color' },
+    { pattern: /\.[a-zA-Z_][\w-]*/g, className: 'selector' },
+    { pattern: /:[a-zA-Z-]+/g, className: 'selector' },
+    { pattern: /\b\d+\.?\d*(px|em|rem|%)?\b/g, className: 'number' }
+  ],
+  html: [
+    { pattern: /<!--([\s\S]*?)-->/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /<\/?[a-zA-Z][^\s>]*\b/g, className: 'htmlTag' },
+    { pattern: /\b(class|id|style|src|href|alt|title|type|value|name|rel|for|onclick|onchange|oninput|onfocus|onblur|checked|disabled|readonly|required|selected|multiple|placeholder|action|method|target|enctype|accept|autocomplete|autofocus|form|list|max|min|pattern|step|size|width|height|rows|cols|wrap|spellcheck|tabindex|accesskey|contenteditable|draggable|hidden|lang|translate|dir|data-[\w-]+)\b/g, className: 'attribute' }
+  ],
+  java: [
+    { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
+    { pattern: /(["'])(?:(?!(\\|\1)).|\\.)*(\\|\1)/g, className: 'string' },
+    { pattern: /\b(abstract|assert|boolean|break|byte|case|catch|char|class|const|continue|default|do|double|else|enum|extends|final|finally|float|for|goto|if|implements|import|instanceof|int|interface|long|native|new|null|package|private|protected|public|return|short|static|strictfp|super|switch|synchronized|this|throw|throws|transient|try|void|volatile|while)\b/g, className: 'keyword' },
+    { pattern: /\b(true|false)\b/g, className: 'boolean' },
+    { pattern: /\b\d+\.?\d*(e[+-]?\d+)?[fdl]?\b/gi, className: 'number' },
+    { pattern: /[{}[\]()]/g, className: 'bracket' },
+    { pattern: /[+\-*/%=<>!&|?:.]/g, className: 'operator' }
+  ],
+  javascript: [
+    { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
+    { pattern: /(["'`])(?:(?!(\\|\1)).|\\.)*(\\|\1)/g, className: 'string' },
+    { pattern: /\b(const|let|var|function|return|if|else|for|while|do|break|continue|switch|case|default|try|catch|finally|throw|class|extends|import|export|from|as|async|await|yield|typeof|instanceof|new|this|super|static|get|set|constructor)\b/g, className: 'keyword' },
+    { pattern: /\b(true|false|null|undefined|NaN|Infinity)\b/g, className: 'boolean' },
+    { pattern: /\b\d+\.?\d*(e[+-]?\d+)?[lf]?\b/gi, className: 'number' },
+    { pattern: /[{}[\]()]/g, className: 'bracket' },
+    { pattern: /[+\-*/%=<>!&|?:.]/g, className: 'operator' }
+  ],
+  json: [
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(true|false|null)\b/g, className: 'boolean' },
+    { pattern: /\b\d+\.?\d*\b/g, className: 'number' },
+    { pattern: /[{}[\]()]/g, className: 'bracket' },
+    { pattern: /[:,]/g, className: 'operator' }
+  ],
+  katex: [
+    { pattern: /(\%.*$)/gm, className: 'comment' },
+    { pattern: /[_+\-*/%=^&|]/g, className: 'katexoperator' },
+    { pattern: /\\[a-zA-Z]+(?![a-zA-Z])/g, className: 'katexcommand' },
+    { pattern: /\\[^a-zA-Z]/g, className: 'katexcommand' },
+    { pattern: /\b\d+\.?\d*\b/g, className: 'katexnumber' },
+    { pattern: /[{}[\]()]/g, className: 'katexbracket' },
+  ],
+  markdown: [
+    { pattern: /^\s{0,3}(#{1,6})\s+(.*)$/gm, className: 'header' },
+    { pattern: /\*\*(.*?)\*\*/g, className: 'bold' },
+    { pattern: /\*(.*?)\*/g, className: 'italic' },
+    { pattern: /`([^`]+)`/g, className: 'inline-code' },
+    { pattern: /^>\s+(.*)$/gm, className: 'quote' },
+    { pattern: /^\s*[-*+]\s+/gm, className: 'list' },
+    { pattern: /\[(.*?)\]\((.*?)\)/g, className: 'link' }
+  ],
+  python: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /(["']{3}[\s\S]*?["']{3}|(["'])(?:(?!\2).)*\2)/g, className: 'string' },
+    { pattern: /\b(def|class|if|elif|else|for|while|break|continue|return|try|except|finally|with|as|import|from|pass|raise|in|is|not|and|or|lambda|yield|assert|del|global|nonlocal|print)\b/g, className: 'keyword' },
+    { pattern: /\b(True|False|None)\b/g, className: 'boolean' },
+    { pattern: /\b\d+\.?\d*\b/g, className: 'number' },
+    { pattern: /[{}[\]()]/g, className: 'bracket' },
+    { pattern: /[+\-*/%=<>!&|]/g, className: 'operator' }
+  ],
+  typescript: [
+    { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
+    { pattern: /(["'`])(?:(?!(\\|\1)).|\\.)*(\\|\1)/g, className: 'string' },
+    { pattern: /\b(const|let|var|function|return|if|else|for|while|do|break|continue|switch|case|default|try|catch|finally|throw|class|extends|import|export|from|as|async|await|yield|typeof|instanceof|new|this|super|static|get|set|constructor|interface|type|enum|namespace|module|declare|abstract|implements|private|public|protected|readonly)\b/g, className: 'keyword' },
+    { pattern: /\b(string|number|boolean|object|any|void|never|unknown|Array|Promise|Date|RegExp)\b/g, className: 'type' },
+    { pattern: /\b(true|false|null|undefined|NaN|Infinity)\b/g, className: 'boolean' },
+    { pattern: /\b\d+\.?\d*(e[+-]?\d+)?[lf]?\b/gi, className: 'number' },
+    { pattern: /[{}[\]()]/g, className: 'bracket' },
+    { pattern: /[+\-*/%=<>!&|?:.]/g, className: 'operator' }
+  ],
+  apache: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /\b(Listen|ServerName|DocumentRoot|LoadModule|ProxyPass|ProxyPassReverse|ErrorLog|CustomLog|DirectoryIndex)\b/gi, className: 'keyword' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' }
+  ],
+  bash: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\$\w+|\$\{[^}]+}/g, className: 'variable' },
+    { pattern: /\b(if|then|else|fi|for|in|do|done|case|esac|function|return)\b/g, className: 'keyword' }
+  ],
+  dockerfile: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /\b(FROM|RUN|CMD|LABEL|EXPOSE|ENV|ADD|COPY|ENTRYPOINT|VOLUME|WORKDIR|USER)\b/gi, className: 'keyword' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' }
+  ],
+  git: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /\b(commit|push|pull|merge|rebase|checkout|branch|tag|clone)\b/gi, className: 'keyword' }
+  ],
+  go: [
+    { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(package|import|func|var|const|type|struct|interface|map|range|return|if|else|for|go|select|case|defer)\b/g, className: 'keyword' },
+    { pattern: /\b\d+\.?\d*\b/g, className: 'number' }
+  ],
+  ini: [
+    { pattern: /;.*/g, className: 'comment' },
+    { pattern: /\[[^\]]+\]/g, className: 'section' },
+    { pattern: /\b[\w.-]+(?=\s*=)/g, className: 'attribute' },
+    { pattern: /=/g, className: 'operator' }
+  ],
+  kotlin: [
+    { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(class|fun|val|var|if|else|for|in|while|when|object|interface|package|import|return|is|in|null)\b/g, className: 'keyword' }
+  ],
+  less: [
+    { pattern: /\/\*([\s\S]*?)\*\//g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\.[a-zA-Z_][\w-]*/g, className: 'selector' }
+  ],
+  lua: [
+    { pattern: /--.*$/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(function|local|if|then|else|elseif|end|for|in|do|while|repeat|until|return)\b/g, className: 'keyword' }
+  ],
+  matlab: [
+    { pattern: /%.*/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(function|end|if|else|for|while|switch|case|otherwise|return)\b/gi, className: 'keyword' }
+  ],
+  nginx: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /\b(server|location|listen|proxy_pass|root|index|server_name|error_page|access_log|try_files)\b/gi, className: 'keyword' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' }
+  ],
+  php: [
+    { pattern: /(\/\*?[[\s\S]*?\]?\*?\/)/g, className: 'comment' },
+    { pattern: /(<\?php[\s\S]*?\?>)/g, className: 'string' },
+    { pattern: /\b(function|echo|print|return|if|else|foreach|as|class|public|private|protected|namespace|use|new)\b/gi, className: 'keyword' }
+  ],
+  powershell: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(function|param|return|if|else|elseif|foreach|for|while|switch|break|continue)\b/gi, className: 'keyword' },
+    { pattern: /[A-Za-z]+-[A-Za-z]+/g, className: 'cmdlet' }
+  ],
+  r: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(function|if|else|for|while|repeat|in|next|break|return)\b/gi, className: 'keyword' }
+  ],
+  react: [
+    { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
+    { pattern: /(["'`])(?:(?!(\\|\1)).|\\.)*(\\|\1)/g, className: 'string' },
+    { pattern: /\b(const|let|var|function|return|if|else|for|while|do|break|continue|switch|case|default|try|catch|finally|throw|class|extends|import|export|from|as|async|await|yield|typeof|instanceof|new|this|super|static|get|set|constructor|interface|type|enum|namespace|module|declare|abstract|implements|private|public|protected|readonly)\b/g, className: 'keyword' }
+  ],
+  ruby: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(def|class|module|end|if|else|elsif|do|while|until|for|in|return)\b/gi, className: 'keyword' }
+  ],
+  rust: [
+    { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(fn|let|mut|pub|impl|trait|struct|enum|match|use|crate|mod|unsafe|async|await|move|ref|return)\b/g, className: 'keyword' }
+  ],
+  scss: [
+    { pattern: /\/\*([\s\S]*?)\*\//g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\.[a-zA-Z_][\w-]*/g, className: 'selector' }
+  ],
+  sql: [
+    { pattern: /--.*$/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(SELECT|FROM|WHERE|INSERT|INTO|VALUES|UPDATE|SET|DELETE|JOIN|LEFT|RIGHT|INNER|OUTER|ON|GROUP BY|ORDER BY|LIMIT|OFFSET|AS|AND|OR|NOT|NULL|IS|IN|CREATE|TABLE|ALTER|DROP)\b/gi, className: 'keyword' }
+  ],
+  swift: [
+    { pattern: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(func|let|var|if|else|for|in|while|return|class|struct|enum|protocol|extension|import)\b/g, className: 'keyword' }
+  ],
+  toml: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /\[[^\]]+\]/g, className: 'section' },
+    { pattern: /=/g, className: 'operator' }
+  ],
+  vue: [
+    { pattern: /<!--([\s\S]*?)-->/g, className: 'comment' },
+    { pattern: /<\/?[a-zA-Z][^\>]*>/g, className: 'htmlTag' }
+  ],
+  xml: [
+    { pattern: /<!--([\s\S]*?)-->/g, className: 'comment' },
+    { pattern: /<\/?[a-zA-Z][^\>]*>/g, className: 'htmlTag' },
+    { pattern: /\b([a-zA-Z-]+)(?=\=)/g, className: 'attribute' }
+  ],
+  yaml: [
+    { pattern: /#.*/g, className: 'comment' },
+    { pattern: /\b[\w-]+(?=\:)/g, className: 'attribute' },
+    { pattern: /\b(true|false|null)\b/g, className: 'boolean' }
+  ],
+  mermaid: [
+    { pattern: /^%%.*$/g, className: 'comment' },
+    { pattern: /%%\{[\s\S]*?\}%%/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(class|graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|gantt|erDiagram|pie|journey|subgraph|end|click|classDef|style|linkStyle|note|activate|deactivate|loop|alt|opt|par|rect|section|today|axis|direction|LR|TB|TD)\b/gi, className: 'keyword' },
+    { pattern: /(-->|->|---|==>|===|<--|<-)/g, className: 'operator' },
+    { pattern: /\[[^\]]*\]|\([^\)]*\)/g, className: 'bracket' }
+  ],
+  basic: [
+    { pattern: /'.*/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(PRINT|LET|IF|THEN|ELSE|FOR|TO|STEP|NEXT|GOTO|GOSUB|RETURN|DIM|REM|END|FUNCTION|SUB|WHILE|WEND|AND|OR|NOT|MOD)\b/gi, className: 'keyword' },
+    { pattern: /\b\d+\b/g, className: 'number' },
+    { pattern: /[+\-*/=<>]/g, className: 'operator' }
+  ],
+  vb: [
+    { pattern: /'[^]*/g, className: 'comment' },
+    { pattern: /("[^"]*"|'[^']*')/g, className: 'string' },
+    { pattern: /\b(If|Then|Else|ElseIf|End If|For|Each|Next|While|Wend|Function|Sub|Dim|As|Set|Let|Return|Select|Case|Do|Loop|And|Or|Not|Is|Mod|Private|Public|Friend|End)\b/gi, className: 'keyword' },
+    { pattern: /\b\d+\.?\d*\b/g, className: 'number' },
+    { pattern: /[+\-*/=<>]/g, className: 'operator' }
+  ],
+  plain: []
+}
+
+function escapeHtmlText(text: string): string {
+  return String(text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function highlightCode(code: string, language: string): string {
+  try {
+    if (!code || !language || language === 'plain' || language === 'text' || !syntaxRules[language]) {
+      return escapeHtmlText(code)
+    }
+
+    const rules = syntaxRules[language] || []
+    let highlighted = code
+    const placeholders: Array<{ index: number; replacement: string }> = []
+    let placeholderIndex = 0
+
+    rules.forEach((rule: { pattern: RegExp; className: string }) => {
+      try {
+        highlighted = highlighted.replace(rule.pattern, (match) => {
+          const placeholder = `__HIGHLIGHT_${placeholderIndex}__`
+          placeholders.push({ index: placeholderIndex, replacement: `<span class="${rule.className}">${escapeHtmlText(match)}</span>` })
+          placeholderIndex++
+          return placeholder
+        })
+      } catch (e) {
+        // skip rule on failure
+      }
+    })
+
+    highlighted = escapeHtmlText(highlighted)
+
+    placeholders.forEach(({ index, replacement }) => {
+      const placeholder = `__HIGHLIGHT_${index}__`
+      highlighted = highlighted.replace(escapeHtmlText(placeholder), replacement)
+    })
+
+    return highlighted
+  } catch (e) {
+    return escapeHtmlText(code)
+  }
+}
+
 export function parseMarkdown(content: string, cacheKey?: number): Array<ContentBlock> {
   // 先用convertToHtml的分段逻辑拆分
   const lines = content.split(/\n/)
@@ -469,7 +758,7 @@ export function parseMarkdown(content: string, cacheKey?: number): Array<Content
 }
 
 // 用自定义控件占位符替换表格，后续由TextEditor渲染MarkdownTable组件
-export function convertToHtml(text: any): string {
+export function convertToHtml(text: any, options?: { wrapBlocks?: boolean }): string {
     // 渲染每个段落
   // 新的段落换行与反斜杠处理逻辑
   function renderParaBlock(block: string) {
@@ -580,6 +869,55 @@ export function convertToHtml(text: any): string {
       }
       return renderList(lines)
     }
+    // Code block
+    if (block && block.type === 'code') {
+      const codeRaw = String(block.content || '')
+      const codeEsc = escapeAttr(codeRaw)
+      const lang = (block.language || '').trim() || 'plain'
+      const safeLang = escapeAttr(lang)
+      const lines = codeRaw.split('\n').length || 1
+      const lineHeight = 20
+      const height = Math.max(80, Math.min(360, lines * lineHeight + 24))
+
+      const highlightedCodeHtml = highlightCode(codeRaw, lang)
+      const chunkHtml = `
+        <div class="code-chunk-container">
+          <div class="editor-header">
+            <div class="header-left">
+              <select class="language-selector transparent-select" title="${safeLang}" disabled style="font-family: var(--app-font-stack);">
+                <option value="${safeLang}" selected>${safeLang}</option>
+              </select>
+            </div>
+            <div class="toolbar">
+              <button class="icon-btn copy-btn" title="Copy" data-code="${escapeAttr(codeRaw)}">
+                <svg class="copy-icon" width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="7" y="7" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.5"></rect><rect x="4" y="4" width="9" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"></rect></svg>
+                <svg class="success-icon" width="18" height="18" viewBox="0 0 20 20" fill="none" style="display: none;"><path d="M4 10l3 3 9-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </button>
+            </div>
+          </div>
+          <div class="editor-wrapper" style="height: ${height}px;">
+            <div class="editor-content">
+              <pre class="syntax-highlight" style="padding: 0.7rem 1.5rem 1.2rem 1.5rem; font-size: 13.5px; line-height: 1.3em; font-family: inherit; box-sizing: border-box;"><code>${highlightedCodeHtml}</code></pre>
+              <textarea class="code-textarea" spellcheck="false" placeholder="" readonly >${escapeAttr(codeRaw)}</textarea>
+            </div>
+          </div>
+          <div class="editor-footer"><span><span>${escapeAttr(String(codeRaw.length))} 字符</span> &nbsp;|&nbsp; <span>${lines} 行</span></span></div>
+        </div>
+      `
+
+      return `<div class="content-block" data-block-index="${block.start || 0}" data-type="code" data-language="${safeLang}">${chunkHtml}</div>`
+    }
+    // Table block -> render HTML table for published output
+    if (block && block.type === 'table') {
+      // If header/body provided, render semantic table
+      if (block.header && Array.isArray(block.header)) {
+        const th = block.header.map((h: string) => `<th>${escapeAttr(String(h))}</th>`).join('')
+        const rows = (block.body || []).map((r: string[]) => `\n<tr>${r.map((c: string)=>`<td>${escapeAttr(String(c))}</td>`).join('')}</tr>`).join('')
+        return `<table class="md-table"><thead><tr>${th}</tr></thead><tbody>${rows}</tbody></table>`
+      }
+      // Fallback: output raw content escaped
+      return `<div class="md-table-raw">${escapeAttr(String(block.content || ''))}</div>`
+    }
     // 其他类型走原有逻辑
     if (typeof block === 'string') return renderParaBlock(block)
     if (block && typeof block.content === 'string') return renderParaBlock(block.content)
@@ -595,7 +933,36 @@ export function convertToHtml(text: any): string {
   } else {
     parsedBlocks = [text]
   }
-  return parsedBlocks.map(renderBlock).join('\n')
+  if (!options || !options.wrapBlocks) {
+    return parsedBlocks.map(renderBlock).join('\n')
+  }
+
+  // Wrap blocks similarly to how MdParser.vue renders them so compiled HTML
+  // matches the read-only preview structure (content-block wrappers, parsed-html-content).
+  return parsedBlocks.map((block: any, idx: number) => {
+    const html = renderBlock(block)
+    // If block is an object with a type, we can decide wrapper style
+    if (block && typeof block === 'object' && block.type === 'quote') {
+      return `<div class="content-block text-block" data-block-index="${idx}">${html}</div>`
+    }
+    if (block && typeof block === 'object' && (block.type === 'code' || block.type === 'table')) {
+      return `<div class="content-block" data-block-index="${idx}">${html}</div>`
+    }
+    // Default: text-like block wrapped with parsed-html-content
+    return `<div class="content-block text-block" data-block-index="${idx}"><div class="parsed-html-content">${html}</div></div>`
+  }).join('\n')
+}
+
+// Inject heading ids into an HTML string using a precomputed TOC.
+export function injectHeadingIds(html: string, toc: Array<{id: string, text: string, level: number}>): string {
+  if (!html || !Array.isArray(toc) || toc.length === 0) return html
+  let i = 0
+  return html.replace(/<h([1-6])>([\s\S]*?)<\/h\1>/g, (match, level, inner) => {
+    if (i >= toc.length) return match
+    const id = toc[i++].id || ''
+    if (!id) return match
+    return `<h${level} id="${id}">${inner}</h${level}>`
+  })
 }
 
 // Asynchronously hydrate KaTeX placeholders inside a container element.
