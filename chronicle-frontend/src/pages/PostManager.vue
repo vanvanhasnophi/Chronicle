@@ -323,6 +323,7 @@ onMounted(() => {
   border-radius: 4px;
   font-size: 0.8em;
   font-weight: bold;
+  font-variation-settings: 'wght' 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }

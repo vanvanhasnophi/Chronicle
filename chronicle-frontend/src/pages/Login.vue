@@ -212,6 +212,7 @@ input {
   border-radius: 6px;
   cursor: pointer;
   font-weight: bold;
+  font-variation-settings: 'wght' 600;
 }
 .passkey-btn {
   width: 100%;
@@ -251,6 +252,7 @@ button {
   border-radius: 6px;
   cursor: pointer;
   font-weight: bold;
+  font-variation-settings: 'wght' 600;
   font-size: 1.05em;
 }
 button:disabled {
@@ -286,6 +288,7 @@ button:disabled {
     border-radius: 4px;
     cursor: pointer;
     font-weight: bold;
+    font-variation-settings: 'wght' 600;
 }
 .secondary-btn:hover {
   background: var(--component-bg-hover);

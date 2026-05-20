@@ -887,6 +887,7 @@ i, em {
 }
 strong, b {
   font-weight: bold;
+  font-variation-settings: 'wght' 700;
 }
 
 /* Image Centering & Wrapper */
