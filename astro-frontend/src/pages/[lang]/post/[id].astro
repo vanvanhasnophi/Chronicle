@@ -4,6 +4,7 @@ import { getApiUrl } from '../../../config/api';
 import { getTranslation, getLocale } from '../../../utils/i18n';
 import { buildLocalizedPath, toContentLocale } from '../../../utils/routeLocale';
 import { buildTocItems, injectHeadingIds } from '../../../utils/toc';
+import { renderCodeBlockStatsHtml, renderCodeBlockLangLabelsHtml } from '../../../utils/markdownParser';
 import DesktopFloatingToc from '../../../components/FloatingToc.vue';
 import MobileTocPanel from '../../../components/MobileTocPanel.vue';
 import CornerActions from '../../../components/CornerActions.vue';
@@ -324,8 +325,15 @@ if (renderedPostContent) {
     length: renderedPostContent.length,
     htmlSource: !!rawPostHtml,
   });
-  try {
+    try {
     renderedPostContent = injectHeadingIds(renderedPostContent, tocItems);
+    // Render localized code block stats and language labels during SSR/build. If locale unknown, fall back to English.
+    try {
+      renderedPostContent = renderCodeBlockStatsHtml(renderedPostContent, locale)
+      try { renderedPostContent = renderCodeBlockLangLabelsHtml(renderedPostContent, locale) } catch (e) {}
+    } catch (e) {
+      // ignore and keep placeholders
+    }
   } catch (renderErr) {
     // If rendering fails completely, fall back to escaped raw content
     console.error('[Post SSR] Rendering failed:', renderContextLabel, renderErr);
@@ -619,6 +627,8 @@ if (renderedPostContent) {
       // Mermaid图表已在服务端预渲染，客户端无需处理
       console.log('Mermaid图表已在服务端预渲染');
     }
+
+    // code block stats are rendered during SSR; no client-side hydration needed
   </script>
 
   <script define:vars={{ POST_ID: JSON.stringify(post?.id || id), POST_TITLE: JSON.stringify(post?.title || '') }} is:inline>

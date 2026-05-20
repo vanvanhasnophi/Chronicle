@@ -957,25 +957,32 @@ async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
             closeModals()
 
             if (shouldBuildAstro) {
+                // First, attempt to read server settings. If this fails, treat as false (do not trigger build).
+                let allowBuild = false
                 try {
-                    // Respect server-side setting: only trigger build if autoBuildOnPublish enabled
                     const sres = await fetchWithAuth(`/api/settings?t=${Date.now()}`)
                     if (sres.ok) {
                         const settings = await sres.json()
-                        if (settings && settings.autoBuildOnPublish) {
-                            await triggerAstroBuild(data.id || postId.value || '')
-                        } else {
-                            // server-side disabled auto-build; mark as published
-                            postStatus.value = 'published'
-                        }
+                        allowBuild = !!(settings && settings.autoBuildOnPublish)
                     } else {
-                        // couldn't read settings, default to not triggering build to be safe
-                        postStatus.value = 'published'
+                        allowBuild = false
                     }
-                } catch (buildError) {
+                } catch (e) {
+                    // network or other error reading settings -> treat as false
+                    allowBuild = false
+                }
+
+                if (allowBuild) {
+                    try {
+                        await triggerAstroBuild(data.id || postId.value || '')
+                    } catch (buildError) {
+                        postStatus.value = 'published'
+                        console.error('[BlogEditor] Astro build failed after publish', buildError)
+                        alert(t('editor.buildFailed'))
+                    }
+                } else {
+                    // Not allowed or failed to read settings -> skip build
                     postStatus.value = 'published'
-                    console.error('[BlogEditor] Astro build failed after publish', buildError)
-                    alert(t('editor.buildFailed'))
                 }
             }
         } else {

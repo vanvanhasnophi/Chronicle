@@ -758,7 +758,7 @@ export function parseMarkdown(content: string, cacheKey?: number): Array<Content
 }
 
 // 用自定义控件占位符替换表格，后续由TextEditor渲染MarkdownTable组件
-export function convertToHtml(text: any, options?: { wrapBlocks?: boolean }): string {
+export function convertToHtml(text: any, options?: { wrapBlocks?: boolean, locale?: string }): string {
     // 渲染每个段落
   // 新的段落换行与反斜杠处理逻辑
   function renderParaBlock(block: string) {
@@ -880,12 +880,34 @@ export function convertToHtml(text: any, options?: { wrapBlocks?: boolean }): st
       const height = Math.max(80, Math.min(360, lines * lineHeight + 24))
 
       const highlightedCodeHtml = highlightCode(codeRaw, lang)
+      // Language display mapping (optional per-locale). If options.locale is not provided,
+      // we will display the raw language value.
+      const langLabelMaps: Record<string, Record<string, string>> = {
+        'en': {
+          apache: 'Apache', bash: 'Bash', basic: 'Basic', vb: 'VB', c: 'C', cpp: 'C++', csharp: 'C#', css: 'CSS',
+          dockerfile: 'Dockerfile', git: 'Git', go: 'Go', html: 'HTML', ini: 'INI/Config', java: 'Java', javascript: 'JavaScript', json: 'JSON',
+          katex: 'KaTeX', kotlin: 'Kotlin', less: 'LESS', lua: 'Lua', markdown: 'Markdown', matlab: 'MATLAB', mermaid: 'Mermaid', nginx: 'Nginx',
+          php: 'PHP', powershell: 'PowerShell', python: 'Python', r: 'R', react: 'React/JSX', ruby: 'Ruby', rust: 'Rust', scss: 'SCSS',
+          sql: 'SQL', swift: 'Swift', toml: 'TOML', typescript: 'TypeScript', vue: 'Vue', xml: 'XML', yaml: 'YAML', plain: 'Plain Text'
+        },
+        'zh-CN': {
+          apache: 'Apache', bash: 'Bash', basic: 'Basic', vb: 'VB', c: 'C', cpp: 'C++', csharp: 'C#', css: 'CSS',
+          dockerfile: 'Dockerfile', git: 'Git', go: 'Go', html: 'HTML', ini: 'INI/配置', java: 'Java', javascript: 'JavaScript', json: 'JSON',
+          katex: 'KaTeX', kotlin: 'Kotlin', less: 'LESS', lua: 'Lua', markdown: 'Markdown', matlab: 'MATLAB', mermaid: 'Mermaid', nginx: 'Nginx',
+          php: 'PHP', powershell: 'PowerShell', python: 'Python', r: 'R', react: 'React/JSX', ruby: 'Ruby', rust: 'Rust', scss: 'SCSS',
+          sql: 'SQL', swift: 'Swift', toml: 'TOML', typescript: 'TypeScript', vue: 'Vue', xml: 'XML', yaml: 'YAML', plain: '纯文本'
+        }
+      }
+
+      const locale = options && options.locale ? (options.locale === 'en' ? 'en' : 'zh-CN') : undefined
+      const displayLabel = locale ? (langLabelMaps[locale]?.[lang] ?? lang) : lang
+
       const chunkHtml = `
         <div class="code-chunk-container">
           <div class="editor-header">
             <div class="header-left">
               <select class="language-selector transparent-select" title="${safeLang}" disabled style="font-family: var(--app-font-stack);">
-                <option value="${safeLang}" selected>${safeLang}</option>
+                <option value="${safeLang}" selected>${escapeAttr(displayLabel)}</option>
               </select>
             </div>
             <div class="toolbar">
@@ -901,7 +923,7 @@ export function convertToHtml(text: any, options?: { wrapBlocks?: boolean }): st
               <textarea class="code-textarea" spellcheck="false" placeholder="" readonly >${escapeAttr(codeRaw)}</textarea>
             </div>
           </div>
-          <div class="editor-footer"><span><span>${escapeAttr(String(codeRaw.length))} 字符</span> &nbsp;|&nbsp; <span>${lines} 行</span></span></div>
+          <div class="editor-footer" data-chars="${escapeAttr(String(codeRaw.length))}" data-lines="${lines}"><span><span class="code-stat-chars"></span> &nbsp;|&nbsp; <span class="code-stat-lines"></span></span></div>
         </div>
       `
 
@@ -1084,6 +1106,7 @@ export function blocksToMarkdown(blocks: ContentBlock[]): string {
   }
   return md.trim();
 }
+
 
 export function unescapeMarkdownCell(cell: string) {
   // 反转义顺序要和转义顺序相反

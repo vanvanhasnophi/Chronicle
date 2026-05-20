@@ -43,7 +43,7 @@
             <option value="vb">Visual Basic</option>
             <option value="xml">XML</option>
             <option value="yaml">YAML</option>
-            <option value="plain">纯文本</option>
+            <option value="plain">Plain Text</option>
         </select>
       </div>
       <div class="toolbar">

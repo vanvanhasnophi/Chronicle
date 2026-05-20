@@ -386,6 +386,22 @@ export function parseMarkdown(content: string, cacheKey?: number): Array<Content
       continue
     }
     // 标题
+    // 缩进的代码块（4 空格或 tab 开头）
+    if (/^(?:\s{4,}|\t)/.test(line)) {
+      let codeLines: string[] = []
+      // 收集连续的缩进行
+      let j = i
+      while (j < lines.length && /^(?:\s{4,}|\t)/.test(lines[j])) {
+        // 去除前导的 4 个空格或单个 tab
+        codeLines.push(lines[j].replace(/^(?:\s{4}|\t)/, ''))
+        j++
+      }
+      blocks.push({ type: 'code', content: codeLines.join('\n') })
+      i = j
+      continue
+    }
+
+    // 标题
     if (/^\s*#{1,6} /.test(line)) {
       blocks.push({ type: 'heading', content: line })
       i++
@@ -808,4 +824,58 @@ export function getStats(md: string) {
         markdownCount,
         summary
     }
+}
+
+// Note: code block stats are rendered during SSR via `renderCodeBlockStatsHtml`.
+// Client-side hydration was removed to avoid shipping extra runtime JS.
+
+// Server-side render: replace code block stat placeholders with localized labels.
+// This is intended to be used during SSR/build time where `locale` is known.
+export function renderCodeBlockStatsHtml(html: string, locale?: string) {
+  if (!html) return html
+  const loc = locale === 'en' ? 'en' : 'zh-CN'
+
+  const labels: Record<string, (chars:number, lines:number)=>string> = {
+    'en': (c, l) => `${c} ${c === 1 ? 'char' : 'chars'} &nbsp;|&nbsp; ${l} ${l === 1 ? 'line' : 'lines'}`,
+    'zh-CN': (c, l) => `${c} 字符 &nbsp;|&nbsp; ${l} 行`
+  }
+
+  const replacer = (match: string, chars: string, lines: string) => {
+    const c = Number(chars) || 0
+    const l = Number(lines) || 0
+    const text = (labels[loc] || labels['en'])(c, l)
+    return `<div class="editor-footer" data-chars="${chars}" data-lines="${lines}"><span><span>${text}</span></span></div>`
+  }
+
+  // match the editor-footer with data-chars and data-lines attributes
+  return html.replace(/<div\s+class=(?:"|')editor-footer(?:"|')\s+data-chars="(\d+)"\s+data-lines="(\d+)">[\s\S]*?<\/div>/g, replacer)
+}
+
+// Server-side: replace the language selector option text with localized labels.
+export function renderCodeBlockLangLabelsHtml(html: string, locale?: string) {
+  if (!html) return html
+  const loc = locale === 'en' ? 'en' : 'zh-CN'
+
+  const maps: Record<string, Record<string, string>> = {
+    'en': {
+      plain: 'Plain Text', javascript: 'JavaScript', typescript: 'TypeScript', python: 'Python', java: 'Java', c: 'C', cpp: 'C++',
+      css: 'CSS', html: 'HTML', vue: 'Vue', json: 'JSON', yaml: 'YAML', markdown: 'Markdown', bash: 'Bash', xml: 'XML',
+      astro: 'Astro', kotlin: 'Kotlin', php: 'PHP', ruby: 'Ruby', swift: 'Swift', toml: 'TOML', sql: 'SQL',
+      mermaid: 'Mermaid', katex: 'KaTeX', dockerfile: 'Dockerfile', vb: 'VB'
+    },
+    'zh-CN': {
+      plain: '纯文本', javascript: 'JavaScript', typescript: 'TypeScript', python: 'Python', java: 'Java', c: 'C', cpp: 'C++',
+      css: 'CSS', html: 'HTML', vue: 'Vue', json: 'JSON', yaml: 'YAML', markdown: 'Markdown', bash: 'Bash', xml: 'XML',
+      astro: 'Astro', kotlin: 'Kotlin', php: 'PHP', ruby: 'Ruby', swift: 'Swift', toml: 'TOML', sql: 'SQL',
+      mermaid: 'Mermaid', katex: 'KaTeX', dockerfile: 'Dockerfile', vb: 'VB'
+    }
+  }
+
+  const map = maps[loc] || maps['en']
+
+  return html.replace(/<select\b[^>]*>\s*<option\b[^>]*value="([^"]+)"[^>]*>([\s\S]*?)<\/option>\s*<\/select>/g, (_full, value, inner) => {
+    const key = String(value || inner || '').trim()
+    const label = map[key] || key
+    return `<select class="language-selector transparent-select" title="${escapeAttr(key)}" disabled style="font-family: var(--app-font-stack);"><option value="${escapeAttr(key)}" selected>${escapeAttr(label)}</option></select>`
+  })
 }
