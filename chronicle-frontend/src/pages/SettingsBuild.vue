@@ -138,6 +138,14 @@
             <span v-if="building" class="small muted">{{ $t('settings.building') }}</span>
           </div>
         </div>
+
+        <!-- Segment 4: Build Triggers -->
+        <div class="settings-segment">
+          <h4 class="segment-title">{{ $t('settings.buildTriggers') }}</h4>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <CheckRow v-model="triggers.onPublish" :title="$t('settings.autoBuildOnPublish')" :hint="$t('settings.autoBuildOnPublishHint')" />
+          </div>
+        </div>
       </section>
     </div>
 
@@ -175,6 +183,7 @@ const schedule = ref({
   customCron: ''
 })
 const build = ref({ granularity: 'full' as 'full' | 'posts' | 'index' })
+const triggers = ref({ onPublish: false })
 const building = ref(false)
 const loading = ref(false)
 
@@ -375,6 +384,8 @@ async function load() {
     schedule.value.weekday = parseNumber(s.scheduledBuildWeekday, 1)
     schedule.value.customCron = String(s.scheduledBuildCron || s.scheduledBuildCrontab || '')
     build.value.granularity = s.buildGranularity || 'full'
+    // load build trigger (only publish supported for now)
+    triggers.value.onPublish = !!s.autoBuildOnPublish
   } catch (e) {}
   finally { loading.value = false }
 }
@@ -390,6 +401,8 @@ async function save() {
       scheduledBuildWeekday: schedule.value.weekday,
       scheduledBuildCron: schedule.value.customCron.trim(),
       buildGranularity: build.value.granularity,
+      // build trigger flags (only publish)
+      autoBuildOnPublish: triggers.value.onPublish,
       frontendUrl: frontendUrl.value,
       frontendCodeDir: frontendCodeDir.value,
       frontendBuildTargetDir: frontendBuildTargetDir.value

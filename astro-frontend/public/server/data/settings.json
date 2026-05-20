@@ -29,6 +29,7 @@
   "scheduledBuildHour": 2,
   "scheduledBuildWeekday": 1,
   "scheduledBuildCron": "",
+  "autoBuildOnPublish": false,
   "buildGranularity": "full",
   "frontendUrl": "blog.eightyfor.top",
   "frontendCodeDir": "/opt/Chronicle/astro-frontend",

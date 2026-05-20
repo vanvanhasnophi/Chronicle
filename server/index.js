@@ -3131,9 +3131,12 @@ app.post('/api/post', (req, res) => {
         const now = new Date().toISOString();
         const content = data.content;
         const status = data.status;
+        // track whether this post was already published before this request
+        let wasPublished = false;
 
         if (data.id) {
             post = posts.find(p => p.id === data.id);
+            if (post) wasPublished = post.status === 'published';
             if (post) {
                 post.title = data.title || post.title;
                 if (data.author !== undefined) post.author = String(data.author || '').trim();
@@ -3242,6 +3245,21 @@ app.post('/api/post', (req, res) => {
 
         fs.writeFileSync(INDEX_FILE, JSON.stringify(posts, null, 2));
         res.json({ success: true, id: post.id });
+
+        // If this request caused a promotion to published, and settings allow it,
+        // trigger an async frontend build from the server side.
+        try {
+            const settings = getBuildSettings();
+            const shouldAutoBuild = !!settings.autoBuildOnPublish;
+            const becamePublished = post && post.status === 'published' && !wasPublished;
+            if (shouldAutoBuild && becamePublished) {
+                console.log('[AutoBuild] Post published — triggering frontend build (async)');
+                // non-blocking trigger; buildAstroFrontendWithTimeout resolves with status or timeout
+                buildAstroFrontendWithTimeout(settings, { granularity: settings.buildGranularity })
+                    .then(result => console.log('[AutoBuild] Build result:', result.status, result.buildId))
+                    .catch(err => console.error('[AutoBuild] Build failed:', err && err.message ? err.message : err));
+            }
+        } catch (e) { console.error('[AutoBuild] Failed to check/trigger build on publish', e) }
     } catch(e) {
         console.error(e);
         res.status(500).send('Error');

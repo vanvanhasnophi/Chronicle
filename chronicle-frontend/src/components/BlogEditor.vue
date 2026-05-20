@@ -958,7 +958,20 @@ async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
 
             if (shouldBuildAstro) {
                 try {
-                    await triggerAstroBuild(data.id || postId.value || '')
+                    // Respect server-side setting: only trigger build if autoBuildOnPublish enabled
+                    const sres = await fetchWithAuth(`/api/settings?t=${Date.now()}`)
+                    if (sres.ok) {
+                        const settings = await sres.json()
+                        if (settings && settings.autoBuildOnPublish) {
+                            await triggerAstroBuild(data.id || postId.value || '')
+                        } else {
+                            // server-side disabled auto-build; mark as published
+                            postStatus.value = 'published'
+                        }
+                    } else {
+                        // couldn't read settings, default to not triggering build to be safe
+                        postStatus.value = 'published'
+                    }
                 } catch (buildError) {
                     postStatus.value = 'published'
                     console.error('[BlogEditor] Astro build failed after publish', buildError)
