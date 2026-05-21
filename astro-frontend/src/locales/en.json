@@ -115,6 +115,22 @@
     "failedToDelete": "Failed to delete",
     "errorDeleting": "Error deleting"
   },
+  "preview": {
+    "pdfUnsupported": "Your browser cannot display PDF inline. You can download it instead.",
+    "downloadPdf": "Download PDF",
+    "textLoading": "Loading text...",
+    "textPreviewEmpty": "Empty file",
+    "textDecodeError": "Unable to preview text (decoding or loading failed)",
+    "truncated": "Truncated",
+    "previewNotSupported": "Preview not supported for this file type.",
+    "mermaid": {
+      "downloadSvg": "Download SVG",
+      "split": "Split View",
+      "code": "Code Only",
+      "preview": "Preview Only",
+      "notPrerendered": "No prerendered Mermaid SVG found."
+    }
+  },
   "search": {
     "selectTags": "Select Tags",
     "placeholder": "Search by title...",

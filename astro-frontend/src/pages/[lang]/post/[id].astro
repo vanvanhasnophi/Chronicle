@@ -3,7 +3,7 @@ import Layout from '../../../layouts/Layout.astro';
 import { getApiUrl } from '../../../config/api';
 import { getTranslation, getLocale } from '../../../utils/i18n';
 import { buildLocalizedPath, toContentLocale } from '../../../utils/routeLocale';
-import { buildTocItems, injectHeadingIds } from '../../../utils/toc';
+import { buildTocItems } from '../../../utils/toc';
 import { renderCodeBlockStatsHtml, renderCodeBlockLangLabelsHtml } from '../../../utils/markdownParser';
 import DesktopFloatingToc from '../../../components/FloatingToc.vue';
 import MobileTocPanel from '../../../components/MobileTocPanel.vue';
@@ -75,7 +75,8 @@ function toMediaCard(label: string, href: string, type: 'audio' | 'video' | 'fil
   const typeLabel = type === 'audio' ? 'Audio' : type === 'video' ? 'Video' : 'Document';
   const icon = getMediaIcon(type);
 
-  return `<div class="file-card" data-url="${safeHref}" data-name="${safeLabel}" data-type="${typeLabel}"><div class="file-card-icon">${icon}</div><div class="file-card-info"><div class="file-name">${safeLabel}</div><div class="file-type">${typeLabel}</div></div></div>`;
+  // Make file-card keyboard-focusable and announceable for accessibility
+  return `<div class="file-card" tabindex="0" role="button" aria-label="Preview file: ${escapeHtmlText(String(safeLabel))}" data-url="${safeHref}" data-name="${safeLabel}" data-type="${typeLabel}"><div class="file-card-icon">${icon}</div><div class="file-card-info"><div class="file-name">${safeLabel}</div><div class="file-type">${typeLabel}</div></div></div>`;
 }
 
 function rewriteMediaLinks(renderedHtml: string): string {
@@ -178,6 +179,13 @@ const backToBlogs = buildLocalizedPath(routeLang, '/blogs');
 const searchForTags = buildLocalizedPath(routeLang, '/search?tags=');
 const t = (key: string) => getTranslation(locale, key);
 const { id } = Astro.params;
+const mermaidUiText = {
+  downloadSvg: t('preview.mermaid.downloadSvg'),
+  split: t('preview.mermaid.split'),
+  code: t('preview.mermaid.code'),
+  preview: t('preview.mermaid.preview'),
+  notPrerendered: t('preview.mermaid.notPrerendered'),
+};
 
 let post: any = null;
 let error = null;
@@ -313,11 +321,11 @@ const isAI = post?.aiGenerated || false;
 const rawPostHtml = typeof post?.html === 'string' ? post.html : '';
 const rawPostMarkdown = typeof post?.content === 'string' ? post.content : '';
 const renderContextLabel = `${post?.id || id || 'unknown-id'}${post?.title ? `:${post.title}` : ''}`;
-const tocItems = buildTocItems(rawPostHtml, true, post?.toc);
-
 let renderedPostContent = rawPostHtml
   ? hydrateLegacyKatexPlaceholders(rawPostHtml, renderContextLabel)
   : (rawPostMarkdown ? `<pre class="md-fallback">${escapeHtmlText(rawPostMarkdown)}</pre>` : '');
+
+let tocItems: any[] = [];
 
 if (renderedPostContent) {
   console.info('[Post SSR] Rendering post content', {
@@ -326,14 +334,26 @@ if (renderedPostContent) {
     htmlSource: !!rawPostHtml,
   });
     try {
-    renderedPostContent = injectHeadingIds(renderedPostContent, tocItems);
-    // Render localized code block stats and language labels during SSR/build. If locale unknown, fall back to English.
+    // First apply server-side replacements that may affect headings (code footers, language labels)
     try {
       renderedPostContent = renderCodeBlockStatsHtml(renderedPostContent, locale)
       try { renderedPostContent = renderCodeBlockLangLabelsHtml(renderedPostContent, locale) } catch (e) {}
     } catch (e) {
       // ignore and keep placeholders
     }
+
+    // Use server-provided TOC only. Do NOT compute TOC during Astro build.
+    // This enforces server as the single source of truth and avoids
+    // mis-detecting headings inside code blocks or file-cards.
+    if (post && Array.isArray(post.toc) && post.toc.length > 0) {
+      // normalize and use the server-provided toc; content isn't needed
+      tocItems = buildTocItems('', true, post.toc);
+    } else {
+      console.warn('[Post SSR] Server TOC missing for post, skipping local TOC generation', renderContextLabel);
+      tocItems = [];
+    }
+
+    // Server is authoritative for heading ids; do not modify them here.
   } catch (renderErr) {
     // If rendering fails completely, fall back to escaped raw content
     console.error('[Post SSR] Rendering failed:', renderContextLabel, renderErr);
@@ -589,6 +609,9 @@ if (renderedPostContent) {
         console.error('初始化数学公式 tooltip 失败:', err);
       });
 
+      // Initialize special Mermaid code-block interactions (mode switch + SVG download)
+      initMermaidCodeBlocks();
+
       // 初始化复制按钮
       const copyButtons = document.querySelectorAll('.copy-btn');
       copyButtons.forEach(button => {
@@ -622,17 +645,260 @@ if (renderedPostContent) {
     
     // Google Analytics: post_view handling moved to standalone script below
     
-    // Mermaid图表渲染函数（占位符，实际在服务端预渲染）
-    function renderMermaidDiagrams() {
-      // Mermaid图表已在服务端预渲染，客户端无需处理
-      console.log('Mermaid图表已在服务端预渲染');
+    // Mermaid support for published read-only code blocks.
+    // IMPORTANT: Astro side never renders Mermaid; we only consume server-prerendered SVG.
+
+    function getMermaidUiText() {
+      const w = (typeof window !== 'undefined') ? (window as any) : null;
+      const fallback = {
+        downloadSvg: 'Download SVG',
+        split: 'Split View',
+        code: 'Code Only',
+        preview: 'Preview Only',
+        notPrerendered: 'No prerendered Mermaid SVG found.'
+      };
+      if (!w || !w.__MERMAID_UI_TEXT) return fallback;
+      const ui = w.__MERMAID_UI_TEXT;
+      return {
+        downloadSvg: String(ui.downloadSvg || fallback.downloadSvg),
+        split: String(ui.split || fallback.split),
+        code: String(ui.code || fallback.code),
+        preview: String(ui.preview || fallback.preview),
+        notPrerendered: String(ui.notPrerendered || fallback.notPrerendered)
+      };
+    }
+
+    function makeIconButton(title: string, iconSvg: string, extraClass = '') {
+      const btn = document.createElement('button');
+      btn.className = `icon-btn ${extraClass}`.trim();
+      btn.type = 'button';
+      btn.title = title;
+      btn.setAttribute('aria-label', title);
+      btn.innerHTML = iconSvg;
+      return btn;
+    }
+
+    function initMermaidCodeBlocks() {
+      const ui = getMermaidUiText();
+      const blocks = document.querySelectorAll('.content-block[data-language="mermaid"] .code-chunk-container, .code-chunk-container[data-language="mermaid"]');
+      if (!blocks || blocks.length === 0) return;
+
+      blocks.forEach((block: Element) => {
+        if (!(block instanceof HTMLElement)) return;
+        if (block.dataset.mermaidEnhanced === '1') return;
+
+        const editorWrapper = block.querySelector('.editor-wrapper') as HTMLElement | null;
+        const toolbar = block.querySelector('.toolbar') as HTMLElement | null;
+        const editorFooter = block.querySelector('.editor-footer') as HTMLElement | null;
+        if (!(editorWrapper instanceof HTMLElement) || !(toolbar instanceof HTMLElement)) return;
+        const safeEditorWrapper: HTMLElement = editorWrapper;
+
+        const copyBtn = block.querySelector('.copy-btn') as HTMLElement | null;
+        const textarea = block.querySelector('.code-textarea') as HTMLTextAreaElement | null;
+        const codeText = (copyBtn && copyBtn.getAttribute('data-code')) || (textarea && textarea.value) || '';
+        if (!codeText.trim()) return;
+
+        block.dataset.mermaidEnhanced = '1';
+
+        const preview = document.createElement('div');
+        preview.className = 'mermaid-preview';
+        preview.style.padding = '0.5rem 1rem';
+        preview.style.display = 'none';
+
+        const previewContainer = document.createElement('div');
+        previewContainer.className = 'mermaid-container';
+        preview.appendChild(previewContainer);
+        block.appendChild(preview);
+
+        let mode: 'split' | 'code' | 'preview' = 'split';
+        let lastRenderedSvg: string | null = null;
+
+        const downloadBtn = makeIconButton(
+          ui.downloadSvg,
+          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3v10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M7 10l5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M21 21H3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>',
+          'mermaid-download-btn'
+        );
+        downloadBtn.style.marginRight = '0.25rem';
+
+        const dividerLeft = document.createElement('div');
+        dividerLeft.className = 'toolbar-divider';
+
+        const group = document.createElement('div');
+        group.className = 'mermaid-group';
+
+        const splitBtn = makeIconButton(
+          ui.split,
+          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="8" rx="1" stroke="currentColor" stroke-width="1.5"></rect><rect x="3" y="13" width="18" height="8" rx="1" stroke="currentColor" stroke-width="1.5"></rect></svg>'
+        );
+        const codeBtn = makeIconButton(
+          ui.code,
+          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M16 18l6-6-6-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M8 6l-6 6 6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>'
+        );
+        const previewBtn = makeIconButton(
+          ui.preview,
+          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"></circle></svg>'
+        );
+
+        group.appendChild(splitBtn);
+        group.appendChild(codeBtn);
+        group.appendChild(previewBtn);
+
+        const dividerRight = document.createElement('div');
+        dividerRight.className = 'toolbar-divider';
+
+        const firstBtn = toolbar.querySelector('.icon-btn');
+        if (firstBtn && firstBtn.parentNode === toolbar) {
+          toolbar.insertBefore(downloadBtn, firstBtn);
+          toolbar.insertBefore(dividerLeft, firstBtn);
+          toolbar.insertBefore(group, firstBtn);
+          toolbar.insertBefore(dividerRight, firstBtn);
+        } else {
+          toolbar.appendChild(downloadBtn);
+          toolbar.appendChild(dividerLeft);
+          toolbar.appendChild(group);
+          toolbar.appendChild(dividerRight);
+        }
+
+        function setActiveButton() {
+          splitBtn.classList.toggle('active', mode === 'split');
+          codeBtn.classList.toggle('active', mode === 'code');
+          previewBtn.classList.toggle('active', mode === 'preview');
+        }
+
+        function findPrerenderedSvgMarkup() {
+          const directSvg = block.querySelector('.mermaid-prerendered svg, .mermaid-preview svg, .mermaid-svg svg, svg.mermaid');
+          if (directSvg && directSvg.outerHTML) return directSvg.outerHTML;
+
+          const host = block.closest('.content-block[data-language="mermaid"]') || block.parentElement;
+          if (host) {
+            const hostSvg = host.querySelector('.mermaid-prerendered svg, .mermaid-svg svg, .mermaid-preview svg, svg.mermaid');
+            if (hostSvg && hostSvg.outerHTML) return hostSvg.outerHTML;
+          }
+
+          return '';
+        }
+
+        function renderMermaidSvg() {
+          if (mode === 'code') return;
+          const svgMarkup = findPrerenderedSvgMarkup();
+          if (svgMarkup) {
+            previewContainer.innerHTML = svgMarkup;
+            lastRenderedSvg = svgMarkup;
+            downloadBtn.disabled = false;
+            return;
+          }
+
+          previewContainer.innerHTML = '<div class="mermaid-placeholder">' + ui.notPrerendered + '</div>';
+          lastRenderedSvg = null;
+          downloadBtn.disabled = true;
+        }
+
+        function applyMode(nextMode: 'split' | 'code' | 'preview') {
+          mode = nextMode;
+          setActiveButton();
+          safeEditorWrapper.style.display = (mode === 'preview') ? 'none' : '';
+          if (editorFooter) editorFooter.style.display = (mode === 'preview') ? 'none' : '';
+          preview.style.display = (mode === 'code') ? 'none' : '';
+          if (mode !== 'code') {
+            renderMermaidSvg();
+          }
+        }
+
+        splitBtn.addEventListener('click', () => applyMode('split'));
+        codeBtn.addEventListener('click', () => applyMode('code'));
+        previewBtn.addEventListener('click', () => applyMode('preview'));
+
+        downloadBtn.addEventListener('click', () => {
+          if (!lastRenderedSvg) return;
+          try {
+            const raw = lastRenderedSvg;
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(raw, 'image/svg+xml');
+            const svgEl = doc.documentElement;
+
+            // ensure defs
+            let defs = svgEl.querySelector('defs');
+            if (!defs) {
+              defs = doc.createElementNS('http://www.w3.org/2000/svg', 'defs');
+              svgEl.insertBefore(defs, svgEl.firstChild);
+            }
+
+            // clone global marker if exists
+            try {
+              const globalMarker = document.querySelector('marker#chronicle-mermaid-arrow');
+              if (globalMarker) {
+                const cloned = globalMarker.cloneNode(true);
+                const existing = defs.querySelector('#chronicle-mermaid-arrow');
+                if (existing) existing.remove();
+                defs.appendChild(doc.importNode(cloned, true));
+              }
+            } catch (e) {}
+
+            // inline resolved CSS variables for consistency
+            try {
+              const cs = getComputedStyle(document.documentElement);
+              const vars = {
+                '--component-bg-blur-alt': cs.getPropertyValue('--component-bg-blur-alt') || '#ffffff',
+                '--border-color': cs.getPropertyValue('--border-color') || '#e6e6e6',
+                '--text-primary': cs.getPropertyValue('--text-primary') || '#111111',
+                '--component-text-primary': cs.getPropertyValue('--component-text-primary') || '#111111'
+              };
+              const styleContent = `
+                svg { background: ${vars['--component-bg-blur-alt']}; }
+                rect { fill: ${vars['--component-bg-blur-alt']}; stroke: ${vars['--text-primary']}; }
+                path { stroke: ${vars['--component-text-primary']}; fill: none; }
+                text { fill: ${vars['--component-text-primary']}; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif; }
+              `;
+              const prevStyle = svgEl.querySelector('style[data-chronicle-inline]');
+              if (prevStyle) prevStyle.remove();
+              const styleEl = doc.createElementNS('http://www.w3.org/2000/svg', 'style');
+              styleEl.setAttribute('data-chronicle-inline', '1');
+              styleEl.textContent = styleContent;
+              svgEl.insertBefore(styleEl, svgEl.firstChild);
+            } catch (e) {}
+
+            const serializer = new XMLSerializer();
+            const outSvg = serializer.serializeToString(svgEl);
+            const blob = new Blob([outSvg], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'mermaid-' + Date.now() + '.svg';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          } catch (err) {
+            // fallback
+            const blob = new Blob([lastRenderedSvg], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'mermaid-' + Date.now() + '.svg';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }
+        });
+
+        // default mode: split
+        downloadBtn.disabled = true;
+        applyMode('split');
+      });
     }
 
     // code block stats are rendered during SSR; no client-side hydration needed
   </script>
 
-  <script define:vars={{ POST_ID: JSON.stringify(post?.id || id), POST_TITLE: JSON.stringify(post?.title || '') }} is:inline>
+  <script define:vars={{ POST_ID: JSON.stringify(post?.id || id), POST_TITLE: JSON.stringify(post?.title || ''), PAGE_LOCALE: JSON.stringify(locale), MERMAID_UI_TEXT: JSON.stringify(mermaidUiText) }} is:inline>
     (function() {
+      try {
+        if (typeof window !== 'undefined') {
+          window.__PAGE_LOCALE = PAGE_LOCALE;
+          window.__MERMAID_UI_TEXT = MERMAID_UI_TEXT;
+        }
+      } catch(e) {}
       function sendPostView() {
         try {
           if (typeof window !== 'undefined' && typeof window.gtag === 'function') {
@@ -651,6 +917,11 @@ if (renderedPostContent) {
 
       document.addEventListener('astro:page-load', sendPostView);
     })();
+  </script>
+
+  <script type="module">
+    // Lazy-load file preview handler for .file-card elements (keeps client lightweight)
+    import('/src/components/filePreviewLazy.js').catch(() => {});
   </script>
 
 </Layout>

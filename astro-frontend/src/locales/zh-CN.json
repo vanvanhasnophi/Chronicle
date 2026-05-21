@@ -114,6 +114,22 @@
     "failedToDelete": "删除失败",
     "errorDeleting": "删除时出错"
   },
+  "preview": {
+    "pdfUnsupported": "你的浏览器无法内嵌显示 PDF。你可以下载它。",
+    "downloadPdf": "下载 PDF",
+    "textLoading": "正在加载文本...",
+    "textPreviewEmpty": "文件为空",
+    "textDecodeError": "无法预览文本（解码或加载失败）",
+    "truncated": "已省略后续",
+    "previewNotSupported": "该类型文件不支持预览。",
+    "mermaid": {
+      "downloadSvg": "下载 SVG",
+      "split": "拆分视图",
+      "code": "仅代码",
+      "preview": "仅图像",
+      "notPrerendered": "未找到预渲染的 Mermaid SVG。"
+    }
+  },
   "search": {
     "selectTags": "选择标签",
     "placeholder": "按标题搜索...",

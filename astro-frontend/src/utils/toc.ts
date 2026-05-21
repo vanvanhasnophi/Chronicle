@@ -30,11 +30,9 @@ export function slugifyHeading(text: string) {
   const cleaned = stripHtml(text).trim().replace(/\s+/g, ' ');
   if (!cleaned) return 'heading';
 
-  try {
-    return encodeURIComponent(cleaned);
-  } catch (error) {
-    return cleaned.replace(/\s+/g, '-').replace(/[^\w\-\u4E00-\u9FFF]/g, '');
-  }
+  // Use a readable, hyphen-separated slug instead of percent-encoding.
+  // This avoids client-side percent-encoding differences and keeps ids stable.
+  return cleaned.replace(/\s+/g, '-').replace(/[^\w\-\u4E00-\u9FFF]/g, '');
 }
 
 export function normalizeTocItems(toc: unknown): TocItem[] {
@@ -128,15 +126,21 @@ export function buildTocFromMarkdown(content: string) {
 export function buildTocFromHtml(html: string) {
   const items: TocItem[] = [];
   const used = new Set<string>();
-  const headingRegex = /<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi;
+  // capture attrs in group 2 and inner HTML in group 3
+  const headingRegex = /<h([1-6])\b([^>]*)>([\s\S]*?)<\/h\1>/gi;
   let match: RegExpExecArray | null;
 
   while ((match = headingRegex.exec(html)) !== null) {
     const level = Number(match[1]);
-    const text = stripHtml(match[2]).trim();
+    const attrs = String(match[2] || '');
+    const inner = String(match[3] || '');
+    const text = stripHtml(inner).trim();
     if (!text) continue;
 
-    let id = slugifyHeading(text);
+    // Prefer an explicit id attribute present on the server-injected HTML.
+    const idMatch = attrs.match(/\sid=(?:"|'|)([^"'\s>]+)(?:"|'|)/);
+    let id = idMatch ? idMatch[1] : slugifyHeading(text);
+
     let base = id;
     let suffix = 1;
     while (used.has(id)) {
@@ -165,14 +169,6 @@ export function buildTocItems(content: string, isHtml = false, toc?: unknown) {
 }
 
 export function injectHeadingIds(html: string, toc: TocItem[]) {
-  if (!html || !toc.length) return html;
-
-  let index = 0;
-  return html.replace(/<h([1-6])(\b[^>]*)>([\s\S]*?)<\/h\1>/g, (full, level, attrs, inner) => {
-    if (/\sid=/.test(attrs)) return full;
-    const item = toc[index];
-    if (!item) return full;
-    index += 1;
-    return `<h${level}${attrs} id="${item.id}" data-toc-level="${item.level}">${inner}</h${level}>`;
-  });
+  // No-op: server provides authoritative ids inside compiled HTML.
+  return html;
 }

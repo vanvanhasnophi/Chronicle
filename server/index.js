@@ -1811,6 +1811,119 @@ function readTocFromDisk(post) {
     return []
 }
 
+// Server-side TOC generation utilities (robust against code blocks and file-cards)
+function decodeHtmlEntities(text) {
+    return String(text || '')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&');
+}
+
+function stripHtml(text) {
+    return decodeHtmlEntities(String(text || '').replace(/<[^>]+>/g, ''));
+}
+
+// Inject ids into headings in compiled HTML. Returns { html, toc }
+function injectIdsIntoHtml(html) {
+    if (!html) return { html: '', toc: [] };
+    const used = new Set();
+    // Replace headings and ensure unique ids. Capture attrs too.
+    const headingRegex = /<h([1-6])([^>]*)>([\s\S]*?)<\/h\1>/gi;
+    let idx = 0;
+    const out = html.replace(headingRegex, (full, level, attrs, inner) => {
+        // extract existing id if any
+        let idMatch = attrs && String(attrs).match(/\sid=(?:"|')([^"']+)(?:"|')/);
+        let id = idMatch ? idMatch[1] : null;
+        // compute text
+        const text = stripHtml(inner).trim();
+        if (!text) return full;
+
+        if (!id) {
+            // generate id from heading text
+            id = slugifyHeading(text);
+            let base = id; let suffix = 1;
+            while (used.has(id)) id = `${base}-${suffix++}`;
+            // inject id into tag
+            const newAttrs = `${attrs || ''} id="${id}"`;
+            used.add(id);
+            return `<h${level}${newAttrs}>${inner}</h${level}>`;
+        } else {
+            // ensure uniqueness
+            let base = id; let suffix = 1;
+            while (used.has(id)) id = `${base}-${suffix++}`;
+            used.add(id);
+            // if id was changed due to collision, replace attrs
+            if (id !== idMatch?.[1]) {
+                const newAttrs = String(attrs).replace(/\sid=(?:"|')[^"']+(?:"|')/, ` id="${id}"`);
+                return `<h${level}${newAttrs}>${inner}</h${level}>`;
+            }
+            return full;
+        }
+    });
+
+    // After injection, build TOC items from the new HTML
+    const toc = buildTocFromHtml(out);
+    return { html: out, toc };
+}
+
+function slugifyHeading(text) {
+    const cleaned = stripHtml(text).trim().replace(/\s+/g, ' ');
+    if (!cleaned) return 'heading';
+    // Prefer a readable, hyphen-separated slug to avoid percent-encoding differences
+    return cleaned.replace(/\s+/g, '-').replace(/[^\w\-\u4E00-\u9FFF]/g, '');
+}
+function buildTocFromHtml(html) {
+    if (!html) return [];
+    const items = [];
+    const used = new Set();
+    // capture attrs so we can prefer existing id attribute and avoid touching non-heading content
+    const headingRegex = /<h([1-6])([^>]*)>([\s\S]*?)<\/h\1>/gi;
+    let match;
+
+    while ((match = headingRegex.exec(html)) !== null) {
+        const level = Number(match[1]);
+        const attrs = String(match[2] || '');
+        const inner = String(match[3] || '');
+        const text = stripHtml(inner).trim();
+        if (!text) continue; // skip headings with no visible text (e.g., templated code)
+
+        // prefer id from attributes if present (server-injected), otherwise generate
+        let id = null;
+        const idMatch = attrs.match(/\sid=(?:"|')([^"']+)(?:"|')/);
+        if (idMatch) id = idMatch[1];
+
+        if (!id) {
+            id = slugifyHeading(text);
+        }
+
+        // ensure uniqueness
+        const base = id; let suffix = 1;
+        while (used.has(id)) id = `${base}-${suffix++}`;
+        used.add(id);
+
+        items.push({ id, text, level });
+    }
+
+    if (!items.length) return [];
+    const minLevel = Math.min(...items.map((item) => item.level));
+    return items.map((item) => ({
+        id: item.id,
+        text: item.text,
+        level: item.level - minLevel + 1,
+    }));
+}
+
+function generateToc({ html, markdown }) {
+    // Prefer sanitized HTML if present (SSR/compiled HTML), else fallback to markdown parsing
+    try {
+        if (html && String(html).trim()) return buildTocFromHtml(html);
+    } catch (e) {}
+    try { return buildTocFromMarkdown(markdown || ''); } catch (e) { return []; }
+}
+
 // Ensure Index Consistency on Startup
 function syncIndexWithFiles() {
     try {
@@ -3231,16 +3344,32 @@ app.post('/api/post', (req, res) => {
         if (data.compiledHtml || data.html) {
             try {
                 const sanitized = sanitizeHtml(data.compiledHtml || data.html);
-                post.html = sanitized; // keep in index for quick access
-                writeCompiledHtmlToDisk(post, sanitized);
+                // Inject ids into headings in the sanitized HTML so HTML is authoritative
+                try {
+                    const injected = injectIdsIntoHtml(sanitized);
+                    post.html = injected.html || sanitized;
+                    writeCompiledHtmlToDisk(post, post.html);
+                    // Also write the toc produced by injection to disk so toc matches HTML
+                    try { writeTocToDisk(post, injected.toc || []); post.toc = injected.toc || []; } catch(e) { console.error('[Toc] write failed after inject', e); }
+                } catch (e) {
+                    // fall back to writing sanitized HTML if injection fails
+                    post.html = sanitized;
+                    writeCompiledHtmlToDisk(post, sanitized);
+                }
             } catch (e) {
                 post.html = '';
             }
         }
 
-        // Save toc if provided
-        if (data.toc) {
-            try { writeTocToDisk(post, data.toc) } catch(e) { }
+        // Server-generated TOC: ignore client-provided toc and generate from compiled HTML or markdown.
+        try {
+            const sourceHtml = post.html || '';
+            const sourceMd = content || readPostContentFromDisk(post) || '';
+            const generated = generateToc({ html: sourceHtml, markdown: sourceMd });
+            post.toc = generated;
+            try { writeTocToDisk(post, generated); } catch (e) { console.error('[Toc] write failed', e); }
+        } catch (e) {
+            console.error('[Toc] generation failed', e);
         }
 
         fs.writeFileSync(INDEX_FILE, JSON.stringify(posts, null, 2));

@@ -1,0 +1,37 @@
+<template>
+    <div v-if="visible" class="file-preview-overlay" @click.self="close">
+        <div class="file-preview-container">
+            <header class="file-preview-header">
+                <h3 style="color: #fff">{{ title }}</h3>
+                <div class="preview-header-actions">
+                    <button :href="url" target="_blank" rel="noopener" class="preview-action-btn download">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                    </button>
+                    <button class="preview-action-btn close" @click="close">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+            </header>
+            <main class="file-preview-body">
+                <div v-if="type === 'audio'" class="fp-media">
+                    <audio :src="url" controls preload="metadata" style="width:100%"></audio>
+                </div>
+                <div v-else-if="type === 'video'" class="fp-media">
+                    <video :src="url" controls style="width:100%" preload="metadata"></video>
+                </div>
+                <div v-else class="fp-file">
+                    <p><strong>File:</strong> <a :href="url" target="_blank" rel="noopener">{{ url }}</a></p>
+                </div>
+            </main>
+        </div>
+    </div>
+</template>

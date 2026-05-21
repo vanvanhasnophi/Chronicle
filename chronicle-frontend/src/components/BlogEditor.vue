@@ -806,7 +806,26 @@ async function renderMermaidBlocksInMarkdown(md: string) {
         // ignore init errors
     }
 
-    const regex = /```\s*mermaid\s*\n([\s\S]*?)\n```/g
+        function sanitizeSvg(svg: string) {
+            if (!svg) return svg
+            // Normalize any absolute URL marker references to a single global fragment id
+            // and fall back other url(#id) usages to the global arrow to ensure consistent rendering.
+            try {
+                // Remove absolute URL wrapper if present
+                svg = svg.replace(/marker-(?:end|start)=("|')?url\([^#)]*#([^\)"']+)\)("|')?/g, 'marker-$1')
+            } catch (e) {
+                // noop
+            }
+            // Replace any marker-(end|start)="url(#whatever)" with the global id
+            svg = svg.replace(/marker-(end|start)=("|')?url\(\#([^\)"']+)\)("|')?/g, (m, pos) => {
+                return `marker-${pos}="url(#chronicle-mermaid-arrow)"`
+            })
+            // Also replace standalone url(#...) occurrences (e.g., in styles) to point to global arrow
+            svg = svg.replace(/url\((?:"|')?\#([^\)"']+)(?:"|')?\)/g, 'url(#chronicle-mermaid-arrow)')
+            return svg
+        }
+
+        const regex = /```\s*mermaid\s*\n([\s\S]*?)\n```/g
     let lastIndex = 0
     let out = ''
     let match: RegExpExecArray | null
@@ -818,8 +837,10 @@ async function renderMermaidBlocksInMarkdown(md: string) {
         try {
             const id = 'mermaid_' + Date.now() + '_' + (idx++)
             const res = await mermaid.render(id, code)
-            const svg = res && (res.svg || res)
-            out += `<div class="mermaid-svg">${svg}</div>`
+                        let svg = res && (res.svg || res)
+                        svg = String(svg || '')
+                        svg = sanitizeSvg(svg)
+                        out += `<div class="mermaid-svg">${svg}</div>`
         } catch (e) {
             console.warn('mermaid render failed on save, leaving source block', e)
             out += full
@@ -828,6 +849,64 @@ async function renderMermaidBlocksInMarkdown(md: string) {
     }
     out += md.slice(lastIndex)
     return out
+}
+
+// Prerender Mermaid SVG into compiled HTML code blocks (language=mermaid).
+// This keeps frontend read-only: Astro side only consumes prerendered SVG.
+async function prerenderMermaidInCompiledHtml(html: string) {
+    if (!html || !/data-language="mermaid"/.test(html)) return html
+
+    let mod: any
+    try {
+        mod = await import('mermaid')
+    } catch (e) {
+        console.warn('Failed to load mermaid for compiledHtml prerender', e)
+        return html
+    }
+
+    const mermaid = (mod && mod.default) || mod
+    try {
+        mermaid.initialize({ startOnLoad: false, theme: 'base', themeVariables: { fontFamily: 'var(--app-font-stack)' } })
+    } catch (e) {
+        // ignore init errors
+    }
+
+    const host = document.createElement('div')
+    host.innerHTML = html
+
+    const blocks = host.querySelectorAll('.content-block[data-language="mermaid"] .code-chunk-container, .code-chunk-container[data-language="mermaid"]')
+    let idx = 0
+
+    for (const block of Array.from(blocks)) {
+        try {
+            const textarea = block.querySelector('.code-textarea') as HTMLTextAreaElement | null
+            const codeText = textarea ? (textarea.value || textarea.textContent || '').trim() : ''
+            if (!codeText) continue
+
+            const id = 'mermaid_compiled_' + Date.now() + '_' + (idx++)
+            const res = await mermaid.render(id, codeText)
+            let svg = (res && (res.svg || res)) ? String(res.svg || res) : ''
+            // Normalize any marker references to use the global chronicle id so markers render consistently
+            svg = svg.replace(/marker-(end|start)=("|')?url\([^#)]*#([^\)"']+)\)("|')?/g, (m, pos) => {
+                return `marker-${pos}="url(#chronicle-mermaid-arrow)"`
+            })
+            svg = svg.replace(/url\((?:"|')?[^#\)"']*#([^\)"']+)(?:"|')?\)/g, 'url(#chronicle-mermaid-arrow)')
+            if (!svg) continue
+
+            let holder = block.querySelector('.mermaid-prerendered') as HTMLDivElement | null
+            if (!holder) {
+                holder = document.createElement('div')
+                holder.className = 'mermaid-prerendered'
+                holder.style.display = 'none'
+                block.appendChild(holder)
+            }
+            holder.innerHTML = `<div class="mermaid-svg">${svg}</div>`
+        } catch (e) {
+            console.warn('mermaid render failed for compiledHtml block', e)
+        }
+    }
+
+    return host.innerHTML
 }
 
 function getAdminAuthToken() {
@@ -901,13 +980,15 @@ async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
             ? tempTitle.value
             : (isDefaultTitle.value ? t('editor.untitled') : postTitle.value)
 
-        // 原文始终保留为 Markdown；发布时同步提交预编译 HTML 和 TOC
+        // 原文始终保留为 Markdown；发布时同步提交预编译 HTML。
+        // 不在客户端注入或生成 heading ids/toc — 由服务器根据实际 compiled HTML 生成权威 TOC 和 ids。
         const contentToSend = localValue.value
-        const toc = status === 'published' ? buildTocFromMarkdown(contentToSend) : []
+        const toc: Array<{ id: string; text: string; level: number }> = []
         let compiledHtml = ''
         if (status === 'published') {
             compiledHtml = convertToHtml(contentToSend, { wrapBlocks: true })
-            compiledHtml = injectHeadingIds(compiledHtml, toc)
+            compiledHtml = await prerenderMermaidInCompiledHtml(compiledHtml)
+            // do NOT call injectHeadingIds here; server will inject authoritative ids
         }
         const res = await fetchWithAuth(`/api/post?t=${Date.now()}`, {
             method: 'POST',

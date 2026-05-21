@@ -669,16 +669,87 @@ const copySuccess = ref(false)
 
 function downloadMermaid() {
   if (!lastRenderedSvg.value) return
-  const svg = lastRenderedSvg.value
-  const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = 'mermaid-' + Date.now() + '.svg'
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
+  // Prepare a standalone SVG that matches page display:
+  // - embed global defs (chronicle-mermaid-arrow) if present
+  // - inline resolved CSS rules (resolve CSS variables to computed values)
+  try {
+    const raw = lastRenderedSvg.value || ''
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(raw, 'image/svg+xml')
+    const svgEl = doc.documentElement
+
+    // Ensure <defs> exists
+    let defs = svgEl.querySelector('defs')
+    if (!defs) {
+      defs = doc.createElementNS('http://www.w3.org/2000/svg', 'defs')
+      svgEl.insertBefore(defs, svgEl.firstChild)
+    }
+
+    // If there's a global marker in the page, clone it into this svg's defs
+    try {
+      const globalMarker = document.querySelector('marker#chronicle-mermaid-arrow')
+      if (globalMarker) {
+        const cloned = globalMarker.cloneNode(true) as Element
+        // Avoid duplicate id inside defs
+        // remove any existing marker with same id
+        const existing = defs.querySelector('#chronicle-mermaid-arrow')
+        if (existing) existing.remove()
+        defs.appendChild(doc.importNode(cloned, true))
+      }
+    } catch (e) {
+      // ignore if not in browser env
+    }
+
+    // Build style rules based on computed CSS variables so standalone SVG looks same
+    try {
+      const cs = getComputedStyle(document.documentElement)
+      const vars = {
+        '--component-bg-blur-alt': cs.getPropertyValue('--component-bg-blur-alt') || '#ffffff',
+        '--border-color': cs.getPropertyValue('--border-color') || '#e6e6e6',
+        '--text-primary': cs.getPropertyValue('--text-primary') || '#111111',
+        '--component-text-primary': cs.getPropertyValue('--component-text-primary') || '#111111'
+      }
+      const styleContent = `
+        svg { background: ${vars['--component-bg-blur-alt']}; }
+        rect { fill: ${vars['--component-bg-blur-alt']}; stroke: ${vars['--text-primary']}; }
+        path { stroke: ${vars['--component-text-primary']}; fill: none; }
+        text { fill: ${vars['--component-text-primary']}; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif; }
+      `
+      // remove previous style if any
+      const prevStyle = svgEl.querySelector('style[data-chronicle-inline]')
+      if (prevStyle) prevStyle.remove()
+      const styleEl = doc.createElementNS('http://www.w3.org/2000/svg', 'style')
+      styleEl.setAttribute('data-chronicle-inline', '1')
+      styleEl.textContent = styleContent
+      svgEl.insertBefore(styleEl, svgEl.firstChild)
+    } catch (e) {
+      // noop
+    }
+
+    const serializer = new XMLSerializer()
+    const outSvg = serializer.serializeToString(svgEl)
+    const blob = new Blob([outSvg], { type: 'image/svg+xml;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'mermaid-' + Date.now() + '.svg'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  } catch (err) {
+    // fallback to raw svg
+    const svg = lastRenderedSvg.value
+    const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'mermaid-' + Date.now() + '.svg'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
 }
 
 async function renderMermaid() {
@@ -811,7 +882,7 @@ watch(() => props.language, (n) => {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-  padding: 0.3rem 1rem 0.1rem 1rem;
+  padding: 0.3rem 1rem;
   display: flex;
   flex-direction: row;
   justify-content: space-between;
@@ -865,9 +936,14 @@ watch(() => props.language, (n) => {
   border-top: 1px solid var(--border-color);
   max-height: 420px;
   overflow: auto;
+  font-family: var(--app-font-stack) !important;
 }
 .mermaid-preview svg {
-  background: var(--component-bg-blur-alt) !important;
+  background: transparent !important;
+}
+.mermaid-preview svg,
+.mermaid-preview svg * {
+  font-family: inherit !important;
 }
 .mermaid-preview svg rect {
   fill: var(--component-bg-blur-alt) !important;
@@ -879,6 +955,33 @@ watch(() => props.language, (n) => {
 .mermaid-preview svg text {
   fill: var(--component-text-primary) !important;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif !important;
+}
+.mermaid-preview svg .node rect,
+.mermaid-preview svg .node circle,
+.mermaid-preview svg .node ellipse,
+.mermaid-preview svg .node polygon,
+.mermaid-preview svg .cluster rect,
+.mermaid-preview svg .label-container rect,
+.mermaid-preview svg .actor,
+.mermaid-preview svg .task,
+.mermaid-preview svg .section,
+.mermaid-preview svg .legend rect {
+  fill: var(--component-bg-blur-alt) !important;
+  stroke: var(--component-text-secondary) !important;
+}
+.mermaid-preview svg .edgePath path,
+.mermaid-preview svg .flowchart-link,
+.mermaid-preview svg .relation,
+.mermaid-preview svg .marker path {
+  fill: none !important;
+  stroke: var(--component-text-primary) !important;
+}
+.mermaid-preview svg .nodeLabel,
+.mermaid-preview svg .label,
+.mermaid-preview svg .messageText,
+.mermaid-preview svg .legend text {
+  fill: var(--component-text-primary) !important;
+  color: var(--component-text-primary) !important;
 }
 
 .toolbar-divider {
