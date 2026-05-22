@@ -9,6 +9,18 @@ function escapeAttr(s: string) {
           .replace(/>/g, '&gt;');
 }
 
+function sanitizeHtmlTag(tag: string) {
+  const trimmed = String(tag || '')
+  if (!trimmed) return ''
+  if (/^<\s*\/?\s*(script|style|iframe|object|embed|link|meta)\b/i.test(trimmed)) {
+    return ''
+  }
+  return trimmed
+    .replace(/\son[a-z-]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/\s(href|src)\s*=\s*("|')\s*javascript:[^"']*\2/gi, ' $1="#"')
+    .replace(/\s(href|src)\s*=\s*javascript:[^\s>]+/gi, ' $1="#"')
+}
+
 export interface ContentBlock {
   type: 'text' | 'code' | 'table' | 'heading' | 'list' | 'quote' | 'hr' | 'paraWithBackslash' | 'para-backslash' | 'softBreakPara' | 'math';
   content: string;
@@ -154,8 +166,8 @@ export function processEmphasis(text: string, isHeading = false): string {
              return `<div class="file-card" data-url="${safeUrl}" data-name="${safeName}" data-type="${type}">
                        <div class="file-card-icon">${icon}</div>
                        <div class="file-card-info">
-                          <div class="file-name">${safeName}</div>
-                          <div class="file-type">${type}</div>
+                          <div class="file-card-title">${safeName}</div>
+                          <div class="file-card-subtitle">${type}</div>
                        </div>
                     </div>`
         }
@@ -176,10 +188,10 @@ export function processEmphasis(text: string, isHeading = false): string {
   processed = processed.replace(/\*(.+?)\*/g, '<i>$1</i>')
   // processed = processed.replace(/_(.+?)_/g, '<i>$1</i>')
   
-  // 6. Restore HTML tags
-  htmlTagMatches.forEach((tag, index) => {
-      processed = processed.replace(PLACEHOLDER_HTML_TAG(index.toString()), tag)
-  })
+    // 6. Restore HTML tags (apply lightweight sanitization to avoid injecting dangerous tags/attributes)
+    htmlTagMatches.forEach((tag, index) => {
+      processed = processed.replace(PLACEHOLDER_HTML_TAG(index.toString()), sanitizeHtmlTag(tag))
+    })
 
   return processed
 }
@@ -296,65 +308,8 @@ export function parseMarkdown(content: string, cacheKey?: number): Array<Content
       continue
     }
 
-    // 新的段落换行逻辑：单反斜杠结尾合并为同一段落并用<br>换行，多反斜杠结尾分段并转义
-
-    // 对quote类型完全忽略软换行逻辑
-    if (!/^\s*> /.test(line)) {
-      const bsMatchNew = line.match(/(\\+)$/)
-      if (bsMatchNew && bsMatchNew.index === line.length - bsMatchNew[1].length) {
-        const bsCount = bsMatchNew[1].length
-        if (bsCount === 1 && (line.length === 1 || line[line.length-2] !== '\\')) {
-          // 非引用块，原有软换行逻辑
-          let paraLines = [line.slice(0, -1)]
-          let j = i+1
-          while (j < lines.length) {
-            const nextLine = lines[j]
-            // 遇到特殊块直接break，不合并
-            if (
-              /^\s*> /.test(nextLine) || // 引用
-              /^\s*\|.*\|\s*$/.test(nextLine) || // 表格
-              /^\s*```/.test(nextLine) || // 代码块
-              /^\s*\\\[/.test(nextLine) || // 公式块 \[...\]
-              /^([ \t]*)([-*]|\d+\.) /.test(nextLine) || // 列表
-              /^\s*#{1,6} /.test(nextLine) || // 标题
-              /^\[\[MARKDOWN_TABLE:/.test(nextLine) // 表格占位符
-            ) {
-              break
-            }
-            const nextMatch = nextLine.match(/(\\+)$/)
-            if (nextMatch && nextMatch.index === nextLine.length - nextMatch[1].length && nextMatch[1].length === 1 && (nextLine.length === 1 || nextLine[nextLine.length-2] !== '\\')) {
-              paraLines.push(nextLine.slice(0, -1))
-              j++
-            } else {
-              break
-            }
-          }
-          // 合并后如有非单反斜杠结尾行，且不是特殊块，合进去
-          if (
-            j < lines.length &&
-            lines[j].trim() !== '' &&
-            !/^\s*> /.test(lines[j]) &&
-            !/^\s*\|.*\|\s*$/.test(lines[j]) &&
-            !/^\s*```/.test(lines[j]) &&
-            !/^\s*\\\[/.test(lines[j]) &&
-            !/^([ \t]*)([-*]|\d+\.) /.test(lines[j]) &&
-            !/^\s*#{1,6} /.test(lines[j]) &&
-            !/^\[\[MARKDOWN_TABLE:/.test(lines[j])
-          ) {
-            paraLines.push(lines[j])
-            j++
-          }
-          blocks.push({ type: 'softBreakPara', content: paraLines.join('<br>') })
-          i = j
-          continue
-        } else if (bsCount >= 2) {
-          // 多反斜杠结尾，转义为少一个反斜杠，分段
-          blocks.push({ type: 'softBreakPara', content: line.slice(0, -1) })
-          i++
-          continue
-        }
-      }
-    }
+    // NOTE: 忽略对行尾反斜杠的特殊含义，正向解析不再根据 `\` 进行特殊合并。
+    // 统一由下面“合并连续非空行”的逻辑产生 softBreakPara（使用 <br> 分隔）。
     // 支持标准markdown表格
     if (/^\s*\|.*\|\s*$/.test(line) && i+1 < lines.length && /^\s*\|?\s*[-:]+.*\|\s*$/.test(lines[i+1])) {
       // 收集表格所有行
@@ -444,36 +399,37 @@ export function parseMarkdown(content: string, cacheKey?: number): Array<Content
       i = j
       continue
     }
-    // 单/多反斜杠结尾的行合并为paraWithBackslash段落
-    const bsMatch = line.match(/(\\+)$/)
-    if (bsMatch && bsMatch.index === line.length - bsMatch[1].length) {
-      const bsCount = bsMatch[1].length
-      if (bsCount === 1 && (line.length === 1 || line[line.length-2] !== '\\')) {
-        let paraLines = [line]
-        let j = i+1
-        while (j < lines.length) {
-          const nextLine = lines[j]
-          const nextMatch = nextLine.match(/(\\+)$/)
-          if (nextMatch && nextMatch.index === nextLine.length - nextMatch[1].length && nextMatch[1].length === 1 && (nextLine.length === 1 || nextLine[nextLine.length-2] !== '\\')) {
-            paraLines.push(nextLine)
-            j++
-          } else {
-            break
-          }
-        }
-        blocks.push({ type: 'paraWithBackslash', content: paraLines.join('\n') })
-        i = j
-        continue
-      } else if (bsCount >= 2) {
-        blocks.push({ type: 'paraWithBackslash', content: line })
-        i++
-        continue
-      }
-    }
-    // 普通无反斜杠文本行立即切段
+    // Forward parsing: ignore trailing backslashes. Treat these lines as normal
+    // text so they will be merged by the following "merge consecutive non-empty
+    // lines" logic into softBreakPara. (Removed paraWithBackslash handling.)
+    // 普通无反斜杠文本行：合并连续的非空行为一个段落（使用 <br> 分隔），直到遇到空行或特殊块
     if (line.trim() !== '') {
-      blocks.push({ type: 'text', content: line })
-      i++
+      let paraLines = [line]
+      let j = i + 1
+      while (j < lines.length) {
+        const nextLine = lines[j]
+        if (nextLine.trim() === '') break
+        if (
+          /^\s*> /.test(nextLine) ||
+          /^\s*\|.*\|\s*$/.test(nextLine) ||
+          /^\s*```/.test(nextLine) ||
+          /^\s*\\\[/.test(nextLine) ||
+          /^([ \t]*)([-*]|\d+\.) /.test(nextLine) ||
+          /^\s*#{1,6} /.test(nextLine) ||
+          /^\[\[MARKDOWN_TABLE:/.test(nextLine)
+        ) {
+          break
+        }
+        paraLines.push(nextLine)
+        j++
+      }
+      if (paraLines.length === 1) {
+        blocks.push({ type: 'text', content: line })
+        i++
+      } else {
+        blocks.push({ type: 'softBreakPara', content: paraLines.join('<br>') })
+        i = j
+      }
       continue
     }
     i++
@@ -661,6 +617,15 @@ export async function hydrateKatexIn(container: HTMLElement | null) {
 
 export function blocksToMarkdown(blocks: ContentBlock[]): string {
   let md = '';
+  function unescapeHtmlEntities(s: string) {
+    return String(s || '')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&amp;#92;|&#92;|&#x5C;|\\\\/g, '\\\\')
+  }
   for (const block of blocks) {
     switch (block.type) {
       case 'code':
@@ -694,10 +659,11 @@ export function blocksToMarkdown(blocks: ContentBlock[]): string {
         text = text.replace(/<em>(.*?)<\/em>/g, '*$1*');
         text = text.replace(/<i>(.*?)<\/i>/g, '*$1*');
         
-        text = text.replace(/<br\s*\/?>(?!$)/g, '\\\n');
-        text = text.replace(/\s+$/g, '');
-        if (!text.endsWith('\n')) text += '\n\n';
-        md += text;
+        // Split on <br> and reconstruct Markdown: within a content-block
+        // <br> -> '\n', and separate content-blocks with '\n\n'.
+        const parts = text.split(/<br\s*\/?\s*>/gi).map(s => s.replace(/\s+$/,''))
+        const reconstructed = parts.map(p => unescapeHtmlEntities(p)).join('\n')
+        md += reconstructed + '\n\n'
         break;
       }
       case 'heading':
@@ -723,6 +689,7 @@ export function blocksToMarkdown(blocks: ContentBlock[]): string {
       }
       case 'text': {
         let text = block.content;
+        text = unescapeHtmlEntities(text)
         // 还原行内代码 <code> 为 `mono`
         text = text.replace(/<code>(.*?)<\/code>/g, '`$1`');
         // 还原粗体/斜体

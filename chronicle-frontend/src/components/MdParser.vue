@@ -407,6 +407,10 @@ async function handleGlobalClick(e: MouseEvent) {
   // File Card Click
   const cardEl = target.closest('.file-card') as HTMLElement
   if (cardEl) {
+      // If the card is an anchor (mailto/link), allow native navigation and do not open preview
+      if (cardEl.tagName === 'A') {
+        return
+      }
       e.stopPropagation()
       const url = cardEl.getAttribute('data-url') || ''
       const name = cardEl.getAttribute('data-name') || 'File'
@@ -1076,7 +1080,7 @@ strong, b {
   cursor: pointer;
   transition: all 0.2s ease;
   user-select: none;
-  max-width: 100%;
+  max-width: 240px;
 }
 
 .file-card:hover {
@@ -1106,7 +1110,7 @@ strong, b {
 }
 
 
-.file-name {
+.file-card-title {
   font-size: 14px;
   color: var(--component-text-primary);
   font-weight: 500;
@@ -1115,9 +1119,14 @@ strong, b {
   text-overflow: ellipsis;
 }
 
-.file-type {
+.file-card-subtitle {
   font-size: 11px;
   color: var(--component-text-secondary);
   margin-top: 2px;
+  /* Truncate long subtitles with ellipsis */
+  max-width: 240px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>

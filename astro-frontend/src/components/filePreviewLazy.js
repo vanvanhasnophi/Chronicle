@@ -113,6 +113,8 @@ async function detectTypeByHints(url, hinted) {
 function onClick(e) {
   const el = e.target.closest && e.target.closest('.file-card');
   if (!el) return;
+  // If the file-card is an anchor, allow native navigation (mailto/http links)
+  if (el.tagName === 'A') return;
   e.preventDefault();
   const url = el.getAttribute('data-url') || el.dataset.url || '';
   const name = el.getAttribute('data-name') || el.dataset.name || '';

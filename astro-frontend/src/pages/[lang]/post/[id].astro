@@ -76,7 +76,7 @@ function toMediaCard(label: string, href: string, type: 'audio' | 'video' | 'fil
   const icon = getMediaIcon(type);
 
   // Make file-card keyboard-focusable and announceable for accessibility
-  return `<div class="file-card" tabindex="0" role="button" aria-label="Preview file: ${escapeHtmlText(String(safeLabel))}" data-url="${safeHref}" data-name="${safeLabel}" data-type="${typeLabel}"><div class="file-card-icon">${icon}</div><div class="file-card-info"><div class="file-name">${safeLabel}</div><div class="file-type">${typeLabel}</div></div></div>`;
+  return `<div class="file-card" tabindex="0" role="button" aria-label="Preview file: ${escapeHtmlText(String(safeLabel))}" data-url="${safeHref}" data-name="${safeLabel}" data-type="${typeLabel}"><div class="file-card-icon">${icon}</div><div class="file-card-info"><div class="file-card-title">${safeLabel}</div><div class="file-card-subtitle">${typeLabel}</div></div></div>`;
 }
 
 function rewriteMediaLinks(renderedHtml: string): string {
@@ -87,6 +87,18 @@ function rewriteMediaLinks(renderedHtml: string): string {
 
     return renderedHtml.replace(/<a\s+[^>]*href=\"([^\"]+)\"[^>]*>(.*?)<\/a>/gi, (_full, href: string, labelHtml: string) => {
       try {
+        // If mailto: link, render as anchor-styled file-card with person icon and payload subtitle
+        try {
+          if (/^mailto:/i.test(href)) {
+            const payload = href.replace(/^mailto:/i, '')
+            const safeHref = escapeHtmlText(href)
+            const safeLabel = labelHtml || payload
+            const personIcon = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>'
+            return `<a class="file-card" href="${safeHref}" aria-label="Email: ${escapeHtmlText(String(safeLabel))}"><div class="file-card-icon">${personIcon}</div><div class="file-card-info"><div class="file-card-title">${escapeHtmlText(String(safeLabel))}</div><div class="file-card-subtitle">${escapeHtmlText(payload)}</div></div></a>`
+          }
+        } catch (e) {
+          // fallthrough to normal handling
+        }
         const ext = getFileExt(href);
         if (audioExts.has(ext)) return toMediaCard(labelHtml, href, 'audio');
         if (videoExts.has(ext)) return toMediaCard(labelHtml, href, 'video');
@@ -882,9 +894,9 @@ if (renderedPostContent) {
           }
         });
 
-        // default mode: split
+        // default mode: preview
         downloadBtn.disabled = true;
-        applyMode('split');
+        applyMode('preview');
       });
     }
 

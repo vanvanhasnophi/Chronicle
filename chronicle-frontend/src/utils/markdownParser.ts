@@ -9,6 +9,37 @@ function escapeAttr(s: string) {
           .replace(/>/g, '&gt;');
 }
 
+function escapeTextNode(text: string) {
+  return String(text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+function sanitizeHtmlTag(tag: string) {
+  const trimmed = String(tag || '')
+  if (!trimmed) return ''
+  if (/^<\s*\/?\s*(script|style|iframe|object|embed|link|meta)\b/i.test(trimmed)) {
+    return ''
+  }
+  return trimmed
+    .replace(/\son[a-z-]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/\s(href|src)\s*=\s*("|')\s*javascript:[^"']*\2/gi, ' $1="#"')
+    .replace(/\s(href|src)\s*=\s*javascript:[^\s>]+/gi, ' $1="#"')
+}
+
+function normalizeLinkTarget(url: string) {
+  return String(url || '').trim().replace(/^<|>$/g, '')
+}
+
+function getLinkKind(url: string) {
+  const cleanUrl = normalizeLinkTarget(url)
+  const protocolMatch = cleanUrl.match(/^([a-zA-Z][\w+.-]*):(.*)$/)
+  const scheme = protocolMatch ? protocolMatch[1].toLowerCase() : ''
+  const payload = protocolMatch ? protocolMatch[2].trim() : cleanUrl
+  return { cleanUrl, scheme, payload }
+}
+
 export interface ContentBlock {
   type: 'text' | 'code' | 'table' | 'heading' | 'list' | 'quote' | 'hr' | 'paraWithBackslash' | 'para-backslash' | 'softBreakPara' | 'math';
   content: string;
@@ -118,49 +149,95 @@ export function processEmphasis(text: string, isHeading = false): string {
     })
     
     // 链接 [text](url) -> 智能转换为文件卡片
-    // 识别常见文件后缀，如果是媒体文件则渲染为卡片，否则保留默认链接样式
+    // 识别常见文件后缀与特殊协议，如果是媒体/文档/邮件/强制链接则渲染为卡片，否则保留默认链接样式
     processed = processed.replace(/\[([^\]]+?)\]\((.*?)\)/g, (match, text, url) => {
-        const cleanUrl = url.trim()
+      const { cleanUrl, scheme, payload } = getLinkKind(url)
         const extMatch = cleanUrl.match(/\.([0-9a-z]+)($|\?)/i)
         const ext = extMatch ? extMatch[1].toLowerCase() : ''
         
         // Define types
-        let type = '', icon = ''
+      let type = '', icon = '', targetUrl = cleanUrl, displayType = ''
+
+      if (scheme === 'mailto') {
+        type = 'Email';
+        // show actual address (payload) as subtitle (remove protocol if present) and use person icon
+        displayType = (payload || cleanUrl).replace(/^([a-zA-Z][\w+.-]*:)?\/\/?/, '')
+        icon = Icons.person
+        targetUrl = cleanUrl
+      } else if (scheme === 'audio') {
+        type = 'Audio';
+        displayType = 'Audio'
+        icon = Icons.audio
+        targetUrl = payload || cleanUrl
+      } else if (scheme === 'video') {
+        type = 'Video';
+        displayType = 'Video'
+        icon = Icons.video
+        targetUrl = payload || cleanUrl
+      } else if (scheme === 'link') {
+        type = 'Link';
+        // display original URL without protocol as subtitle
+        displayType = (payload || cleanUrl).replace(/^([a-zA-Z][\w+.-]*:)?\/\/?/, '')
+        icon = Icons.link
+        targetUrl = payload || cleanUrl
+      }
         
         // Audio
-        if (['mp3','wav','ogg','m4a','flac','aac'].includes(ext)) {
+      if (!type && ['mp3','wav','ogg','m4a','flac','aac'].includes(ext)) {
             type = 'Audio'; icon = Icons.audio
         }
         // Video
-        else if (['mp4','webm','mkv','mov','avi'].includes(ext)) {
+      else if (!type && ['mp4','webm','mkv','mov','avi'].includes(ext)) {
             type = 'Video'; icon = Icons.video
         }
         // Doc
-        else if (['pdf','doc','docx','ppt','pptx','xls','xlsx'].includes(ext)) {
+      else if (!type && ['pdf','doc','docx','ppt','pptx','xls','xlsx'].includes(ext)) {
             type = 'Document'; icon = Icons.document
         }
         // Code/Text
-        else if (['txt','md','js','ts','json','c','cpp','py','java','html','css','vue','log','xml','yaml'].includes(ext)) {
+      else if (!type && ['txt','md','js','ts','json','c','cpp','py','java','html','css','vue','log','xml','yaml'].includes(ext)) {
             type = 'Code/Text'; icon = Icons.codeText
         }
         // Archive/Other (only if extension exists and it's likely a file link)
-        else if (['zip','rar','7z','tar','gz'].includes(ext)) {
+      else if (!type && ['zip','rar','7z','tar','gz'].includes(ext)) {
             type = 'Archive'; icon = Icons.archive
         }
         
         if (type) {
-             const safeName = escapeAttr(text)
-             const safeUrl = escapeAttr(cleanUrl)
-             return `<div class="file-card" data-url="${safeUrl}" data-name="${safeName}" data-type="${type}">
+         const safeName = escapeAttr(text)
+         const safeUrl = escapeAttr(targetUrl)
+         const safeDisplayType = escapeAttr(displayType || type)
+         // For mailto and explicit 'link' scheme, render as an anchor so default link behavior applies
+         if (String(type).toLowerCase() === 'email') {
+           return `<a class="file-card" href="${safeUrl}" data-name="${safeName}" data-type="${safeDisplayType}">
+                     <div class="file-card-icon">${icon}</div>
+                     <div class="file-card-info">
+                       <div class="file-card-title">${safeName}</div>
+                       <div class="file-card-subtitle">${safeDisplayType}</div>
+                     </div>
+                   </a>`
+         }
+         if (String(type).toLowerCase() === 'link') {
+           return `<a class="file-card" href="${safeUrl}" target="_blank" rel="noopener noreferrer" data-name="${safeName}" data-type="${safeDisplayType}">
+                     <div class="file-card-icon">${icon}</div>
+                     <div class="file-card-info">
+                       <div class="file-card-title">${safeName}</div>
+                       <div class="file-card-subtitle">${safeDisplayType}</div>
+                     </div>
+                   </a>`
+         }
+
+         return `<div class="file-card" data-url="${safeUrl}" data-name="${safeName}" data-type="${safeDisplayType}">
                        <div class="file-card-icon">${icon}</div>
                        <div class="file-card-info">
-                          <div class="file-name">${safeName}</div>
-                          <div class="file-type">${type}</div>
+                          <div class="file-card-title">${safeName}</div>
+                <div class="file-card-subtitle">${safeDisplayType}</div>
                        </div>
                     </div>`
         }
 
-        return `<a href="${cleanUrl}" target="_blank" rel="noopener noreferrer" class="md-link">${text}</a>`
+      const safeHref = escapeAttr(cleanUrl)
+      return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="md-link">${escapeTextNode(text)}</a>`
     })
 
     // 行内代码 `mono`
@@ -178,7 +255,7 @@ export function processEmphasis(text: string, isHeading = false): string {
   
   // 6. Restore HTML tags
   htmlTagMatches.forEach((tag, index) => {
-      processed = processed.replace(PLACEHOLDER_HTML_TAG(index.toString()), tag)
+      processed = processed.replace(PLACEHOLDER_HTML_TAG(index.toString()), sanitizeHtmlTag(tag))
   })
 
   return processed
@@ -585,65 +662,9 @@ export function parseMarkdown(content: string, cacheKey?: number): Array<Content
       continue
     }
 
-    // 新的段落换行逻辑：单反斜杠结尾合并为同一段落并用<br>换行，多反斜杠结尾分段并转义
-
-    // 对quote类型完全忽略软换行逻辑
-    if (!/^\s*> /.test(line)) {
-      const bsMatchNew = line.match(/(\\+)$/)
-      if (bsMatchNew && bsMatchNew.index === line.length - bsMatchNew[1].length) {
-        const bsCount = bsMatchNew[1].length
-        if (bsCount === 1 && (line.length === 1 || line[line.length-2] !== '\\')) {
-          // 非引用块，原有软换行逻辑
-          let paraLines = [line.slice(0, -1)]
-          let j = i+1
-          while (j < lines.length) {
-            const nextLine = lines[j]
-            // 遇到特殊块直接break，不合并
-            if (
-              /^\s*> /.test(nextLine) || // 引用
-              /^\s*\|.*\|\s*$/.test(nextLine) || // 表格
-              /^\s*```/.test(nextLine) || // 代码块
-              /^\s*\\\[/.test(nextLine) || // 公式块 \[...\]
-              /^([ \t]*)([-*]|\d+\.) /.test(nextLine) || // 列表
-              /^\s*#{1,6} /.test(nextLine) || // 标题
-              /^\[\[MARKDOWN_TABLE:/.test(nextLine) // 表格占位符
-            ) {
-              break
-            }
-            const nextMatch = nextLine.match(/(\\+)$/)
-            if (nextMatch && nextMatch.index === nextLine.length - nextMatch[1].length && nextMatch[1].length === 1 && (nextLine.length === 1 || nextLine[nextLine.length-2] !== '\\')) {
-              paraLines.push(nextLine.slice(0, -1))
-              j++
-            } else {
-              break
-            }
-          }
-          // 合并后如有非单反斜杠结尾行，且不是特殊块，合进去
-          if (
-            j < lines.length &&
-            lines[j].trim() !== '' &&
-            !/^\s*> /.test(lines[j]) &&
-            !/^\s*\|.*\|\s*$/.test(lines[j]) &&
-            !/^\s*```/.test(lines[j]) &&
-            !/^\s*\\\[/.test(lines[j]) &&
-            !/^([ \t]*)([-*]|\d+\.) /.test(lines[j]) &&
-            !/^\s*#{1,6} /.test(lines[j]) &&
-            !/^\[\[MARKDOWN_TABLE:/.test(lines[j])
-          ) {
-            paraLines.push(lines[j])
-            j++
-          }
-          blocks.push({ type: 'softBreakPara', content: paraLines.join('<br>') })
-          i = j
-          continue
-        } else if (bsCount >= 2) {
-          // 多反斜杠结尾，转义为少一个反斜杠，分段
-          blocks.push({ type: 'softBreakPara', content: line.slice(0, -1) })
-          i++
-          continue
-        }
-      }
-    }
+    // NOTE: 忽略对行尾反斜杠的特殊含义。
+    // 正向解析（Markdown -> blocks）不再根据行尾的 `\` 做特殊合并处理，
+    // 统一由下面“合并连续非空行”的逻辑产生 softBreakPara（使用 `<br>` 分隔）。
     // 支持标准markdown表格
     if (/^\s*\|.*\|\s*$/.test(line) && i+1 < lines.length && /^\s*\|?\s*[-:]+.*\|\s*$/.test(lines[i+1])) {
       // 收集表格所有行
@@ -717,36 +738,38 @@ export function parseMarkdown(content: string, cacheKey?: number): Array<Content
       i = j
       continue
     }
-    // 单/多反斜杠结尾的行合并为paraWithBackslash段落
-    const bsMatch = line.match(/(\\+)$/)
-    if (bsMatch && bsMatch.index === line.length - bsMatch[1].length) {
-      const bsCount = bsMatch[1].length
-      if (bsCount === 1 && (line.length === 1 || line[line.length-2] !== '\\')) {
-        let paraLines = [line]
-        let j = i+1
-        while (j < lines.length) {
-          const nextLine = lines[j]
-          const nextMatch = nextLine.match(/(\\+)$/)
-          if (nextMatch && nextMatch.index === nextLine.length - nextMatch[1].length && nextMatch[1].length === 1 && (nextLine.length === 1 || nextLine[nextLine.length-2] !== '\\')) {
-            paraLines.push(nextLine)
-            j++
-          } else {
-            break
-          }
-        }
-        blocks.push({ type: 'paraWithBackslash', content: paraLines.join('\n') })
-        i = j
-        continue
-      } else if (bsCount >= 2) {
-        blocks.push({ type: 'paraWithBackslash', content: line })
-        i++
-        continue
-      }
-    }
-    // 普通无反斜杠文本行立即切段
+    // Forward parsing: ignore trailing backslashes. Treat these lines as normal
+    // text so they will be merged by the following "merge consecutive non-empty
+    // lines" logic into softBreakPara. (Removed paraWithBackslash handling.)
+    // 普通无反斜杠文本行：合并连续的非空行为一个段落（使用 <br> 分隔），直到遇到空行或特殊块
     if (line.trim() !== '') {
-      blocks.push({ type: 'text', content: line })
-      i++
+      let paraLines = [line]
+      let j = i + 1
+      while (j < lines.length) {
+        const nextLine = lines[j]
+        if (nextLine.trim() === '') break
+        // 遇到特殊块不合并
+        if (
+          /^\s*> /.test(nextLine) || // 引用
+          /^\s*\|.*\|\s*$/.test(nextLine) || // 表格
+          /^\s*```/.test(nextLine) || // 代码块
+          /^\s*\\\[/.test(nextLine) || // 公式块 \[...\]
+          /^([ \t]*)([-*]|\d+\.) /.test(nextLine) || // 列表
+          /^\s*#{1,6} /.test(nextLine) || // 标题
+          /^\[\[MARKDOWN_TABLE:/.test(nextLine)
+        ) {
+          break
+        }
+        paraLines.push(nextLine)
+        j++
+      }
+      if (paraLines.length === 1) {
+        blocks.push({ type: 'text', content: line })
+        i++
+      } else {
+        blocks.push({ type: 'softBreakPara', content: paraLines.join('<br>') })
+        i = j
+      }
       continue
     }
     i++
@@ -1024,6 +1047,15 @@ export async function hydrateKatexIn(container: HTMLElement | null) {
 
 export function blocksToMarkdown(blocks: ContentBlock[]): string {
   let md = '';
+  function unescapeHtmlEntities(s: string) {
+    return String(s || '')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&amp;#92;|&#92;|&#x5C;|\\\\/g, '\\\\')
+  }
   for (const block of blocks) {
     switch (block.type) {
       case 'code':
@@ -1057,10 +1089,11 @@ export function blocksToMarkdown(blocks: ContentBlock[]): string {
         text = text.replace(/<em>(.*?)<\/em>/g, '*$1*');
         text = text.replace(/<i>(.*?)<\/i>/g, '*$1*');
         
-        text = text.replace(/<br\s*\/?>(?!$)/g, '\\\n');
-        text = text.replace(/\s+$/g, '');
-        if (!text.endsWith('\n')) text += '\n\n';
-        md += text;
+        // Split on <br> and reconstruct Markdown: within a content-block
+        // <br> -> '\n', and separate content-blocks with '\n\n'.
+        const parts = text.split(/<br\s*\/?\s*>/gi).map(s => s.replace(/\s+$/,''))
+        const reconstructed = parts.map(p => unescapeHtmlEntities(p)).join('\n')
+        md += reconstructed + '\n\n'
         break;
       }
       case 'heading':
@@ -1086,6 +1119,7 @@ export function blocksToMarkdown(blocks: ContentBlock[]): string {
       }
       case 'text': {
         let text = block.content;
+        text = unescapeHtmlEntities(text)
         // 还原行内代码 <code> 为 `mono`
         text = text.replace(/<code>(.*?)<\/code>/g, '`$1`');
         // 还原粗体/斜体

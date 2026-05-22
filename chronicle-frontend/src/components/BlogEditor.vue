@@ -101,16 +101,75 @@
         <div class="editor-workspace">
             <!-- Editor Pane -->
             <div v-show="showEditor" class="pane editor-pane">
-                <textarea ref="editorRef" v-model="localValue" class="markdown-input"
-                    :placeholder="t('editor.placeholder')" @scroll="syncScroll('editor')"
-                    @mouseover="activeScroll = 'editor'"></textarea>
+                <div class="editor-pane-surface" :class="{ 'is-searching': !!editorSearchQuery.trim() }">
+                    <div
+                        v-if="editorSearchQuery.trim()"
+                        class="editor-highlight-layer"
+                        :style="{ transform: `translateY(-${editorHighlightScrollTop}px)` }"
+                        v-html="editorSearchHighlightHtml"
+                    ></div>
+                    <textarea ref="editorRef" v-model="localValue" class="markdown-input"
+                        :class="{ 'is-searching': !!editorSearchQuery.trim() }"
+                        :placeholder="t('editor.placeholder')" @scroll="onEditorScroll"
+                        @mouseover="activeScroll = 'editor'"></textarea>
+                </div>
             </div>
 
             <!-- Preview Pane -->
-            <div v-show="showPreview" class="pane preview-pane" :class="fontClass" ref="previewRef"
-                @scroll="syncScroll('preview')" @mouseover="activeScroll = 'preview'">
+            <div v-show="showPreview" class="pane preview-pane" :class="fontClass" ref="previewRef" tabindex="0"
+                @scroll="syncScroll('preview')" @mouseover="activeScroll = 'preview'" @focus="activeScroll = 'preview'">
                 <MdParser v-model="localValue" :readOnly="previewReadOnly" :assetMap="assetMap"
                     class="preview-content" />
+            </div>
+        </div>
+
+        <div v-if="editorSearchOpen" class="search-float search-float--editor" @keydown.esc.prevent="closeSearchOverlay('editor')">
+            <div class="search-float-header">
+                <span class="search-float-title">Editor Search</span>
+                <button class="search-close-btn" @click="closeSearchOverlay('editor')">
+                    <span class="icon-svg" v-html="Icons.close"></span>
+                </button>
+            </div>
+            <div class="search-float-body">
+                <input ref="editorSearchInputRef" v-model="editorSearchQuery" class="search-input" placeholder="Find in post"
+                    @keydown.enter.prevent="jumpToSearchMatch('editor', $event.shiftKey ? -1 : 1)"
+                    @keydown.esc.prevent="closeSearchOverlay('editor')" />
+                <div class="search-float-actions">
+                    <span class="search-counter">{{ editorSearchMatchLabel }}</span>
+                    <div class="search-nav-buttons">
+                        <button class="search-nav-btn" :disabled="!editorSearchMatchCount" @click="jumpToSearchMatch('editor', -1)">
+                            ↑
+                        </button>
+                        <button class="search-nav-btn" :disabled="!editorSearchMatchCount" @click="jumpToSearchMatch('editor', 1)">
+                            ↓
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="previewSearchOpen" class="search-float search-float--preview" @keydown.esc.prevent="closeSearchOverlay('preview')">
+            <div class="search-float-header">
+                <span class="search-float-title">Preview Search</span>
+                <button class="search-close-btn" @click="closeSearchOverlay('preview')">
+                    <span class="icon-svg" v-html="Icons.close"></span>
+                </button>
+            </div>
+            <div class="search-float-body">
+                <input ref="previewSearchInputRef" v-model="previewSearchQuery" class="search-input" placeholder="Find in preview"
+                    @keydown.enter.prevent="jumpToSearchMatch('preview', $event.shiftKey ? -1 : 1)"
+                    @keydown.esc.prevent="closeSearchOverlay('preview')" />
+                <div class="search-float-actions">
+                    <span class="search-counter">{{ previewSearchMatchLabel }}</span>
+                    <div class="search-nav-buttons">
+                        <button class="search-nav-btn" :disabled="!previewSearchMatchCount" @click="jumpToSearchMatch('preview', -1)">
+                            ↑
+                        </button>
+                        <button class="search-nav-btn" :disabled="!previewSearchMatchCount" @click="jumpToSearchMatch('preview', 1)">
+                            ↓
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -336,6 +395,23 @@
                             {{ isSaving ? t('editor.saving') : isBuilding ? t('editor.building') : (activeModal === 'draft' ? t('editor.saveDraft') :
                             t('editor.publishNow')) }}
                         </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="activeModal === 'print'" class="modal-overlay" @click.self="activeModal = 'none'">
+            <div class="modal-content small-modal">
+                <div class="modal-header">
+                    <h3>Print</h3>
+                    <button class="close-btn" @click="activeModal = 'none'">
+                        <span class="icon-svg" v-html="Icons.close"></span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p class="confirm-text">Print flow will be designed later.</p>
+                    <div class="modal-actions">
+                        <button class="secondary-btn" @click="activeModal = 'none'">Close</button>
                     </div>
                 </div>
             </div>
@@ -1369,6 +1445,10 @@ watch(localValue, (val) => {
     }
     // Also invoke save immediately (debounced inside) for draft
     saveToLocalStorage()
+    void nextTick(() => {
+        refreshPreviewSearchSource()
+        applyPreviewSearchHighlights()
+    })
 })
 
 function undo() {
@@ -1404,6 +1484,10 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
 onMounted(() => {
     // Attempt to load from cloud to sync latest state
     initLoad()
+    void nextTick(() => {
+        refreshPreviewSearchSource()
+        applyPreviewSearchHighlights()
+    })
 
     // If locale changes and title is still default, update displayed title
     try {
@@ -1414,10 +1498,13 @@ onMounted(() => {
     } catch (e) { }
 
     window.addEventListener('beforeunload', handleBeforeUnload)
+    // Global editor undo/redo handler
+    window.addEventListener('keydown', onKeydown)
 })
 
 onUnmounted(() => {
     window.removeEventListener('beforeunload', handleBeforeUnload)
+    window.removeEventListener('keydown', onKeydown)
 })
 
 type LayoutMode = 'split' | 'edit' | 'preview'
@@ -1436,6 +1523,355 @@ const showPreview = computed(() => layout.value === 'split' || layout.value === 
 const editorRef = ref<HTMLTextAreaElement | null>(null)
 const previewRef = ref<HTMLDivElement | null>(null)
 const activeScroll = ref<'editor' | 'preview' | null>(null)
+type SearchPane = 'editor' | 'preview'
+const editorSearchOpen = ref(false)
+const previewSearchOpen = ref(false)
+const editorSearchQuery = ref('')
+const previewSearchQuery = ref('')
+const editorSearchInputRef = ref<HTMLInputElement | null>(null)
+const previewSearchInputRef = ref<HTMLInputElement | null>(null)
+const editorSearchMatchIndex = ref(0)
+const previewSearchMatchIndex = ref(0)
+const previewSearchSource = ref('')
+const editorHighlightScrollTop = ref(0)
+
+function refreshPreviewSearchSource() {
+    previewSearchSource.value = previewRef.value?.textContent || ''
+}
+
+function escapeHtml(text: string) {
+    return String(text || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+}
+
+function buildHighlightedTextHtml(text: string, query: string) {
+    const source = String(text || '')
+    const needle = String(query || '').trim()
+    if (!needle) return escapeHtml(source).replace(/\n/g, '<br>')
+
+    const lowerSource = source.toLowerCase()
+    const lowerNeedle = needle.toLowerCase()
+    let cursor = 0
+    let html = ''
+
+    while (cursor < source.length) {
+        const index = lowerSource.indexOf(lowerNeedle, cursor)
+        if (index === -1) {
+            html += escapeHtml(source.slice(cursor))
+            break
+        }
+        html += escapeHtml(source.slice(cursor, index))
+        html += `<mark class="search-hit">${escapeHtml(source.slice(index, index + needle.length))}</mark>`
+        cursor = index + Math.max(needle.length, 1)
+    }
+
+    return html.replace(/\n/g, '<br>')
+}
+
+const editorSearchHighlightHtml = computed(() => buildHighlightedTextHtml(localValue.value || '', editorSearchQuery.value))
+
+function buildSearchMatches(query: string, content: string) {
+    const normalizedQuery = query.trim().toLowerCase()
+    const normalizedContent = content.toLowerCase()
+    if (!normalizedQuery) return [] as Array<{ start: number; end: number }>
+
+    const matches: Array<{ start: number; end: number }> = []
+    let cursor = 0
+    while (cursor <= normalizedContent.length) {
+        const index = normalizedContent.indexOf(normalizedQuery, cursor)
+        if (index === -1) break
+        matches.push({ start: index, end: index + normalizedQuery.length })
+        cursor = index + Math.max(normalizedQuery.length, 1)
+    }
+    return matches
+}
+
+const editorSearchMatches = computed(() => buildSearchMatches(editorSearchQuery.value, localValue.value || ''))
+const previewSearchMatches = computed(() => buildSearchMatches(previewSearchQuery.value, previewSearchSource.value))
+const editorSearchMatchCount = computed(() => editorSearchMatches.value.length)
+const previewSearchMatchCount = computed(() => previewSearchMatches.value.length)
+const editorSearchMatchLabel = computed(() => {
+    if (!editorSearchMatchCount.value) return '0/0'
+    return `${Math.min(editorSearchMatchIndex.value + 1, editorSearchMatchCount.value)}/${editorSearchMatchCount.value}`
+})
+const previewSearchMatchLabel = computed(() => {
+    if (!previewSearchMatchCount.value) return '0/0'
+    return `${Math.min(previewSearchMatchIndex.value + 1, previewSearchMatchCount.value)}/${previewSearchMatchCount.value}`
+})
+
+function getSelectedTextForPane(pane: SearchPane) {
+    if (pane === 'editor') {
+        const el = editorRef.value
+        if (!el) return ''
+        const start = el.selectionStart ?? 0
+        const end = el.selectionEnd ?? 0
+        if (end <= start) return ''
+        return el.value.slice(start, end).trim()
+    }
+
+    const selection = window.getSelection()
+    const previewRoot = previewRef.value
+    if (!selection || !previewRoot || selection.rangeCount === 0) return ''
+    const text = selection.toString().trim()
+    if (!text) return ''
+    const anchor = selection.anchorNode
+    return anchor && previewRoot.contains(anchor) ? text : ''
+}
+
+function scrollEditorToMatch(index: number) {
+    const match = editorSearchMatches.value[index]
+    if (!match || !editorRef.value) return
+
+    editorSearchMatchIndex.value = index
+    const lineHeight = Number.parseFloat(getComputedStyle(editorRef.value).lineHeight || '') || 20
+    const textBefore = editorRef.value.value.slice(0, match.start)
+    const lineNumber = textBefore.split('\n').length - 1
+    const targetTop = Math.max(0, lineNumber * lineHeight - editorRef.value.clientHeight / 2)
+    editorHighlightScrollTop.value = targetTop
+    editorRef.value.scrollTop = targetTop
+}
+
+function findTextNodeAtOffset(root: HTMLElement, offset: number) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+    let current = walker.nextNode()
+    let total = 0
+
+    while (current) {
+        const text = current.textContent || ''
+        const nextTotal = total + text.length
+        if (offset <= nextTotal) {
+            return { node: current, offset: offset - total }
+        }
+        total = nextTotal
+        current = walker.nextNode()
+    }
+
+    return null
+}
+
+function clearPreviewSearchHighlights() {
+    const root = previewRef.value
+    if (!root) return
+    root.querySelectorAll('mark.search-hit, mark.search-hit-active').forEach((mark) => {
+        const parent = mark.parentNode
+        if (!parent) return
+        parent.replaceChild(document.createTextNode(mark.textContent || ''), mark)
+        parent.normalize()
+    })
+}
+
+function applyPreviewSearchHighlights() {
+    const root = previewRef.value
+    if (!root) return
+    clearPreviewSearchHighlights()
+
+    const query = previewSearchQuery.value.trim()
+    if (!query) return
+
+    const activeIndex = previewSearchMatchIndex.value
+    const matches = previewSearchMatches.value
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+    const nodes: Text[] = []
+    let current = walker.nextNode() as Text | null
+    while (current) {
+        if (current.parentElement && !current.parentElement.closest('.search-float')) {
+            nodes.push(current)
+        }
+        current = walker.nextNode() as Text | null
+    }
+
+    let globalOffset = 0
+    for (const node of nodes) {
+        const text = node.textContent || ''
+        const lowerText = text.toLowerCase()
+        const fragments: Array<Node> = []
+        let cursor = 0
+        let localOffsetBase = globalOffset
+
+        while (cursor < text.length) {
+            const localIndex = lowerText.indexOf(query.toLowerCase(), cursor)
+            if (localIndex === -1) break
+
+            if (localIndex > cursor) {
+                fragments.push(document.createTextNode(text.slice(cursor, localIndex)))
+            }
+
+            const absoluteIndex = localOffsetBase + localIndex
+            const matchIndex = matches.findIndex((m) => m.start === absoluteIndex)
+            const mark = document.createElement('mark')
+            mark.className = matchIndex === activeIndex ? 'search-hit search-hit-active' : 'search-hit'
+            mark.textContent = text.slice(localIndex, localIndex + query.length)
+            fragments.push(mark)
+            cursor = localIndex + query.length
+        }
+
+        if (fragments.length) {
+            if (cursor < text.length) {
+                fragments.push(document.createTextNode(text.slice(cursor)))
+            }
+            const parent = node.parentNode
+            if (parent) {
+                fragments.forEach((fragment) => parent.insertBefore(fragment, node))
+                parent.removeChild(node)
+                parent.normalize()
+            }
+        }
+
+        globalOffset += text.length
+    }
+
+    const activeMark = root.querySelector('mark.search-hit-active') as HTMLElement | null
+    if (activeMark) {
+        activeMark.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    }
+}
+
+function scrollPreviewToMatch(index: number) {
+    const match = previewSearchMatches.value[index]
+    const root = previewRef.value
+    if (!match || !root) return
+
+    previewSearchMatchIndex.value = index
+    applyPreviewSearchHighlights()
+    const activeMark = root.querySelector('mark.search-hit-active') as HTMLElement | null
+    if (activeMark) {
+        activeMark.scrollIntoView({ block: 'center', behavior: 'smooth' })
+        return
+    }
+
+    const location = findTextNodeAtOffset(root, match.start)
+    if (!location) return
+    const parent = (location.node.parentElement || root)
+    parent.scrollIntoView({ block: 'center', behavior: 'smooth' })
+}
+
+function openSearchOverlay(pane: SearchPane, seedFromSelection = true) {
+    if (pane === 'editor') {
+        if (seedFromSelection) {
+            const selectedText = getSelectedTextForPane('editor')
+            if (selectedText) editorSearchQuery.value = selectedText
+        }
+        editorSearchOpen.value = true
+        nextTick(() => {
+            editorSearchInputRef.value?.focus()
+            if (editorSearchMatchCount.value) scrollEditorToMatch(0)
+        })
+        return
+    }
+
+    if (seedFromSelection) {
+        const selectedText = getSelectedTextForPane('preview')
+        if (selectedText) previewSearchQuery.value = selectedText
+    }
+    previewSearchOpen.value = true
+    nextTick(() => {
+        previewSearchInputRef.value?.focus()
+        if (previewSearchMatchCount.value) scrollPreviewToMatch(0)
+    })
+}
+
+function closeSearchOverlay(pane: SearchPane) {
+    if (pane === 'editor') editorSearchOpen.value = false
+    else previewSearchOpen.value = false
+}
+
+function jumpToSearchMatch(pane: SearchPane, delta: number) {
+    const count = pane === 'editor' ? editorSearchMatchCount.value : previewSearchMatchCount.value
+    if (!count) return
+    if (pane === 'editor') {
+        const nextIndex = (editorSearchMatchIndex.value + delta + count) % count
+        scrollEditorToMatch(nextIndex)
+    } else {
+        const nextIndex = (previewSearchMatchIndex.value + delta + count) % count
+        scrollPreviewToMatch(nextIndex)
+    }
+}
+
+function triggerPrint() {
+    activeModal.value = 'print'
+}
+
+function onEditorScroll() {
+    editorHighlightScrollTop.value = editorRef.value?.scrollTop || 0
+    syncScroll('editor')
+}
+
+function getCurrentSearchPane(): SearchPane {
+    const active = document.activeElement as HTMLElement | null
+    if (active && editorSearchInputRef.value && (active === editorSearchInputRef.value || editorSearchInputRef.value.contains(active))) {
+        return 'editor'
+    }
+    if (active && previewSearchInputRef.value && (active === previewSearchInputRef.value || previewSearchInputRef.value.contains(active))) {
+        return 'preview'
+    }
+    if (active && editorRef.value && (active === editorRef.value || editorRef.value.contains(active))) {
+        return 'editor'
+    }
+    if (active && previewRef.value && (active === previewRef.value || previewRef.value.contains(active))) {
+        return 'preview'
+    }
+    return activeScroll.value || 'editor'
+}
+
+watch(editorSearchQuery, () => {
+    editorSearchMatchIndex.value = 0
+    if (editorSearchOpen.value && editorSearchMatchCount.value) {
+        nextTick(() => scrollEditorToMatch(0))
+    }
+})
+
+watch(previewSearchQuery, () => {
+    previewSearchMatchIndex.value = 0
+    nextTick(() => applyPreviewSearchHighlights())
+    if (previewSearchOpen.value && previewSearchMatchCount.value) {
+        nextTick(() => scrollPreviewToMatch(0))
+    }
+})
+
+function onKeydown(e: KeyboardEvent) {
+    const key = (e.key || '').toLowerCase()
+    const mod = e.ctrlKey || e.metaKey
+    if (!mod) return
+
+    if (key === 'f' || key === 'h') {
+        openSearchOverlay(getCurrentSearchPane(), true)
+        e.preventDefault()
+        e.stopPropagation()
+        return
+    }
+
+    if (key === 's') {
+        openSaveModal('publish')
+        e.preventDefault()
+        e.stopPropagation()
+        return
+    }
+
+    if (key === 'p') {
+        triggerPrint()
+        e.preventDefault()
+        e.stopPropagation()
+        return
+    }
+
+    if (key === 'z') {
+        if (e.shiftKey) {
+            redo()
+        } else {
+            undo()
+        }
+        e.preventDefault()
+        e.stopPropagation()
+    } else if (key === 'y') {
+        redo()
+        e.preventDefault()
+        e.stopPropagation()
+    }
+}
 
 // Image Handling
 const uploadedImages = ref<{ name: string, url: string, path: string, thumb?: string }[]>([])
@@ -1965,7 +2401,29 @@ const fontClass = computed(() => {
     overflow: hidden;
 }
 
+.editor-pane-surface {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.editor-highlight-layer {
+    position: absolute;
+    inset: 0;
+    padding: 16px;
+    font-family: 'Consolas', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text-primary);
+    pointer-events: none;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
 .markdown-input {
+    position: relative;
     display: block;
     width: 100%;
     height: 100%;
@@ -1975,15 +2433,44 @@ const fontClass = computed(() => {
     padding: 16px;
     font-family: 'Consolas', monospace;
     font-size: 14px;
+    line-height: 1.5;
     resize: none;
     outline: none;
     box-sizing: border-box;
+}
+
+.markdown-input.is-searching {
+    color: transparent;
+    caret-color: var(--text-primary);
+    background: transparent;
 }
 
 .preview-pane {
     background: var(--bg-primary);
     padding: 16px;
     box-sizing: border-box;
+}
+
+.preview-pane :deep(mark.search-hit) {
+    background: rgba(255, 220, 90, 0.45);
+    color: inherit;
+    border-radius: 3px;
+    padding: 0 1px;
+}
+
+.preview-pane :deep(mark.search-hit-active),
+.editor-highlight-layer :deep(mark.search-hit-active) {
+    background: rgba(255, 140, 0, 0.55);
+    color: inherit;
+    border-radius: 3px;
+    padding: 0 1px;
+}
+
+.editor-highlight-layer :deep(mark.search-hit) {
+    background: rgba(255, 220, 90, 0.45);
+    color: inherit;
+    border-radius: 3px;
+    padding: 0 1px;
 }
 
 /* Layout modifiers */
@@ -2001,6 +2488,110 @@ const fontClass = computed(() => {
 
 .layout-preview .pane {
     width: 100%;
+}
+
+.search-float {
+    position: fixed;
+    bottom: 18px;
+    z-index: 1200;
+    width: 320px;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    box-shadow: var(--shadow-elev-2);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.search-float--editor {
+    left: 18px;
+}
+
+.search-float--preview {
+    right: 18px;
+}
+
+.search-float-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.search-float-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--component-text-primary);
+}
+
+.search-close-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--component-text-primary);
+}
+
+.search-close-btn:hover {
+    background: var(--component-bg-hover);
+}
+
+.search-float-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.search-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    outline: none;
+}
+
+.search-input:focus {
+    border-color: var(--component-bg-accent);
+}
+
+.search-float-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.search-counter {
+    font-size: 12px;
+    color: var(--component-text-secondary);
+}
+
+.search-nav-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.search-nav-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    color: var(--component-text-primary);
+}
+
+.search-nav-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
 }
 
 /* Modal Styles */

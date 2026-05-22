@@ -667,18 +667,24 @@
       min-width: 0;
     }
 
-    .markdown-content .file-name {
+    .markdown-content .file-card-title {
       font-size: 14px;
       color: var(--component-text-primary);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      max-width: 240px;
     }
 
-    .markdown-content .file-type {
+    .markdown-content .file-card-subtitle {
       font-size: 11px;
       color: var(--component-text-secondary);
       margin-top: 2px;
+      /* Truncate subtitle */
+      max-width: 240px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .markdown-content .math-fallback {
