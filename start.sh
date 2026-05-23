@@ -41,12 +41,12 @@ npm run dev -- --host 0.0.0.0 --port 5173 &
 echo "[System] Starting Frontend (Astro)..."
 
 # Create symlink for Astro public as well
-mkdir -p /opt/Chronicle/astro-frontend/public/server/data
-if [ ! -L "/opt/Chronicle/astro-frontend/public/server/data/upload" ]; then
-    ln -s /opt/Chronicle/server/data/upload /opt/Chronicle/astro-frontend/public/server/data/upload
+mkdir -p /opt/Chronicle/astro-template/public/server/data
+if [ ! -L "/opt/Chronicle/astro-template/public/server/data/upload" ]; then
+    ln -s /opt/Chronicle/server/data/upload /opt/Chronicle/astro-template/public/server/data/upload
 fi
 
-cd /opt/Chronicle/astro-frontend
+cd /opt/Chronicle/astro-template
 if [ ! -d "node_modules" ]; then
     echo "Installing Astro dependencies..."
     npm install

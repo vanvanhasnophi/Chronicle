@@ -6,11 +6,11 @@ _MACOSX/*
 localhost_5173-20250825T191532.json
 node_modules/
 server/data/*
-/server/logs/*
+server/logs/*
 chronicle-frontend/.env.production
 scripts/media_speed_test.sh
 server/log/*
 .env
 .claude
-astro-frontend/dist/*
+astro-template/dist/*
 decrypt_post.js

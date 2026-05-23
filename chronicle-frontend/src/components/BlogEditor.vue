@@ -557,8 +557,8 @@ const assetMap = ref<Record<string, string>>({})
 const postTitle = ref('')
 const isDefaultTitle = ref(true)
 watch(postTitle, (val) => {
-    if (val) document.title = `${val} - Workdown - Chronicle`
-    else document.title = 'Workdown - Chronicle'
+    if (val) document.title = `${val} - Chronicle Workdown`
+    else document.title = 'Chronicle Workdown'
     if (val && val !== t('editor.untitled')) isDefaultTitle.value = false
 }, { immediate: true })
 const postId = ref<string | null>(null)

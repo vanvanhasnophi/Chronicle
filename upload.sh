@@ -91,7 +91,7 @@ if [ -z "$REMOTE_PATH" ]; then
 fi
 
 prompt_default FRONTEND_API_BASE_URL "请输入 chronicle-frontend 的 API 基址" "${FRONTEND_API_BASE_URL:-https://blog.eightyfor.top}"
-prompt_default ASTRO_API_BASE_URL "请输入 astro-frontend 的 API 基址（构建时使用）" "${ASTRO_API_BASE_URL:-http://127.0.0.1:3000}"
+prompt_default ASTRO_API_BASE_URL "请输入 astro-template 的 API 基址（构建时使用）" "${ASTRO_API_BASE_URL:-http://127.0.0.1:3000}"
 
 save_deploy_config
 
@@ -120,10 +120,10 @@ if [ -d /tmp/chronicle-upload/server/data ]; then
     find /tmp/chronicle-upload/server/data -type f -delete || info "警告：清理 data 文件失败，但继续。"
 fi
 
-# 4. 复制 astro-frontend 源码到临时目录，供服务器端构建使用
-info "复制 astro-frontend 源码..."
-if ! rsync -av --exclude='node_modules' --exclude='.git' --exclude='dist' --exclude='.astro' astro-frontend /tmp/chronicle-upload/; then
-    die "rsync 同步 astro-frontend 目录失败。"
+# 4. 复制 astro-template 源码到临时目录，供服务器端构建使用
+info "复制 astro-template 源码..."
+if ! rsync -av --exclude='node_modules' --exclude='.git' --exclude='dist' --exclude='.astro' astro-template /tmp/chronicle-upload/; then
+    die "rsync 同步 astro-template 目录失败。"
 fi
 
 # 5. 复制 dist 到临时目录
@@ -135,7 +135,7 @@ fi
 # 6. 打包
 cd /tmp/chronicle-upload || die "无法进入 /tmp/chronicle-upload"
 info "正在打包..."
-if ! tar czf chronicle-upload.tar.gz server astro-frontend dist; then
+if ! tar czf chronicle-upload.tar.gz server astro-template dist; then
     die "打包失败。"
 fi
 

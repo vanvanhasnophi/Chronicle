@@ -1,0 +1,282 @@
+---
+export const prerender = true;
+
+export async function getStaticPaths() {
+  return [{ params: { lang: 'zh' } }, { params: { lang: 'en' } }];
+}
+
+import Layout from '../../layouts/Layout.astro';
+import { getTranslation, getLocale } from '../../utils/i18n.ts';
+import { buildLocalizedPath } from '../../utils/routeLocale.ts';
+import { getApiUrl } from '../../config/api.ts';
+import { initPreloadSystem } from '../../utils/preload.ts';
+
+
+// Get locale from Astro.locals (set by middleware)
+const locale = getLocale(Astro.locals);
+const t = (key: string) => getTranslation(locale, key);
+const themePostPath = buildLocalizedPath(locale, '/post/6d879241-fa6c-4099-82a5-066853046b9a');
+const metaDescription = locale === 'zh-CN'
+  ? 'Chronicle 首页，进入博客、合集、朋友页和主题文章。'
+  : 'Chronicle homepage with access to blogs, collections, friends, and the theme post.';
+
+// Fetch settings from API (包含样式设置)
+let settings: Record<string, any> = {};
+try {
+  const res = await fetch(getApiUrl('/api/settings?t=' + Date.now(), true), {
+    cache: 'no-store',
+  });
+  if (res.ok) {
+    settings = await res.json();
+  }
+} catch (e) {
+  console.error('[index] Failed to fetch settings:', e);
+}
+
+// 如果主API失败，尝试public API作为后备
+if (!settings || Object.keys(settings).length === 0) {
+  try {
+    const res = await fetch(getApiUrl('/api/public/settings?t=' + Date.now(), true), {
+      cache: 'no-store',
+    });
+    if (res.ok) {
+      settings = await res.json();
+    }
+  } catch (e) {}
+}
+---
+<Layout title={t('nav.home')} settings={settings} scrollable={false} meta={{ description: metaDescription }}>
+  <div class="home-container">
+    <div class="hero">
+      <h1 class="ink-minimal">
+        <span class="ink-char">新</span>
+        <span class="ink-char">生</span>
+      </h1>
+      <p class="subtitle">Esperanza · 26S2</p>
+      <a href={themePostPath} class="cta-btn">
+        <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+      </a>
+    </div>
+  </div>
+</Layout>
+
+<style>
+
+.home-container {
+    margin: 0;
+    top: -70px;
+    height: 100vh;
+    padding: 0;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    position: relative;
+    z-index: 2;
+    text-align: start;
+    overflow: hidden;
+}
+
+.home-container::before {
+    content: '';
+    position: absolute;
+    top: -20%;
+    right: -10%;
+    width: calc(600px + 20vw);
+    height: calc(600px + 20vh);
+    background: radial-gradient(circle, rgba(173, 255, 47, 0.4) 0%, rgba(173, 255, 47, 0.2) 30%, transparent 70%);
+    border-radius: 50%;
+    pointer-events: none;
+  filter: blur(40px);
+  z-index: 1;
+  transform: translateX(0);
+  will-change: transform, opacity;
+  animation: move-lr-1 16s ease-in-out infinite alternate, glow-flicker 16s ease-in-out infinite;
+}
+
+.home-container::after {
+    content: '';
+    position: absolute;
+    bottom: 5%;
+    left: -15%;
+    width: calc(500px + 20vw);
+    height: calc(500px + 20vh);
+    background: radial-gradient(circle, rgba(127, 255, 0, 0.35) 0%, rgba(127, 255, 0, 0.15) 35%, transparent 75%);
+    border-radius: 50%;
+    pointer-events: none;
+  filter: blur(50px);
+  z-index: 1;
+  transform: translateX(0);
+  will-change: transform, opacity;
+  animation: move-lr-2 20s ease-in-out infinite alternate-reverse, glow-flicker 16s ease-in-out infinite;
+}
+
+.hero p {
+    font-size: 1.2rem;
+    color: #888;
+    margin-bottom: 40px;
+}
+
+.hero p.subtitle {
+    font-size: 1.1rem;
+    color: var(--app-text-secondary);
+    margin-bottom: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.5em;
+}
+
+.cta-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--component-bg-blur-alt);
+    border: 1px solid var(--border-color-blur);
+    backdrop-filter: blur(10px);
+    color: var(--component-text-primary);
+    padding: 10px;
+    border-radius: 9999px;
+    width: 40px;
+    height: 40px;
+    text-decoration: none;
+    font-weight: 600;
+    font-variation-settings: 'wght' 600;
+    transition: all 0.3s ease;
+}
+
+.cta-btn svg {
+  width: 100%;
+  height: 100%;
+}
+
+.cta-btn:hover {
+  filter: brightness(1.5);
+  transform: scale(1.05);
+}
+
+.ink-minimal {
+  display: flex;
+  justify-content: left;
+  gap: 0.25rem;
+  margin-bottom: 2rem;
+}
+
+.ink-char {
+  display: inline-block;
+  font-size: 4rem;
+  font-weight: 600;
+  font-variation-settings: 'wght' 600;
+  font-family: 'Noto Serif SC', 'Ma Shan Zheng', serif; /* 毛笔字体 */
+  background: var(--app-text-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  position: relative;
+  margin-right: 2rem;
+  transition: all 0.3s ease;
+  transform: skewY(8deg);
+  transform-origin: center 72%;
+  --ink-cut-size: 0.38em;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--ink-cut-size)), calc(100% - var(--ink-cut-size)) 100%, 0 100%);
+}
+
+
+
+
+.minimal-sub {
+  font-size: 1rem;
+  letter-spacing: 0.5em;
+  text-transform: uppercase;
+  color: #666;
+  font-weight: 300;
+  font-variation-settings: 'wght' 300;
+  border-top: 1px solid #eaeaea;
+  display: inline-block;
+  padding-top: 1.5rem;
+}
+
+
+.hero {
+  position: relative;
+  left: 15vw;
+  z-index: 10;
+  transform: translateY(-20%);
+}
+
+
+@keyframes glow-flicker {
+  0% { opacity: 0.55; filter: blur(60px); }
+  20% { opacity: 0.72; filter: blur(55px); }
+  40% { opacity: 0.48; filter: blur(62px); }
+  60% { opacity: 0.8; filter: blur(50px); }
+  80% { opacity: 0.5; filter: blur(65px); }
+  100% { opacity: 0.6; filter: blur(60px); }
+}
+
+@keyframes move-lr-1 {
+  0% { transform: translateX(0); }
+  25% { transform: translateX(-8%); }
+  50% { transform: translateX(0); }
+  75% { transform: translateX(8%); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes move-lr-2 {
+  0% { transform: translateX(0); }
+  25% { transform: translateX(10%); }
+  50% { transform: translateX(0); }
+  75% { transform: translateX(-10%); }
+  100% { transform: translateX(0); }
+}
+</style>
+
+<script>
+  // Scroll lock on mount
+  function initScrollLock() {
+    const mainEl = document.querySelector('main.main-content') as HTMLElement;
+    if (!mainEl) return;
+
+    // Store original value in dataset
+    const prevOverflow = mainEl.style.overflowY || '';
+    mainEl.dataset.prevOverflowY = prevOverflow;
+    mainEl.style.overflowY = 'hidden';
+
+    // Cleanup on page leave
+    const cleanup = () => {
+      if (mainEl.dataset.prevOverflowY !== undefined) {
+        mainEl.style.overflowY = mainEl.dataset.prevOverflowY;
+        delete mainEl.dataset.prevOverflowY;
+      }
+    };
+
+    // Listen for Astro View Transitions
+    document.addEventListener('astro:before-preparation', cleanup, { once: true });
+  }
+
+  // Initialize preload system
+  function initPreload() {
+    // 动态导入预加载模块
+    import('../../utils/preload.ts')
+      .then(module => {
+        module.initPreloadSystem();
+      })
+      .catch(error => {
+        console.warn('[Preload] Failed to initialize preload system:', error);
+      });
+  }
+
+  // Run on initial load
+  initScrollLock();
+  initPreload();
+
+  // Re-run on page load if we're on the home page
+  document.addEventListener('astro:page-load', () => {
+    if (window.location.pathname === '/') {
+      initScrollLock();
+      initPreload();
+    }
+  });
+
+</script>

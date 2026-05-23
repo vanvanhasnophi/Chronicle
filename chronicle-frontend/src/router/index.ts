@@ -163,7 +163,7 @@ router.afterEach((to) => {
   if (to.path.startsWith('/manage') || to.path.startsWith('/files') || to.path.startsWith('/security') || to.path.startsWith('/settings')) {
       appName = 'Chronicle Manager'
   } else if (to.path.startsWith('/editor')) {
-      appName = 'Workdown - Chronicle'
+      appName = 'Chronicle Workdown'
   }
 
   if (to.name === 'Home') {

@@ -242,7 +242,7 @@ install_node_deps() {
   (cd "$repo_root/chronicle-frontend" && npm install >/dev/null 2>&1) || die "[ERROR] CMS 依赖安装失败"
 
   log INFO "安装 Astro 依赖..."
-  (cd "$repo_root/astro-frontend" && npm install >/dev/null 2>&1) || die "[ERROR] Astro 依赖安装失败"
+  (cd "$repo_root/astro-template" && npm install >/dev/null 2>&1) || die "[ERROR] Astro 依赖安装失败"
 }
 
 prepare_runtime_dirs() {
@@ -250,10 +250,10 @@ prepare_runtime_dirs() {
   root_exec mkdir -p "$repo_root/server/data/upload"
   root_exec mkdir -p "$repo_root/server/log"
   root_exec mkdir -p "$repo_root/chronicle-frontend/public/server/data"
-  root_exec mkdir -p "$repo_root/astro-frontend/public/server/data"
+  root_exec mkdir -p "$repo_root/astro-template/public/server/data"
 
   ensure_symlink "$repo_root/chronicle-frontend/public/server/data/upload" "$repo_root/server/data/upload"
-  ensure_symlink "$repo_root/astro-frontend/public/server/data/upload" "$repo_root/server/data/upload"
+  ensure_symlink "$repo_root/astro-template/public/server/data/upload" "$repo_root/server/data/upload"
 }
 
 generate_nginx_config() {
@@ -497,7 +497,7 @@ deploy_from_repo() {
   
   log INFO "部署前端静态文件到 $frontend_root ..."
   root_exec mkdir -p "$frontend_root"
-  root_exec rsync -a --delete "$repo_root/astro-frontend/dist/" "$frontend_root/" >/dev/null 2>&1 || die "[ERROR] 前台静态文件部署失败"
+  root_exec rsync -a --delete "$repo_root/astro-template/dist/" "$frontend_root/" >/dev/null 2>&1 || die "[ERROR] 前台静态文件部署失败"
 
   log INFO "部署后台静态文件到 $backend_root ..."
   root_exec mkdir -p "$backend_root"
@@ -519,9 +519,9 @@ rebuild_frontends() {
     (cd "$repo_root/chronicle-frontend" && npm run build >/dev/null 2>&1) || die "[ERROR] CMS 构建失败"
   fi
   
-  if [[ -d "$repo_root/astro-frontend" ]]; then
+  if [[ -d "$repo_root/astro-template" ]]; then
     log INFO "构建 Astro..."
-    (cd "$repo_root/astro-frontend" && npm run build >/dev/null 2>&1) || die "[ERROR] Astro 构建失败"
+    (cd "$repo_root/astro-template" && npm run build >/dev/null 2>&1) || die "[ERROR] Astro 构建失败"
   fi
 }
 

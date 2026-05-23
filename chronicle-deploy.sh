@@ -52,7 +52,7 @@ BACKEND_DOMAIN_DEFAULT="${BACKEND_DOMAIN:-blogmanager.eightyfor.top}"
 WEB_ROOT_DEFAULT="${WEB_ROOT:-/var/www/${FRONTEND_DOMAIN_DEFAULT}}"
 BACKEND_ROOT_DEFAULT="${BACKEND_ROOT:-/var/www/${BACKEND_DOMAIN_DEFAULT}}"
 SERVER_ROOT_DEFAULT="${SERVER_ROOT:-/opt/Chronicle/server}"
-ASTRO_ROOT_DEFAULT="${ASTRO_ROOT:-/opt/Chronicle/astro-frontend}"
+ASTRO_ROOT_DEFAULT="${ASTRO_ROOT:-/opt/Chronicle/astro-template}"
 MEDIA_DOMAIN_DEFAULT="${MEDIA_DOMAIN:-https://file.eightyfor.top}"
 FRONTEND_API_BASE_URL_DEFAULT="${FRONTEND_API_BASE_URL:-https://${FRONTEND_DOMAIN_DEFAULT}}"
 ASTRO_API_BASE_URL_DEFAULT="${ASTRO_API_BASE_URL:-http://127.0.0.1:3000}"
@@ -102,7 +102,7 @@ if [ -f "$CONFIG_FILE" ]; then
         done
 
         REPO_FRONTEND_SRC_NAME="chronicle-frontend"
-        REPO_ASTRO_SRC_NAME="astro-frontend"
+        REPO_ASTRO_SRC_NAME="astro-template"
 
         if [ "${#CANDIDATES[@]}" -gt 0 ]; then
             echo "检测到以下候选源码目录："
@@ -114,7 +114,7 @@ if [ -f "$CONFIG_FILE" ]; then
 
             for c in "${CANDIDATES[@]}"; do
                 case "$c" in
-                    astro-frontend) REPO_ASTRO_SRC_NAME="$c" ;;
+                    astro-template) REPO_ASTRO_SRC_NAME="$c" ;;
                     chronicle-frontend) REPO_FRONTEND_SRC_NAME="$c" ;;
                 esac
             done
@@ -129,8 +129,8 @@ if [ -f "$CONFIG_FILE" ]; then
             log "未检测到候选源码目录。请手动输入源码目录名。"
             read -r -p "管理前端源码目录名 (例如 chronicle-frontend): " REPO_FRONTEND_SRC_NAME || true
             REPO_FRONTEND_SRC_NAME=${REPO_FRONTEND_SRC_NAME:-chronicle-frontend}
-            read -r -p "Astro 源码目录名 (例如 astro-frontend): " REPO_ASTRO_SRC_NAME || true
-            REPO_ASTRO_SRC_NAME=${REPO_ASTRO_SRC_NAME:-astro-frontend}
+            read -r -p "Astro 源码目录名 (例如 astro-template): " REPO_ASTRO_SRC_NAME || true
+            REPO_ASTRO_SRC_NAME=${REPO_ASTRO_SRC_NAME:-astro-template}
         fi
     else
     log "未找到已保存部署配置，转为扫描仓库以检测源码目录并初始化配置。"
@@ -145,7 +145,7 @@ if [ -f "$CONFIG_FILE" ]; then
     done
 
     REPO_FRONTEND_SRC_NAME="chronicle-frontend"
-    REPO_ASTRO_SRC_NAME="astro-frontend"
+    REPO_ASTRO_SRC_NAME="astro-template"
 
     if [ "${#CANDIDATES[@]}" -gt 0 ]; then
         echo "检测到以下候选源码目录："
@@ -157,7 +157,7 @@ if [ -f "$CONFIG_FILE" ]; then
 
         for c in "${CANDIDATES[@]}"; do
             case "$c" in
-                astro-frontend) REPO_ASTRO_SRC_NAME="$c" ;;
+                astro-template) REPO_ASTRO_SRC_NAME="$c" ;;
                 chronicle-frontend) REPO_FRONTEND_SRC_NAME="$c" ;;
             esac
         done
@@ -172,8 +172,8 @@ if [ -f "$CONFIG_FILE" ]; then
         log "未检测到候选源码目录。请手动输入源码目录名。"
         read -r -p "管理前端源码目录名 (例如 chronicle-frontend): " REPO_FRONTEND_SRC_NAME || true
         REPO_FRONTEND_SRC_NAME=${REPO_FRONTEND_SRC_NAME:-chronicle-frontend}
-        read -r -p "Astro 源码目录名 (例如 astro-frontend): " REPO_ASTRO_SRC_NAME || true
-        REPO_ASTRO_SRC_NAME=${REPO_ASTRO_SRC_NAME:-astro-frontend}
+        read -r -p "Astro 源码目录名 (例如 astro-template): " REPO_ASTRO_SRC_NAME || true
+        REPO_ASTRO_SRC_NAME=${REPO_ASTRO_SRC_NAME:-astro-template}
     fi
 fi
 
@@ -297,7 +297,7 @@ ensure_symlink "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME/public/server/data/upload" "$
 log "部署 chronicle-frontend 到后台站点目录 ($BACKEND_ROOT)..."
 rsync -a --delete "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME/dist/" "$BACKEND_ROOT/"
 
-log "构建 astro-frontend..."
+log "构建 astro-template..."
 mkdir -p "$WEB_ROOT"
 cd "$REPO_ROOT/$REPO_ASTRO_SRC_NAME"
 # 在构建前把后端 settings.json 复制到 Astro 项目，以便在构建时/运行时读取 feature flags
@@ -324,10 +324,10 @@ fi
 
 MEDIA_DOMAIN="$MEDIA_DOMAIN" API_BASE_URL="$ASTRO_API_BASE_URL" npm run build
 
-log "恢复 astro-frontend 源码中的 upload symlink..."
+log "恢复 astro-template 源码中的 upload symlink..."
 ensure_symlink "$REPO_ROOT/$REPO_ASTRO_SRC_NAME/public/server/data/upload" "$REPO_ROOT/server/data/upload"
 
-log "部署 astro-frontend 到前台站点目录 ($WEB_ROOT)..."
+log "部署 astro-template 到前台站点目录 ($WEB_ROOT)..."
 rsync -a --delete "$REPO_ROOT/$REPO_ASTRO_SRC_NAME/dist/" "$WEB_ROOT/"
 
 log "配置前台上传目录符号链接..."

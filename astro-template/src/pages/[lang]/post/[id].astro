@@ -1,0 +1,971 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import { getApiUrl } from '../../../config/api';
+import { getTranslation, getLocale } from '../../../utils/i18n';
+import { buildLocalizedPath, toContentLocale } from '../../../utils/routeLocale';
+import { buildTocItems } from '../../../utils/toc';
+import { renderCodeBlockStatsHtml, renderCodeBlockLangLabelsHtml } from '../../../utils/markdownParser';
+import DesktopFloatingToc from '../../../components/FloatingToc.vue';
+import MobileTocPanel from '../../../components/MobileTocPanel.vue';
+import CornerActions from '../../../components/CornerActions.vue';
+import CollectionNav from '../../../components/CollectionNav.vue';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
+import '../../../styles/post.css';
+
+export const prerender = true;
+
+ 
+
+function escapeHtmlText(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function decodeHtmlEntities(text: string): string {
+  if (!text) return text;
+  let out = String(text);
+
+  // First decode common named entities so sequences like '&amp;#92;' become '&#92;'
+  out = out
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+
+  // Decode numeric entities (hex and decimal), e.g. &#92; or &#x5C; -> backslash
+  out = out.replace(/&#x([0-9a-fA-F]+);/g, (_m, hx) => {
+    try { return String.fromCharCode(parseInt(hx, 16)); } catch { return _m; }
+  });
+  out = out.replace(/&#(\d+);/g, (_m, dec) => {
+    try { return String.fromCharCode(parseInt(dec, 10)); } catch { return _m; }
+  });
+
+  return out;
+}
+
+function getFileExt(url: string): string {
+  try {
+    const pathname = url.split('?')[0].split('#')[0];
+    const match = pathname.match(/\.([0-9a-z]+)$/i);
+    return match ? match[1].toLowerCase() : '';
+  } catch {
+    return '';
+  }
+}
+
+function getMediaIcon(type: 'audio' | 'video' | 'file'): string {
+  if (type === 'audio') {
+    return '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>';
+  }
+  if (type === 'video') {
+    return '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="15" height="10" rx="2"></rect><path d="M17 10l5-3v10l-5-3z"></path></svg>';
+  }
+  return '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>';
+}
+
+function toMediaCard(label: string, href: string, type: 'audio' | 'video' | 'file'): string {
+  const safeHref = escapeHtmlText(href);
+  const safeLabel = label || href;
+  const typeLabel = type === 'audio' ? 'Audio' : type === 'video' ? 'Video' : 'Document';
+  const icon = getMediaIcon(type);
+
+  // Make file-card keyboard-focusable and announceable for accessibility
+  return `<div class="file-card" tabindex="0" role="button" aria-label="Preview file: ${escapeHtmlText(String(safeLabel))}" data-url="${safeHref}" data-name="${safeLabel}" data-type="${typeLabel}"><div class="file-card-icon">${icon}</div><div class="file-card-info"><div class="file-card-title">${safeLabel}</div><div class="file-card-subtitle">${typeLabel}</div></div></div>`;
+}
+
+function rewriteMediaLinks(renderedHtml: string): string {
+  try {
+    const audioExts = new Set(['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac']);
+    const videoExts = new Set(['mp4', 'webm', 'mkv', 'mov', 'avi']);
+    const fileExts = new Set(['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'zip', 'rar', '7z', 'tar', 'gz']);
+
+    return renderedHtml.replace(/<a\s+[^>]*href=\"([^\"]+)\"[^>]*>(.*?)<\/a>/gi, (_full, href: string, labelHtml: string) => {
+      try {
+        // If mailto: link, render as anchor-styled file-card with person icon and payload subtitle
+        try {
+          if (/^mailto:/i.test(href)) {
+            const payload = href.replace(/^mailto:/i, '')
+            const safeHref = escapeHtmlText(href)
+            const safeLabel = labelHtml || payload
+            const personIcon = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>'
+            return `<a class="file-card" href="${safeHref}" aria-label="Email: ${escapeHtmlText(String(safeLabel))}"><div class="file-card-icon">${personIcon}</div><div class="file-card-info"><div class="file-card-title">${escapeHtmlText(String(safeLabel))}</div><div class="file-card-subtitle">${escapeHtmlText(payload)}</div></div></a>`
+          }
+        } catch (e) {
+          // fallthrough to normal handling
+        }
+        const ext = getFileExt(href);
+        if (audioExts.has(ext)) return toMediaCard(labelHtml, href, 'audio');
+        if (videoExts.has(ext)) return toMediaCard(labelHtml, href, 'video');
+        if (fileExts.has(ext)) return toMediaCard(labelHtml, href, 'file');
+        return _full;
+      } catch (e) {
+        // If toMediaCard fails, return original link
+        return _full;
+      }
+    });
+  } catch (e) {
+    // If regex replacement fails, return original HTML
+    return renderedHtml;
+  }
+}
+
+function hydrateLegacyKatexPlaceholders(html: string, contextLabel = 'unknown-post'): string {
+  try {
+    return html.replace(/<(span|div)\b([^>]*?)class=\"([^\"]*katex-placeholder[^\"]*)\"([^>]*?)data-tex=\"([^\"]+)\"([^>]*?)data-type=\"([^\"]+)\"[^>]*><\/(span|div)>/g, (_full, _tag, _a, _className, _b, rawTex, _c, rawType) => {
+      try {
+        const tex = decodeHtmlEntities(rawTex);
+        const displayMode = rawType === 'block';
+        const rendered = katex.renderToString(tex, { throwOnError: false, displayMode });
+        const tag = displayMode ? 'div' : 'span';
+        const className = displayMode
+          ? 'katex-rendered katex-display-wrapper katex-interactive katex-interactive-block'
+          : 'katex-rendered katex-inline-wrapper katex-interactive';
+        return `<${tag} class=\"${className}\" data-tex=\"${escapeHtmlText(tex)}\" data-type=\"${displayMode ? 'block' : 'inline'}\">${rendered}</${tag}>`;
+      } catch (e) {
+        // If katex rendering fails, return fallback code block
+        console.warn(`[Post SSR] KaTeX render failed in ${contextLabel}`, {
+          type: rawType,
+          texPreview: decodeHtmlEntities(rawTex).slice(0, 120),
+        });
+        return `<code class=\"math-fallback\">${escapeHtmlText(rawTex)}</code>`;
+      }
+    });
+  } catch (e) {
+    // If placeholder replacement fails, return original HTML
+    console.warn(`[Post SSR] KaTeX placeholder hydration failed in ${contextLabel}`, e);
+    return html;
+  }
+}
+
+function wrapRenderedKatex(tex: string, displayMode: boolean, renderedHtml: string, uniqueId = ''): string {
+  const tag = displayMode ? 'div' : 'span';
+  const className = displayMode
+    ? 'katex-rendered katex-display-wrapper katex-interactive katex-interactive-block'
+    : 'katex-rendered katex-inline-wrapper katex-interactive';
+  const uniqueIdAttr = uniqueId ? ` data-unique-id=\"${escapeHtmlText(uniqueId)}\"` : '';
+  return `<${tag} class=\"${className}\" data-tex=\"${escapeHtmlText(tex)}\" data-type=\"${displayMode ? 'block' : 'inline'}\"${uniqueIdAttr}>${renderedHtml}</${tag}>`;
+}
+
+export async function getStaticPaths() {
+  try {
+    const res = await fetch(getApiUrl('/api/posts', true), { cache: 'no-store' });
+    if (res.ok) {
+      const responseText = await res.text();
+      let posts: any[] = [];
+
+      try {
+        const data = JSON.parse(responseText);
+        posts = Array.isArray(data) ? data : (data.posts || []);
+      } catch (parseError) {
+        const jsonMatch = responseText.match(/\[.*\]/);
+        if (jsonMatch) {
+          try {
+            posts = JSON.parse(jsonMatch[0]);
+          } catch (e) {
+            console.error('[Build] Manual JSON parse error:', e);
+          }
+        }
+      }
+
+      return posts.flatMap((post: any) => ([
+        { params: { lang: 'zh', id: String(post.id) } },
+        { params: { lang: 'en', id: String(post.id) } },
+      ]));
+    }
+  } catch (err) {
+    console.error('[Build] Failed to fetch posts for static paths:', err);
+  }
+
+  return [];
+}
+
+const routeLang = Astro.params.lang === 'en' ? 'en' : 'zh';
+const locale = toContentLocale(routeLang);
+const backToBlogs = buildLocalizedPath(routeLang, '/blogs');
+const searchForTags = buildLocalizedPath(routeLang, '/search?tags=');
+const t = (key: string) => getTranslation(locale, key);
+const { id } = Astro.params;
+const mermaidUiText = {
+  downloadSvg: t('preview.mermaid.downloadSvg'),
+  split: t('preview.mermaid.split'),
+  code: t('preview.mermaid.code'),
+  preview: t('preview.mermaid.preview'),
+  notPrerendered: t('preview.mermaid.notPrerendered'),
+};
+
+let post: any = null;
+let error = null;
+let settings: Record<string, any> = {};
+
+try {
+  const postApiUrl = getApiUrl(`/api/post?id=${id}`, true);
+  
+  // 首先尝试主API获取settings
+  try {
+    const settingsRes = await fetch(getApiUrl('/api/settings?t=' + Date.now(), true), {
+      cache: 'no-store',
+    });
+    if (settingsRes.ok) {
+      settings = await settingsRes.json();
+      console.log('[Post Detail] Settings loaded from main API:', settings);
+      console.log('[Post Detail] Frontend background:', settings.frontendBackground);
+    }
+  } catch (e) {
+    console.error('[Post Detail] Failed to fetch settings from main API:', e);
+  }
+  
+  // 如果主API失败或没有数据，尝试public API作为后备
+  if (!settings || Object.keys(settings).length === 0) {
+    try {
+      const settingsRes = await fetch(getApiUrl('/api/public/settings?t=' + Date.now(), true), {
+        cache: 'no-store',
+      });
+      if (settingsRes.ok) {
+        settings = await settingsRes.json();
+        console.log('[Post Detail] Settings loaded from public API:', settings);
+        console.log('[Post Detail] Frontend background:', settings.frontendBackground);
+      }
+    } catch (e) {
+      console.error('[Post Detail] Failed to fetch settings from public API:', e);
+    }
+  }
+  
+  // 获取帖子内容
+  const postRes = await fetch(postApiUrl, { cache: 'no-store' });
+
+  if (postRes.ok) {
+    const responseText = await postRes.text();
+    try {
+      post = JSON.parse(responseText);
+      if (post && post.id && !post.content && post.html) {
+        post.content = post.html;
+      }
+    } catch (parseError) {
+      let fixedJson = responseText.replace(/("[^"]+")(?="[^"]+")/g, '$1,');
+      try {
+        post = JSON.parse(fixedJson);
+        if (post && post.id && !post.content && post.html) {
+          post.content = post.html;
+        }
+      } catch (secondError) {
+        try {
+          const idMatch = responseText.match(/"id":"([^"]+)"/);
+          const titleMatch = responseText.match(/"title":"([^"]+)"/);
+          const dateMatch = responseText.match(/"date":"([^"]+)"/);
+          const tagsMatch = responseText.match(/"tags":\[([^\]]+)\]/);
+          const contentMatch = responseText.match(/"content":"([^"]*)"/);
+          const htmlMatch = responseText.match(/"html":"([^"]*)"/);
+
+          if (idMatch && titleMatch) {
+            post = {
+              id: idMatch[1],
+              title: titleMatch[1],
+              date: dateMatch ? dateMatch[1] : new Date().toISOString(),
+              tags: tagsMatch ? tagsMatch[1].replace(/"/g, '').split(',') : [],
+              content: contentMatch ? contentMatch[1] : (htmlMatch ? htmlMatch[1] : ''),
+            };
+          } else {
+            error = 'Post not found';
+          }
+        } catch (manualError) {
+          error = 'Post not found';
+        }
+      }
+    }
+  } else {
+    error = postRes.status === 404 ? 'Post not found' : `Failed to load post (${postRes.status})`;
+  }
+} catch (err) {
+  error = 'Failed to load post detail';
+}
+
+if (!post && !error) {
+  error = 'Post not found';
+}
+
+let pageTitle = 'Post not found';
+if (post && post.title) {
+  pageTitle = `${post.title}`;
+}
+
+const createdAtText = post ? new Date(post.date).toLocaleDateString(locale) : '';
+const updatedAtText = post && post.updatedAt && post.updatedAt !== post.date
+  ? new Date(post.updatedAt).toLocaleDateString(locale)
+  : '';
+
+// 计算字数和阅读时间
+let wordCount = 0;
+let readingTime = 0;
+
+if (post && post.content) {
+  // 移除HTML标签，只统计纯文本字数
+  const textContent = post.content.replace(/<[^>]*>/g, '').trim();
+  
+  // 中文字数统计（每个中文字符算1个字）
+  const chineseChars = (textContent.match(/[\u4e00-\u9fa5]/g) || []).length;
+  
+  // 英文单词统计（按空格分隔）
+  const englishWords = textContent.replace(/[\u4e00-\u9fa5]/g, '').trim();
+  const englishWordCount = englishWords ? englishWords.split(/\s+/).length : 0;
+  
+  // 总字数（中文字数 + 英文单词数）
+  wordCount = chineseChars + englishWordCount;
+  
+  // 阅读时间估算（中文：300字/分钟，英文：200字/分钟）
+  const chineseReadingTime = chineseChars / 300;
+  const englishReadingTime = englishWordCount / 200;
+  readingTime = Math.ceil(chineseReadingTime + englishReadingTime);
+  
+  // 最少1分钟
+  if (readingTime < 1) readingTime = 1;
+}
+
+// 获取作者名和AI生成标记
+const authorName = post?.author || settings?.authorName || 'Eightyfor';
+const isAI = post?.aiGenerated || false;
+
+function buildMetaDescription(input: any, fallbackLocale: string) {
+  const fallback = fallbackLocale === 'zh-CN'
+    ? '浏览 Chronicle 的文章详情。'
+    : 'Read the Chronicle article details.';
+  const rawSource = String(
+    input?.summary ||
+    input?.excerpt ||
+    input?.description ||
+    input?.content ||
+    input?.html ||
+    '',
+  ).trim();
+
+  if (!rawSource) return fallback;
+
+  const plainText = rawSource
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!plainText) return fallback;
+  return plainText.slice(0, 160) + (plainText.length > 160 ? '...' : '');
+}
+
+const rawPostHtml = typeof post?.html === 'string' ? post.html : '';
+const rawPostMarkdown = typeof post?.content === 'string' ? post.content : '';
+const renderContextLabel = `${post?.id || id || 'unknown-id'}${post?.title ? `:${post.title}` : ''}`;
+let renderedPostContent = rawPostHtml
+  ? hydrateLegacyKatexPlaceholders(rawPostHtml, renderContextLabel)
+  : (rawPostMarkdown ? `<pre class="md-fallback">${escapeHtmlText(rawPostMarkdown)}</pre>` : '');
+
+let tocItems: any[] = [];
+
+if (renderedPostContent) {
+  console.info('[Post SSR] Rendering post content', {
+    context: renderContextLabel,
+    length: renderedPostContent.length,
+    htmlSource: !!rawPostHtml,
+  });
+    try {
+    // First apply server-side replacements that may affect headings (code footers, language labels)
+    try {
+      renderedPostContent = renderCodeBlockStatsHtml(renderedPostContent, locale)
+      try { renderedPostContent = renderCodeBlockLangLabelsHtml(renderedPostContent, locale) } catch (e) {}
+    } catch (e) {
+      // ignore and keep placeholders
+    }
+
+    // Use server-provided TOC only. Do NOT compute TOC during Astro build.
+    // This enforces server as the single source of truth and avoids
+    // mis-detecting headings inside code blocks or file-cards.
+    if (post && Array.isArray(post.toc) && post.toc.length > 0) {
+      // normalize and use the server-provided toc; content isn't needed
+      tocItems = buildTocItems('', true, post.toc);
+    } else {
+      console.warn('[Post SSR] Server TOC missing for post, skipping local TOC generation', renderContextLabel);
+      tocItems = [];
+    }
+
+    // Server is authoritative for heading ids; do not modify them here.
+  } catch (renderErr) {
+    // If rendering fails completely, fall back to escaped raw content
+    console.error('[Post SSR] Rendering failed:', renderContextLabel, renderErr);
+    renderedPostContent = `<div class="md-placeholder">文章内容渲染失败</div><pre style="margin-top:1rem; padding: 1rem; background: var(--component-bg-primary); border-radius: 4px; overflow-x: auto; font-size: 12px;">${escapeHtmlText((rawPostHtml || rawPostMarkdown).substring(0, 500))}</pre>`;
+  }
+}
+
+const metaDescription = buildMetaDescription(post, locale);
+---
+
+<Layout title={pageTitle} settings={settings} locale={locale} navTitle={post?.title} navBackHref={backToBlogs} navBackLabel={t('inblog.backToBlogs')} meta={{ description: metaDescription, type: 'article' }}>
+  <div class="post-detail-container" id="post-top">
+    {error ? (
+      <div class="error-container">
+        <h1>Post not found</h1>
+        <p>{error}</p>
+        <a href={backToBlogs} class="back-link" aria-label="Back to blogs">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            {t('inblog.backToBlogs')}
+        </a>
+      </div>
+    ) : post ? (
+      <article class={`post-content font-${post.font || 'sans'}`}>
+        <nav class="post-nav">
+          <a href={backToBlogs} class="nav-back" aria-label="Back to blogs">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            {t('inblog.backToBlogs')}
+          </a>
+        </nav>
+
+        <header class="post-header">
+          <h1 class="post-title">{post.title}</h1>
+
+          <div class="post-meta">
+            <!-- 第一行：作者和创建修改时间 -->
+            <div class="meta-row">
+              <span class="meta-item" title={`Author: ${authorName}`} aria-label={`Author: ${authorName}`}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                <span class="meta-value">{authorName}</span>
+              </span>
+              <span class="meta-item" title={createdAtText} aria-label={`Created ${createdAtText}`}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                <span class="meta-label">{t('inblog.created')}</span>
+                <time datetime={new Date(post.date).toISOString()}>{createdAtText}</time>
+              </span>
+              {updatedAtText && (
+                <span class="meta-item" title={updatedAtText} aria-label={`Updated ${updatedAtText}`}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+                  <span class="meta-label">{t('inblog.updated')}</span>
+                  <time datetime={new Date(post.updatedAt).toISOString()}>{updatedAtText}</time>
+                </span>
+              )}
+            </div>
+
+            <!-- 第二行：字数和阅读时间 -->
+            <div class="meta-row">
+              {wordCount > 0 && (
+                <span class="meta-item" title={`${wordCount} words`} aria-label={`${wordCount} words`}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14,2 14,8 20,8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10,9 9,9 8,9"></polyline></svg>
+                  <span class="meta-label">{t('inblog.words')}</span>
+                  <span class="meta-value">{wordCount.toLocaleString()}</span>
+                </span>
+              )}
+              {readingTime > 0 && (
+                <span class="meta-item" title={`${readingTime} minutes read`} aria-label={`${readingTime} minutes read`}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12,6 12,12 16,14"></polyline></svg>
+                  <span class="meta-label">{t('inblog.readingTime')}</span>
+                  <span class="meta-value">{readingTime} {t('inblog.min')}</span>
+                </span>
+              )}
+            </div>
+
+            <!-- 第三行：AI生成标记（如果有） -->
+            {isAI && (
+              <div class="meta-row">
+                <span class="meta-item warning" title="AI Generated Content" aria-label="AI Generated Content">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                  <span class="meta-label">{t('inblog.aiGeneratedTip')}</span>
+                </span>
+              </div>
+            )}
+
+            {post.tags && post.tags.length > 0 && (
+              <div class="post-tags">
+                {post.tags.map((tag: string) => (
+                <a href={searchForTags + encodeURIComponent(tag)} class="tag-link" aria-label={`Search for tag ${tag}`}>
+                  <span class="tag" class:list={[{ featured: tag === 'featured' || tag === '精选' }]} >
+                    {tag}
+                  </span>
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        </header>
+
+        {tocItems.length > 0 && (
+          <details class="markdown-toc">
+            <summary class="toc-summary" aria-label={t('inblog.toc-title')}>
+              <span class="toc-title">{t('inblog.toc-title')}</span>
+              <svg class="toc-toggle-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </summary>
+            <div class="toc-body">
+              <ul class="toc-list">
+                {tocItems.map((item) => (
+                  <li class={`toc-level-${item.level}`}>
+                    <a href={`#${item.id}`}>
+                      <span class="toc-text">{item.text}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </details>
+        )}
+
+        <div class="post-body">
+          <div class="md-parser-rendered markdown-content" set:html={renderedPostContent} />
+        </div>
+      </article>
+    ) : null}
+  </div>
+  <div class="scroll-blank"/>
+
+  {tocItems.length > 0 && (
+    <>
+      <DesktopFloatingToc
+        client:idle
+        toc={tocItems}
+        navLabel={t('inblog.toc-title')}
+        mountToBody={true}
+      />
+      <MobileTocPanel client:idle toc={tocItems} />
+    </>
+  )}
+
+  {post?.collection && (
+    <CollectionNav client:idle postId={post?.id || id} />
+  )}
+
+  <CornerActions client:idle hasToc={tocItems.length > 0} />
+
+  <style is:global>
+    @media (max-width: 768px) {
+      .post-detail-container {
+        padding: 1rem 0.5rem;
+      }
+
+      .post-title {
+        font-size: 2rem;
+      }
+
+      .meta-row {
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .post-nav {
+        margin-bottom: 0;
+      }
+
+      .scroll-blank {
+        height: 80px;
+      }
+    }
+    
+
+  </style>
+
+  <script>
+    // 复制代码功能 - 参考CodeChunk.vue实现
+    function copyCode(button: HTMLElement) {
+      const code = button.getAttribute('data-code');
+      if (!code) return;
+
+      // Optimistically show an in-progress state to reduce perceived delay
+      showCopyInProgress(button);
+
+      // Try modern Clipboard API first (async, but we don't await to keep UI responsive)
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        navigator.clipboard.writeText(code).then(() => {
+          clearCopyInProgress(button);
+          showCopySuccess(button);
+        }).catch(() => {
+          // Fallback to execCommand approach
+          tryFallbackCopy(button, code);
+        });
+        return;
+      }
+
+      // Fallback immediately
+      tryFallbackCopy(button, code);
+    }
+
+    function tryFallbackCopy(button: HTMLElement, code: string) {
+      const textArea = document.createElement('textarea');
+      textArea.value = code;
+      // Place off-screen to avoid scroll
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-9999px';
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+          clearCopyInProgress(button);
+          showCopySuccess(button);
+        } else {
+          clearCopyInProgress(button);
+          console.error('Fallback copy failed');
+        }
+      } catch (backupErr) {
+        clearCopyInProgress(button);
+        console.error('复制失败:', backupErr);
+      } finally {
+        document.body.removeChild(textArea);
+      }
+    }
+    
+    // 显示复制成功状态
+    function showCopySuccess(button: HTMLElement) {
+      const copyIcon = button.querySelector('.copy-icon') as HTMLElement;
+      const successIcon = button.querySelector('.success-icon') as HTMLElement;
+      
+      if (copyIcon) copyIcon.style.display = 'none';
+      if (successIcon) successIcon.style.display = 'block';
+      button.classList.add('success');
+      
+      // 1.5秒后恢复原状
+      setTimeout(() => {
+        if (copyIcon) copyIcon.style.display = 'block';
+        if (successIcon) successIcon.style.display = 'none';
+        button.classList.remove('success');
+      }, 1500);
+    }
+    
+    function showCopyInProgress(button: HTMLElement) {
+      const copyIcon = button.querySelector('.copy-icon') as HTMLElement;
+      if (copyIcon) copyIcon.style.opacity = '0.4';
+      button.classList.add('copying');
+    }
+
+    function clearCopyInProgress(button: HTMLElement) {
+      const copyIcon = button.querySelector('.copy-icon') as HTMLElement;
+      if (copyIcon) copyIcon.style.opacity = '';
+      button.classList.remove('copying');
+    }
+
+    function initPostPageFeatures() {
+      import('../../../utils/mathTooltip').then(({ initMathTooltip }) => {
+        initMathTooltip(document.querySelector('.post-content'));
+      }).catch((err) => {
+        console.error('初始化数学公式 tooltip 失败:', err);
+      });
+
+      // Initialize special Mermaid code-block interactions (mode switch + SVG download)
+      initMermaidCodeBlocks();
+
+      // 初始化复制按钮
+      const copyButtons = document.querySelectorAll('.copy-btn');
+      copyButtons.forEach(button => {
+        const copyIcon = button.querySelector('.copy-icon') as HTMLElement;
+        const successIcon = button.querySelector('.success-icon') as HTMLElement;
+
+        if (copyIcon) copyIcon.style.display = 'block';
+        if (successIcon) successIcon.style.display = 'none';
+      });
+
+      // 直接给每个 copy 按钮绑定处理器，避免 document 代理导致的额外查找开销
+      copyButtons.forEach(button => {
+        // Remove previous handlers if any to avoid duplication
+        (button as HTMLElement).removeEventListener('click', (button as any).__copyHandler__);
+        const handler = (e: Event) => {
+          e.stopPropagation();
+          copyCode(button as HTMLElement);
+        };
+        (button as any).__copyHandler__ = handler;
+        (button as HTMLElement).addEventListener('click', handler);
+      });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initPostPageFeatures, { once: true });
+    } else {
+      initPostPageFeatures();
+    }
+
+    document.addEventListener('astro:page-load', initPostPageFeatures);
+    
+    // Google Analytics: post_view handling moved to standalone script below
+    
+    // Mermaid support for published read-only code blocks.
+    // IMPORTANT: Astro side never renders Mermaid; we only consume server-prerendered SVG.
+
+    function getMermaidUiText() {
+      const w = (typeof window !== 'undefined') ? (window as any) : null;
+      const fallback = {
+        downloadSvg: 'Download SVG',
+        split: 'Split View',
+        code: 'Code Only',
+        preview: 'Preview Only',
+        notPrerendered: 'No prerendered Mermaid SVG found.'
+      };
+      if (!w || !w.__MERMAID_UI_TEXT) return fallback;
+      const ui = w.__MERMAID_UI_TEXT;
+      return {
+        downloadSvg: String(ui.downloadSvg || fallback.downloadSvg),
+        split: String(ui.split || fallback.split),
+        code: String(ui.code || fallback.code),
+        preview: String(ui.preview || fallback.preview),
+        notPrerendered: String(ui.notPrerendered || fallback.notPrerendered)
+      };
+    }
+
+    function makeIconButton(title: string, iconSvg: string, extraClass = '') {
+      const btn = document.createElement('button');
+      btn.className = `icon-btn ${extraClass}`.trim();
+      btn.type = 'button';
+      btn.title = title;
+      btn.setAttribute('aria-label', title);
+      btn.innerHTML = iconSvg;
+      return btn;
+    }
+
+    function initMermaidCodeBlocks() {
+      const ui = getMermaidUiText();
+      const blocks = document.querySelectorAll('.content-block[data-language="mermaid"] .code-chunk-container, .code-chunk-container[data-language="mermaid"]');
+      if (!blocks || blocks.length === 0) return;
+
+      blocks.forEach((block: Element) => {
+        if (!(block instanceof HTMLElement)) return;
+        if (block.dataset.mermaidEnhanced === '1') return;
+
+        const editorWrapper = block.querySelector('.editor-wrapper') as HTMLElement | null;
+        const toolbar = block.querySelector('.toolbar') as HTMLElement | null;
+        const editorFooter = block.querySelector('.editor-footer') as HTMLElement | null;
+        if (!(editorWrapper instanceof HTMLElement) || !(toolbar instanceof HTMLElement)) return;
+        const safeEditorWrapper: HTMLElement = editorWrapper;
+
+        const copyBtn = block.querySelector('.copy-btn') as HTMLElement | null;
+        const textarea = block.querySelector('.code-textarea') as HTMLTextAreaElement | null;
+        const codeText = (copyBtn && copyBtn.getAttribute('data-code')) || (textarea && textarea.value) || '';
+        if (!codeText.trim()) return;
+
+        block.dataset.mermaidEnhanced = '1';
+
+        const preview = document.createElement('div');
+        preview.className = 'mermaid-preview';
+        preview.style.padding = '0.5rem 1rem';
+        preview.style.display = 'none';
+
+        const previewContainer = document.createElement('div');
+        previewContainer.className = 'mermaid-container';
+        preview.appendChild(previewContainer);
+        block.appendChild(preview);
+
+        let mode: 'split' | 'code' | 'preview' = 'split';
+        let lastRenderedSvg: string | null = null;
+
+        const downloadBtn = makeIconButton(
+          ui.downloadSvg,
+          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3v10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M7 10l5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M21 21H3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>',
+          'mermaid-download-btn'
+        );
+        downloadBtn.style.marginRight = '0.25rem';
+
+        const dividerLeft = document.createElement('div');
+        dividerLeft.className = 'toolbar-divider';
+
+        const group = document.createElement('div');
+        group.className = 'mermaid-group';
+
+        const splitBtn = makeIconButton(
+          ui.split,
+          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="8" rx="1" stroke="currentColor" stroke-width="1.5"></rect><rect x="3" y="13" width="18" height="8" rx="1" stroke="currentColor" stroke-width="1.5"></rect></svg>'
+        );
+        const codeBtn = makeIconButton(
+          ui.code,
+          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M16 18l6-6-6-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M8 6l-6 6 6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>'
+        );
+        const previewBtn = makeIconButton(
+          ui.preview,
+          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"></circle></svg>'
+        );
+
+        group.appendChild(splitBtn);
+        group.appendChild(codeBtn);
+        group.appendChild(previewBtn);
+
+        const dividerRight = document.createElement('div');
+        dividerRight.className = 'toolbar-divider';
+
+        const firstBtn = toolbar.querySelector('.icon-btn');
+        if (firstBtn && firstBtn.parentNode === toolbar) {
+          toolbar.insertBefore(downloadBtn, firstBtn);
+          toolbar.insertBefore(dividerLeft, firstBtn);
+          toolbar.insertBefore(group, firstBtn);
+          toolbar.insertBefore(dividerRight, firstBtn);
+        } else {
+          toolbar.appendChild(downloadBtn);
+          toolbar.appendChild(dividerLeft);
+          toolbar.appendChild(group);
+          toolbar.appendChild(dividerRight);
+        }
+
+        function setActiveButton() {
+          splitBtn.classList.toggle('active', mode === 'split');
+          codeBtn.classList.toggle('active', mode === 'code');
+          previewBtn.classList.toggle('active', mode === 'preview');
+        }
+
+        function findPrerenderedSvgMarkup() {
+          const directSvg = block.querySelector('.mermaid-prerendered svg, .mermaid-preview svg, .mermaid-svg svg, svg.mermaid');
+          if (directSvg && directSvg.outerHTML) return directSvg.outerHTML;
+
+          const host = block.closest('.content-block[data-language="mermaid"]') || block.parentElement;
+          if (host) {
+            const hostSvg = host.querySelector('.mermaid-prerendered svg, .mermaid-svg svg, .mermaid-preview svg, svg.mermaid');
+            if (hostSvg && hostSvg.outerHTML) return hostSvg.outerHTML;
+          }
+
+          return '';
+        }
+
+        function renderMermaidSvg() {
+          if (mode === 'code') return;
+          const svgMarkup = findPrerenderedSvgMarkup();
+          if (svgMarkup) {
+            previewContainer.innerHTML = svgMarkup;
+            lastRenderedSvg = svgMarkup;
+            downloadBtn.disabled = false;
+            return;
+          }
+
+          previewContainer.innerHTML = '<div class="mermaid-placeholder">' + ui.notPrerendered + '</div>';
+          lastRenderedSvg = null;
+          downloadBtn.disabled = true;
+        }
+
+        function applyMode(nextMode: 'split' | 'code' | 'preview') {
+          mode = nextMode;
+          setActiveButton();
+          safeEditorWrapper.style.display = (mode === 'preview') ? 'none' : '';
+          if (editorFooter) editorFooter.style.display = (mode === 'preview') ? 'none' : '';
+          preview.style.display = (mode === 'code') ? 'none' : '';
+          if (mode !== 'code') {
+            renderMermaidSvg();
+          }
+        }
+
+        splitBtn.addEventListener('click', () => applyMode('split'));
+        codeBtn.addEventListener('click', () => applyMode('code'));
+        previewBtn.addEventListener('click', () => applyMode('preview'));
+
+        downloadBtn.addEventListener('click', () => {
+          if (!lastRenderedSvg) return;
+          try {
+            const raw = lastRenderedSvg;
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(raw, 'image/svg+xml');
+            const svgEl = doc.documentElement;
+
+            // ensure defs
+            let defs = svgEl.querySelector('defs');
+            if (!defs) {
+              defs = doc.createElementNS('http://www.w3.org/2000/svg', 'defs');
+              svgEl.insertBefore(defs, svgEl.firstChild);
+            }
+
+            // clone global marker if exists
+            try {
+              const globalMarker = document.querySelector('marker#chronicle-mermaid-arrow');
+              if (globalMarker) {
+                const cloned = globalMarker.cloneNode(true);
+                const existing = defs.querySelector('#chronicle-mermaid-arrow');
+                if (existing) existing.remove();
+                defs.appendChild(doc.importNode(cloned, true));
+              }
+            } catch (e) {}
+
+            // inline resolved CSS variables for consistency
+            try {
+              const cs = getComputedStyle(document.documentElement);
+              const vars = {
+                '--component-bg-blur-alt': cs.getPropertyValue('--component-bg-blur-alt') || '#ffffff',
+                '--border-color': cs.getPropertyValue('--border-color') || '#e6e6e6',
+                '--text-primary': cs.getPropertyValue('--text-primary') || '#111111',
+                '--component-text-primary': cs.getPropertyValue('--component-text-primary') || '#111111'
+              };
+              const styleContent = `
+                svg { background: ${vars['--component-bg-blur-alt']}; }
+                rect { fill: ${vars['--component-bg-blur-alt']}; stroke: ${vars['--text-primary']}; }
+                path { stroke: ${vars['--component-text-primary']}; fill: none; }
+                text { fill: ${vars['--component-text-primary']}; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif; }
+              `;
+              const prevStyle = svgEl.querySelector('style[data-chronicle-inline]');
+              if (prevStyle) prevStyle.remove();
+              const styleEl = doc.createElementNS('http://www.w3.org/2000/svg', 'style');
+              styleEl.setAttribute('data-chronicle-inline', '1');
+              styleEl.textContent = styleContent;
+              svgEl.insertBefore(styleEl, svgEl.firstChild);
+            } catch (e) {}
+
+            const serializer = new XMLSerializer();
+            const outSvg = serializer.serializeToString(svgEl);
+            const blob = new Blob([outSvg], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'mermaid-' + Date.now() + '.svg';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          } catch (err) {
+            // fallback
+            const blob = new Blob([lastRenderedSvg], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'mermaid-' + Date.now() + '.svg';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }
+        });
+
+        // default mode: preview
+        downloadBtn.disabled = true;
+        applyMode('preview');
+      });
+    }
+
+    // code block stats are rendered during SSR; no client-side hydration needed
+  </script>
+
+  <script define:vars={{ POST_ID: JSON.stringify(post?.id || id), POST_TITLE: JSON.stringify(post?.title || ''), PAGE_LOCALE: JSON.stringify(locale), MERMAID_UI_TEXT: JSON.stringify(mermaidUiText) }} is:inline>
+    (function() {
+      try {
+        if (typeof window !== 'undefined') {
+          window.__PAGE_LOCALE = PAGE_LOCALE;
+          window.__MERMAID_UI_TEXT = MERMAID_UI_TEXT;
+        }
+      } catch(e) {}
+      function sendPostView() {
+        try {
+          if (typeof window !== 'undefined' && typeof window.gtag === 'function') {
+            window.gtag('event', 'post_view', { post_id: POST_ID, post_title: POST_TITLE, page_path: location.pathname });
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', sendPostView, { once: true });
+      } else {
+        sendPostView();
+      }
+
+      document.addEventListener('astro:page-load', sendPostView);
+    })();
+  </script>
+
+  <script type="module">
+    // Lazy-load file preview handler for .file-card elements (keeps client lightweight)
+    import('/src/components/filePreviewLazy.js').catch(() => {});
+  </script>
+
+</Layout>
