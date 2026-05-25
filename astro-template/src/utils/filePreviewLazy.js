@@ -8,7 +8,7 @@ async function ensureMounted() {
   // Dynamically import Vue and the component
   const [{ createApp, h }, module] = await Promise.all([
     import('vue'),
-    import('./FilePreviewModal.vue')
+    import('../components/FilePreviewModal.vue')
   ]);
 
   const comp = module.default;

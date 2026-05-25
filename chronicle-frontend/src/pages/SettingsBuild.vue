@@ -158,6 +158,7 @@
 
 <script setup lang="ts">
 import { fetchWithAuth } from '../utils/fetchWithAuth';
+import { readApiErrorMessage } from '../utils/apiError'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import CheckRow from '../components/ui/CheckRow.vue'
@@ -323,12 +324,14 @@ async function triggerBuild() {
       } else if (result.status === 'timeout') {
         show(t('settings.buildTimeout') as string, { status: 'warning', position: 'bottom-center', shape: 'capsule' })
       } else if (result.status === 'failed') {
-        show(t('settings.buildFailed') as string + (result.error ? `: ${result.error}` : ''), { status: 'error', position: 'bottom-center', shape: 'capsule' })
+        const rawMessage = result.error || result.message || t('settings.buildFailed') as string
+        show(`${t('settings.buildErrorPrefix') as string}${rawMessage}`, { status: 'error', position: 'bottom-center', shape: 'capsule' })
       } else {
         show(t('settings.buildTriggered') as string, { status: 'success', position: 'bottom-center', shape: 'capsule' })
       }
     } else {
-      show(t('settings.buildFailed') as string, { status: 'error', position: 'bottom-center', shape: 'capsule' })
+      const message = await readApiErrorMessage(res, t('settings.buildFailed') as string)
+      show(`${t('settings.buildErrorPrefix') as string}${message}`, { status: 'error', position: 'bottom-center', shape: 'capsule' })
     }
   } catch (e) {
     show(t('settings.buildFailed') as string, { status: 'error', position: 'bottom-center', shape: 'capsule' })

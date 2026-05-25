@@ -269,6 +269,7 @@
     "buildCompleted": "Frontend build completed",
     "buildTimeout": "Build timeout, but still running in background",
     "buildFailed": "Build failed",
+    "buildErrorPrefix": "Build failed: ",
     "cleaning": "Cleaning build directory...",
     "cleanTriggered": "Clean triggered",
     "cleanCompleted": "Cleanup completed",

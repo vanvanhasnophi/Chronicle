@@ -293,6 +293,7 @@ fi
 
 log "恢复 chronicle-frontend 源码中的 upload symlink..."
 ensure_symlink "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME/public/server/data/upload" "$REPO_ROOT/server/data/upload"
+ensure_symlink "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME/public/server/data/background" "$REPO_ROOT/server/data/background"
 
 log "部署 chronicle-frontend 到后台站点目录 ($BACKEND_ROOT)..."
 rsync -a --delete "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME/dist/" "$BACKEND_ROOT/"
@@ -326,15 +327,18 @@ MEDIA_DOMAIN="$MEDIA_DOMAIN" API_BASE_URL="$ASTRO_API_BASE_URL" npm run build
 
 log "恢复 astro-template 源码中的 upload symlink..."
 ensure_symlink "$REPO_ROOT/$REPO_ASTRO_SRC_NAME/public/server/data/upload" "$REPO_ROOT/server/data/upload"
+ensure_symlink "$REPO_ROOT/$REPO_ASTRO_SRC_NAME/public/server/data/background" "$REPO_ROOT/server/data/background"
 
 log "部署 astro-template 到前台站点目录 ($WEB_ROOT)..."
 rsync -a --delete "$REPO_ROOT/$REPO_ASTRO_SRC_NAME/dist/" "$WEB_ROOT/"
 
 log "配置前台上传目录符号链接..."
 ensure_symlink "$WEB_ROOT/server/data/upload" "$SERVER_ROOT/data/upload"
+ensure_symlink "$WEB_ROOT/server/data/background" "$SERVER_ROOT/data/background"
 
 log "配置后台上传目录符号链接..."
 ensure_symlink "$BACKEND_ROOT/server/data/upload" "$SERVER_ROOT/data/upload"
+ensure_symlink "$BACKEND_ROOT/server/data/background" "$SERVER_ROOT/data/background"
 
 log "重载 Web 服务..."
 if systemctl is-active --quiet nginx; then

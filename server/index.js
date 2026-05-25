@@ -688,6 +688,38 @@ function normalizeBuildGranularity(value) {
     return VALID_BUILD_GRANULARITIES.has(normalized) ? normalized : 'full';
 }
 
+let activeAstroBuild = null;
+
+function getActiveAstroBuild() {
+    return activeAstroBuild;
+}
+
+function beginAstroBuild(context) {
+    if (activeAstroBuild) {
+        const startedAt = activeAstroBuild.startedAt ? new Date(activeAstroBuild.startedAt).toISOString() : '';
+        const message = startedAt
+            ? `已有进行中的构建（buildId=${activeAstroBuild.buildId}, startedAt=${startedAt}）`
+            : `已有进行中的构建（buildId=${activeAstroBuild.buildId}）`;
+        const error = new Error(message);
+        error.code = 'ASTRO_BUILD_BUSY';
+        throw error;
+    }
+
+    activeAstroBuild = {
+        buildId: Date.now(),
+        startedAt: Date.now(),
+        ...context,
+    };
+
+    return activeAstroBuild;
+}
+
+function endAstroBuild(buildId) {
+    if (!activeAstroBuild) return;
+    if (buildId && activeAstroBuild.buildId !== buildId) return;
+    activeAstroBuild = null;
+}
+
 function syncAstroBuildSettings(codeDir) {
     const settingsSource = path.join(DATA_DIR, 'settings.json');
     if (!fs.existsSync(settingsSource)) {
@@ -1434,6 +1466,7 @@ function buildAstroFrontendAsync(settings, options = {}) {
         const granularity = normalizeBuildGranularity(options.granularity);
         const codeDir = path.resolve(settings.frontendCodeDir || DEFAULT_BUILD_SETTINGS.frontendCodeDir);
         const targetDir = path.resolve(settings.frontendBuildTargetDir || `/var/www/${settings.frontendUrl || DEFAULT_BUILD_SETTINGS.frontendUrl}`);
+        let buildRecord;
 
         if (!fs.existsSync(codeDir)) {
             reject(new Error(`Frontend code dir not found: ${codeDir}`));
@@ -1444,49 +1477,67 @@ function buildAstroFrontendAsync(settings, options = {}) {
             return;
         }
 
+        try {
+            buildRecord = beginAstroBuild({ codeDir, targetDir, granularity });
+        } catch (error) {
+            reject(error);
+            return;
+        }
+
         // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ÃƒÆ’Ã¢â‚¬Â¹ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂºÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â·ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¥ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¤ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â½ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¿ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¨ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¹ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¨ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¿ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂºÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¨ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¾ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¾ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âº
         syncAstroBuildSettings(codeDir);
         const workerScriptPath = path.join(__dirname, 'build-worker.js');
         const worker = new Worker(workerScriptPath, {
             workerData: { codeDir, targetDir, granularity }
         });
+        let settled = false;
+        const timeoutId = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            endAstroBuild(buildRecord && buildRecord.buildId);
+            worker.terminate();
+            reject(new Error('Build timeout after 10 minutes'));
+        }, 10 * 60 * 1000);
+
+        const finish = (handler, value) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timeoutId);
+            endAstroBuild(buildRecord && buildRecord.buildId);
+            handler(value);
+            worker.terminate();
+        };
 
         worker.on('message', (message) => {
             if (message.success) {
                 const syncResult = syncBuildOutputByGranularity(message.distDir, targetDir, granularity);
-                resolve({ 
+                finish(resolve, { 
                     codeDir, 
                     targetDir, 
                     granularity: syncResult.granularity, 
                     copiedPaths: syncResult.copiedPaths 
                 });
             } else {
-                reject(new Error(message.error));
+                finish(reject, new Error(message.error));
             }
-            worker.terminate();
         });
 
         worker.on('error', (error) => {
-            reject(error);
-            worker.terminate();
+            finish(reject, error);
         });
 
         worker.on('exit', (code) => {
+            if (settled) return;
             if (code !== 0) {
-                reject(new Error(`Worker stopped with exit code ${code}`));
+                finish(reject, new Error(`Worker stopped with exit code ${code}`));
             }
         });
-
-        setTimeout(() => {
-            worker.terminate();
-            reject(new Error('Build timeout after 10 minutes'));
-        }, 10 * 60 * 1000);
     });
 }
 
 // ÃƒÂ¦Ã¢â‚¬â€œÃ‚Â°ÃƒÂ§Ã…Â¡Ã¢â‚¬Å¾ÃƒÂ¥Ã‚Â¼Ã¢â‚¬Å¡ÃƒÂ¦Ã‚Â­Ã‚Â¥ÃƒÂ¦Ã…Â¾Ã¢â‚¬Å¾ÃƒÂ¥Ã‚Â»Ã‚ÂºÃƒÂ¥Ã¢â‚¬Â¡Ã‚Â½ÃƒÂ¦Ã¢â‚¬Â¢Ã‚Â° - 60ÃƒÂ§Ã‚Â§Ã¢â‚¬â„¢ÃƒÂ¥Ã¢â‚¬Â Ã¢â‚¬Â¦ÃƒÂ¨Ã‚Â¿Ã¢â‚¬ÂÃƒÂ¥Ã¢â‚¬ÂºÃ…Â¾ÃƒÂ§Ã…Â Ã‚Â¶ÃƒÂ¦Ã¢â€šÂ¬Ã‚Â
 function buildAstroFrontendWithTimeout(settings, options = {}) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         const buildId = Date.now();
         let buildStatus = 'pending'; // pending, success, failed, timeout
         let buildResult = null;
@@ -1514,15 +1565,12 @@ function buildAstroFrontendWithTimeout(settings, options = {}) {
                 buildStatus = 'failed';
                 buildError = error.message;
                 console.error(`[Build ${buildId}] Build failed:`, error.message);
-                
-                // ÃƒÂ¦Ã…Â¾Ã¢â‚¬Å¾ÃƒÂ¥Ã‚Â»Ã‚ÂºÃƒÂ¥Ã‚Â¤Ã‚Â±ÃƒÂ¨Ã‚Â´Ã‚Â¥ÃƒÂ¦Ã¢â‚¬â€Ã‚Â¶ÃƒÂ§Ã‚Â«Ã¢â‚¬Â¹ÃƒÂ¥Ã‚ÂÃ‚Â³ÃƒÂ¨Ã‚Â¿Ã¢â‚¬ÂÃƒÂ¥Ã¢â‚¬ÂºÃ…Â¾ÃƒÂ§Ã‚Â»Ã¢â‚¬Å“ÃƒÂ¦Ã…Â¾Ã…â€œ
-                resolve({
-                    buildId,
-                    status: buildStatus,
-                    result: buildResult,
-                    error: buildError,
-                    message: getBuildStatusMessage(buildStatus)
-                });
+
+                const failure = new Error(buildError || getBuildStatusMessage(buildStatus));
+                failure.status = 'failed';
+                failure.buildId = buildId;
+                failure.buildError = buildError;
+                reject(failure);
             });
         
         // 60ÃƒÂ§Ã‚Â§Ã¢â‚¬â„¢ÃƒÂ¥Ã‚ÂÃ…Â½ÃƒÂ¨Ã‚Â¿Ã¢â‚¬ÂÃƒÂ¥Ã¢â‚¬ÂºÃ…Â¾ÃƒÂ¥Ã‚Â½Ã¢â‚¬Å“ÃƒÂ¥Ã¢â‚¬Â°Ã‚ÂÃƒÂ§Ã…Â Ã‚Â¶ÃƒÂ¦Ã¢â€šÂ¬Ã‚Â
@@ -1595,6 +1643,7 @@ function ensureDevSymlink() {
         if (fs.existsSync(frontendPublic)) {
             const targetParent = path.join(frontendPublic, 'server/data');
             const targetLink = path.join(targetParent, 'upload');
+            const backgroundLink = path.join(targetParent, 'background');
             
             if (!fs.existsSync(targetParent)) {
                 fs.mkdirSync(targetParent, { recursive: true });
@@ -1607,6 +1656,14 @@ function ensureDevSymlink() {
                      try { fs.unlinkSync(targetLink); } catch(e) {}
                      fs.symlinkSync(UPLOAD_DIR, targetLink, 'dir');
                      console.log('[Dev] Created static asset symlink:', targetLink);
+                }
+            }
+
+            if (!fs.existsSync(backgroundLink)) {
+                if (fs.existsSync(BACKGROUND_DIR)) {
+                    try { fs.unlinkSync(backgroundLink); } catch (e) {}
+                    fs.symlinkSync(BACKGROUND_DIR, backgroundLink, 'dir');
+                    console.log('[Dev] Created background asset symlink:', backgroundLink);
                 }
             }
         }
@@ -1627,6 +1684,8 @@ CATEGORIES.forEach(cat => {
 });
 if (!fs.existsSync(POSTS_DIR)) fs.mkdirSync(POSTS_DIR, { recursive: true });
 if (!fs.existsSync(INDEX_FILE)) fs.writeFileSync(INDEX_FILE, '[]');
+
+ensureDevSymlink();
 
 // Encryption Setup
 const ALGORITHM = 'aes-256-cbc';
@@ -1691,6 +1750,26 @@ async function aliyunCdnRefresh(urls = []) {
         console.log('[CDN] Purge response:', resp.status, body);
     } catch (e) {
         console.error('[CDN] Purge error', e);
+    }
+}
+
+async function warmPublicUrls(urls = []) {
+    const uniqueUrls = Array.from(new Set((urls || [])
+        .map((url) => String(url || '').trim())
+        .filter(Boolean)));
+
+    for (const url of uniqueUrls) {
+        try {
+            const resp = await fetch(url, { method: 'GET' });
+            if (!resp.ok) {
+                console.warn('[Warm] Non-OK response for', url, resp.status);
+                continue;
+            }
+            await resp.arrayBuffer();
+            console.log('[Warm] Prefetched', url);
+        } catch (e) {
+            console.warn('[Warm] Prefetch failed for', url, e && (e.message || e));
+        }
     }
 }
 
@@ -2807,24 +2886,51 @@ app.post('/api/admin/build/astro', async (req, res) => {
     try {
         if (!requireAdminToken(req, res)) return;
 
+        const activeBuild = getActiveAstroBuild();
+        if (activeBuild) {
+            const startedAt = activeBuild.startedAt ? new Date(activeBuild.startedAt).toISOString() : '';
+            return res.status(409).json({
+                success: false,
+                message: startedAt
+                    ? `已有进行中的构建（buildId=${activeBuild.buildId}, startedAt=${startedAt}）`
+                    : `已有进行中的构建（buildId=${activeBuild.buildId}）`,
+            });
+        }
+
         console.log('[Build] Starting Astro build with 60s timeout...');
         
         const settings = getBuildSettings();
         const buildResult = await buildAstroFrontendWithTimeout(settings, {
             granularity: req.body?.granularity,
         });
-        
-        res.json({
+
+        const responseBody = {
             success: buildResult.status === 'success',
             message: buildResult.message,
             buildId: buildResult.buildId,
             status: buildResult.status,
             error: buildResult.error
-        });
+        };
+
+        const httpStatus = buildResult.status === 'success'
+            ? 200
+            : buildResult.status === 'timeout'
+                ? 202
+                : 500;
+
+        return res.status(httpStatus).json(responseBody);
         
     } catch (e) {
         console.error('[Build] Astro build initialization failed', e);
-        res.status(500).json({ success: false, message: e.message || 'Build initialization failed' });
+        const message = e && e.message ? e.message : 'Build initialization failed';
+        const status = e && e.status === 'timeout' ? 202 : 500;
+        return res.status(status).json({
+            success: false,
+            message,
+            error: message,
+            status: e && e.status ? e.status : 'failed',
+            buildId: e && e.buildId ? e.buildId : undefined,
+        });
     }
 });
 
@@ -3018,16 +3124,14 @@ app.post('/api/upload', (req, res) => {
             (async () => {
                 try {
                     console.log('[Pre-warm] Triggering fetch for:', warmUrls);
-                    const results = await Promise.allSettled(warmUrls.map(u => fetch(u, { method: 'HEAD', timeout: 5000 })));
-                    results.forEach((r, i) => {
-                         if (r.status === 'rejected') console.error(`[Pre-warm] Failed ${warmUrls[i]}:`, r.reason);
-                         else console.log(`[Pre-warm] Success ${warmUrls[i]}`);
-                    });
+                    await warmPublicUrls(warmUrls);
                 } catch (e) { console.error('[Pre-warm] error', e); }
             })();
 
         } catch (e) {
             console.error('[Upload] Post-process error', e);
+
+                void warmPublicUrls([generatedUrl]);
         }
 
         res.json({ url: fullUrl, path: webPath, category, thumb: thumbUrl });

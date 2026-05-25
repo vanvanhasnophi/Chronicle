@@ -269,6 +269,7 @@
     "buildCompleted": "前台构建完成",
     "buildTimeout": "构建超时，但仍在后台运行",
     "buildFailed": "构建失败",
+    "buildErrorPrefix": "构建失败：",
     "cleaning": "正在清理构建目录...",
     "cleanTriggered": "已触发清理",
     "cleanCompleted": "清理完成",

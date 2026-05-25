@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { fetchWithAuth } from './utils/fetchWithAuth';
+import { readApiErrorMessage } from './utils/apiError.ts'
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { Icons } from './utils/icons'
@@ -907,9 +908,15 @@ async function rebuildFrontend() {
       headers: authToken ? { 'X-Chronicle-Auth': authToken } : {}
     })
     if (res.ok) {
-      showToast(t('settings.buildCompleted'), { status: 'success', position: 'bottom-center', shape: 'capsule' })
+      const result = await res.json().catch(() => ({}))
+      if (result.status === 'timeout') {
+        showToast(t('settings.buildTimeout'), { status: 'warning', position: 'bottom-center', shape: 'capsule' })
+      } else {
+        showToast(t('settings.buildCompleted'), { status: 'success', position: 'bottom-center', shape: 'capsule' })
+      }
     } else {
-      showToast(t('settings.buildFailed'), { status: 'error', position: 'bottom-center', shape: 'capsule' })
+      const message = await readApiErrorMessage(res, t('settings.buildFailed'))
+      showToast(`${t('settings.buildErrorPrefix')}${message}`, { status: 'error', position: 'bottom-center', shape: 'capsule' })
     }
   } catch (e) {
     showToast(t('settings.buildFailed'), { status: 'error', position: 'bottom-center', shape: 'capsule' })

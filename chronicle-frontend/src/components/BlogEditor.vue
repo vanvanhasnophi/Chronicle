@@ -504,6 +504,7 @@
 
 <script setup lang="ts">
 import { fetchWithAuth } from '../utils/fetchWithAuth';
+import { readApiErrorMessage } from '../utils/apiError'
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, reactive } from 'vue'
 import { useRoute, useRouter, onBeforeRouteUpdate, onBeforeRouteLeave } from 'vue-router'
 import MdParser from './MdParser.vue'
@@ -515,10 +516,12 @@ import { useI18n } from 'vue-i18n'
 import CheckRow from './ui/CheckRow.vue';
 import { formatDate as formatDateUtil, formatDateTime } from '../utils/dateUtils'
 import { Check } from 'lucide-vue-next';
+import useToast from '../composables/useToast'
 
 const route = useRoute()
 const router = useRouter()
 const { t, locale } = useI18n()
+const { show: showToast } = useToast()
 const CDN_BASE_URL = import.meta.env.VITE_CDN_BASE_URL || ''
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -1018,8 +1021,12 @@ async function triggerAstroBuild(postId: string) {
         })
 
         if (!res.ok) {
-            const data = await res.json().catch(() => ({}))
-            throw new Error(data.message || `HTTP ${res.status}`)
+            throw new Error(await readApiErrorMessage(res, `HTTP ${res.status}`))
+        }
+
+        const data = await res.json().catch(() => ({}))
+        if (data.status === 'timeout') {
+            showToast((data.message || t('settings.buildTimeout')) as string, { status: 'warning', position: 'bottom-center', shape: 'capsule' })
         }
 
         postStatus.value = 'published'
@@ -1135,7 +1142,8 @@ async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
                     } catch (buildError) {
                         postStatus.value = 'published'
                         console.error('[BlogEditor] Astro build failed after publish', buildError)
-                        alert(t('editor.buildFailed'))
+                        const rawMessage = buildError instanceof Error ? buildError.message : (t('editor.buildFailed') as string)
+                        showToast(`${t('settings.buildErrorPrefix') as string}${rawMessage}`, { status: 'error', position: 'bottom-center', shape: 'capsule' })
                     }
                 } else {
                     // Not allowed or failed to read settings -> skip build

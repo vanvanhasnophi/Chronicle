@@ -29,6 +29,9 @@ mkdir -p /opt/Chronicle/chronicle-frontend/public/server/data
 if [ ! -L "/opt/Chronicle/chronicle-frontend/public/server/data/upload" ]; then
     ln -s /opt/Chronicle/server/data/upload /opt/Chronicle/chronicle-frontend/public/server/data/upload
 fi
+if [ ! -L "/opt/Chronicle/chronicle-frontend/public/server/data/background" ]; then
+    ln -s /opt/Chronicle/server/data/background /opt/Chronicle/chronicle-frontend/public/server/data/background
+fi
 
 cd /opt/Chronicle/chronicle-frontend
 if [ ! -d "node_modules" ]; then
@@ -44,6 +47,9 @@ echo "[System] Starting Frontend (Astro)..."
 mkdir -p /opt/Chronicle/astro-template/public/server/data
 if [ ! -L "/opt/Chronicle/astro-template/public/server/data/upload" ]; then
     ln -s /opt/Chronicle/server/data/upload /opt/Chronicle/astro-template/public/server/data/upload
+fi
+if [ ! -L "/opt/Chronicle/astro-template/public/server/data/background" ]; then
+    ln -s /opt/Chronicle/server/data/background /opt/Chronicle/astro-template/public/server/data/background
 fi
 
 cd /opt/Chronicle/astro-template

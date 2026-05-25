@@ -15,29 +15,64 @@ function resolveBackgroundUrl(value: any) {
   return '';
 }
 
-function getMediaBaseUrl() {
+function getBackgroundBaseUrls() {
   try {
-    const baseUrl = String((window as any).__CHRONICLE_MEDIA_BASE_URL__ || '').trim();
-    if (!baseUrl) return '';
-    return baseUrl.replace(/\/$/, '');
+    const rawBases = (window as any).__CHRONICLE_BACKGROUND_BASE_URLS__;
+    const bases = Array.isArray(rawBases) ? rawBases : (rawBases ? [rawBases] : []);
+    const normalized = bases
+      .map((base) => String(base || '').trim().replace(/\/$/, ''))
+      .filter((base, index, array) => base || index === array.length - 1);
+    if (!normalized.includes('')) normalized.push('');
+    return Array.from(new Set(normalized));
   } catch (e) {
-    return '';
+    return [''];
   }
 }
 
-function resolveBrowserImageUrl(url: string) {
+function resolveBackgroundPath(url: string) {
   const normalized = String(url || '').trim();
   if (!normalized) return '';
 
-  if (/^https?:\/\//i.test(normalized)) return normalized;
-
-  if (normalized.startsWith('/server/data/') || normalized.startsWith('server/data/')) {
-    const mediaBaseUrl = getMediaBaseUrl();
-    const pathPart = normalized.replace(/^\/+/, '');
-    return mediaBaseUrl ? `${mediaBaseUrl}/${pathPart}` : `/${pathPart}`;
+  let pathPart = normalized;
+  if (/^https?:\/\//i.test(normalized)) {
+    try {
+      pathPart = new URL(normalized).pathname || normalized;
+    } catch (e) { }
   }
 
-  return normalized;
+  pathPart = String(pathPart || '').trim();
+  if (!pathPart) return '';
+
+  if (!pathPart.startsWith('/')) pathPart = `/${pathPart}`;
+  return pathPart;
+}
+
+function buildBackgroundCandidates(url: string) {
+  const normalized = String(url || '').trim();
+  if (!normalized) return [];
+
+  if (/^https?:\/\//i.test(normalized) && !/\/server\/data\/(background|upload)\//i.test(normalized)) {
+    return [normalized];
+  }
+
+  const pathPart = resolveBackgroundPath(normalized);
+  if (!pathPart) return [normalized];
+
+  const bases = getBackgroundBaseUrls();
+  const candidates: string[] = [];
+
+  for (const base of bases) {
+    const candidate = base ? (pathPart.startsWith('/') ? `${base}${pathPart}` : `${base}/${pathPart}`) : pathPart;
+    if (!candidates.includes(candidate)) candidates.push(candidate);
+  }
+
+  if (!candidates.includes(normalized)) candidates.push(normalized);
+  return candidates;
+}
+
+function resolveBrowserImageUrl(url: string) {
+  const candidates = buildBackgroundCandidates(url);
+  return candidates[0] || '';
 }
 
 // 初始化当前主题（仅在浏览器环境绑定）
@@ -93,9 +128,13 @@ function ensureBackgroundImagePrepared(url: string): Promise<{ ok: boolean; prep
     if (cached) return cached;
 
     const p = (async () => {
+      const candidates = buildBackgroundCandidates(normalizedUrl);
+
       try {
-        const resp = await fetch(normalizedUrl, { cache: 'force-cache' });
-        if (resp.ok) {
+        for (const candidateUrl of candidates) {
+          const resp = await fetch(candidateUrl, { cache: 'force-cache' });
+          if (!resp.ok) continue;
+
           const blob = await resp.blob();
           if (blob && blob.size > 0) {
             const objUrl = URL.createObjectURL(blob);
@@ -103,6 +142,13 @@ function ensureBackgroundImagePrepared(url: string): Promise<{ ok: boolean; prep
             const okBlob = await preloadBackgroundImage(objUrl);
             if (okBlob) return { ok: true, preparedUrl: objUrl };
           }
+        }
+      } catch (e) { }
+
+      try {
+        for (const candidateUrl of candidates) {
+          const ok = await preloadBackgroundImage(candidateUrl);
+          if (ok) return { ok: true, preparedUrl: candidateUrl };
         }
       } catch (e) { }
 
