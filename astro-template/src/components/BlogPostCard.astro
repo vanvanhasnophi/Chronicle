@@ -1,0 +1,87 @@
+---
+import { buildLocalizedPath } from '../utils/routeLocale';
+
+type Post = {
+  id: string;
+  title: string;
+  date: string;
+  tags?: string[];
+};
+
+const { post, locale, routeLang, featured = false, hidden = false } = Astro.props as {
+  post: Post;
+  locale: string;
+  routeLang: 'zh' | 'en';
+  featured?: boolean;
+  hidden?: boolean;
+};
+
+const normalizeTag = (tag: unknown) =>
+  String(tag || '')
+    .trim()
+    .replace(/^#+/, '')
+    .toLowerCase();
+
+const isFeaturedTag = (tag: unknown) => {
+  const normalized = normalizeTag(tag);
+  return normalized === 'featured' || normalized === '精选';
+};
+
+const sortTagsList = (tags: unknown) => {
+  if (!Array.isArray(tags)) return [];
+  return [...tags].sort((a, b) => {
+    if (isFeaturedTag(String(a)) && !isFeaturedTag(String(b))) return -1;
+    if (!isFeaturedTag(String(a)) && isFeaturedTag(String(b))) return 1;
+    return String(a).localeCompare(String(b));
+  });
+};
+
+const escapeHtml = (value: unknown) =>
+  String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const date = new Date(post.date);
+const dateText = featured ? date.toLocaleDateString(locale) : String(date.getDate());
+const tags = sortTagsList(post.tags);
+---
+
+<a href={buildLocalizedPath(routeLang, `/post/${encodeURIComponent(post.id)}`)} style={`text-decoration:none; color:inherit;${hidden ? ' display:none;' : ''}`} class:list={[hidden ? 'hidden-featured' : '']}>
+  <article class:list={['post-card', featured ? 'featured-card' : 'compact-card']}>
+    {featured ? (
+      <div class="featured-card-layout">
+        <div class="featured-card-date">{dateText}</div>
+        <h3 class="post-title">{escapeHtml(post.title)}</h3>
+        {tags.length ? (
+          <div class="post-tags">
+            {tags.map((tag) => (
+              <span class:list={['tag', isFeaturedTag(String(tag)) ? 'featured' : '']}>
+                # {isFeaturedTag(String(tag)) ? locale === 'zh-CN' ? '精选' : 'Featured' : tag}
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    ) : (
+      <>
+        <div class="post-card-line">
+          <span class="post-card-time">{dateText}</span>
+          {tags.some((tag) => isFeaturedTag(String(tag))) ? <span class="post-featured-star" aria-hidden="true">★</span> : null}
+          <h4 class="post-title">{escapeHtml(post.title)}</h4>
+        </div>
+        {tags.length ? (
+          <div class="post-tags">
+            {tags.map((tag) => (
+              <span class:list={['tag', isFeaturedTag(String(tag)) ? 'featured' : '']}>
+                # {isFeaturedTag(String(tag)) ? locale === 'zh-CN' ? '精选' : 'Featured' : tag}
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </>
+    )}
+  </article>
+</a>

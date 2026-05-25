@@ -24,6 +24,13 @@ const showFriends = featureFlags?.friendsPage !== false;
 const showAbout = featureFlags?.aboutPage !== false;
 const showCollection = featureFlags?.collectionPage !== false;
 
+const navCollapsedIcons = {
+  home: `<svg xmlns="http://www.w3.org/2000/svg"  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"></path><path d="M5 10.5V20h14v-9.5"></path><path d="M9 20v-6h6v6"></path></svg>`,
+  blogs: `<svg xmlns="http://www.w3.org/2000/svg"  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="8" y1="13" x2="16" y2="13"></line><line x1="8" y1="17" x2="16" y2="17"></line></svg>`,
+  collection: `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true" data-v-8b94f1a6=""><path d="M12 11 Q16 13 20 16 Q16 19 12 21 Q8 19 4 16 Q8 13 12 11 Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" fill="none" data-v-8b94f1a6=""></path><path d="M12 5 Q16 7 20 10 Q16 13 12 15 Q8 13 4 10 Q8 7 12 5 Z" fill="var(--component-bg-blur)" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" data-v-8b94f1a6=""></path></svg>`,
+  friends: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path><circle cx="10" cy="7" r="3"></circle><path d="M21 21v-2a3 3 0 0 0-2.25-2.9"></path><path d="M16 4.2a3 3 0 0 1 0 5.6"></path></svg>`,
+};
+
 // Determine active route for highlighting
 const isActive = (path: string) => {
   if (path === "/" && activePath === "/") return true;
@@ -113,7 +120,10 @@ const isActive = (path: string) => {
           href={homeHref}
           class:list={["nav-link", { "router-link-active": isActive("/") }]}
         >
-          {t("nav.home")}
+          <span class="nav-link-swap">
+            <span class="nav-link-full">{t("nav.home")}</span>
+            <span class="nav-link-collapsed" aria-hidden="true" set:html={navCollapsedIcons.home}></span>
+          </span>
         </a>
         <a
           href={blogsHref}
@@ -122,20 +132,27 @@ const isActive = (path: string) => {
             { "router-link-active": isActive("/blogs") },
           ]}
         >
-          {t("nav.blogs")}
+          <span class="nav-link-swap">
+            <span class="nav-link-full">{t("nav.blogs")}</span>
+            <span class="nav-link-collapsed" aria-hidden="true" set:html={navCollapsedIcons.blogs}></span>
+          </span>
         </a>
         {showCollection && (
           <a
             href={collectionHref}
             class:list={["nav-link", { "router-link-active": isActive("/collection") }]}
           >
-            {t("nav.collection")}
+            <span class="nav-link-swap">
+              <span class="nav-link-full">{t("nav.collection")}</span>
+              <span class="nav-link-collapsed" aria-hidden="true" set:html={navCollapsedIcons.collection}></span>
+            </span>
           </a>
         )}
         <a
           href={searchHref}
           class:list={[
             "nav-link",
+            "nav-link-search",
             { "router-link-active": isActive("/search") },
           ]}
         >
@@ -146,10 +163,39 @@ const isActive = (path: string) => {
             href={friendsHref}
             class:list={["nav-link", { "router-link-active": isActive("/friends") }]}
           >
-            {t("nav.friends")}
+            <span class="nav-link-swap">
+              <span class="nav-link-full">{t("nav.friends")}</span>
+              <span class="nav-link-collapsed" aria-hidden="true" set:html={navCollapsedIcons.friends}></span>
+            </span>
           </a>
         )}
       </div>
+
+      <a
+        href={searchHref}
+        class:list={[
+          "nav-action-link",
+          "nav-search-btn",
+          { "router-link-active": isActive("/search") },
+        ]}
+        aria-label={t("nav.search")}
+        title={t("nav.search")}
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="11" cy="11" r="7"></circle>
+          <line x1="16.65" y1="16.65" x2="21" y2="21"></line>
+        </svg>
+      </a>
 
       <!-- Settings Button -->
       <button
@@ -328,7 +374,7 @@ const isActive = (path: string) => {
     align-items: center;
     padding: 0 2rem;
     height: 100%;
-    max-width: 1200px;
+    max-width: 1600px;
     margin: 0 auto;
   }
 
@@ -357,6 +403,12 @@ const isActive = (path: string) => {
     display: flex;
     opacity: 1;
     pointer-events: auto;
+    transition: opacity 0.28s ease;
+  }
+
+  .nav-header.nav-collapsed .site-header {
+    opacity: 0;
+    pointer-events: none;
   }
 
   html.is-mobile .nav-header.swap-enabled .reading-header {
@@ -419,6 +471,10 @@ const isActive = (path: string) => {
     pointer-events: auto;
   }
 
+  html:not(.is-mobile) .nav-header.nav-collapsed .nav-links{
+    gap: 0.75rem;
+  }
+
 
   .nav-actions {
     display: flex;
@@ -428,15 +484,32 @@ const isActive = (path: string) => {
 
   .nav-links {
     display: flex;
+    align-items: center;
     gap: 2rem;
   }
 
   .nav-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     color: var(--text-inactive);
     text-decoration: none;
     padding: 0.5rem 1rem;
     border-radius: 4px;
-    transition: all 0.3s ease;
+    transition:
+      background-color 0.4s ease,
+      color 0.4s ease,
+      padding 0.4s ease,
+      transform 0.4s ease;
+    white-space: nowrap;
+  }
+
+  .nav-link-swap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
   }
 
   .nav-link.router-link-active {
@@ -449,7 +522,96 @@ const isActive = (path: string) => {
     color: var(--component-text-primary-hover);
   }
 
+  .nav-link-full {
+    position: relative;
+    display: inline-block;
+    overflow: hidden;
+    max-width: 12rem;
+    opacity: 1;
+    transform: translateX(0);
+    transition:
+      max-width 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 0.3s ease,
+      transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .nav-link-collapsed {
+    position: absolute;
+    inset: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    overflow: hidden;
+    max-width: 0;
+    opacity: 0;
+    transform: translateX(4px);
+    transition:
+      max-width 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 0.3s ease,
+      transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .nav-link-collapsed svg {
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    min-height: 18px;
+    display: block;
+    flex: 0 0 auto;
+  }
+
+  .nav-header.nav-collapsed .nav-link-full {
+    max-width: 0;
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+
+  .nav-header.nav-collapsed .nav-link-collapsed {
+    max-width: 18px;
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .nav-header.nav-collapsed .nav-link.router-link-active .nav-link-full {
+    max-width: 12rem;
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .nav-header.nav-collapsed .nav-link.router-link-active .nav-link-collapsed {
+    max-width: 0;
+    opacity: 0;
+    transform: translateX(4px);
+  }
+
+  .nav-link-search {
+    display: none;
+  }
+
   /* Settings Button */
+  .nav-action-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+    color: var(--text-inactive);
+    transition: all 0.3s ease;
+    flex: 0 0 auto;
+  }
+
+  .nav-action-link:hover,
+  .nav-action-link.router-link-active {
+    background: var(--component-bg-hover);
+    color: var(--component-text-primary-hover);
+  }
+
+  .nav-search-btn {
+    display: flex;
+  }
+
   .nav-setting-btn {
     background: transparent;
     border: none;
@@ -589,6 +751,26 @@ const isActive = (path: string) => {
 
   /* Mobile Styles */
   @media (max-width: 768px) {
+    .nav-search-btn {
+      display: none;
+    }
+
+    .nav-link-search {
+      display: inline-flex;
+    }
+
+    .nav-link-full {
+      display: inline;
+      position: static;
+      max-width: none;
+      opacity: 1;
+      transform: none;
+    }
+
+    .nav-link-collapsed {
+      display: none;
+      position: static;
+    }
 
     .menu-toggle {
       display: flex;
@@ -606,11 +788,13 @@ const isActive = (path: string) => {
       flex-direction: column;
       justify-content: center;
       align-items: center;
+      overflow: auto;
       transform: translateY(-100%);
       transition: transform 0.3s ease;
       z-index: 101;
       gap: 30px;
     }
+
 
     .nav-links.mobile-open {
       transform: translateY(0);
@@ -627,6 +811,13 @@ const isActive = (path: string) => {
 
     .nav-setting-btn {
       z-index: 102;
+    }
+  }
+
+  @media (min-width: 769px) {
+    .nav-header:not(.nav-expanded) .nav-link:not(.router-link-active) {
+      padding-left: 0.7rem;
+      padding-right: 0.7rem;
     }
   }
 </style>
@@ -685,6 +876,48 @@ const isActive = (path: string) => {
         menuToggle.classList.remove("active");
       }
     });
+  }
+
+  function initDesktopNavExpansion() {
+    const nav = document.getElementById("main-nav");
+
+    if (!nav || window.matchMedia("(max-width: 768px)").matches) return;
+
+    let collapseTimer: number | undefined;
+    const collapseDelay = 1000;
+
+    const clearCollapseTimer = () => {
+      if (collapseTimer !== undefined) {
+        window.clearTimeout(collapseTimer);
+        collapseTimer = undefined;
+      }
+    };
+
+    const scheduleCollapseTimer = () => {
+      clearCollapseTimer();
+      collapseTimer = window.setTimeout(() => {
+        nav.classList.add("nav-collapsed");
+        nav.classList.remove("nav-expanded");
+      }, collapseDelay);
+    };
+
+    const expandNav = () => {
+      clearCollapseTimer();
+      nav.classList.remove("nav-collapsed");
+      nav.classList.add("nav-expanded");
+    };
+
+    const collapseNav = () => {
+      scheduleCollapseTimer();
+    };
+
+    nav.addEventListener("mouseenter", expandNav);
+    nav.addEventListener("focusin", expandNav);
+    nav.addEventListener("mouseleave", collapseNav);
+    nav.addEventListener("focusout", collapseNav);
+
+    nav.classList.add("nav-expanded");
+    scheduleCollapseTimer();
   }
 
   // Settings menu functionality
@@ -920,6 +1153,7 @@ const isActive = (path: string) => {
   // (Fires on initial load, and after every View Transition)
   document.addEventListener("astro:page-load", () => {
     initNavScroll();
+    initDesktopNavExpansion();
     initSettingsMenu();
     initMobileMenu();
   });

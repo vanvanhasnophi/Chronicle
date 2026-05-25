@@ -809,8 +809,6 @@ body {
   background-repeat: no-repeat;
 }
 
-body.backend {
-}
 
 /* Disabled on purpose: all background media/overlay now render only via #chronicle-bg-layer. */
 body::before,

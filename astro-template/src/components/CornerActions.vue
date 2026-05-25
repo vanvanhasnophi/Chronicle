@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import tocController from './tocController';
+import tocController from '../utils/tocController';
 
 const props = withDefaults(defineProps<{ hasToc?: boolean }>(), {
   hasToc: true,

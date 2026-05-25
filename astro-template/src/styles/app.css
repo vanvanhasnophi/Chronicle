@@ -16,7 +16,7 @@ html.is-mobile .nav-header {
 }
 
 html.is-mobile .app-title{
-  font-size: 1.35rem;
+  font-size: 1.3rem;
   vertical-align: middle;
 }
 
@@ -61,8 +61,8 @@ html.is-mobile .app-title{
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width:24px;
+  height: 24px;
   margin-right: 12px;
   padding: 0;
 }
@@ -87,7 +87,7 @@ html.is-mobile .app-title{
 
 .reading-title {
   color: var(--text-primary);
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 600;
   font-variation-settings: 'wght' 600;
   line-height: 1;

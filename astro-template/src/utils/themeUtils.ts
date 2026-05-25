@@ -1,5 +1,58 @@
 import { hexToRgbString } from './colorUtils';
 
+function parseCssColor(value: string) {
+  const normalized = String(value || '').trim();
+  if (!normalized || normalized === 'transparent') return null;
+
+  const hexMatch = normalized.match(/^#([0-9a-f]{3,8})$/i);
+  if (hexMatch) {
+    const hex = hexMatch[1];
+    if (hex.length === 3) {
+      const r = parseInt(hex[0] + hex[0], 16);
+      const g = parseInt(hex[1] + hex[1], 16);
+      const b = parseInt(hex[2] + hex[2], 16);
+      return { r, g, b, a: 1 };
+    }
+    if (hex.length === 6 || hex.length === 8) {
+      const r = parseInt(hex.slice(0, 2), 16);
+      const g = parseInt(hex.slice(2, 4), 16);
+      const b = parseInt(hex.slice(4, 6), 16);
+      const a = hex.length === 8 ? parseInt(hex.slice(6, 8), 16) / 255 : 1;
+      return { r, g, b, a };
+    }
+  }
+
+  const rgbMatch = normalized.match(/^rgba?\((.+)\)$/i);
+  if (rgbMatch) {
+    const parts = rgbMatch[1].split(/[\/,\s]+/).filter(Boolean);
+    if (parts.length >= 3) {
+      const r = Number(parts[0]);
+      const g = Number(parts[1]);
+      const b = Number(parts[2]);
+      const a = parts.length >= 4 ? Number(parts[3]) : 1;
+      if ([r, g, b, a].every((n) => Number.isFinite(n))) {
+        return { r, g, b, a: Math.max(0, Math.min(1, a)) };
+      }
+    }
+  }
+
+  return null;
+}
+
+function blendColors(baseColor: string, overlayColor: string) {
+  const base = parseCssColor(baseColor);
+  const overlay = parseCssColor(overlayColor);
+
+  if (!base) return overlayColor && overlayColor.trim() ? overlayColor.trim() : baseColor.trim();
+  if (!overlay || overlay.a <= 0) return `rgb(${base.r}, ${base.g}, ${base.b})`;
+
+  const alpha = overlay.a;
+  const r = Math.round(overlay.r * alpha + base.r * (1 - alpha));
+  const g = Math.round(overlay.g * alpha + base.g * (1 - alpha));
+  const b = Math.round(overlay.b * alpha + base.b * (1 - alpha));
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
 /**
  * 解析背景元数据
  */
@@ -76,6 +129,16 @@ export function updateResolvedOverlays() {
 
     if (chosen && chosen.trim()) {
       document.documentElement.style.setProperty('--frontend-bg-overlay', chosen);
+    }
+
+    const settings = (window as any).__CHRONICLE_SETTINGS__ || {};
+    const hasFrontendBackground = Boolean(settings.frontendBackground);
+    if (hasFrontendBackground) {
+      const baseColor = getComputedStyle(document.documentElement).getPropertyValue('--app-bg-primary') || '';
+      const bodyColor = blendColors(baseColor, chosen || 'transparent');
+      document.documentElement.style.setProperty('--frontend-body-bg-color', bodyColor);
+    } else {
+      document.documentElement.style.removeProperty('--frontend-body-bg-color');
     }
 
     // 同时更新背景层的overlay元素

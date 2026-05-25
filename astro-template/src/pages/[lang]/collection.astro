@@ -1,8 +1,8 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import { getTranslation, getLocale } from '../../utils/i18n';
-import { getApiUrl } from '../../config/api';
 import { resolveFeatureFlags } from '../../utils/featureFlags';
+import { loadSiteSettings } from '../../utils/siteSettings';
 
 export const prerender = true;
 
@@ -17,19 +17,7 @@ const locale = getLocale(Astro.locals);
 const t = (key: string) => getTranslation(locale, key);
 const routePrefix = locale === 'zh-CN' ? '/zh' : '/en';
 
-// Fetch settings from API (包含样式设置)
-let settings: Record<string, any> = {};
-try {
-  const res = await fetch(getApiUrl('/api/settings?t=' + Date.now(), true), { cache: 'no-store' });
-  if (res.ok) settings = await res.json();
-} catch (e) {}
-
-if (!settings || Object.keys(settings).length === 0) {
-  try {
-    const res = await fetch(getApiUrl('/api/public/settings?t=' + Date.now(), true), { cache: 'no-store' });
-    if (res.ok) settings = await res.json();
-  } catch (e) {}
-}
+const settings = await loadSiteSettings();
 
 const featureFlags = resolveFeatureFlags((settings as any)?.featureFlags);
 const metaDescription = locale === 'zh-CN'

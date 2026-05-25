@@ -1,9 +1,11 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import BackToTop from '../../components/BackToTop.vue';
+import BlogPostCard from '../../components/BlogPostCard.astro';
 import { getTranslation } from '../../utils/i18n';
 import { buildLocalizedPath, toContentLocale } from '../../utils/routeLocale';
 import { getApiUrl } from '../../config/api';
+import { loadSiteSettings } from '../../utils/siteSettings';
 
 export const prerender = true;
 
@@ -15,16 +17,6 @@ const routeLang = Astro.params.lang === 'en' ? 'en' : 'zh';
 const locale = toContentLocale(routeLang);
 const t = (key: string) => getTranslation(locale, key);
 const postRoutePrefix = `/${routeLang}`;
-
-let settings: Record<string, any> = {};
-try {
-  const res = await fetch(getApiUrl('/api/settings?t=' + Date.now(), true), {
-    cache: 'no-store',
-  });
-  if (res.ok) settings = await res.json();
-} catch (e) {
-  console.error('[blogs] Failed to fetch settings:', e);
-}
 
 const SSR_PAGE_SIZE = 20;
 const initialPostsRequestUrl = getApiUrl(
@@ -60,47 +52,7 @@ try {
   console.error('[blogs] Failed to fetch featured posts:', e);
 }
 
-if (!settings || Object.keys(settings).length === 0) {
-  try {
-    const res = await fetch(getApiUrl('/api/public/settings?t=' + Date.now(), true), {
-      cache: 'no-store',
-    });
-    if (res.ok) settings = await res.json();
-  } catch (e) {
-    // ignore fallback errors
-  }
-}
-
-const normalizeTag = (tag: unknown) =>
-  String(tag || '')
-    .trim()
-    .replace(/^#+/, '')
-    .toLowerCase();
-
-const isFeaturedTag = (tag: unknown) => {
-  const normalized = normalizeTag(tag);
-  return normalized === 'featured' || normalized === '精选';
-};
-
-const hasFeaturedTag = (tags: unknown) =>
-  Array.isArray(tags) && tags.some((tag) => isFeaturedTag(String(tag)));
-
-const sortTagsList = (tags: unknown) => {
-  if (!Array.isArray(tags)) return [];
-  return [...tags].sort((a, b) => {
-    if (isFeaturedTag(String(a)) && !isFeaturedTag(String(b))) return -1;
-    if (!isFeaturedTag(String(a)) && isFeaturedTag(String(b))) return 1;
-    return String(a).localeCompare(String(b));
-  });
-};
-
-const escapeHtml = (value: unknown) =>
-  String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+const settings = await loadSiteSettings();
 
 const formatMonthName = (iso: string) => {
   try {
@@ -110,52 +62,7 @@ const formatMonthName = (iso: string) => {
   }
 };
 
-const renderFeaturedCard = (post: any, hidden = false) => {
-  const date = new Date(post.date);
-  const dateText = date.toLocaleDateString(locale);
-  const tags = sortTagsList(post.tags);
-  const tagHtml = tags.length
-    ? `<div class="post-tags">${tags.map((tag) => `<span class="tag${isFeaturedTag(String(tag)) ? ' featured' : ''}"># ${isFeaturedTag(String(tag)) ? escapeHtml(t('tag.featured')) : escapeHtml(tag)}</span>`).join('')}</div>`
-    : '';
-
-  return `<a href="${buildLocalizedPath(routeLang, `/post/${encodeURIComponent(post.id)}`)}" style="text-decoration:none; color:inherit;${hidden ? ' display:none;' : ''}" class="${hidden ? 'hidden-featured' : ''}">
-    <article class="post-card featured-card">
-      <div class="featured-card-layout">
-        <div class="featured-card-date">${escapeHtml(dateText)}</div>
-        <h3 class="post-title">${escapeHtml(post.title)}</h3>
-        ${tagHtml}
-      </div>
-    </article>
-  </a>`;
-};
-
-const renderArchiveCard = (post: any) => {
-  const date = new Date(post.date);
-  const dateText = String(date.getDate());
-  const featured = hasFeaturedTag(post.tags);
-  const tags = sortTagsList(post.tags);
-  const tagHtml = tags.length
-    ? `<div class="post-tags">${tags.map((tag) => `<span class="tag${isFeaturedTag(String(tag)) ? ' featured' : ''}"># ${isFeaturedTag(String(tag)) ? escapeHtml(t('tag.featured')) : escapeHtml(tag)}</span>`).join('')}</div>`
-    : '';
-
-  return `<a href="${buildLocalizedPath(routeLang, `/post/${encodeURIComponent(post.id)}`)}" style="text-decoration:none; color:inherit;">
-    <article class="post-card compact-card">
-      <div class="post-card-line">
-        <span class="post-card-time">${escapeHtml(dateText)}</span>
-        ${featured ? '<span class="post-featured-star" aria-hidden="true">★</span>' : ''}
-        <h4 class="post-title">${escapeHtml(post.title)}</h4>
-      </div>
-      ${tagHtml}
-    </article>
-  </a>`;
-};
-
-const buildFeaturedHtml = (posts: any[]) => {
-  const featured = [...posts].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  return featured.slice(0, 3).map((post) => renderFeaturedCard(post, false)).join('');
-};
-
-const buildArchiveHtml = (posts: any[]) => {
+const buildArchiveGroups = (posts: any[]) => {
   const sortedPosts = [...posts].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   const yearMap = new Map<number, Map<number, { monthName: string; posts: any[] }>>();
 
@@ -174,25 +81,13 @@ const buildArchiveHtml = (posts: any[]) => {
     .sort(([a], [b]) => b - a)
     .map(([year, monthMap]) => {
       const months = [...monthMap.entries()].sort(([a], [b]) => b - a);
-      return `<div class="year-block" data-year="${year}">
-        <h3 class="year-header">${year}</h3>
-        ${months
-          .map(
-            ([monthIndex, monthInfo]) => `<div class="month-row" data-month="${escapeHtml(monthInfo.monthName)}" data-month-index="${monthIndex}">
-          <div class="month-label"><span>${escapeHtml(monthInfo.monthName)}</span></div>
-          <div class="month-posts">
-            ${monthInfo.posts.map((post) => renderArchiveCard(post)).join('')}
-          </div>
-        </div>`,
-          )
-          .join('')}
-      </div>`;
+      return { year, months };
     })
-    .join('');
+    ;
 };
 
-const initialFeaturedHtml = buildFeaturedHtml(initialFeaturedPosts);
-const initialArchiveHtml = buildArchiveHtml(initialPosts);
+const featuredPosts = [...initialFeaturedPosts].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 3);
+const archiveGroups = buildArchiveGroups(initialPosts);
 const hasInitialPosts = initialPosts.length > 0;
 const hasFeaturedPosts = initialFeaturedPosts.length > 0;
 const metaDescription = locale === 'zh-CN'
@@ -216,12 +111,28 @@ const metaDescription = locale === 'zh-CN'
             {t('blog.expand')}
           </button>
         </div>
-        <div class="featured-grid" id="featured-grid" set:html={initialFeaturedHtml} />
+        <div class="featured-grid" id="featured-grid">
+          {featuredPosts.map((post) => <BlogPostCard post={post} locale={locale} routeLang={routeLang} featured={true} />)}
+        </div>
       </section>
 
       <section class="section-block">
         <h2 class="section-title">{t('blog.allPosts')}</h2>
-        <div class="archive-list" id="archive-list" set:html={initialArchiveHtml} />
+        <div class="archive-list" id="archive-list">
+          {archiveGroups.map(({ year, months }) => (
+            <div class="year-block" data-year={year}>
+              <h3 class="year-header">{year}</h3>
+              {months.map(([monthIndex, monthInfo]) => (
+                <div class="month-row" data-month={monthInfo.monthName} data-month-index={monthIndex}>
+                  <div class="month-label"><span>{monthInfo.monthName}</span></div>
+                  <div class="month-posts">
+                    {monthInfo.posts.map((post) => <BlogPostCard post={post} locale={locale} routeLang={routeLang} />)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
         <div class="loading initial-loading" id="timeline-placeholder" style={`display:${hasInitialPosts ? 'none' : 'flex'};`}>
           正在加载文章...
         </div>

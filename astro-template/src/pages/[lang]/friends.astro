@@ -7,31 +7,15 @@ export async function getStaticPaths() {
 
 import Layout from '../../layouts/Layout.astro';
 import { getTranslation, getLocale } from '../../utils/i18n';
-import { getApiUrl } from '../../config/api';
 import { resolveFeatureFlags } from '../../utils/featureFlags';
 import { buildLocalizedPath } from '../../utils/routeLocale';
+import { loadSiteSettings } from '../../utils/siteSettings';
 
 // Get locale from Astro.locals (set by middleware)
 const locale = getLocale(Astro.locals);
 const t = (key: string) => getTranslation(locale, key);
 
-// Fetch settings
-let settings: Record<string, any> = {};
-try {
-  const res = await fetch(getApiUrl('/api/settings?t=' + Date.now(), true), {
-    cache: 'no-store',
-  });
-  if (res.ok) settings = await res.json();
-} catch (e) {}
-
-if (!settings || Object.keys(settings).length === 0) {
-  try {
-    const res = await fetch(getApiUrl('/api/public/settings?t=' + Date.now(), true), {
-      cache: 'no-store',
-    });
-    if (res.ok) settings = await res.json();
-  } catch (e) {}
-}
+const settings = await loadSiteSettings();
 
 const featureFlags = resolveFeatureFlags(settings?.featureFlags);
 const friendsEnabled = featureFlags.friendsPage !== false;

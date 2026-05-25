@@ -1,7 +1,7 @@
 ---
 import { ClientRouter } from 'astro:transitions';
 import NavHeader from '../components/NavHeader.astro';
-import { API_BASE_URL } from '../config/api';
+import { API_BASE_URL } from '../core/site';
 import { getLocale } from '../utils/i18n';
 import { resolveFeatureFlags } from '../utils/featureFlags';
 import '../styles/global.css';
@@ -194,7 +194,7 @@ try {
       .frontend-body {
         margin: 0;
         padding: 0;
-        background-color: var(--app-bg-primary);
+        background-color: var(--frontend-body-bg-color, var(--app-bg-primary));
         color: var(--text-primary);
         font-family: var(--fontStack);
       }
@@ -307,6 +307,8 @@ try {
       import { applyTheme, writeBackgroundMetaVars, updateResolvedOverlays, parseBackgroundMeta } from '../utils/themeUtils';
       import { ensureBackgroundLayer, stageBackgroundLayer } from '../utils/backgroundLayer';
       import { darkenHex } from '../utils/colorUtils';
+
+      const backgroundMeta = parseBackgroundMeta((window as any).__CHRONICLE_SETTINGS__?.frontendBackgroundMeta);
       
       // 确保背景层在页面切换时不被重新创建
       function ensureBackgroundLayerExists() {
@@ -338,7 +340,7 @@ try {
         
         if (settings.frontendBackground) {
           console.log('[Layout] Found frontendBackground:', settings.frontendBackground);
-          const meta = parseBackgroundMeta(settings.frontendBackgroundMeta);
+          const meta = backgroundMeta;
           console.log('[Layout] Background meta:', meta);
           
           writeBackgroundMetaVars('frontend', meta);
@@ -467,7 +469,7 @@ try {
         if (!settings) return;
 
         try {
-          const meta = parseBackgroundMeta(settings.frontendBackgroundMeta);
+          const meta = backgroundMeta;
 
           // 先写入背景元数据变量
           writeBackgroundMetaVars('frontend', meta);
@@ -523,7 +525,7 @@ try {
 
           // 应用背景和overlay
           if (settings.frontendBackground) {
-            const meta = parseBackgroundMeta(settings.frontendBackgroundMeta);
+            const meta = backgroundMeta;
 
             // 先写入背景元数据变量（总是需要）
             writeBackgroundMetaVars('frontend', meta);

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { TocItem } from '../utils/toc';
-import tocController, { initController, setTocGetter } from './tocController';
+import tocController, { initController, setTocGetter } from '../utils/tocController';
 
 const props = withDefaults(defineProps<{
   toc: TocItem[];

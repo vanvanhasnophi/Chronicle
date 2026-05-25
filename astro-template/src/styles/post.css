@@ -1026,6 +1026,7 @@
     .math-tooltip.is-hidden {
       opacity: 0;
       display: none;
+      visibility: hidden;
       transform: translateY(4px) scale(0.98);
       pointer-events: none;
     }

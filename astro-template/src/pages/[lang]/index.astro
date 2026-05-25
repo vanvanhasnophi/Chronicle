@@ -8,8 +8,8 @@ export async function getStaticPaths() {
 import Layout from '../../layouts/Layout.astro';
 import { getTranslation, getLocale } from '../../utils/i18n.ts';
 import { buildLocalizedPath } from '../../utils/routeLocale.ts';
-import { getApiUrl } from '../../config/api.ts';
 import { initPreloadSystem } from '../../utils/preload.ts';
+import { loadSiteSettings } from '../../utils/siteSettings';
 
 
 // Get locale from Astro.locals (set by middleware)
@@ -20,30 +20,7 @@ const metaDescription = locale === 'zh-CN'
   ? 'Chronicle 首页，进入博客、合集、朋友页和主题文章。'
   : 'Chronicle homepage with access to blogs, collections, friends, and the theme post.';
 
-// Fetch settings from API (包含样式设置)
-let settings: Record<string, any> = {};
-try {
-  const res = await fetch(getApiUrl('/api/settings?t=' + Date.now(), true), {
-    cache: 'no-store',
-  });
-  if (res.ok) {
-    settings = await res.json();
-  }
-} catch (e) {
-  console.error('[index] Failed to fetch settings:', e);
-}
-
-// 如果主API失败，尝试public API作为后备
-if (!settings || Object.keys(settings).length === 0) {
-  try {
-    const res = await fetch(getApiUrl('/api/public/settings?t=' + Date.now(), true), {
-      cache: 'no-store',
-    });
-    if (res.ok) {
-      settings = await res.json();
-    }
-  } catch (e) {}
-}
+const settings = await loadSiteSettings();
 ---
 <Layout title={t('nav.home')} settings={settings} scrollable={false} meta={{ description: metaDescription }}>
   <div class="home-container">

@@ -11,31 +11,13 @@ import { buildLocalizedPath } from "../../utils/routeLocale.ts";
 import { sortTags } from "../../utils/tagUtils.ts";
 import { getApiUrl } from "../../config/api.ts";
 import { resolveFeatureFlags } from "../../utils/featureFlags.ts";
+import { loadSiteSettings } from "../../utils/siteSettings";
 
 const locale = getLocale(Astro.locals);
 const t = (key: string) => getTranslation(locale, key);
 const routePrefix = locale === "zh-CN" ? "/zh" : "/en";
 
-// Fetch settings
-let settings: Record<string, any> = {};
-try {
-  const res = await fetch(getApiUrl("/api/settings?t=" + Date.now(), true), {
-    cache: "no-store",
-  });
-  if (res.ok) settings = await res.json();
-} catch (e) {}
-
-if (!settings || Object.keys(settings).length === 0) {
-  try {
-    const res = await fetch(
-      getApiUrl("/api/public/settings?t=" + Date.now(), true),
-      {
-        cache: "no-store",
-      },
-    );
-    if (res.ok) settings = await res.json();
-  } catch (e) {}
-}
+const settings = await loadSiteSettings();
 
 const featureFlags = resolveFeatureFlags(settings?.featureFlags);
 const searchSuggestionsEnabled = featureFlags.searchSuggestions !== false;
