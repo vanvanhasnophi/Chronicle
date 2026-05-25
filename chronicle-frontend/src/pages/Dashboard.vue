@@ -450,9 +450,9 @@ const projectUsed = computed(() => {
 .list-main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .list-main span { color: var(--component-text-secondary); font-size: .85rem; }
 .badge { padding: .25rem .55rem; border-radius: 999px; font-size: .78rem; background: var(--component-bg-hover); }
-.badge.published { color: var(--featured); }
-.badge.draft { color: var(--featured); }
-.badge.modifying { color: var(--accent-color); }
+.badge.published { color: var(--accent-color); }
+.badge.draft { color: var(--component-text-secondary); }
+.badge.modifying { color: var(--featured); }
 .tag-rank li { display: flex; justify-content: space-between; align-items: center; gap: .6rem; }
 .tag-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tag-count { color: var(--component-text-secondary); }
