@@ -426,13 +426,16 @@ async function handleGlobalClick(e: MouseEvent) {
   // Image Click Handling
   if (target.tagName === 'IMG' && target.classList.contains('md-image')) {
     const wrapper = target.closest('.md-image-wrapper')
-    // Allow clicking even if not fully "loaded" class if src exists
-    if (wrapper || target) {
-      e.stopPropagation()
-      const src = (target as HTMLImageElement).src
+    if (!wrapper || !wrapper.classList.contains('loaded')) return
+    e.stopPropagation()
+    const src = (target as HTMLImageElement).src
+    const hook = (window as any).__CHRONICLE_OPEN_IMAGE_VIEWER__
+    if (typeof hook === 'function') {
+      hook({ src, alt: (target as HTMLImageElement).alt || '', element: target })
+    } else {
       openImagePreview(src)
-      return
     }
+    return
   }
 
   // Click elsewhere closes tooltip
@@ -442,100 +445,7 @@ async function handleGlobalClick(e: MouseEvent) {
 
 // Tooltip UI moved to MathTooltip component which handles its own outside-click listeners
 
-// Handling Image Events (Capture phase)
-function handleImageError(e: Event) {
-  const img = e.target as HTMLImageElement
-  if (img && img.classList.contains('md-image')) {
-    const wrapper = img.closest('.md-image-wrapper')
-    if (wrapper) {
-      wrapper.classList.remove('loading')
-      wrapper.classList.add('error')
-      const text = wrapper.querySelector('.md-placeholder-text')
-      if (text) text.textContent = '解析失败'
-    }
-  }
-}
-
-function handleImageLoad(e: Event) {
-  const img = e.target as HTMLImageElement
-  if (img && img.classList.contains('md-image')) {
-    const wrapper = img.closest('.md-image-wrapper')
-    if (wrapper) {
-      wrapper.classList.remove('loading')
-      wrapper.classList.add('loaded')
-    }
-  }
-}
-
-let imageObserver: IntersectionObserver | null = null
-
-function hydrateMarkdownImages() {
-  const wrappers = Array.from(document.querySelectorAll('.md-image-wrapper[data-image-state]')) as HTMLElement[]
-  if (!wrappers.length) return
-
-  const loadImage = (wrapper: HTMLElement) => {
-    if (wrapper.dataset.imageHydrated === '1') return
-    wrapper.dataset.imageHydrated = '1'
-
-    const img = wrapper.querySelector('img[data-src]') as HTMLImageElement | null
-    if (!img) return
-
-    const src = img.getAttribute('data-src') || wrapper.getAttribute('data-image-src') || ''
-    if (!src) {
-      wrapper.classList.remove('loading')
-      wrapper.classList.add('error')
-      const text = wrapper.querySelector('.md-placeholder-text')
-      if (text) text.textContent = '解析失败'
-      return
-    }
-
-    const markLoaded = () => {
-      wrapper.classList.remove('loading', 'error')
-      wrapper.classList.add('loaded')
-    }
-
-    const markError = () => {
-      wrapper.classList.remove('loading')
-      wrapper.classList.add('error')
-      const text = wrapper.querySelector('.md-placeholder-text')
-      if (text) text.textContent = '解析失败'
-    }
-
-    img.addEventListener('load', markLoaded, { once: true })
-    img.addEventListener('error', markError, { once: true })
-
-    if (img.complete && img.naturalWidth > 0) {
-      markLoaded()
-      return
-    }
-
-    img.src = src
-    img.removeAttribute('data-src')
-  }
-
-  if (!('IntersectionObserver' in window)) {
-    wrappers.forEach(loadImage)
-    return
-  }
-
-  if (imageObserver) {
-    imageObserver.disconnect()
-  }
-
-  imageObserver = new IntersectionObserver((entries, obs) => {
-    entries.forEach((entry) => {
-      if (!entry.isIntersecting) return
-      const target = entry.target as HTMLElement
-      obs.unobserve(target)
-      loadImage(target)
-    })
-  }, { rootMargin: '240px 0px' })
-
-  wrappers.forEach((wrapper) => {
-    if (wrapper.dataset.imageHydrated === '1') return
-    imageObserver!.observe(wrapper)
-  })
-}
+const IMAGE_LOAD_TIMEOUT_MS = 20000
 
 onMounted(() => {
   // prefer site-level class `is-mobile` set on <html>; fallback to UA/touch probe
@@ -544,13 +454,6 @@ onMounted(() => {
       isMobile.value = document.documentElement.classList.contains('is-mobile')
     }
   } catch (e) {}
-  const container = document.querySelector('.md-parser-rendered')
-  if (container) {
-     container.addEventListener('error', handleImageError, true)
-     container.addEventListener('load', handleImageLoad, true)
-  }
-
-    hydrateMarkdownImages()
 
   // If parent provided parsed blocks, use them instead of parsing modelValue
   if (props.blocks && Array.isArray(props.blocks) && props.blocks.length) {
@@ -564,15 +467,6 @@ onMounted(() => {
   try { void loadHeavyComponents() } catch(e) {}
 })
 onUnmounted(() => {
-    const container = document.querySelector('.md-parser-rendered')
-    if (container) {
-       container.removeEventListener('error', handleImageError, true)
-       container.removeEventListener('load', handleImageLoad, true)
-    }
-      if (imageObserver) {
-        imageObserver.disconnect()
-        imageObserver = null
-      }
   cancelRenderMath()
 })
 
@@ -588,7 +482,6 @@ watch(() => props.modelValue, (newVal) => {
   nextTick(() => {
     emit('rendered')
     scheduleRenderMath()
-    hydrateMarkdownImages()
     // start loading heavy components after initial text render
     try { void loadHeavyComponents() } catch(e) {}
   })
@@ -601,7 +494,6 @@ watch(() => props.blocks, (b) => {
     nextTick(() => {
       emit('rendered')
       scheduleRenderMath()
-      hydrateMarkdownImages()
     })
   }
 })
@@ -989,24 +881,21 @@ strong, b {
   border-radius: 8px;
   max-width: 100%;
   width: fit-content;
-}
-
-/* Loading / Error / Placeholder States (Dark box) */
-.md-image-wrapper.loading,
-.md-image-wrapper.error,
-.md-image-wrapper.placeholder {
-  background-color: var(--component-bg-primary);
   min-width: 200px;
   min-height: 120px;
-  display: flex !important;
-  align-items: center;
-  justify-content: center;
   padding: 0 16px;
   box-sizing: border-box;
+  background-color: var(--component-bg-primary);
 }
 
-/* Ensure consistent font for placeholder text */
-.md-placeholder-text {
+.md-image-wrapper::before {
+  content: attr(data-placeholder-text);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 0;
   font-family: var(--app-font-stack);
   font-size: 14px;
   color: var(--component-text-primary);
@@ -1015,25 +904,13 @@ strong, b {
   white-space: nowrap;
 }
 
-/* Error State Specifics */
-.md-image-wrapper.error .md-placeholder-text {
-  color: var(--status-error);
-}
-
-/* Hide the actual image element in non-loaded states */
-.md-image-wrapper.loading .md-image,
-.md-image-wrapper.error .md-image,
-.md-image-wrapper.placeholder .md-image {
-  display: none !important;
-}
-
-/* Loaded State */
-.md-image-wrapper.loaded {
-  background-color: transparent;
-}
-
-.md-image-wrapper.loaded .md-placeholder-text {
+.md-placeholder-text {
   display: none;
+}
+
+.md-image-wrapper .md-image {
+  position: relative;
+  z-index: 1;
 }
 
 .md-image-caption {

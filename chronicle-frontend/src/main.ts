@@ -15,6 +15,7 @@ const messages = {
 }
 
 const apiBaseUrl = String(import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '')
+const mediaBaseUrl = String(import.meta.env.VITE_CDN_BASE_URL || import.meta.env.VITE_MEDIA_DOMAIN || '').trim().replace(/\/$/, '')
 
 if (typeof window !== 'undefined' && apiBaseUrl) {
 	const originalFetch = window.fetch.bind(window)
@@ -31,6 +32,10 @@ if (typeof window !== 'undefined' && apiBaseUrl) {
 			}
 			return originalFetch(input, init)
 		}) as typeof fetch
+}
+
+if (typeof window !== 'undefined' && mediaBaseUrl) {
+	(window as any).__CHRONICLE_MEDIA_BASE_URL__ = mediaBaseUrl
 }
 
 // Determine initial locale: prefer saved setting, otherwise browser language

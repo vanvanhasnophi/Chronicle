@@ -54,17 +54,17 @@ function renderImagePlaceholder(alt: string, url: string) {
 
   if (!safeUrl) {
     return `<div class="md-image-container">
-              <div class="md-image-wrapper placeholder loading" data-image-state="placeholder">
-                <span class="md-placeholder-text">解析中</span>
+              <div class="md-image-wrapper placeholder" data-placeholder-text="解析中">
+                <span class="md-placeholder-text" aria-hidden="true">解析中</span>
               </div>
               ${captionHtml}
             </div>`
   }
 
   return `<div class="md-image-container">
-            <div class="md-image-wrapper loading" data-image-state="loading" data-image-src="${escapeAttr(safeUrl)}">
-              <img data-src="${escapeAttr(safeUrl)}" alt="${safeAlt}" class="md-image" loading="lazy" decoding="async" />
-              <span class="md-placeholder-text">加载中</span>
+            <div class="md-image-wrapper" data-placeholder-text="加载中">
+              <img src="${escapeAttr(safeUrl)}" alt="${safeAlt}" class="md-image" loading="lazy" decoding="async" />
+              <span class="md-placeholder-text" aria-hidden="true">加载中</span>
             </div>
             ${captionHtml}
           </div>`

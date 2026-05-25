@@ -1901,6 +1901,17 @@ function decodeHtmlEntities(text) {
         .replace(/&amp;/g, '&');
 }
 
+function normalizePostTitle(title) {
+    return decodeHtmlEntities(String(title || ''));
+}
+
+function normalizePostForResponse(post) {
+    if (!post) return post;
+    const title = normalizePostTitle(post.title);
+    if (title === post.title) return post;
+    return { ...post, title };
+}
+
 function stripHtml(text) {
     return decodeHtmlEntities(String(text || '').replace(/<[^>]+>/g, ''));
 }
@@ -2011,6 +2022,13 @@ function syncIndexWithFiles() {
         let modified = false;
 
         posts.forEach(post => {
+            const normalizedTitle = normalizePostTitle(post.title);
+            if (normalizedTitle !== (post.title || '')) {
+                post.title = normalizedTitle;
+                modified = true;
+                console.log(`[Sync] Decoded title entities for ${post.id}`);
+            }
+
             // Support new per-post directory layout: POSTS_DIR/<id>/<id>-content.md
             const dirName = post.dir || (post.filename ? post.filename.replace(/\.md$/, '') : post.id);
             const dirPath = path.join(POSTS_DIR, dirName || '')
@@ -3196,7 +3214,7 @@ app.get('/api/posts', (req, res) => {
             const pagedPosts = posts.slice(start, start + perPage);
 
             return res.json({
-                posts: pagedPosts,
+                posts: pagedPosts.map((post) => normalizePostForResponse(post)),
                 total,
                 page,
                 perPage,
@@ -3204,7 +3222,7 @@ app.get('/api/posts', (req, res) => {
             });
         }
 
-        res.json(posts);
+        res.json(posts.map((post) => normalizePostForResponse(post)));
     } catch(e) {
         res.status(500).send('[]');
     }
@@ -3215,7 +3233,7 @@ function searchPostsFromIndex(posts, keyword) {
     if (!normalizedKeyword) return posts;
 
     return posts.filter((post) => {
-        const title = String(post.title || '').toLowerCase();
+        const title = normalizePostTitle(post.title).toLowerCase();
         const summary = String(post.summary || '').toLowerCase();
         const tags = Array.isArray(post.tags) ? post.tags.map((tag) => String(tag || '').toLowerCase()) : [];
 
@@ -3262,7 +3280,7 @@ function handleSearchRequest(req, res) {
 
         filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-        res.json(filtered);
+        res.json(filtered.map((post) => normalizePostForResponse(post)));
     } catch (e) {
         res.status(500).send('[]');
     }
@@ -3303,11 +3321,11 @@ app.get('/api/post', (req, res) => {
                 // override content
                 // Note: do not promote draft to published unless saved as such
                 // return draft as content for editor
-                return res.json({ ...post, content: body, html, hasHtml, toc })
+                return res.json({ ...normalizePostForResponse(post), content: body, html, hasHtml, toc })
             }
         }
 
-        res.json({ ...post, content, html, hasHtml, toc });
+        res.json({ ...normalizePostForResponse(post), content, html, hasHtml, toc });
     } catch(e) {
         res.status(500).send('Error');
     }
