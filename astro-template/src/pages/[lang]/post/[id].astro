@@ -513,6 +513,66 @@ const metaDescription = buildMetaDescription(post, locale);
       button.classList.remove('copying');
     }
 
+    function initMarkdownImages() {
+      const wrappers = Array.from(document.querySelectorAll('.md-image-wrapper[data-image-state]')) as HTMLElement[];
+      if (!wrappers.length) return;
+
+      const loadImage = (wrapper: HTMLElement) => {
+        if (wrapper.dataset.imageHydrated === '1') return;
+        wrapper.dataset.imageHydrated = '1';
+
+        const img = wrapper.querySelector('img[data-src]') as HTMLImageElement | null;
+        if (!img) return;
+
+        const src = img.getAttribute('data-src') || wrapper.getAttribute('data-image-src') || '';
+        if (!src) {
+          wrapper.classList.remove('loading');
+          wrapper.classList.add('error');
+          return;
+        }
+
+        const markLoaded = () => {
+          wrapper.classList.remove('loading', 'error');
+          wrapper.classList.add('loaded');
+        };
+
+        const markError = () => {
+          wrapper.classList.remove('loading');
+          wrapper.classList.add('error');
+        };
+
+        img.addEventListener('load', markLoaded, { once: true });
+        img.addEventListener('error', markError, { once: true });
+
+        if (img.complete && img.naturalWidth > 0) {
+          markLoaded();
+          return;
+        }
+
+        img.src = src;
+        img.removeAttribute('data-src');
+      };
+
+      if (!('IntersectionObserver' in window)) {
+        wrappers.forEach(loadImage);
+        return;
+      }
+
+      const observer = new IntersectionObserver((entries, obs) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          const target = entry.target as HTMLElement;
+          obs.unobserve(target);
+          loadImage(target);
+        });
+      }, { rootMargin: '240px 0px' });
+
+      wrappers.forEach((wrapper) => {
+        if (wrapper.dataset.imageHydrated === '1') return;
+        observer.observe(wrapper);
+      });
+    }
+
     function initPostPageFeatures() {
       import('../../../utils/mathTooltip').then(({ initMathTooltip }) => {
         initMathTooltip(document.querySelector('.post-content'));
@@ -544,6 +604,8 @@ const metaDescription = buildMetaDescription(post, locale);
         (button as any).__copyHandler__ = handler;
         (button as HTMLElement).addEventListener('click', handler);
       });
+
+      initMarkdownImages();
     }
 
     if (document.readyState === 'loading') {

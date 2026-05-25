@@ -9,6 +9,36 @@ function escapeAttr(s: string) {
           .replace(/>/g, '&gt;');
 }
 
+function sanitizeImageUrl(url: string) {
+  const trimmed = String(url || '').trim()
+  if (!trimmed) return ''
+  if (/^(javascript|vbscript):/i.test(trimmed)) return ''
+  return trimmed
+}
+
+function renderImagePlaceholder(alt: string, url: string) {
+  const safeAlt = escapeAttr(alt)
+  const safeUrl = sanitizeImageUrl(url)
+  const captionHtml = safeAlt ? `<div class="md-image-caption">${safeAlt}</div>` : ''
+
+  if (!safeUrl) {
+    return `<div class="md-image-container">
+              <div class="md-image-wrapper placeholder loading" data-image-state="placeholder">
+                <span class="md-placeholder-text">解析中</span>
+              </div>
+              ${captionHtml}
+            </div>`
+  }
+
+  return `<div class="md-image-container">
+            <div class="md-image-wrapper loading" data-image-state="loading" data-image-src="${escapeAttr(safeUrl)}">
+              <img data-src="${escapeAttr(safeUrl)}" alt="${safeAlt}" class="md-image" loading="lazy" decoding="async" />
+              <span class="md-placeholder-text">加载中</span>
+            </div>
+            ${captionHtml}
+          </div>`
+}
+
 function sanitizeHtmlTag(tag: string) {
   const trimmed = String(tag || '')
   if (!trimmed) return ''
@@ -97,36 +127,12 @@ export function processEmphasis(text: string, isHeading = false): string {
   if (!isHeading) {
     // 图片 ![alt](url)
     processed = processed.replace(/!\[([^\]]*?)\]\((.*?)\)/g, (_match, alt, url) => {
-        const safeAlt = escapeAttr(alt)
-        const captionHtml = safeAlt ? `<div class="md-image-caption">${safeAlt}</div>` : ''
-        
-        if (!url || url.trim() === '') {
-            return `<div class="md-image-container">
-                      <div class="md-image-wrapper placeholder">
-                        <span class="md-placeholder-text">解析中</span>
-                      </div>
-                      ${captionHtml}
-                    </div>`
-        }
-        return `<div class="md-image-container">
-                  <div class="md-image-wrapper loading">
-                    <img src="${url}" alt="${safeAlt}" class="md-image" />
-                    <span class="md-placeholder-text">解析中</span>
-                  </div>
-                  ${captionHtml}
-                </div>`
+        return renderImagePlaceholder(alt, url)
     })
 
     // 正在输入的图片语法 ![alt] (且后面没有跟着左括号)
     processed = processed.replace(/!\[([^\]]*?)\](?!\()/g, (_match, alt) => {
-         const safeAlt = escapeAttr(alt)
-         const captionHtml = safeAlt ? `<div class="md-image-caption">${safeAlt}</div>` : ''
-         return `<div class="md-image-container">
-                   <div class="md-image-wrapper placeholder">
-                     <span class="md-placeholder-text">解析中</span>
-                   </div>
-                   ${captionHtml}
-                 </div>`
+         return renderImagePlaceholder(alt, '')
     })
     
     // 链接 [text](url) -> 智能转换为文件卡片

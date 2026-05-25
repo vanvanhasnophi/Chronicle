@@ -247,12 +247,6 @@
       /* match frontend baseline */
     }
 
-    /* Reduce resize-time layout work by skipping off-screen blocks. */
-    .markdown-content .content-block {
-      content-visibility: auto;
-      contain-intrinsic-size: 1px 640px;
-    }
-
     .markdown-content h1,
     .markdown-content h2,
     .markdown-content h3,
@@ -399,6 +393,20 @@
       justify-content: center;
       padding: 0 16px;
       box-sizing: border-box;
+    }
+
+    .md-image-wrapper.loading .md-image,
+    .md-image-wrapper.error .md-image,
+    .md-image-wrapper.placeholder .md-image {
+      display: none !important;
+    }
+
+    .md-image-wrapper.loaded {
+      background-color: transparent;
+    }
+
+    .md-image-wrapper.loaded .md-placeholder-text {
+      display: none;
     }
 
     .md-placeholder-text {

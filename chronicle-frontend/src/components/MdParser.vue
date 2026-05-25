@@ -467,6 +467,76 @@ function handleImageLoad(e: Event) {
   }
 }
 
+let imageObserver: IntersectionObserver | null = null
+
+function hydrateMarkdownImages() {
+  const wrappers = Array.from(document.querySelectorAll('.md-image-wrapper[data-image-state]')) as HTMLElement[]
+  if (!wrappers.length) return
+
+  const loadImage = (wrapper: HTMLElement) => {
+    if (wrapper.dataset.imageHydrated === '1') return
+    wrapper.dataset.imageHydrated = '1'
+
+    const img = wrapper.querySelector('img[data-src]') as HTMLImageElement | null
+    if (!img) return
+
+    const src = img.getAttribute('data-src') || wrapper.getAttribute('data-image-src') || ''
+    if (!src) {
+      wrapper.classList.remove('loading')
+      wrapper.classList.add('error')
+      const text = wrapper.querySelector('.md-placeholder-text')
+      if (text) text.textContent = '解析失败'
+      return
+    }
+
+    const markLoaded = () => {
+      wrapper.classList.remove('loading', 'error')
+      wrapper.classList.add('loaded')
+    }
+
+    const markError = () => {
+      wrapper.classList.remove('loading')
+      wrapper.classList.add('error')
+      const text = wrapper.querySelector('.md-placeholder-text')
+      if (text) text.textContent = '解析失败'
+    }
+
+    img.addEventListener('load', markLoaded, { once: true })
+    img.addEventListener('error', markError, { once: true })
+
+    if (img.complete && img.naturalWidth > 0) {
+      markLoaded()
+      return
+    }
+
+    img.src = src
+    img.removeAttribute('data-src')
+  }
+
+  if (!('IntersectionObserver' in window)) {
+    wrappers.forEach(loadImage)
+    return
+  }
+
+  if (imageObserver) {
+    imageObserver.disconnect()
+  }
+
+  imageObserver = new IntersectionObserver((entries, obs) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) return
+      const target = entry.target as HTMLElement
+      obs.unobserve(target)
+      loadImage(target)
+    })
+  }, { rootMargin: '240px 0px' })
+
+  wrappers.forEach((wrapper) => {
+    if (wrapper.dataset.imageHydrated === '1') return
+    imageObserver!.observe(wrapper)
+  })
+}
+
 onMounted(() => {
   // prefer site-level class `is-mobile` set on <html>; fallback to UA/touch probe
   try {
@@ -479,6 +549,8 @@ onMounted(() => {
      container.addEventListener('error', handleImageError, true)
      container.addEventListener('load', handleImageLoad, true)
   }
+
+    hydrateMarkdownImages()
 
   // If parent provided parsed blocks, use them instead of parsing modelValue
   if (props.blocks && Array.isArray(props.blocks) && props.blocks.length) {
@@ -497,6 +569,10 @@ onUnmounted(() => {
        container.removeEventListener('error', handleImageError, true)
        container.removeEventListener('load', handleImageLoad, true)
     }
+      if (imageObserver) {
+        imageObserver.disconnect()
+        imageObserver = null
+      }
   cancelRenderMath()
 })
 
@@ -512,6 +588,7 @@ watch(() => props.modelValue, (newVal) => {
   nextTick(() => {
     emit('rendered')
     scheduleRenderMath()
+    hydrateMarkdownImages()
     // start loading heavy components after initial text render
     try { void loadHeavyComponents() } catch(e) {}
   })
@@ -524,6 +601,7 @@ watch(() => props.blocks, (b) => {
     nextTick(() => {
       emit('rendered')
       scheduleRenderMath()
+      hydrateMarkdownImages()
     })
   }
 })
