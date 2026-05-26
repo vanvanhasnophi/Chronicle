@@ -10,6 +10,7 @@ const position = ref<ToastPosition>('bottom-right')
 const shape = ref<ToastShape>('rounded')
 const status = ref<ToastStatus>('default')
 const opacity = ref<number>(1)
+const rich = ref(false)
 let timer: ReturnType<typeof setTimeout> | null = null
 
 export interface ToastOptions {
@@ -18,6 +19,7 @@ export interface ToastOptions {
   status?: ToastStatus
   opacity?: number // 0..1
   duration?: number // ms
+  rich?: boolean
 }
 
 function show(msg = '', opts: ToastOptions = {}) {
@@ -26,6 +28,7 @@ function show(msg = '', opts: ToastOptions = {}) {
   if (opts.shape) shape.value = opts.shape
   if (opts.status) status.value = opts.status
   if (typeof opts.opacity === 'number') opacity.value = Math.max(0, Math.min(1, opts.opacity))
+  rich.value = !!opts.rich
 
   visible.value = true
   if (timer) clearTimeout(timer)
@@ -38,6 +41,7 @@ function show(msg = '', opts: ToastOptions = {}) {
 
 function hide() {
   visible.value = false
+  rich.value = false
   if (timer) {
     clearTimeout(timer)
     timer = null
@@ -48,7 +52,7 @@ export function useToast() {
   return {
     show,
     hide,
-    toastState: { visible, message, position, shape, status, opacity }
+    toastState: { visible, message, position, shape, status, opacity, rich }
   }
 }
 

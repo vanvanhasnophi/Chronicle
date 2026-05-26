@@ -698,8 +698,8 @@ function beginAstroBuild(context) {
     if (activeAstroBuild) {
         const startedAt = activeAstroBuild.startedAt ? new Date(activeAstroBuild.startedAt).toISOString() : '';
         const message = startedAt
-            ? `已有进行中的构建（buildId=${activeAstroBuild.buildId}, startedAt=${startedAt}）`
-            : `已有进行中的构建（buildId=${activeAstroBuild.buildId}）`;
+            ? `Build already in progress（buildId=${activeAstroBuild.buildId}, startedAt=${startedAt}）`
+            : `Build already in progress（buildId=${activeAstroBuild.buildId}）`;
         const error = new Error(message);
         error.code = 'ASTRO_BUILD_BUSY';
         throw error;
@@ -1912,6 +1912,57 @@ function normalizePostForResponse(post) {
     return { ...post, title };
 }
 
+function normalizeIndexPostRecord(post) {
+    if (!post || typeof post !== 'object') return post;
+    const next = { ...post };
+    delete next.html;
+    return next;
+}
+
+function writeIndexFile(posts) {
+    fs.writeFileSync(INDEX_FILE, JSON.stringify((posts || []).map(normalizeIndexPostRecord), null, 2));
+}
+
+function republishPostArtifacts(post) {
+    const result = {
+        republished: false,
+        hadCompiledHtml: false,
+        hadContent: false,
+    };
+
+    if (!post || !isValidId(post.id)) return result;
+
+    const content = readPostContentFromDisk(post) || '';
+    const compiledHtmlSource = readCompiledHtmlFromDisk(post) || '';
+
+    result.hadContent = !!String(content || '').trim();
+    result.hadCompiledHtml = !!String(compiledHtmlSource || '').trim();
+
+    if (result.hadCompiledHtml) {
+        const sanitized = sanitizeHtml(compiledHtmlSource);
+        try {
+            const injected = injectIdsIntoHtml(sanitized);
+            writeCompiledHtmlToDisk(post, injected.html || sanitized);
+            try { writeTocToDisk(post, injected.toc || []); } catch (e) { console.error('[Republish] TOC write failed', e); }
+        } catch (e) {
+            writeCompiledHtmlToDisk(post, sanitized);
+        }
+        result.republished = true;
+        return result;
+    }
+
+    if (result.hadContent) {
+        try {
+            const generated = generateToc({ html: '', markdown: content });
+            writeTocToDisk(post, generated);
+        } catch (e) {
+            console.error('[Republish] Markdown TOC generation failed', e);
+        }
+    }
+
+    return result;
+}
+
 function stripHtml(text) {
     return decodeHtmlEntities(String(text || '').replace(/<[^>]+>/g, ''));
 }
@@ -2022,6 +2073,11 @@ function syncIndexWithFiles() {
         let modified = false;
 
         posts.forEach(post => {
+            if (Object.prototype.hasOwnProperty.call(post, 'html')) {
+                delete post.html;
+                modified = true;
+            }
+
             const normalizedTitle = normalizePostTitle(post.title);
             if (normalizedTitle !== (post.title || '')) {
                 post.title = normalizedTitle;
@@ -2066,7 +2122,7 @@ function syncIndexWithFiles() {
         });
 
         if (modified) {
-            fs.writeFileSync(INDEX_FILE, JSON.stringify(posts, null, 2));
+            writeIndexFile(posts);
             console.log('[Sync] Index updated based on file metadata');
         }
     } catch (e) {
@@ -2818,7 +2874,7 @@ app.post('/api/collections', (req, res) => {
                 }
 
                 if (modified) {
-                    fs.writeFileSync(INDEX_FILE, JSON.stringify(posts, null, 2));
+                    writeIndexFile(posts);
                     console.log('[Collections] posts/index.json updated for collection changes');
                 }
             } catch (err) {
@@ -2910,8 +2966,8 @@ app.post('/api/admin/build/astro', async (req, res) => {
             return res.status(409).json({
                 success: false,
                 message: startedAt
-                    ? `已有进行中的构建（buildId=${activeBuild.buildId}, startedAt=${startedAt}）`
-                    : `已有进行中的构建（buildId=${activeBuild.buildId}）`,
+                    ? `Build already in progress（buildId=${activeBuild.buildId}, startedAt=${startedAt}）`
+                    : `Build already in progress（buildId=${activeBuild.buildId}）`,
             });
         }
 
@@ -2948,6 +3004,82 @@ app.post('/api/admin/build/astro', async (req, res) => {
             error: message,
             status: e && e.status ? e.status : 'failed',
             buildId: e && e.buildId ? e.buildId : undefined,
+        });
+    }
+});
+
+app.post('/api/admin/posts/republish-all', async (req, res) => {
+    try {
+        if (!requireAdminToken(req, res)) return;
+
+        const activeBuild = getActiveAstroBuild();
+        if (activeBuild) {
+            const startedAt = activeBuild.startedAt ? new Date(activeBuild.startedAt).toISOString() : '';
+            return res.status(409).json({
+                success: false,
+                message: startedAt
+                    ? `Build already in progress（buildId=${activeBuild.buildId}, startedAt=${startedAt}）`
+                    : `Build already in progress（buildId=${activeBuild.buildId}）`,
+            });
+        }
+
+        let posts = [];
+        try {
+            posts = JSON.parse(fs.readFileSync(INDEX_FILE, 'utf-8') || '[]');
+        } catch (e) {
+            posts = [];
+        }
+
+        const publishedPosts = posts.filter((post) => post && post.status === 'published');
+        const successList = [];
+        const failureList = [];
+        const skippedList = [];
+
+        for (const post of publishedPosts) {
+            try {
+                const result = republishPostArtifacts(post);
+                if (result.republished) {
+                    successList.push({ id: post.id, title: post.title });
+                } else {
+                    skippedList.push({ id: post.id, title: post.title, reason: result.hadCompiledHtml ? 'unchanged' : 'missing-compiled-html' });
+                }
+            } catch (error) {
+                console.error('[Republish] Failed to republish post', post && post.id, error);
+                failureList.push({ id: post.id, title: post.title, reason: 'failed' });
+            }
+        }
+
+        let buildResult = null;
+        const settings = getBuildSettings();
+        if (settings && settings.autoBuildOnPublish && publishedPosts.length > 0) {
+            console.log('[Republish] Auto-build enabled, triggering one full build after batch republish');
+            buildResult = await buildAstroFrontendWithTimeout(settings, { granularity: 'full' });
+        }
+
+        return res.json({
+            success: true,
+            totalPublished: publishedPosts.length,
+            successCount: successList.length,
+            failureCount: failureList.length,
+            skippedCount: skippedList.length,
+            successList,
+            failureList,
+            skippedList,
+            republishedCount: successList.length,
+            republishedPosts: successList,
+            skippedPosts: skippedList,
+            build: buildResult ? {
+                status: buildResult.status,
+                message: buildResult.message,
+                buildId: buildResult.buildId,
+                error: buildResult.error || null,
+            } : null,
+        });
+    } catch (e) {
+        console.error('[Republish] Batch republish failed', e);
+        return res.status(500).json({
+            success: false,
+            message: e && e.message ? e.message : 'Batch republish failed',
         });
     }
 });
@@ -3346,7 +3478,7 @@ app.post('/api/restore', (req, res) => {
             // remove legacy draftFilename field if present
             if (post.draftFilename) delete post.draftFilename
             post.status = 'published'
-            fs.writeFileSync(INDEX_FILE, JSON.stringify(posts, null, 2));
+            writeIndexFile(posts);
         }
         res.json({ success: true });
     } catch(e) {
@@ -3462,6 +3594,8 @@ app.post('/api/post', (req, res) => {
              }
         }
 
+        let compiledHtml = readCompiledHtmlFromDisk(post) || '';
+
         // If frontend sent compiledHtml (static HTML) or html, sanitize and store it on disk
         if (data.compiledHtml || data.html) {
             try {
@@ -3469,23 +3603,23 @@ app.post('/api/post', (req, res) => {
                 // Inject ids into headings in the sanitized HTML so HTML is authoritative
                 try {
                     const injected = injectIdsIntoHtml(sanitized);
-                    post.html = injected.html || sanitized;
-                    writeCompiledHtmlToDisk(post, post.html);
+                    compiledHtml = injected.html || sanitized;
+                    writeCompiledHtmlToDisk(post, compiledHtml);
                     // Also write the toc produced by injection to disk so toc matches HTML
                     try { writeTocToDisk(post, injected.toc || []); post.toc = injected.toc || []; } catch(e) { console.error('[Toc] write failed after inject', e); }
                 } catch (e) {
                     // fall back to writing sanitized HTML if injection fails
-                    post.html = sanitized;
-                    writeCompiledHtmlToDisk(post, sanitized);
+                    compiledHtml = sanitized;
+                    writeCompiledHtmlToDisk(post, compiledHtml);
                 }
             } catch (e) {
-                post.html = '';
+                compiledHtml = '';
             }
         }
 
         // Server-generated TOC: ignore client-provided toc and generate from compiled HTML or markdown.
         try {
-            const sourceHtml = post.html || '';
+            const sourceHtml = compiledHtml || '';
             const sourceMd = content || readPostContentFromDisk(post) || '';
             const generated = generateToc({ html: sourceHtml, markdown: sourceMd });
             post.toc = generated;
@@ -3494,7 +3628,7 @@ app.post('/api/post', (req, res) => {
             console.error('[Toc] generation failed', e);
         }
 
-        fs.writeFileSync(INDEX_FILE, JSON.stringify(posts, null, 2));
+        writeIndexFile(posts);
         res.json({ success: true, id: post.id });
 
         // If this request caused a promotion to published, and settings allow it,
@@ -3534,7 +3668,7 @@ app.delete('/api/post', (req, res) => {
                 if (fs.existsSync(mdPath)) fs.unlinkSync(mdPath);
             }
             posts = posts.filter(p => p.id !== id);
-            fs.writeFileSync(INDEX_FILE, JSON.stringify(posts, null, 2));
+            writeIndexFile(posts);
         }
         res.json({ success: true });
     } catch(e) {
@@ -3594,7 +3728,7 @@ app.post('/api/scan', (req, res) => {
         });
 
         if (posts.length !== originalCount || recoveredCount > 0) {
-            fs.writeFileSync(INDEX_FILE, JSON.stringify(posts, null, 2));
+            writeIndexFile(posts);
         }
 
         res.json({ 

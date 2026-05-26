@@ -310,8 +310,18 @@
   "post": {
     "manageTitle": "Manage Posts",
     "newPost": "New Post",
+    "republishAll": "Republish All",
+    "republishingAll": "Republishing...",
     "loadingPosts": "Loading posts...",
     "noPostsFound": "No posts found.",
+    "noPublishedPosts": "There are no published posts to republish.",
+    "republishAllConfirm": "Republish all published posts? Draft and modifying posts will not be affected.",
+    "republishAllFailed": "Failed to republish all posts",
+    "republishAllSuccess": "Republished {republishedCount} posts, skipped {skippedCount}.",
+    "republishToastSuccess": "Success",
+    "republishToastFailure": "Failed",
+    "republishToastSkipped": "Skipped",
+    "republishToastTitle": "Republish complete",
     "table": {
       "title": "Title",
       "status": "Status",

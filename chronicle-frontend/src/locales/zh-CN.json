@@ -310,8 +310,18 @@
   "post": {
     "manageTitle": "文章管理",
     "newPost": "新建文章",
+    "republishAll": "全部重新发布",
+    "republishingAll": "正在重新发布...",
     "loadingPosts": "正在加载文章...",
     "noPostsFound": "暂无文章。",
+    "noPublishedPosts": "没有可重新发布的已发布文章。",
+    "republishAllConfirm": "确定要重新发布所有已发布文章吗？草稿和编辑中文章不会受影响。",
+    "republishAllFailed": "全部重新发布失败",
+    "republishAllSuccess": "已重新发布 {republishedCount} 篇文章，跳过 {skippedCount} 篇。",
+    "republishToastSuccess": "成功",
+    "republishToastFailure": "失败",
+    "republishToastSkipped": "跳过",
+    "republishToastTitle": "全部重新发布完成",
     "table": {
       "title": "标题",
       "status": "状态",

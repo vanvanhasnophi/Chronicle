@@ -2,9 +2,14 @@
   <div class="manager-container">
     <div class="manager-header">
       <h1 class="page-title">{{ $t('post.manageTitle') }}</h1>
-      <button class="new-post-btn" @click="createNew">
-        <span class="plus">+</span> {{ $t('post.newPost') }}
-      </button>
+      <div class="header-actions">
+        <button class="secondary-action-btn" @click="republishAll" :disabled="republishing || loading || posts.length === 0">
+          {{ republishing ? $t('post.republishingAll') : $t('post.republishAll') }}
+        </button>
+        <button class="new-post-btn" @click="createNew">
+          <span class="plus">+</span> {{ $t('post.newPost') }}
+        </button>
+      </div>
     </div>
 
     <div v-if="loading" class="loading">{{ $t('post.loadingPosts') }}</div>
@@ -65,6 +70,7 @@ import { ref, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { sortTags } from '../utils/tagUtils'
+import useToast from '../composables/useToast'
 
 interface Post {
   id: string
@@ -76,8 +82,10 @@ interface Post {
 
 const router = useRouter()
 const { t } = useI18n()
+const { show: showToast } = useToast()
 const posts = ref<Post[]>([])
 const loading = ref(true)
+const republishing = ref(false)
 
 // Rename state
 const renamingId = ref<string | null>(null)
@@ -192,6 +200,88 @@ async function loadPosts() {
     }
 }
 
+async function republishAll() {
+    if (republishing.value) return
+    if (!posts.value.some((post) => getStatus(post.status) === 'published')) {
+      showToast(t('post.noPublishedPosts'), { status: 'warning', position: 'bottom-center', shape: 'capsule', duration: 3000 })
+      return
+    }
+
+    if (!confirm(t('post.republishAllConfirm'))) return
+
+    republishing.value = true
+    try {
+      const res = await fetchWithAuth(`/api/admin/posts/republish-all?t=${Date.now()}`, {
+        method: 'POST',
+      })
+
+      const payload = await res.json().catch(() => null)
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.message || t('post.republishAllFailed'))
+      }
+
+      const successList = Array.isArray(payload.successList) ? payload.successList : Array.isArray(payload.republishedPosts) ? payload.republishedPosts : []
+      const failureList = Array.isArray(payload.failureList) ? payload.failureList : []
+      const skippedList = Array.isArray(payload.skippedList) ? payload.skippedList : Array.isArray(payload.skippedPosts) ? payload.skippedPosts : []
+
+      const successCount = Number(payload.successCount ?? successList.length ?? 0)
+      const failureCount = Number(payload.failureCount ?? failureList.length ?? 0)
+      const skippedCount = Number(payload.skippedCount ?? skippedList.length ?? 0)
+      const buildStatus = payload.build?.status
+      const buildMessage = payload.build?.message ? ` ${payload.build.message}` : ''
+      const html = buildRepublishToastHtml({
+        successCount,
+        failureCount,
+        skippedCount,
+        successList,
+        failureList,
+        skippedList,
+      })
+      const toastStatus = failureCount > 0 ? 'error' : (skippedCount > 0 ? 'warning' : 'success')
+      showToast(`${t('post.republishToastTitle')}：${html}${buildStatus ? ` <span class="republish-build-note">(${escapeHtml(buildStatus)}${buildMessage ? ` ${escapeHtml(buildMessage)}` : ''})</span>` : ''}`, {
+        status: toastStatus,
+        position: 'bottom-center',
+        shape: 'capsule',
+        duration: 6000,
+        rich: true,
+      })
+      await loadPosts()
+    } catch (error: any) {
+      showToast(error?.message || t('post.republishAllFailed'), { status: 'error', position: 'bottom-center', shape: 'capsule', duration: 4000 })
+    } finally {
+      republishing.value = false
+    }
+}
+
+function escapeHtml(input: any) {
+  return String(input ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function buildListLink(label: string, items: Array<{ id?: string; title?: string; reason?: string }>) {
+  const encodedItems = encodeURIComponent(JSON.stringify(items || []))
+  return `<a href="#" class="toast-link" data-toast-label="${escapeHtml(label)}" data-toast-items="${escapeHtml(encodedItems)}">${escapeHtml(label)} ${escapeHtml(items.length)}</a>`
+}
+
+function buildRepublishToastHtml(payload: {
+  successCount: number
+  failureCount: number
+  skippedCount: number
+  successList: Array<{ id?: string; title?: string; reason?: string }>
+  failureList: Array<{ id?: string; title?: string; reason?: string }>
+  skippedList: Array<{ id?: string; title?: string; reason?: string }>
+}) {
+  return [
+    buildListLink(t('post.republishToastSuccess'), payload.successList),
+    buildListLink(t('post.republishToastFailure'), payload.failureList),
+    buildListLink(t('post.republishToastSkipped'), payload.skippedList),
+  ].join('，')
+}
+
 onMounted(() => {
     loadPosts()
 })
@@ -214,6 +304,12 @@ onMounted(() => {
   padding-bottom: 15px;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .page-title {
   margin: 0;
   font-size: 2em;
@@ -234,6 +330,26 @@ onMounted(() => {
 }
 .new-post-btn:hover {
   background: var(--accent-color-hover);
+}
+
+.secondary-action-btn {
+  background: transparent;
+  color: var(--component-text-primary);
+  border: 1px solid var(--border-color);
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+.secondary-action-btn:hover:not(:disabled) {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+.secondary-action-btn:disabled,
+.new-post-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .table-wrapper {

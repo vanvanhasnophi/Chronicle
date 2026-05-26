@@ -2,8 +2,10 @@
   <transition name="toast-fade">
     <div v-if="visible"
          :class="['global-toast', `pos-${position}`, `shape-${shape}`, `status-${status}`]"
-         role="status" aria-live="polite">
-      {{ message }}
+         role="status" aria-live="polite"
+         @click="handleClick">
+      <span v-if="!rich">{{ message }}</span>
+      <span v-else v-html="message"></span>
     </div>
   </transition>
 </template>
@@ -12,7 +14,33 @@
 import { useToast } from '../composables/useToast'
 
 const { toastState } = useToast()
-const { visible, message, position, shape, status } = toastState
+const { visible, message, position, shape, status, rich } = toastState
+
+function handleClick(event: MouseEvent) {
+  const target = event.target as HTMLElement | null
+  const link = target?.closest?.('[data-toast-items]') as HTMLElement | null
+  if (!link) return
+
+  event.preventDefault()
+  event.stopPropagation()
+
+  try {
+    const label = String(link.dataset.toastLabel || '')
+    const items = JSON.parse(decodeURIComponent(String(link.dataset.toastItems || '[]'))) as Array<{ id?: string; title?: string; reason?: string }>
+    const lines = items.length
+      ? items.map((item, index) => {
+          const parts = [`${index + 1}. ${item.title || item.id || '-'}`]
+          if (item.id && item.title) parts.push(`(${item.id})`)
+          if (item.reason) parts.push(`- ${item.reason}`)
+          return parts.join(' ')
+        })
+      : ['(empty)']
+
+    window.alert(`${label}\n\n${lines.join('\n')}`)
+  } catch (e) {
+    window.alert('Failed to parse toast details')
+  }
+}
 </script>
 
 <style scoped>
@@ -54,6 +82,21 @@ const { visible, message, position, shape, status } = toastState
 .status-error { background: color-mix(in srgb, rgba(220,53,69,0.27) 50%,var(--component-bg-blur) 50%); border: 1px solid rgba(220,53,69,0.22); }
 .status-info { background: color-mix(in srgb, rgba(38,143,255,0.2) 50%,var(--component-bg-blur) 50%); border: 1px solid rgba(38,143,255,0.16); }
 .status-warning { background: color-mix(in srgb, rgba(255,193,7,0.2) 50%,var(--component-bg-blur) 50%); border: 1px solid rgba(255,193,7,0.16); }
+
+.global-toast :deep(.toast-link),
+.global-toast .toast-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.global-toast :deep(.republish-build-note),
+.global-toast .republish-build-note {
+  opacity: 0.85;
+  font-weight: 500;
+}
 
 .toast-fade-enter-active, .toast-fade-leave-active {
   transition: opacity 220ms cubic-bezier(.2,.9,.2,1), transform 220ms cubic-bezier(.2,.9,.2,1);
