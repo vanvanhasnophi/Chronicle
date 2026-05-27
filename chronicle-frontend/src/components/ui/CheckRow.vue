@@ -2,7 +2,10 @@
 	<label :class="['check-row', { 'check-row--disabled': disabled }]">
 		<span class="check-row__copy">
 			<strong>{{ title }}</strong>
-			<small v-if="hint">{{ hint }}</small>
+			<small v-if="$slots.hint">
+				<slot name="hint" />
+			</small>
+			<small v-else-if="hint">{{ hint }}</small>
 		</span>
 		<slot name="suffix">
 			<div v-if="disabled" class="check-row__disabled-note">{{ disabledText }}</div>
@@ -26,7 +29,7 @@
 <script setup lang="ts">
 type Props = {
 	title: string
-	hint?: string
+	hint?: object | string
 	modelValue?: boolean
 	disabled?: boolean
 	disabledText?: string

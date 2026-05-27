@@ -45,7 +45,14 @@
       </svg>
     </button>
 
-    <div v-if="open" class="picker-popover">
+    <Teleport to="body">
+      <div
+        v-if="isPopoverVisible"
+        ref="popoverEl"
+        class="picker-popover"
+        :style="popoverStyle"
+        @click.stop
+      >
       <div v-if="isPanelMode" class="picker-head">
         <input v-model.trim="keyword" class="search-input" :placeholder="t('postPicker.searchPlaceholder')" autofocus />
       </div>
@@ -60,7 +67,8 @@
           </button>
         </li>
       </ul>
-    </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -83,6 +91,8 @@ type PickerObjectValue = {
 
 type PickerModelValue = string | PickerObjectValue | null | undefined
 
+const activePickerInstanceId = ref(0)
+
 const props = withDefaults(defineProps<{
   modelValue: PickerModelValue
   mode?: 'input' | 'panel'
@@ -98,14 +108,17 @@ const emit = defineEmits<{ (e: 'update:modelValue', value: PickerModelValue): vo
 const { t } = useI18n()
 
 const rootEl = ref<HTMLElement | null>(null)
+const popoverEl = ref<HTMLElement | null>(null)
 const inputEl = ref<HTMLInputElement | null>(null)
 const open = ref(false)
+const popoverStyle = ref<Record<string, string>>({})
 const loading = ref(false)
 const loaded = ref(false)
 const keyword = ref('')
 const inputText = ref('')
 const selectedDisplayTitle = ref('')
 const posts = ref<PostRecord[]>([])
+const instanceId = ++activePickerInstanceId.value
 
 const isPanelMode = computed(() => props.mode === 'panel')
 
@@ -133,6 +146,7 @@ const selectedTitle = computed(() => {
 const hasSelection = computed(() => !!selectedIdForSubmit.value || !!selectedTitle.value)
 const displayInputText = computed(() => selectedDisplayTitle.value || inputText.value)
 const hasInputContent = computed(() => !isPanelMode.value && String(displayInputText.value || '').trim().length > 0)
+const isPopoverVisible = computed(() => open.value && activePickerInstanceId.value === instanceId)
 
 const filteredPosts = computed(() => {
   const source = isPanelMode.value ? keyword.value : inputText.value
@@ -158,7 +172,7 @@ async function loadPublishedPosts() {
     const res = await fetchWithAuth(`/api/posts?includeDrafts=true&t=${Date.now()}`)
     if (!res.ok) return
     const all = parsePostsPayload(await res.json())
-    posts.value = all.filter((item) => String(item?.status || '') === 'published')
+    posts.value = all.filter((item) => String(item?.status || '') === 'published'||String(item?.status || '') === 'modifying')
     loaded.value = true
   } finally {
     loading.value = false
@@ -166,13 +180,39 @@ async function loadPublishedPosts() {
 }
 
 async function openPicker() {
+  activePickerInstanceId.value = instanceId
   open.value = true
   await loadPublishedPosts()
+  await nextTick()
+  updatePopoverPosition()
 }
 
 async function toggleOpen() {
-  open.value = !open.value
-  if (open.value) await loadPublishedPosts()
+  if (isPopoverVisible.value) {
+    open.value = false
+    return
+  }
+  await openPicker()
+}
+
+function updatePopoverPosition() {
+  const root = rootEl.value
+  if (!root || !isPopoverVisible.value) return
+  const rect = root.getBoundingClientRect()
+  const width = Math.max(rect.width, 260)
+  const left = Math.min(rect.left, window.innerWidth - width - 12)
+  const safeLeft = Math.max(12, left)
+  const spaceBelow = window.innerHeight - rect.bottom
+  const openAbove = spaceBelow < 380 && rect.top > spaceBelow
+  const top = openAbove ? Math.max(12, rect.top - 8) : rect.bottom + 8
+
+  popoverStyle.value = {
+    position: 'fixed',
+    left: `${safeLeft}px`,
+    top: openAbove ? 'auto' : `${top}px`,
+    bottom: openAbove ? `${Math.max(12, window.innerHeight - rect.top + 8)}px` : 'auto',
+    width: `${width}px`,
+  }
 }
 
 function emitByMode(post: PostRecord | null) {
@@ -233,7 +273,13 @@ function onClickOutside(event: MouseEvent) {
   const root = rootEl.value
   if (!root) return
   const target = event.target as Node | null
-  if (target && !root.contains(target)) open.value = false
+  const popover = popoverEl.value
+  if (target && !root.contains(target) && !(popover && popover.contains(target))) open.value = false
+}
+
+function onViewportChange() {
+  if (!isPopoverVisible.value) return
+  updatePopoverPosition()
 }
 
 watch(
@@ -265,10 +311,14 @@ watch(
 
 onMounted(() => {
   document.addEventListener('click', onClickOutside)
+  window.addEventListener('resize', onViewportChange)
+  window.addEventListener('scroll', onViewportChange, true)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', onClickOutside)
+  window.removeEventListener('resize', onViewportChange)
+  window.removeEventListener('scroll', onViewportChange, true)
 })
 </script>
 
@@ -364,10 +414,8 @@ onBeforeUnmount(() => {
 }
 
 .picker-popover {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  left: auto;
+  position: fixed;
+  z-index: 10080;
   width: min(560px, calc(100vw - 24px));
   max-height: 360px;
   overflow: hidden;
@@ -376,7 +424,6 @@ onBeforeUnmount(() => {
   background: var(--component-bg-blur);
   backdrop-filter: blur(12px);
   box-shadow: 0 16px 34px rgba(0, 0, 0, 0.26);
-  z-index: 9999;
 }
 
 .picker-head {

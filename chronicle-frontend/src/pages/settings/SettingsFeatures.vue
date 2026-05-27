@@ -20,21 +20,30 @@
 
       <CheckRow
         v-model="flags.collectionPage"
-        :hint="$t('settings.featureCollectionHint')"
         :title="$t('settings.featureCollection')"
-      />
+      >
+        <template #hint>
+          {{ $t('settings.featureCollectionHint') }} <RouterLink to="/settings/collection">{{ $t('settings.goToPage') }}</RouterLink>
+        </template>
+      </CheckRow>
 
       <CheckRow
         v-model="flags.aboutPage"
-        :hint="$t('settings.featureAboutPageHint')"
         :title="$t('settings.featureAboutPage')"
-      />
+      >
+        <template #hint>
+          {{ $t('settings.featureAboutPageHint') }} <RouterLink to="/settings/about">{{ $t('settings.goToPage') }}</RouterLink>
+        </template>
+      </CheckRow>
 
       <CheckRow
         v-model="flags.friendsPage"
-        :hint="$t('settings.featureFriendsPageHint')"
         :title="$t('settings.featureFriendsPage')"
-      />
+      >
+        <template #hint>
+          {{ $t('settings.featureFriendsPageHint') }} <RouterLink to="/settings/friends">{{ $t('settings.goToPage') }}</RouterLink>
+        </template>
+      </CheckRow>
 
       <CheckRow
         v-model="flags.traffic"
@@ -81,6 +90,7 @@ const gaPropertyId = ref('')
 const gaId = ref('')
 const saving = ref(false)
 const defaultFlags = { ...flags.value }
+
 
 function normalizeFlags(input: any) {
   return {

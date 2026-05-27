@@ -2,57 +2,71 @@
     <div class="settings-page">
         <h2 style="margin-bottom: 0;">{{ $t('settings.collection') }}</h2>
         <p class="hint">{{ $t('settings.collectionHint') }}</p>
-        <CheckRow 
-            v-model="enabled" 
-            :title="$t('settings.featureToggle')"
-            :hint="$t('settings.featureCollectionHint')" 
-        />
-        <section class="card">
+        <CheckRow v-model="enabled" :title="$t('settings.featureToggle')"
+            :hint="$t('settings.featureCollectionHint')" />
 
-                <div class="editor-area">
-                    <div class="tree-actions">
-                        <button class="primary" @click="addCollection">{{ $t('settings.addCollection') }}</button>
-                    </div>
 
-                    <ul class="collection-list">
-                        <li v-for="(col, cidx) in nodes" :key="col._localId || (col.name + '-' + cidx)" class="collection-item">
-                            <div class="collection-header">
-                                <input v-model="col.name" placeholder="Collection name" class="collection-name" />
-                                <input v-model="col.description" placeholder="Description" class="collection-desc" />
-                                <div class="collection-actions">
-                                    <button class="action-btn action-add icon-only" aria-label="新增节点" title="新增节点" @click="addNode(col)">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                            <line x1="12" y1="5" x2="12" y2="19"></line>
-                                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                                        </svg>
-                                    </button>
-                                    <button class="action-btn action-delete icon-only" aria-label="删除合集" title="删除合集" @click="removeCollection(cidx)">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                            <line x1="18" y1="6" x2="6" y2="18"></line>
-                                            <line x1="6" y1="6" x2="18" y2="18"></line>
-                                        </svg>
-                                    </button>
-                                </div>
-                            </div>
+        <CardListEditor :cards="collectionCards" :showImage="false" :title="$t('settings.collectionCardListTitle')"
+            :hint="$t('settings.collectionCardListHint')" :addLabel="$t('settings.collectionCardAdd')"
+            :emptyText="$t('settings.collectionCardEmpty')" :dragTitle="$t('settings.collectionCardDragHint')"
+            :editTitle="$t('settings.collectionCardEdit')" :removeTitle="$t('settings.collectionCardRemove')"
+            @add="addCollection" @edit="openCollectionModal" @remove="removeCollection" @move="moveCollection" />
 
-                            <CollectionNodeEditor :nodes="col.nodes" :onPostPicked="handlePostPicked" />
-                        </li>
-                    </ul>
-                </div>
-        </section>
 
         <div class="actions">
             <button class="primary" :disabled="saving" @click="saveAll">{{ $t('settings.save') }}</button>
             <button class="secondary" :disabled="saving" @click="resetAll">{{ $t('settings.reset') }}</button>
         </div>
+
+        <div v-if="isCollectionModalOpen && activeCollection" class="collection-modal-overlay"
+            @click.self="closeCollectionModal">
+            <div class="collection-modal">
+                <div class="collection-modal__header">
+                    <div>
+                        <h3>{{ activeCollection.name || $t('settings.collection') }}</h3>
+                    </div>
+                    <button type="button" class="close-btn" @click="closeCollectionModal">
+                        <span class="icon-svg" v-html="Icons.close"></span>
+                    </button>
+                </div>
+
+                <div class="collection-modal__body">
+                    <div class="collection-modal__fields">
+                        <label class="field field-wide">
+                            <span>{{ $t('settings.collectionName') }}</span>
+                            <input v-model.trim="activeCollection.name" :placeholder="$t('settings.collectionNamePlaceholder')" style="width: calc(100% - 30px)"/>
+                        </label>
+
+                        <label class="field field-wide">
+                            <span>{{ $t('settings.collectionDescription') }}</span>
+                            <textarea v-model.trim="activeCollection.description" rows="2" :placeholder="$t('settings.collectionDescriptionPlaceholder')"style="width: calc(100% - 30px)"></textarea>
+                        </label>
+                    </div>
+
+                    <div class="collection-modal__toolbar">
+                        <button type="button" class="primary" @click="addRootNode">
+                            {{ $t('settings.collectionNodeAddRoot') }}
+                        </button>
+                    </div>
+
+                    <CollectionNodeEditor
+                        v-if="Array.isArray(activeCollection.nodes)"
+                        :nodes="activeCollection.nodes"
+                        :onPostPicked="handlePostPicked"
+                        class="collection-modal__tree" />
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { fetchWithAuth } from '../utils/fetchWithAuth'
 import { useI18n } from 'vue-i18n'
+import { Icons } from '../utils/icons'
 import CheckRow from '../components/ui/CheckRow.vue'
+import CardListEditor from '../components/ui/CardListEditor.vue'
 import CollectionNodeEditor from '../components/CollectionNodeEditor.vue'
 import useToast from '../composables/useToast'
 
@@ -63,6 +77,21 @@ const key = 'chronicle.settings.collectionHtml'
 const enabled = ref(true)
 const saving = ref(false)
 const nodes = ref<any[]>([])
+const isCollectionModalOpen = ref(false)
+const activeCollectionIndex = ref<number | null>(null)
+
+const collectionCards = computed(() => nodes.value.map((col: any) => ({
+    ...col,
+    intro: String(col?.description || '').trim() || t('settings.collectionNoDescription'),
+    avatar: '',
+    homeUrl: '',
+    storyPostId: '',
+})))
+
+const activeCollection = computed(() => {
+    if (activeCollectionIndex.value === null) return null
+    return nodes.value[activeCollectionIndex.value] || null
+})
 
 function makeId() { return 'n_' + Math.random().toString(36).slice(2, 9) }
 function ensureLocalIds(cols: any[]) {
@@ -89,6 +118,32 @@ function addCollection() { nodes.value.push({ _localId: makeId(), name: 'New Col
 function removeCollection(idx: number) { nodes.value.splice(idx, 1) }
 function addNode(col: any) { col.nodes = col.nodes || []; col.nodes.push({ _localId: makeId(), id: '', type: 'post' }) }
 
+function addRootNode() {
+    if (!activeCollection.value) return
+    addNode(activeCollection.value)
+}
+
+function openCollectionModal(index: number) {
+    if (!Number.isInteger(index) || !nodes.value[index]) return
+    activeCollectionIndex.value = index
+    isCollectionModalOpen.value = true
+}
+
+function closeCollectionModal() {
+    isCollectionModalOpen.value = false
+    activeCollectionIndex.value = null
+}
+
+function moveCollection(from: number, to: number) {
+    if (!Number.isInteger(from) || !Number.isInteger(to)) return
+    if (from === to) return
+    const next = nodes.value.slice()
+    if (!next[from]) return
+    const [item] = next.splice(from, 1)
+    next.splice(to, 0, item)
+    nodes.value = next
+}
+
 function resetTree() { if (window.confirm(t('settings.resetConfirm') as string)) { nodes.value = []; localStorage.removeItem('chronicle.settings.collections') } }
 
 function loadDefault() { nodes.value = [{ name: 'Default Collection', description: '', nodes: [] }] }
@@ -111,26 +166,26 @@ async function saveFlag() {
 async function saveCollections() {
     // persist collections to backend under `server/data/collection.json`
     try {
-            // send a sanitized copy without local-only fields
-            const payload = JSON.parse(JSON.stringify({ collections: nodes.value }))
-            if (Array.isArray(payload.collections)) {
-                function strip(list: any[]) {
-                    if (!Array.isArray(list)) return
-                    for (const n of list) {
-                        if (!n) continue
-                        delete n._localId
-                        if (n.type === 'group' && Array.isArray(n.children)) strip(n.children)
-                    }
-                }
-                for (const c of payload.collections) {
-                    if (!c) continue
-                    delete c._localId
-                    if (Array.isArray(c.nodes)) strip(c.nodes)
+        // send a sanitized copy without local-only fields
+        const payload = JSON.parse(JSON.stringify({ collections: nodes.value }))
+        if (Array.isArray(payload.collections)) {
+            function strip(list: any[]) {
+                if (!Array.isArray(list)) return
+                for (const n of list) {
+                    if (!n) continue
+                    delete n._localId
+                    if (n.type === 'group' && Array.isArray(n.children)) strip(n.children)
                 }
             }
-            const resp = await fetchWithAuth(`/api/collections?t=${Date.now()}`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-            })
+            for (const c of payload.collections) {
+                if (!c) continue
+                delete c._localId
+                if (Array.isArray(c.nodes)) strip(c.nodes)
+            }
+        }
+        const resp = await fetchWithAuth(`/api/collections?t=${Date.now()}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+        })
         return resp.ok
     } catch (e) { return false }
 }
@@ -173,7 +228,7 @@ function handlePostPicked(targetNode: any, pickedId: string) {
     }
 
     // ensure target node has the id
-    try { targetNode.id = id } catch (e) {}
+    try { targetNode.id = id } catch (e) { }
 }
 
 async function resetAll() {
@@ -220,65 +275,132 @@ onMounted(async () => {
     gap: 1rem;
 }
 
-.editor-area textarea {
-    width: 100%;
-    font-family: var(--app-font-stack);
-}
-
 .actions {
     display: flex;
     gap: 0.5rem
 }
 
-.collection-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px }
-.collection-item { border: 1px solid var(--border-color); border-radius: 10px; padding: 10px; background: var(--component-bg); }
-.collection-header { display:flex; gap:8px; align-items:center; margin-bottom:8px }
-.collection-name { flex: 1 1 200px; padding:6px 8px; border-radius:6px; border:1px solid var(--border-color); }
-.collection-desc { flex: 2 1 300px; padding:6px 8px; border-radius:6px; border:1px solid var(--border-color); }
-.collection-actions { margin-left: auto; display:flex; gap:6px }
+.danger {
+    background: #fff0f0;
+    border: 1px solid #ffcccc
+}
 
-.action-btn {
-    height: 30px;
-    border-radius: 8px;
-    border: none;
+.secondary {
     background: transparent;
-    color: var(--text-primary);
-    display: inline-flex;
+    border: 1px solid var(--border-color)
+}
+
+.primary {
+    background: var(--accent-color);
+    color: white
+}
+
+.collection-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10040;
+    display: grid;
+    place-items: center;
+    background: rgba(0, 0, 0, .45);
+    padding: 1rem;
+}
+
+.collection-modal {
+    width: min(980px, 100%);
+    max-height: min(88vh, 900px);
+    display: grid;
+    grid-template-rows: auto 1fr;
+    gap: 1rem;
+    padding: 1rem;
+    border-radius: 18px;
+    background: var(--component-bg);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-elev-2);
+    overflow: hidden;
+}
+
+.collection-modal__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.collection-modal__header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.collection-modal__header p {
+    margin: .25rem 0 0;
+    color: var(--component-text-secondary);
+}
+
+.collection-modal__body {
+    min-height: 0;
+    overflow: auto;
+    padding-right: .25rem;
+}
+
+.collection-modal__fields {
+    display: grid;
+    gap: .9rem;
+    margin-bottom: 1rem;
+}
+
+.field {
+    display: grid;
+    gap: .45rem;
+}
+
+.field-wide {
+    grid-column: 1 / -1;
+}
+
+.field span {
+    color: var(--component-text-secondary);
+    font-size: .9rem;
+}
+
+.field input,
+.field textarea {
+    width: 100%;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background: var(--component-bg);
+    color: var(--component-text-primary);
+    padding: .75rem .85rem;
+}
+
+.field textarea {
+    resize: vertical;
+    min-height: 100px;
+}
+
+.collection-modal__toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: .75rem;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    color: var(--component-text-secondary);
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0;
-    padding: 0;
-    cursor: pointer;
-    transition: color .15s ease, background .15s ease, transform .08s ease;
+    border-radius: 4px;
 }
 
-.action-btn:hover {
-    color: var(--text-primary);
-    background: var(--component-bg-hover);
+.close-btn:hover {
+    color: var(--component-text-primary);
 }
 
-.action-btn.icon-only {
-    width: 30px;
-    min-width: 30px;
+.close-btn svg {
+    width: 24px;
+    height: 24px;
 }
-
-.action-btn.icon-only svg {
-    width: 18px;
-    height: 18px;
-    display: block;
-}
-
-.action-delete {
-    color: var(--status-error);
-    background: transparent;
-}
-
-.action-delete:hover {
-    background: var(--code-bg);
-    color: var(--status-error);
-}
-
-.danger { background: #fff0f0; border: 1px solid #ffcccc }
-.secondary { background: transparent; border: 1px solid var(--border-color) }
-.primary { background: var(--accent-color); color: white }
 </style>

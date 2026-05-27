@@ -112,6 +112,7 @@ import CheckRow from '../components/ui/CheckRow.vue'
 import PostIdPicker from '../components/PostIdPicker.vue'
 import CardListEditor from '../components/ui/CardListEditor.vue'
 import useToast from '../composables/useToast'
+import '../stylePicker.css'
 
 type FriendCardStyle = 'left-sm' | 'left-lg' | 'top-lg'
 
@@ -511,42 +512,6 @@ onMounted(async () => {
   font-size: .82rem;
 }
 
-.style-picker {
-  display: grid;
-  gap: .75rem;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.style-option {
-  padding: .8rem;
-  border-radius: 14px;
-  border: 1px solid var(--border-color);
-  background: var(--component-bg);
-  display: grid;
-  gap: .45rem;
-  text-align: left;
-  color: inherit;
-  overflow: hidden; /* prevent thumb pseudo-elements from overlapping neighbors */
-}
-
-.style-option:hover {
-  border-color: var(--border-color);
-}
-
-.style-option.active {
-  border-color: var(--accent-color);
-  background-color: color-mix(in srgb, var(--accent-color) 12%, var(--component-bg-blur-alt));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-color) 36%, transparent);
-}
-
-.style-option strong {
-  font-size: .95rem;
-}
-
-.style-option small {
-  color: var(--component-text-secondary);
-  line-height: 1.4;
-}
 
 .style-option__thumb {
   display: block;
@@ -629,8 +594,5 @@ onMounted(async () => {
     grid-template-columns: 1fr;
   }
 
-  .style-picker {
-    grid-template-columns: 1fr;
-  }
 }
 </style>

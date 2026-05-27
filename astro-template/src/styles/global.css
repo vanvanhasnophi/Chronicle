@@ -521,6 +521,38 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 
+.float-btn {
+    background: var(--component-bg-blur-alt);
+    border: 1px solid var(--border-color-blur);
+    border-radius: 8px;
+    color: var(--component-text-primary);
+    cursor: pointer;
+    font-size: 1em;
+    font-family: inherit;
+    transition: all .2s ease;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    padding: 10px 20px;
+    outline: none;
+}
+
+.float-btn.primary{
+  background: var(--accent-color);
+  color: #fff;
+  border: background;
+}
+
+.float-btn.primary:hover {
+  background: color-mix(in srgb, var(--accent-color) 60%, #fff);
+  color: #111;
+}
+
+.float-btn:hover{
+  filter: brightness(1.2);
+  transform: scale(1.05);
+  color: var(--component-text-primary);
+}
+
 
 
 /* Base form elements */

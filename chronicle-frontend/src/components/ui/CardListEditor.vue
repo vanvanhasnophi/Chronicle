@@ -1,26 +1,30 @@
 <template>
-  <section class="card-list-editor card">
+  <section ref="rootEl" class="card-list-editor card">
     <div class="card-list-editor__toolbar">
       <div class="card-list-editor__text">
-        <strong>{{ t('settings.cardListTitle') }}</strong>
-        <p>{{ t('settings.cardListHint') }}</p>
+        <strong>{{ toolbarTitle }}</strong>
+        <p>{{ toolbarHint }}</p>
       </div>
 
       <button class="primary" type="button" style="flex-shrink: 0;" @click="emit('add')">
-        {{ t('settings.friendCardAdd') }}
+        {{ addButtonLabel }}
       </button>
     </div>
 
     <div v-if="cards.length === 0" class="empty-state">
-      {{ t('settings.friendCardEmpty') }}
+      {{ emptyLabel }}
     </div>
 
-    <ul v-else class="card-list">
-      <li v-for="(card, index) in cards" :key="card._localId || `${card.name}-${index}`" class="card-list__item"
-        :class="{ dragging: draggingIndex === index }" draggable="true" @dragstart="onDragStart(index, $event)"
-        @dragover.prevent="onDragOver(index, $event)" @drop.prevent="onDrop(index)" @dragend="onDragEnd">
-        <button type="button" class="drag-handle" :title="t('settings.friendCardDragHint')"
-          :aria-label="t('settings.friendCardDragHint')" @mousedown.stop>
+    <transition-group v-else name="card-list" tag="ul" class="card-list">
+      <li
+        v-for="row in renderRows"
+        :key="row.key"
+        class="card-list__item"
+        :class="{ dragging: isDragging && dragKey === row.key }"
+        :data-card-key="row.key"
+      >
+        <button type="button" class="drag-handle" :title="dragButtonTitle"
+          :aria-label="dragButtonTitle" @pointerdown.stop.prevent="onPointerDown(row.index, row.key, $event)">
           <svg class="handle-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
             fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <line x1="3" y1="12" x2="21" y2="12"></line>
@@ -32,66 +36,81 @@
         <div class="card-list__item-content">
           <div class="card-list__preview">
             <div v-if="props.showImage" class="card-list__media">
-              <img v-if="card.avatar" :src="card.avatar" :alt="card.name || ''" loading="lazy" />
+              <img v-if="row.card.avatar" :src="row.card.avatar" :alt="row.card.name || ''" loading="lazy" />
               <div v-else class="card-list__media-placeholder"></div>
             </div>
             <div class="card-list__content">
               <div class="card-list__heading">
-                <strong>{{ card.name || t('settings.friendCardUnnamed') }}</strong>
+                <strong>{{ row.card.name || t('settings.friendCardUnnamed') }}</strong>
               </div>
               <p class="card-list__intro">
-                <a v-if="card.homeUrl" :href="card.homeUrl" target="_blank" rel="noopener noreferrer">{{ card.homeUrl
+                <a v-if="row.card.homeUrl" :href="row.card.homeUrl" target="_blank" rel="noopener noreferrer">{{ row.card.homeUrl
                   }}</a>
-                <span v-else>{{ card.intro || t('settings.friendCardNoIntro') }}</span>
+                <span v-else>{{ row.card.intro || t('settings.friendCardNoIntro') }}</span>
               </p>
               <div class="card-list__meta">
-                <span v-if="card.storyPostId" class="card-list__story">{{ t('settings.friendCardStoryBound') }}</span>
+                <span v-if="row.card.storyPostId" class="card-list__story">{{ t('settings.friendCardStoryBound') }}</span>
               </div>
             </div>
           </div>
 
           <div class="card-list__actions">
-            <button type="button" class="icon-btn edit-btn" @click="emit('edit', index)"
-              :title="t('settings.friendCardEdit')" :aria-label="t('settings.friendCardEdit')" v-html="Icons.edit">
+            <button type="button" class="icon-btn edit-btn" @click="emit('edit', row.index)"
+              :title="editButtonTitle" :aria-label="editButtonTitle" v-html="Icons.edit">
 
             </button>
-            <button type="button" class="icon-btn delete-btn" @click="emit('remove', index)"
-              :title="t('settings.friendCardRemove')" :aria-label="t('settings.friendCardRemove')" v-html="Icons.trash">
+            <button type="button" class="icon-btn delete-btn" @click="emit('remove', row.index)"
+              :title="removeButtonTitle" :aria-label="removeButtonTitle" v-html="Icons.trash">
 
             </button>
           </div>
         </div>
       </li>
-    </ul>
+    </transition-group>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icons } from '../../utils/icons'
 
 type FriendCardStyle = 'left-sm' | 'left-lg' | 'top-lg'
 
-type FriendCard = {
+type CardListItem = {
   _localId: string
-  style: FriendCardStyle
-  name: string
-  avatar: string
-  intro: string
-  homeUrl: string
-  storyPostId: string
+  style?: FriendCardStyle
+  name?: string
+  avatar?: string
+  intro?: string
+  homeUrl?: string
+  storyPostId?: string
+  [key: string]: any
 }
 
 const props = withDefaults(defineProps<{
-  cards: FriendCard[]
+  cards: CardListItem[]
   showImage?: boolean
   primaryRequired?: boolean
   secondaryOptional?: boolean
+  title?: string
+  hint?: string
+  addLabel?: string
+  emptyText?: string
+  dragTitle?: string
+  editTitle?: string
+  removeTitle?: string
 }>(), {
   showImage: true,
   primaryRequired: false,
   secondaryOptional: true,
+  title: undefined,
+  hint: undefined,
+  addLabel: undefined,
+  emptyText: undefined,
+  dragTitle: undefined,
+  editTitle: undefined,
+  removeTitle: undefined,
 })
 
 const emit = defineEmits<{
@@ -102,41 +121,175 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const draggingIndex = ref<number | null>(null)
+const rootEl = ref<HTMLElement | null>(null)
+const dragIndex = ref<number | null>(null)
+const dragKey = ref<string | null>(null)
+const overIndex = ref<number | null>(null)
+const isDragging = ref(false)
+const pointerId = ref<number | null>(null)
+const activeHandleEl = ref<HTMLElement | null>(null)
+const latestPointer = ref<{ x: number; y: number } | null>(null)
+const rafId = ref<number | null>(null)
+const cardKeyMap = new WeakMap<CardListItem, string>()
+let nextCardKey = 0
 
+const toolbarTitle = computed(() => props.title || t('settings.cardListTitle'))
+const toolbarHint = computed(() => props.hint || t('settings.cardListHint'))
+const addButtonLabel = computed(() => props.addLabel || t('settings.friendCardAdd'))
+const emptyLabel = computed(() => props.emptyText || t('settings.friendCardEmpty'))
+const dragButtonTitle = computed(() => props.dragTitle || t('settings.friendCardDragHint'))
+const editButtonTitle = computed(() => props.editTitle || t('settings.friendCardEdit'))
+const removeButtonTitle = computed(() => props.removeTitle || t('settings.friendCardRemove'))
 
-// Preview style for list is fixed and does not reflect per-card or global styles
-function getPreviewStyle(_: FriendCard): FriendCardStyle {
-  return 'left-sm'
+type RenderRow = { key: string; index: number; card: CardListItem }
+
+const renderRows = computed<RenderRow[]>(() => {
+  const sourceIndex = dragIndex.value
+  const insertIndex = overIndex.value
+  if (!isDragging.value || sourceIndex === null || insertIndex === null) {
+    return props.cards.map((card, index) => ({
+      key: getCardKey(card),
+      index,
+      card,
+    }))
+  }
+
+  const sourceCard = props.cards[sourceIndex]
+  if (!sourceCard) {
+    return props.cards.map((card, index) => ({
+      key: getCardKey(card),
+      index,
+      card,
+    }))
+  }
+
+  const remaining = props.cards
+    .map((card, index) => ({ card, index }))
+    .filter((row) => row.index !== sourceIndex)
+
+  const insertAt = Math.max(0, Math.min(insertIndex, remaining.length))
+  const reordered = remaining.slice()
+  reordered.splice(insertAt, 0, { card: sourceCard, index: sourceIndex })
+
+  return reordered.map((row, previewIndexLocal) => ({
+    key: getCardKey(row.card),
+    index: row.index,
+    card: row.card,
+  }))
+})
+
+function getCardKey(card: CardListItem) {
+  const existing = cardKeyMap.get(card)
+  if (existing) return existing
+  const key = card._localId || `card-${++nextCardKey}`
+  cardKeyMap.set(card, key)
+  return key
 }
 
-function onDragStart(index: number, event: DragEvent) {
-  draggingIndex.value = index
+
+function onPointerDown(index: number, key: string, event: PointerEvent) {
+  if (event.button !== 0 || isDragging.value) return
+  const handleEl = event.currentTarget as HTMLElement | null
+  const itemEl = handleEl?.closest('.card-list__item') as HTMLElement | null
+  if (!itemEl) return
+
+  isDragging.value = true
+  dragIndex.value = index
+  dragKey.value = key
+  overIndex.value = index
+  pointerId.value = event.pointerId
+  activeHandleEl.value = handleEl
+
   try {
-    event.dataTransfer?.setData('text/plain', String(index))
-    const target = event.currentTarget as HTMLElement | null
-    if (target) event.dataTransfer?.setDragImage(target, 24, 24)
-  } catch (e) { }
+    handleEl?.setPointerCapture(event.pointerId)
+  } catch (error) { }
+
+  updateOverIndex(event.clientY)
+
+  document.body.classList.add('card-list-dragging')
+  window.addEventListener('pointermove', onGlobalPointerMove, { passive: false })
+  window.addEventListener('pointerup', onGlobalPointerUp)
+  window.addEventListener('pointercancel', onGlobalPointerUp)
 }
 
-function onDragOver(index: number, event: DragEvent) {
-  if (!event.dataTransfer) return
-  event.dataTransfer.dropEffect = 'move'
-  if (draggingIndex.value === null || draggingIndex.value === index) return
+function onGlobalPointerMove(event: PointerEvent) {
+  if (!isDragging.value || pointerId.value !== event.pointerId) return
+  latestPointer.value = { x: event.clientX, y: event.clientY }
+  if (rafId.value !== null) return
+  rafId.value = window.requestAnimationFrame(flushPointerFrame)
+  event.preventDefault()
 }
 
-function onDrop(index: number) {
-  if (draggingIndex.value === null || draggingIndex.value === index) return
-  const from = draggingIndex.value
-  draggingIndex.value = null
-  if (!Number.isInteger(from)) return
-  if (from < 0 || from >= props.cards.length) return
-  emit('move', from, index)
+function flushPointerFrame() {
+  rafId.value = null
+  const point = latestPointer.value
+  if (!point || !isDragging.value) return
+  updateOverIndex(point.y)
 }
 
-function onDragEnd() {
-  draggingIndex.value = null
+function onGlobalPointerUp(event: PointerEvent) {
+  if (pointerId.value !== event.pointerId) return
+  finishDrag()
 }
+
+function updateOverIndex(clientY: number) {
+  if (!isDragging.value || dragKey.value === null) return
+  overIndex.value = computeOverIndex(clientY)
+}
+
+function computeOverIndex(clientY: number) {
+  const root = rootEl.value
+  if (!root || dragKey.value === null) return 0
+
+  const items = Array.from(root.querySelectorAll<HTMLElement>('.card-list__item'))
+    .filter((item) => item.dataset.cardKey !== dragKey.value)
+
+  if (items.length === 0) return 0
+
+  for (let index = 0; index < items.length; index += 1) {
+    const rect = items[index].getBoundingClientRect()
+    if (clientY < rect.top + rect.height / 2) return index
+  }
+
+  return items.length
+}
+
+function finishDrag() {
+  if (rafId.value !== null) {
+    cancelAnimationFrame(rafId.value)
+    rafId.value = null
+  }
+
+  window.removeEventListener('pointermove', onGlobalPointerMove)
+  window.removeEventListener('pointerup', onGlobalPointerUp)
+  window.removeEventListener('pointercancel', onGlobalPointerUp)
+  document.body.classList.remove('card-list-dragging')
+
+  const from = dragIndex.value
+  const to = overIndex.value
+
+  try {
+    if (activeHandleEl.value?.hasPointerCapture?.(pointerId.value || -1)) {
+      activeHandleEl.value.releasePointerCapture(pointerId.value || -1)
+    }
+  } catch (error) { }
+
+  if (from !== null && to !== null && from !== to) {
+    emit('move', from, to)
+  }
+
+  dragIndex.value = null
+  dragKey.value = null
+  overIndex.value = null
+  isDragging.value = false
+  pointerId.value = null
+  activeHandleEl.value = null
+  latestPointer.value = null
+}
+
+onBeforeUnmount(() => {
+  finishDrag()
+})
 </script>
 
 <style scoped>
@@ -183,6 +336,15 @@ function onDragEnd() {
   gap: .85rem;
 }
 
+.card-list-move {
+  transition: transform .18s ease;
+}
+
+:global(body.card-list-dragging) {
+  cursor: grabbing;
+  user-select: none;
+}
+
 .card-list__item {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -191,7 +353,7 @@ function onDragEnd() {
   align-items: center;
   padding: .6rem;
   border-radius: 12px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border-color-blur);
   /* card height is determined by content (text lines) */
   height: auto;
   transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
@@ -207,9 +369,10 @@ function onDragEnd() {
 }
 
 .card-list__item.dragging {
-  opacity: .65;
-  transform: scale(.995);
+  background: var(--component-bg-hover);
+  transform: scale(1.02);
   box-shadow: var(--shadow-elev-1);
+  opacity: .72;
 }
 
 .drag-handle {

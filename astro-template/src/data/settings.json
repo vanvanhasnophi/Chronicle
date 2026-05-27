@@ -32,6 +32,7 @@
   "autoBuildOnPublish": true,
   "buildGranularity": "full",
   "frontendUrl": "blog.eightyfor.top",
+  "homepageMode": "cover",
   "frontendCodeDir": "/opt/Chronicle/astro-template",
   "frontendBuildTargetDir": "/var/www/blog.eightyfor.top",
   "frontendBackgroundCompression": 25.892999999999997,

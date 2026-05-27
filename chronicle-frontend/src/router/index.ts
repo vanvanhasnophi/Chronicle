@@ -47,6 +47,7 @@ const SettingsAppearance = () => import(/* webpackChunkName: "settings-appearanc
 const SettingsFeatures = () => import(/* webpackChunkName: "settings-features" */ '../pages/settings/SettingsFeatures.vue')
 const SettingsSecurity = () => import(/* webpackChunkName: "settings-security" */ '../pages/settings/SettingsSecurity.vue')
 const TextEditorLazy = () => import(/* webpackChunkName: "text-editor" */ '../pages/TextEditor.vue')
+const EditorPrintPreview = () => import(/* webpackChunkName: "editor-print-preview" */ '../pages/EditorPrintPreview.vue')
 
 const routes = [
   { path: '/', redirect: '/dashboard' },
@@ -102,6 +103,12 @@ const routes = [
     name: 'TextEditor',
     component: TextEditorLazy,
     meta: { requiresAuth: true, title: 'editor.createNewPost' }
+  },
+  {
+    path: '/editor/print',
+    name: 'EditorPrintPreview',
+    component: EditorPrintPreview,
+    meta: { requiresAuth: true, title: 'editor.print' }
   },
   {
     path: '/files',

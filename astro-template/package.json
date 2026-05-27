@@ -1,6 +1,6 @@
 {
   "name": "astro-template",
-  "version": "1.6.5",
+  "version": "2.0 beta (-3)",
   "type": "module",
   "scripts": {
     "dev": "astro dev",

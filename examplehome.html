@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="一个现代、响应式的个人博客通用布局模板，包含页眉、内容区、侧边栏和页脚，适合技术、生活或随笔类博客。">
+    <title>墨韵随想 · 个人博客通用布局</title>
+    <!-- 使用简洁的现代字体系统，优先系统字体，兼顾可读性 -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300..700&display=swap" rel="stylesheet">
+    <!-- Font Awesome 6 (免费图标库) 用于社交/功能图标 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, sans-serif;
+            background-color: #faf9f8;
+            color: #1e1e2a;
+            line-height: 1.5;
+            scroll-behavior: smooth;
+        }
+
+        /* 容器限定最大宽度，居中对齐，内边距保证两端留白 */
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 0 1.5rem;
+        }
+
+        /* ========= 页眉区域 ========= */
+        .site-header {
+            background-color: #ffffff;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03), 0 1px 2px rgba(0, 0, 0, 0.05);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(2px);
+            background-color: rgba(255, 255, 255, 0.96);
+        }
+
+        .header-inner {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 0;
+            gap: 1rem;
+        }
+
+        .logo-area a {
+            text-decoration: none;
+            font-size: 1.7rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            background: linear-gradient(135deg, #3b3b5c, #2c2c4a);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            transition: opacity 0.2s;
+        }
+
+        .logo-area a:hover {
+            opacity: 0.8;
+        }
+
+        .logo-area .tagline {
+            font-size: 0.8rem;
+            color: #5b5b6e;
+            font-weight: 400;
+            margin-top: 0.2rem;
+        }
+
+        /* 导航菜单 */
+        .main-nav ul {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2rem;
+            list-style: none;
+        }
+
+        .main-nav a {
+            text-decoration: none;
+            font-weight: 500;
+            color: #2c2c3a;
+            transition: color 0.2s;
+            font-size: 1rem;
+        }
+
+        .main-nav a:hover {
+            color: #4f46e5;
+        }
+
+        /* 移动端菜单简单适配 (不添加复杂汉堡，使用flex wrap自然折行) */
+        @media (max-width: 680px) {
+            .header-inner {
+                flex-direction: column;
+                text-align: center;
+            }
+            .main-nav ul {
+                justify-content: center;
+                gap: 1.5rem;
+            }
+        }
+
+        /* 搜索小图标 (辅助功能) */
+        .header-actions {
+            display: flex;
+            gap: 1rem;
+        }
+        .header-actions button {
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            color: #3a3a4a;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .header-actions button:hover {
+            color: #4f46e5;
+        }
+
+        /* ========= 主体部分：两栏通用博客布局 ========= */
+        .blog-main {
+            padding: 3rem 0 4rem;
+        }
+
+        .two-columns {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3rem;
+        }
+
+        /* 主要内容区（文章列表/单篇文章） */
+        .content-area {
+            flex: 3;
+            min-width: 260px;
+        }
+
+        /* 侧边栏区 */
+        .sidebar-area {
+            flex: 1.2;
+            min-width: 240px;
+        }
+
+        /* 文章卡片样式 (用于首页文章列表) */
+        .post-card {
+            background: white;
+            border-radius: 1.5rem;
+            padding: 1.8rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02), 0 1px 2px rgba(0, 0, 0, 0.05);
+            transition: box-shadow 0.2s ease, transform 0.2s;
+            border: 1px solid #edf2f7;
+        }
+        .post-card:hover {
+            box-shadow: 0 12px 24px -12px rgba(0, 0, 0, 0.12);
+            transform: translateY(-2px);
+        }
+        .post-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            font-size: 0.85rem;
+            color: #6c6c7e;
+            margin-bottom: 0.75rem;
+        }
+        .post-meta .date i, .post-meta .category i {
+            margin-right: 0.3rem;
+        }
+        .post-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            line-height: 1.3;
+            margin: 0.5rem 0 0.75rem;
+        }
+        .post-title a {
+            text-decoration: none;
+            color: #1e1e2a;
+            transition: color 0.2s;
+        }
+        .post-title a:hover {
+            color: #4f46e5;
+        }
+        .post-excerpt {
+            color: #3c3c48;
+            margin: 0.8rem 0 1.2rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .read-more {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 600;
+            color: #4f46e5;
+            text-decoration: none;
+            font-size: 0.9rem;
+            border-bottom: 1px solid transparent;
+            transition: border-color 0.2s;
+        }
+        .read-more:hover {
+            border-bottom-color: #4f46e5;
+        }
+
+        /* 分页组件 (通用) */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 0.6rem;
+            margin: 3rem 0 1rem;
+            flex-wrap: wrap;
+        }
+        .pagination a, .pagination span {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: 2rem;
+            background: white;
+            border: 1px solid #e2e8f0;
+            text-decoration: none;
+            color: #2d3a4b;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .pagination a:hover {
+            background: #4f46e5;
+            color: white;
+            border-color: #4f46e5;
+        }
+        .pagination .current {
+            background: #4f46e5;
+            color: white;
+            border-color: #4f46e5;
+        }
+
+        /* 侧边栏通用模块 */
+        .sidebar-widget {
+            background: white;
+            border-radius: 1.5rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            border: 1px solid #edf2f7;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+        }
+        .widget-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #eef2ff;
+            display: inline-block;
+        }
+        /* 关于作者/博主 */
+        .author-info {
+            text-align: center;
+        }
+        .avatar {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-bottom: 1rem;
+            border: 3px solid #eef2ff;
+        }
+        .author-name {
+            font-weight: 700;
+            font-size: 1.2rem;
+        }
+        .author-bio {
+            font-size: 0.9rem;
+            color: #5a5a6e;
+            margin: 0.8rem 0;
+        }
+        .social-links {
+            display: flex;
+            justify-content: center;
+            gap: 1.2rem;
+            margin-top: 0.8rem;
+        }
+        .social-links a {
+            color: #6b6b80;
+            font-size: 1.2rem;
+            transition: color 0.2s;
+        }
+        .social-links a:hover {
+            color: #4f46e5;
+        }
+        /* 近期文章列表 */
+        .recent-posts-list {
+            list-style: none;
+        }
+        .recent-posts-list li {
+            margin-bottom: 0.8rem;
+            border-bottom: 1px dashed #ecf3fa;
+            padding-bottom: 0.6rem;
+        }
+        .recent-posts-list a {
+            text-decoration: none;
+            font-weight: 500;
+            color: #2d3a4b;
+            transition: color 0.2s;
+            display: flex;
+            align-items: baseline;
+            gap: 0.5rem;
+        }
+        .recent-posts-list a:hover {
+            color: #4f46e5;
+        }
+        .post-date-small {
+            font-size: 0.7rem;
+            color: #8b8b9c;
+            font-weight: normal;
+        }
+        /* 分类标签云 */
+        .tag-cloud {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.6rem;
+        }
+        .tag-cloud a {
+            background: #f1f5f9;
+            padding: 0.3rem 0.9rem;
+            border-radius: 30px;
+            font-size: 0.8rem;
+            text-decoration: none;
+            color: #334155;
+            transition: all 0.2s;
+        }
+        .tag-cloud a:hover {
+            background: #4f46e5;
+            color: white;
+        }
+        /* 搜索框占位 */
+        .search-widget input {
+            width: 100%;
+            padding: 0.7rem 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 2rem;
+            font-family: inherit;
+            background: #fefefe;
+            transition: 0.2s;
+        }
+        .search-widget input:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        /* 脚注区域 */
+        .site-footer {
+            background-color: #111827;
+            color: #cbd5e1;
+            padding: 2.5rem 0 2rem;
+            margin-top: 2rem;
+            font-size: 0.9rem;
+        }
+        .footer-inner {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1.5rem;
+        }
+        .copyright p {
+            opacity: 0.8;
+        }
+        .footer-links a {
+            color: #cbd5e1;
+            text-decoration: none;
+            margin-left: 1.5rem;
+            transition: color 0.2s;
+        }
+        .footer-links a:hover {
+            color: white;
+        }
+        @media (max-width: 680px) {
+            .footer-inner {
+                flex-direction: column;
+                text-align: center;
+            }
+            .footer-links a {
+                margin: 0 0.8rem;
+            }
+        }
+
+        /* 演示辅助样式: 模拟文章内容 */
+        hr {
+            margin: 1rem 0;
+        }
+        /* 响应式微调 */
+        @media (max-width: 860px) {
+            .two-columns {
+                gap: 2rem;
+            }
+            .post-title {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="site-header">
+        <div class="container header-inner">
+            <div class="logo-area">
+                <a href="#">墨韵随想</a>
+                <div class="tagline">笔尖游走 · 心向旷野</div>
+            </div>
+            <nav class="main-nav">
+                <ul>
+                    <li><a href="#">首页</a></li>
+                    <li><a href="#">归档</a></li>
+                    <li><a href="#">关于</a></li>
+                    <li><a href="#">随笔</a></li>
+                    <li><a href="#">友链</a></li>
+                </ul>
+            </nav>
+            <div class="header-actions">
+                <button aria-label="搜索"><i class="fas fa-search"></i></button>
+                <button aria-label="深色模式切换 (演示)"><i class="fas fa-moon"></i></button>
+            </div>
+        </div>
+    </header>
+
+    <main class="blog-main">
+        <div class="container two-columns">
+            <!-- 左侧主内容区域 (博客文章列表) -->
+            <div class="content-area">
+                <!-- 文章卡片 1 -->
+                <article class="post-card">
+                    <div class="post-meta">
+                        <span class="date"><i class="far fa-calendar-alt"></i> 2025年3月21日</span>
+                        <span class="category"><i class="fas fa-tag"></i> 生活随感</span>
+                        <span class="reading-time"><i class="far fa-clock"></i> 5分钟阅读</span>
+                    </div>
+                    <h2 class="post-title"><a href="#">月光下的独白：关于写作与自省</a></h2>
+                    <div class="post-excerpt">
+                        不知从何时起，深夜成了我与自己对话的最佳时刻。键盘敲击声中，思绪像潮水般涌来，那些白天无法落笔的情绪，在静谧里慢慢沉淀。写博客的意义，也许正是为了在喧嚣世界里留一个安静的角落……
+                    </div>
+                    <a href="#" class="read-more">继续阅读 <i class="fas fa-arrow-right"></i></a>
+                </article>
+
+                <article class="post-card">
+                    <div class="post-meta">
+                        <span class="date"><i class="far fa-calendar-alt"></i> 2025年3月14日</span>
+                        <span class="category"><i class="fas fa-tag"></i> 技术漫谈</span>
+                        <span class="reading-time"><i class="far fa-clock"></i> 8分钟阅读</span>
+                    </div>
+                    <h2 class="post-title"><a href="#">现代CSS布局进化论：容器查询与网格之力</a></h2>
+                    <div class="post-excerpt">
+                        从浮动、Flexbox到Grid，再到如今容器查询的全面支持，前端布局越发灵活。作为一名独立博客作者，我尝试用最新的CSS特性重构这个博客的卡片模块，感受弹性设计的魅力，你也可以轻松跟上潮流……
+                    </div>
+                    <a href="#" class="read-more">继续阅读 <i class="fas fa-arrow-right"></i></a>
+                </article>
+
+                <article class="post-card">
+                    <div class="post-meta">
+                        <span class="date"><i class="far fa-calendar-alt"></i> 2025年3月5日</span>
+                        <span class="category"><i class="fas fa-tag"></i> 读书笔记</span>
+                        <span class="reading-time"><i class="far fa-clock"></i> 4分钟阅读</span>
+                    </div>
+                    <h2 class="post-title"><a href="#">《清醒地活》——超越思维的藩篱</a></h2>
+                    <div class="post-excerpt">
+                        心灵成长类书籍很容易被冠以鸡汤之名，但辛格这本书带给我前所未有的内在觉察。我们不断在内心上演的对话，多数时候只是噪音，学会放手，观察意识本身，或许是通往平静的捷径……
+                    </div>
+                    <a href="#" class="read-more">继续阅读 <i class="fas fa-arrow-right"></i></a>
+                </article>
+
+                <!-- 通用分页组件 -->
+                <div class="pagination">
+                    <span class="current">1</span>
+                    <a href="#">2</a>
+                    <a href="#">3</a>
+                    <a href="#">下一页 &raquo;</a>
+                </div>
+            </div>
+
+            <!-- 右侧边栏区域：包含博主信息、近期文章、分类搜索等 -->
+            <aside class="sidebar-area">
+                <!-- 搜索小组件 -->
+                <div class="sidebar-widget search-widget">
+                    <h3 class="widget-title">🔍 探索</h3>
+                    <input type="search" placeholder="输入关键词搜索文章..." aria-label="站内搜索">
+                </div>
+
+                <!-- 博主个人信息卡片 -->
+                <div class="sidebar-widget author-info">
+                    <img src="https://picsum.photos/id/64/120/120" alt="博主头像" class="avatar" loading="lazy">
+                    <div class="author-name">林溪子</div>
+                    <div class="author-bio">独立开发者 / 业余写作者。喜欢在代码与文字之间穿梭，记录技术沉浮与生活微光。</div>
+                    <div class="social-links">
+                        <a href="#" aria-label="GitHub"><i class="fab fa-github"></i></a>
+                        <a href="#" aria-label="Twitter"><i class="fab fa-twitter"></i></a>
+                        <a href="#" aria-label="豆瓣"><i class="fab fa-douban"></i></a>
+                        <a href="#" aria-label="邮箱"><i class="fas fa-envelope"></i></a>
+                    </div>
+                </div>
+
+                <!-- 近期热门文章（最新发布） -->
+                <div class="sidebar-widget">
+                    <h3 class="widget-title"><i class="far fa-newspaper"></i> 近期发布</h3>
+                    <ul class="recent-posts-list">
+                        <li><a href="#"><span>📝 月光下的独白：关于写作与自省</span><span class="post-date-small">03-21</span></a></li>
+                        <li><a href="#"><span>🧩 现代CSS布局进化论</span><span class="post-date-small">03-14</span></a></li>
+                        <li><a href="#"><span>📖 《清醒地活》——超越思维藩篱</span><span class="post-date-small">03-05</span></a></li>
+                        <li><a href="#"><span>☕ 在异乡喝咖啡的午后随想</span><span class="post-date-small">02-27</span></a></li>
+                        <li><a href="#"><span>⚙️ 静态博客生成器选型心得</span><span class="post-date-small">02-18</span></a></li>
+                    </ul>
+                </div>
+
+                <!-- 分类目录 -->
+                <div class="sidebar-widget">
+                    <h3 class="widget-title"><i class="fas fa-folder-open"></i> 分类目录</h3>
+                    <div class="tag-cloud">
+                        <a href="#">技术笔记 (12)</a>
+                        <a href="#">生活杂谈 (9)</a>
+                        <a href="#">读书感悟 (7)</a>
+                        <a href="#">工具推荐 (5)</a>
+                        <a href="#">旅行日志 (4)</a>
+                        <a href="#">影评随想 (6)</a>
+                    </div>
+                </div>
+
+                <!-- 标签云示例 -->
+                <div class="sidebar-widget">
+                    <h3 class="widget-title"><i class="fas fa-hashtag"></i> 热门标签</h3>
+                    <div class="tag-cloud">
+                        <a href="#">CSS</a>
+                        <a href="#">JavaScript</a>
+                        <a href="#">Vue</a>
+                        <a href="#">博客搭建</a>
+                        <a href="#">独立开发</a>
+                        <a href="#">写作</a>
+                        <a href="#">心理学</a>
+                        <a href="#">设计</a>
+                        <a href="#">摄影</a>
+                    </div>
+                </div>
+
+                <!-- 友情链接简洁版 -->
+                <div class="sidebar-widget">
+                    <h3 class="widget-title"><i class="fas fa-link"></i> 友链</h3>
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.8rem;">
+                        <a href="#" style="text-decoration:none; color:#4f46e5;">⛰️ 山月小筑</a>
+                        <a href="#" style="text-decoration:none; color:#4f46e5;">📓 夜航船</a>
+                        <a href="#" style="text-decoration:none; color:#4f46e5;">⚡ 二进制诗篇</a>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </main>
+
+    <footer class="site-footer">
+        <div class="container footer-inner">
+            <div class="copyright">
+                <p>© 2025 墨韵随想 · 由热爱驱动 | 保留所有权利</p>
+                <p style="font-size:0.75rem; margin-top:0.3rem;">以文字为舟，渡时光之海</p>
+            </div>
+            <div class="footer-links">
+                <a href="#">关于本站</a>
+                <a href="#">隐私条款</a>
+                <a href="#">RSS订阅</a>
+                <a href="#">邮件订阅</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- 简单添加极小交互：演示搜索框占位提醒+控制台无实质 -->
+    <script>
+        (function() {
+            // 只做演示轻提醒，不实现后台搜索，保证布局纯净
+            const searchInput = document.querySelector('.search-widget input');
+            if(searchInput) {
+                searchInput.addEventListener('keypress', (e) => {
+                    if(e.key === 'Enter') {
+                        e.preventDefault();
+                        alert('🔎 演示搜索功能：实际应跳转搜索页或筛选文章。\n(当前为通用布局展示)');
+                    }
+                });
+            }
+            // 两个按钮简易反馈 (深色模式仅演示UI提醒)
+            const btns = document.querySelectorAll('.header-actions button');
+            if(btns.length) {
+                btns[0].addEventListener('click', () => alert('🔍 全局搜索将很快与您相遇 (演示布局)'));
+                btns[1].addEventListener('click', () => {
+                    alert('🌙 深色模式切换示意，实际项目中可扩展主题切换。\n当前仅为布局演示。');
+                });
+            }
+            // 所有阅读更多/文章标题点击演示
+            const readLinks = document.querySelectorAll('.read-more, .post-title a');
+            readLinks.forEach(link => {
+                link.addEventListener('click', (e) => {
+                    if(link.getAttribute('href') === '#') {
+                        e.preventDefault();
+                        alert('📖 文章详情页演示：这里通常是独立文章页面。\n布局完整保留了博客通用结构。');
+                    }
+                });
+            });
+        })();
+    </script>
+</body>
+</html>

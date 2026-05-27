@@ -6,6 +6,7 @@ export async function getStaticPaths() {
 }
 
 import Layout from "../../layouts/Layout.astro";
+import SearchBox from "../../components/SearchBox.astro";
 import { getTranslation, getLocale } from "../../utils/i18n.ts";
 import { buildLocalizedPath } from "../../utils/routeLocale.ts";
 import { sortTags } from "../../utils/tagUtils.ts";
@@ -74,67 +75,19 @@ const metaDescription = locale === "zh-CN"
 
 <Layout title={t("nav.search")} settings={settings} scrollable={false} meta={{ description: metaDescription }}>
   <div class="page-container centered-mode" id="search-page">
-    <div class="search-box-wrapper">
-      <div class="search-box">
-        {searchSuggestionsEnabled && (
-          <>
-            <button
-              class="tag-trigger"
-              id="tag-trigger"
-              title={t("search.selectTags")}
-            >
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <line x1="4" y1="9" x2="20" y2="9"></line>
-                <line x1="4" y1="15" x2="20" y2="15"></line>
-                <line x1="10" y1="3" x2="8" y2="21"></line>
-                <line x1="16" y1="3" x2="14" y2="21"></line>
-              </svg>
-            </button>
-            <span class="divider"></span>
-          </>
-        )}
-        <div class="input-area" id="input-area">
-          <input
-            id="search-input"
-            type="text"
-            placeholder={t("search.placeholder")}
-            class="search-input"
-            value={initialTitle}
-          />
-        </div>
-        <button class="clear-btn" id="clear-btn" title="清空搜索" style="display:none;">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-        <button class="search-btn" id="search-btn" title={t("search.search")}>
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <circle cx="11" cy="11" r="8"></circle>
-            <path d="m21 21-4.3-4.3"></path>
-          </svg>
-        </button>
-      </div>
-    </div>
+    <SearchBox
+      instanceId="search-page-searchbox"
+      searchSuggestionsEnabled={searchSuggestionsEnabled}
+      showTagTrigger={true}
+      initialTitle={initialTitle}
+      featuredLabel={t("tag.featured")}
+      routePrefix={routePrefix}
+      t={t}
+      searchOnEnter={true}
+      searchBtnAsButton={true}
 
+    />
+        
     <div class="content-wrapper" id="content-wrapper" style="display:none;">
     {searchSuggestionsEnabled && (
     <div class="tag-cloud-container" id="tag-cloud" style="display:none;">
@@ -226,15 +179,6 @@ const metaDescription = locale === "zh-CN"
     transform: translateY(30vh);
   }
 
-  /* Search Box */
-  .search-box-wrapper {
-    flex-shrink: 0;
-    margin-bottom: 2rem;
-    z-index: 50;
-    width: 100%;
-    transition: transform 0.6s cubic-bezier(0.19, 1, 0.22, 1);
-  }
-
   /* Results Fade Transition */
   .fade-enter-active {
     transition: opacity 0.6s ease 0.5s;
@@ -247,82 +191,6 @@ const metaDescription = locale === "zh-CN"
   .fade-leave-to {
     opacity: 0;
   }
-
-  .search-box {
-    display: flex;
-    align-items: center;
-    background: var(--component-bg-blur-alt);
-    border: 1px solid var(--border-color-blur);
-    border-radius: 12px;
-    padding: 4px;
-    transition: box-shadow 0.3s ease;
-    box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.05);
-  }
-  .search-box:focus-within {
-    border-color: var(--accent-color);
-    box-shadow: 0 0 0 2px var(--component-bg-accent-blur);
-  }
-
-  .tag-trigger {
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    padding: 8px 12px;
-    color: var(--component-text-secondary);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    transition: color 0.3s ease, transform 0.1s ease, background-color 0.3s ease;
-    flex-shrink: 0;
-    border-radius: 8px;
-    position: relative;
-}
-.tag-trigger.active:not(.featured) {
-    color: var(--accent-color);
-}
-
-.tag-trigger.selected {
-    background: var(--component-bg-accent-blur);
-    color: var(--accent-color);
-}
-
-.tag-trigger.selected.featured {
-    background: var(--featured-bg);
-    color: var(--featured);
-}
-
-.tag-trigger.selected:hover {
-    filter: brightness(1.1);
-}
-.tag-trigger.selected.featured:hover {
-    filter: brightness(1.1);
-}
-
-.tag-trigger:not(.featured):hover {
-    color: var(--accent-color);
-}
-.tag-count {
-    background: var(--app-bg-primary);
-    color: var(--component-text-secondary);
-    font-size: 0.75rem;
-    font-weight: 500;
-    font-variation-settings: 'wght' 500;
-    padding: 2px 6px;
-    border-radius: 10px;
-    min-width: 16px;
-    text-align: center;
-    line-height: 1;
-  align-content: center;
-}
-
-.tag-trigger .tag-count{
-  width:16px;
-  height:16px;
-}
-
-.tag-cloud-item.featured .tag-count{
-    color: var(--featured);
-}
 
 
 .selected .tag-count {
@@ -710,13 +578,6 @@ const metaDescription = locale === "zh-CN"
     padding: 2rem;
   }
 
-  .divider {
-    width: 1px;
-    height: 28px;
-    background-color: var(--border-color-blur);
-    margin: 0 2px;
-  }
-
   .list-spacer {
     height: 40px;
     width: 100%;
@@ -795,14 +656,23 @@ const metaDescription = locale === "zh-CN"
     let isSearching = false;
 
     // DOM elements
-    const input = document.getElementById("search-input");
     const tagTrigger = document.getElementById("tag-trigger");
-    const searchBtn = document.getElementById("search-btn");
     const tagCloud = document.getElementById("tag-cloud");
     const resultsContent = document.getElementById("results-content");
     const resultsContainer = document.getElementById("results-container");
     const contentWrapper = document.getElementById("content-wrapper");
     const selectedTagsEl = document.getElementById("selected-tags");
+    const searchBoxRoot = document.querySelector(
+      '[data-searchbox-id="search-page-searchbox"]',
+    );
+
+    function syncSearchBoxValue(value) {
+      const searchInput = searchBoxRoot?.querySelector("#search-input");
+      if (!searchInput) return;
+
+      searchInput.value = value;
+      searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+    }
 
     // 清除URL参数并触发搜索
     function initSearchFromURL() {
@@ -812,9 +682,9 @@ const metaDescription = locale === "zh-CN"
       
       if (keyword || tags) {
         // 更新搜索状态
-        if (keyword && input) {
+        if (keyword) {
           searchQuery = keyword;
-          input.value = keyword;
+          syncSearchBoxValue(keyword);
         }
         
         if (tags) {
@@ -1000,19 +870,14 @@ const metaDescription = locale === "zh-CN"
           }
         }
       }
-      // 更新搜索按钮状态
-      if (searchBtn) {
-        const hasContent =
-          searchQuery.trim().length > 0 || selectedTags.length > 0;
-        searchBtn.classList.toggle("active", hasContent);
-      }
-      
-      // 更新清空按钮显示状态
-      const clearBtn = document.getElementById("clear-btn");
-      if (clearBtn) {
-        const hasContent = searchQuery.trim().length > 0 || selectedTags.length > 0;
-        clearBtn.style.display = hasContent ? "flex" : "none";
-      }
+
+      searchBoxRoot?.dispatchEvent(
+        new CustomEvent("searchbox:selection-change", {
+          detail: {
+            selectedTagsCount: selectedTags.length,
+          },
+        }),
+      );
     }
 
     function buildSearchUrl(keyword, tags = []) {
@@ -1172,7 +1037,14 @@ const metaDescription = locale === "zh-CN"
     async function performSearch() {
       // 检查搜索按钮是否激活
       const isActive = searchQuery.trim() || isAnyTagsSelected();
-      if (!isActive || isSearching) return;
+      if (!isActive || isSearching) {
+        if (!isActive) {
+          isTagCloudOpen = false;
+          updateCenteredMode();
+          updateVisibility();
+        }
+        return;
+      }
 
       isSearching = true;
 
@@ -1196,59 +1068,31 @@ const metaDescription = locale === "zh-CN"
       isSearching = false;
     }
 
-    // 输入框回车搜索
-    if (input) {
-      input.addEventListener("keypress", (e) => {
-        if (e.key === "Enter") {
-          performSearch();
-        }
+    searchBoxRoot?.addEventListener("searchbox:submit", (event) => {
+      const detail = event.detail || {};
+      searchQuery = String(detail.query || "");
+      syncTagTriggerState();
+      performSearch();
+    });
+
+    searchBoxRoot?.addEventListener("searchbox:clear", () => {
+      searchQuery = "";
+      selectedTags = [];
+
+      document.querySelectorAll(".tag-cloud-item.selected").forEach((item) => {
+        item.classList.remove("selected");
       });
 
-      input.addEventListener("input", (e) => {
-        searchQuery = e.target.value;
-        // 输入框内容变化时更新搜索按钮状态
-        syncTagTriggerState();
-      });
-    }
+      syncTagTriggerState();
+      renderTagChips();
+      updateCenteredMode();
+      updateVisibility();
+      filterPosts();
+    });
 
-    // 搜索按钮点击
-    if (searchBtn) {
-      searchBtn.addEventListener("click", performSearch);
-    }
-
-    // 清空按钮点击
-    const clearBtn = document.getElementById("clear-btn");
-    if (clearBtn) {
-      clearBtn.addEventListener("click", () => {
-        // 清空搜索内容
-        if (input) {
-          input.value = "";
-          searchQuery = "";
-        }
-        
-        // 清空已选标签
-        selectedTags = [];
-        
-        // 清空所有tag-cloud-item的selected状态
-        const allTagItems = document.querySelectorAll(".tag-cloud-item.selected");
-        allTagItems.forEach(item => {
-          item.classList.remove("selected");
-        });
-        
-        // 更新界面状态
-        syncTagTriggerState();
-        renderTagChips();
-        filterPosts();
-        updateCenteredMode();
-        updateVisibility();
-        
-        // 隐藏清空按钮
-        clearBtn.style.display = "none";
-      });
-    }
-
-    // 标签触发按钮
-    if (tagTrigger) tagTrigger.addEventListener("click", toggleTagCloud);
+    searchBoxRoot?.addEventListener("searchbox:toggle-tag-cloud", () => {
+      toggleTagCloud();
+    });
 
     document.querySelectorAll(".tag-cloud-item").forEach((btn) => {
       btn.addEventListener("click", () => {

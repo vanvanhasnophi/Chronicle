@@ -25,6 +25,12 @@
                         <span v-if="!isMobile" class="btn-label">{{ t('editor.restore') }}</span>
                     </button>
 
+                    
+                    <button class="toolbar-btn" @click="() => openPrintPreview()" :title="t('editor.print')">
+                        <span class="icon-svg" v-html="Icons.print"></span>
+                        <span v-if="!isMobile" class="btn-label">{{ t('editor.print') }}</span>
+                    </button>
+
                     <button class="toolbar-btn" @click="openSaveModal('draft')" :disabled="isSaving">
                         <span class="icon-svg" v-html="Icons.save"></span>
                         <span v-if="!isMobile" class="btn-label">{{ t('editor.draft') }}</span>
@@ -181,6 +187,11 @@
                         :class="{ active: fileTab === tab.id }" @click="handleFileTabChange(tab.id)">
                         <span class="icon-svg sidebar-icon" v-html="tab.icon"></span>
                         {{ tab.label }}
+                    </button>
+
+                    <button class="sidebar-btn sidebar-btn--print" type="button" @click="openPrintPreview({ autoPrint: true })">
+                        <span class="icon-svg sidebar-icon" v-html="Icons.print"></span>
+                        {{ t('editor.print') }}
                     </button>
                 </div>
                 <div class="main-area">
@@ -395,23 +406,6 @@
                             {{ isSaving ? t('editor.saving') : isBuilding ? t('editor.building') : (activeModal === 'draft' ? t('editor.saveDraft') :
                             t('editor.publishNow')) }}
                         </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div v-if="activeModal === 'print'" class="modal-overlay" @click.self="activeModal = 'none'">
-            <div class="modal-content small-modal">
-                <div class="modal-header">
-                    <h3>Print</h3>
-                    <button class="close-btn" @click="activeModal = 'none'">
-                        <span class="icon-svg" v-html="Icons.close"></span>
-                    </button>
-                </div>
-                <div class="modal-body">
-                    <p class="confirm-text">Print flow will be designed later.</p>
-                    <div class="modal-actions">
-                        <button class="secondary-btn" @click="activeModal = 'none'">Close</button>
                     </div>
                 </div>
             </div>
@@ -1799,8 +1793,41 @@ function jumpToSearchMatch(pane: SearchPane, delta: number) {
     }
 }
 
-function triggerPrint() {
-    activeModal.value = 'print'
+function buildPrintSnapshot() {
+    return {
+        title: postTitle.value,
+        content: localValue.value,
+        font: postFont.value,
+        assetMap: assetMap.value,
+        postId: postId.value,
+        postStatus: postStatus.value,
+        postDate: postDate.value,
+        postUpdated: postUpdated.value,
+        tags: postTags.value,
+        author: postAuthor.value,
+        aiGenerated: postAIGenerated.value,
+        locale: locale.value,
+        createdAt: Date.now(),
+    }
+}
+
+function openPrintPreview(options?: { autoPrint?: boolean }) {
+    try {
+        const token = (typeof crypto !== 'undefined' && (crypto as any).randomUUID)
+            ? (crypto as any).randomUUID()
+            : `print-${Math.random().toString(36).slice(2, 10)}`
+        const storageKey = `chronicle_print_preview_${token}`
+        localStorage.setItem(storageKey, JSON.stringify(buildPrintSnapshot()))
+
+        const query = options?.autoPrint ? { token, autoPrint: '1' } : { token }
+        const url = router.resolve({ path: '/editor/print', query }).href
+        const openedWindow = window.open(url, '_blank')
+        if (!openedWindow) {
+            router.push({ path: '/editor/print', query })
+        }
+    } catch (e) {
+        console.error('[BlogEditor] failed to open print preview', e)
+    }
 }
 
 function onEditorScroll() {
@@ -1860,7 +1887,7 @@ function onKeydown(e: KeyboardEvent) {
     }
 
     if (key === 'p') {
-        triggerPrint()
+        openPrintPreview()
         e.preventDefault()
         e.stopPropagation()
         return

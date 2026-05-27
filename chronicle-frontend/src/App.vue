@@ -15,6 +15,7 @@ import { useI18n } from 'vue-i18n'
 
 const route = useRoute()
 const router = useRouter()
+const isPrintPreviewRoute = computed(() => route.path === '/editor/print')
 const isBackend = computed(() => {
   // Explicit frontend routes: Home, BlogList, BlogPost, Search, Friends
   const frontendPrefixes = ['/', '/blogs', '/post', '/search', '/friends']
@@ -537,7 +538,9 @@ async function applySettings() {
 
       // Backend theme also comes from server settings.
       if (isBackend.value) {
-        if (s.backendTheme) {
+        if (isPrintPreviewRoute.value) {
+          document.body.setAttribute('data-backend-theme', 'light')
+        } else if (s.backendTheme) {
           if (s.backendTheme === 'follow' || s.backendTheme === 'system') {
             document.body.removeAttribute('data-backend-theme')
           } else if (s.backendTheme === 'light') {
@@ -843,7 +846,7 @@ import { isVariableDeclaration } from 'typescript';
 const docTitle = ref(typeof document !== 'undefined' ? document.title : '')
 let titleObserver: MutationObserver | null = null
 
-const showBackendShell = computed(() => route.path !== '/editor' && route.path !== '/login' && isBackend.value)
+const showBackendShell = computed(() => route.path !== '/editor' && route.path !== '/login' && !isPrintPreviewRoute.value && isBackend.value)
 const isContentRoute = computed(() => route.path.startsWith('/manage') || route.path.startsWith('/settings/homepage') || route.path.startsWith('/settings/collection') || route.path.startsWith('/settings/friends') || route.path.startsWith('/settings/about'))
 const isSettingsRoute = computed(() => route.path.startsWith('/settings/appearance') || route.path.startsWith('/settings/features') || route.path.startsWith('/settings/security'))
 const backendContentOpen = ref(isContentRoute.value)
@@ -992,7 +995,7 @@ async function rebuildFrontend() {
       </aside>
     </template>
 
-    <main class="main-content" :class="{ 'no-nav': route.path === '/editor', 'backend-main': showBackendShell }">
+    <main class="main-content" :class="{ 'no-nav': route.path === '/editor', 'backend-main': showBackendShell, 'print-preview': isPrintPreviewRoute }">
       <RouterView />
     </main>
     <FilePreviewModal />
@@ -1098,6 +1101,19 @@ async function rebuildFrontend() {
 .main-content.backend-main {
   padding-top: 0;
   padding-left: 256px;
+}
+
+.main-content.print-preview {
+  padding: 0;
+  background: #fff;
+}
+
+@media print {
+  .main-content.print-preview {
+    overflow: visible !important;
+    height: auto !important;
+    min-height: auto !important;
+  }
 }
 
 .backend-menu-toggle {
