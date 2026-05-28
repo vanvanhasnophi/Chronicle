@@ -189,16 +189,6 @@ const homepageMode = settings?.homepageMode || "cover";
       glow-flicker 16s ease-in-out infinite;
   }
 
-  @media (max-width: 768px) {
-    .home-container::before,
-    .home-container::after {
-      /* Reduce long-running blur animation cost on mobile to avoid heat buildup. */
-      animation: none;
-      filter: blur(34px);
-      opacity: 0.45;
-    }
-  }
-
   @keyframes glow-flicker {
     0% {
       opacity: 0.55;
@@ -264,19 +254,59 @@ const homepageMode = settings?.homepageMode || "cover";
 </style>
 
 <script type="module">
-  function markHomePostLinksForHardNavigation() {
+  let homeEffectsController = null;
+  let homeNavigationController = null;
+
+  function disableHomeTransitionAnimation() {
+    document.documentElement.classList.add('home-transition-disabled');
+
+    const hero = document.getElementById('split-hero');
+    const cards = document.querySelector('.split-cards-stage');
+
+    if (hero) {
+      hero.style.filter = 'none';
+      hero.style.opacity = '1';
+      hero.style.transform = 'none';
+    }
+
+    if (cards) {
+      cards.style.filter = 'none';
+      cards.style.opacity = '1';
+      cards.style.transform = 'none';
+    }
+  }
+
+  function initHomeNavigationFreeze() {
     const root = document.querySelector('.home-container');
     if (!root) return;
 
-    const links = root.querySelectorAll('a[href]');
-    links.forEach((link) => {
+    if (homeNavigationController) {
+      homeNavigationController.abort();
+      homeNavigationController = null;
+    }
+
+    homeNavigationController = new AbortController();
+    const { signal } = homeNavigationController;
+
+    root.addEventListener('click', (event) => {
+      if (!(event.target instanceof Element)) return;
+      const link = event.target.closest('a[href]');
+      if (!link || !root.contains(link)) return;
+
       const href = link.getAttribute('href') || '';
       if (!href) return;
-      if (!href.includes('/post/')) return;
+      if (/^(mailto:|tel:|https?:\/\/|\/\/)/i.test(href)) return;
+      if (!href.startsWith('/')) return;
 
-      // Force full navigation for home -> post to bypass heavy SPA transition snapshotting.
-      link.setAttribute('data-astro-reload', '');
-    });
+      disableHomeTransitionAnimation();
+    }, { capture: true, signal });
+  }
+
+  function stopHomeEffects() {
+    if (homeEffectsController) {
+      homeEffectsController.abort();
+      homeEffectsController = null;
+    }
   }
 
   function initSplitHeroCompression() {
@@ -287,9 +317,14 @@ const homepageMode = settings?.homepageMode || "cover";
     const cards = document.querySelector(".split-cards-stage");
     if (!scroller || !shell || !stage || !hero || !cards) return;
 
+    stopHomeEffects();
+    homeEffectsController = new AbortController();
+    const { signal } = homeEffectsController;
+
     let ticking = false;
 
     const update = () => {
+      if (signal.aborted) return;
       ticking = false;
       // New overlay mode: keep hero height fixed, apply progressive blur
       const vh = window.innerHeight || 900;
@@ -322,8 +357,8 @@ const homepageMode = settings?.homepageMode || "cover";
     };
 
     // Attach to the correct scroller and ensure passive listeners for performance
-    scroller.addEventListener("scroll", requestUpdate, { passive: true });
-    window.addEventListener("resize", requestUpdate, { passive: true });
+    scroller.addEventListener("scroll", requestUpdate, { passive: true, signal });
+    window.addEventListener("resize", requestUpdate, { passive: true, signal });
     // kick off after a frame to ensure layout is stable
     requestAnimationFrame(requestUpdate);
   }
@@ -344,14 +379,22 @@ const homepageMode = settings?.homepageMode || "cover";
   initPreload();
   // Delay initialization to ensure Layout has rendered main-content
   document.addEventListener("DOMContentLoaded", () => {
-    markHomePostLinksForHardNavigation();
+    initHomeNavigationFreeze();
     initSplitHeroCompression();
   });
 
   // Re-run on page load if we're on the home page
   document.addEventListener("astro:page-load", () => {
-    markHomePostLinksForHardNavigation();
+    initHomeNavigationFreeze();
     initPreload();
     initSplitHeroCompression();
+  });
+
+  document.addEventListener('astro:before-swap', () => {
+    stopHomeEffects();
+    if (homeNavigationController) {
+      homeNavigationController.abort();
+      homeNavigationController = null;
+    }
   });
 </script>

@@ -208,6 +208,17 @@ try {
       :root {
         --accent-color: var(--accentColor);
       }
+
+      html.home-transition-disabled::view-transition-group(root),
+      html.home-transition-disabled::view-transition-old(root),
+      html.home-transition-disabled::view-transition-new(root) {
+        animation: none !important;
+      }
+
+      html.home-transition-disabled .home-container::before,
+      html.home-transition-disabled .home-container::after {
+        animation: none !important;
+      }
     </style>
 
     <script define:vars={{ frontendTheme, frontendAccent, frontendBackground, frontendBackgroundMeta, frontendFont, featureFlags, GA_MEASUREMENT_ID }}>
@@ -650,6 +661,10 @@ try {
           // 复用背景层渲染逻辑
           applyBackgroundLayer();
         }, 0);
+      });
+
+      document.addEventListener('astro:after-swap', () => {
+        document.documentElement.classList.remove('home-transition-disabled');
       });
 
       // 监听页面DOM替换后，立即恢复主题，防止浅色模式和独立主题配置在SPA切换时丢失
