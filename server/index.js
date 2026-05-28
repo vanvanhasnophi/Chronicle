@@ -1912,6 +1912,78 @@ function normalizePostForResponse(post) {
     return { ...post, title };
 }
 
+function refreshPostMetadataFromDisk(post) {
+    if (!post || !isValidId(post.id)) return post;
+
+    const dir = getPostDir(post);
+    const candidatePaths = [
+        path.join(dir, `${post.id}-content.md`),
+        path.join(dir, `${post.id}-draft.md`),
+        post.filename ? path.join(POSTS_DIR, post.filename) : null,
+    ].filter(Boolean);
+
+    const existingPath = candidatePaths.find((candidatePath) => fs.existsSync(candidatePath));
+    if (!existingPath) return post;
+
+    try {
+        let raw = fs.readFileSync(existingPath, 'utf-8');
+        try { raw = decrypt(raw); } catch (e) {}
+
+        const { attributes } = parseFrontMatter(raw);
+        if (!attributes || typeof attributes !== 'object') return post;
+
+        const next = { ...post };
+        let changed = false;
+
+        if (typeof attributes.title === 'string') {
+            const title = normalizePostTitle(attributes.title);
+            if (title && title !== next.title) {
+                next.title = title;
+                changed = true;
+            }
+        }
+
+        if (attributes.date && String(attributes.date) !== String(next.date || '')) {
+            next.date = String(attributes.date);
+            changed = true;
+        }
+
+        if (attributes.font && String(attributes.font) !== String(next.font || '')) {
+            next.font = String(attributes.font);
+            changed = true;
+        }
+
+        if (attributes.author !== undefined) {
+            const author = String(attributes.author || '').trim();
+            if (author !== String(next.author || '')) {
+                next.author = author;
+                changed = true;
+            }
+        }
+
+        if (attributes.aiGenerated !== undefined) {
+            const aiGenerated = attributes.aiGenerated === true || attributes.aiGenerated === 'true' || attributes.aiGenerated === '1';
+            if (!!aiGenerated !== !!next.aiGenerated) {
+                next.aiGenerated = !!aiGenerated;
+                changed = true;
+            }
+        }
+
+        if (Array.isArray(attributes.tags)) {
+            const tags = sortTags(attributes.tags || []);
+            const currentTags = Array.isArray(next.tags) ? sortTags(next.tags) : [];
+            if (JSON.stringify(tags) !== JSON.stringify(currentTags)) {
+                next.tags = tags;
+                changed = true;
+            }
+        }
+
+        return changed ? next : post;
+    } catch (e) {
+        return post;
+    }
+}
+
 function normalizeIndexPostRecord(post) {
     if (!post || typeof post !== 'object') return post;
     const next = { ...post };
@@ -3313,11 +3385,12 @@ app.get('/api/posts', (req, res) => {
 
         // Augment posts with hasHtml flag based on disk state
         posts = posts.map(p => {
-            const html = readCompiledHtmlFromDisk(p)
+            const refreshed = refreshPostMetadataFromDisk(p);
+            const html = readCompiledHtmlFromDisk(refreshed)
             const hasHtml = !!(html && html.length > 0)
             // ensure dir field when possible
-            if (!p.dir) p.dir = p.filename ? p.filename.replace(/\.md$/, '') : p.id
-            return { ...p, hasHtml }
+            if (!refreshed.dir) refreshed.dir = refreshed.filename ? refreshed.filename.replace(/\.md$/, '') : refreshed.id
+            return { ...refreshed, hasHtml }
         })
 
         posts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -3428,7 +3501,7 @@ app.get('/api/post', (req, res) => {
     try {
         const indexContent = fs.readFileSync(INDEX_FILE, 'utf-8');
         const posts = JSON.parse(indexContent || '[]');
-        const post = posts.find(p => p.id === id);
+        const post = refreshPostMetadataFromDisk(posts.find(p => p.id === id));
 
         if (!post) return res.status(404).send('Post not found');
 
