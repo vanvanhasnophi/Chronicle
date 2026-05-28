@@ -498,6 +498,10 @@
     "unsavedBody": "You have unsaved changes in \"{title}\". Do you want to save them before leaving?",
     "discard": "Discard",
     "saveContinue": "Save & Continue",
+    "versionConflictTitle": "Version Conflict",
+    "versionConflictBody": "The cloud version and your local draft for \"{title}\" are different. Which version do you want to continue with?",
+    "useCloudVersion": "Use Cloud Version",
+    "useLocalDraft": "Use Local Draft",
     "statsTitle": "Document Statistics",
     "stats": {
       "words": "Words",

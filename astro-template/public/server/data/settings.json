@@ -69,5 +69,6 @@
       "storyPostId": ""
     }
   ],
-  "friendsGlobalStyle": "left-lg"
+  "friendsGlobalStyle": "left-lg",
+  "homepageMode": "split"
 }

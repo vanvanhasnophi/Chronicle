@@ -501,6 +501,10 @@
     "unsavedBody": "你在 \"{title}\" 中有未保存的更改。离开前是否要保存？",
     "discard": "放弃",
     "saveContinue": "保存并继续",
+    "versionConflictTitle": "版本冲突",
+    "versionConflictBody": "\"{title}\" 的云端版本和本地草稿不一致。要继续使用哪个版本？",
+    "useCloudVersion": "使用云端版本",
+    "useLocalDraft": "使用本地草稿",
     "statsTitle": "文档统计",
     "stats": {
       "words": "字数",

@@ -6,7 +6,7 @@
                 <div class="meta-left">
                     <h4 class="post-title-display">{{ postTitle }}</h4>
                     <span :class="['status-chip', postStatus]">{{ $t('status.' + (postStatus || 'published')) }}</span>
-                    <span v-if="postStatus === 'building'" class="build-hint">{{ t('editor.building') }}</span>
+                    <span v-if="isBuilding" class="build-hint">{{ t('editor.building') }}</span>
                     <div class="meta-dates">
                         <span class="date-item" v-if="postUpdated" title="Last Edited">
                             <span class="icon-svg tiny" v-html="Icons.edit"></span>
@@ -180,7 +180,7 @@
         </div>
 
         <!-- Group 1: File Menu Modal -->
-        <div v-if="activeModal === 'file'" class="modal-overlay" @click.self="activeModal = 'none'">
+        <div v-if="activeModal === 'file'" class="modal-overlay">
             <div class="modal-content file-menu-modal">
                 <div class="sidebar">
                     <button v-for="tab in fileTabs" :key="tab.id" class="sidebar-btn"
@@ -253,8 +253,7 @@
         </div>
 
         <!-- Group 2: Insert Modals (Media, Link, Table) -->
-        <div v-if="['media', 'link', 'table'].includes(activeModal)" class="modal-overlay"
-            @click.self="activeModal = 'none'">
+        <div v-if="['media', 'link', 'table'].includes(activeModal)" class="modal-overlay">
             <div class="modal-content" :class="activeModal === 'media' ? 'large-modal' : 'small-modal'">
                 <div class="modal-header">
                     <h3>{{ activeModal === 'media' ? t('editor.media') : (activeModal === 'link' ? t('editor.link') :
@@ -347,7 +346,7 @@
         </div>
 
         <!-- Group 3: Save/Publish Modals -->
-        <div v-if="['draft', 'publish'].includes(activeModal)" class="modal-overlay" @click.self="activeModal = 'none'">
+        <div v-if="['draft', 'publish'].includes(activeModal)" class="modal-overlay">
             <div class="modal-content small-modal">
                 <div class="modal-header">
                     <h3>{{ activeModal === 'draft' ? t('editor.saveDraft') : t('editor.publishNow') }}</h3>
@@ -412,15 +411,15 @@
         </div>
 
         <!-- Group 4: Confirmation Modals (Restore, Unsaved) -->
-        <div v-if="['restore', 'unsaved', 'stats'].includes(activeModal)" class="modal-overlay"
-            @click.self="activeModal = 'none'">
+        <div v-if="['restore', 'unsaved', 'stats', 'syncConflict'].includes(activeModal)" class="modal-overlay">
             <div class="modal-content small-modal">
                 <div class="modal-header">
                     <h3 v-if="activeModal === 'restore'">{{ t('editor.confirmRestoreTitle') }}</h3>
                     <h3 v-else-if="activeModal === 'unsaved'">{{ t('editor.unsavedTitle') }}</h3>
+                    <h3 v-else-if="activeModal === 'syncConflict'">{{ t('editor.versionConflictTitle') }}</h3>
                     <h3 v-else>{{ t('editor.statsTitle') }}</h3>
 
-                    <button class="close-btn" @click="activeModal = 'none'">
+                    <button v-if="activeModal !== 'syncConflict'" class="close-btn" @click="activeModal = 'none'">
                         <span class="icon-svg" v-html="Icons.close"></span>
                     </button>
                 </div>
@@ -440,7 +439,7 @@
                 <!-- Unsaved Body -->
                 <div v-if="activeModal === 'unsaved'" class="modal-body">
                     <p class="confirm-text">
-                        {{ t('editor.unsavedBody', { title: postTitle }) }}
+                        {{ t('editor.unsavedBody', { title: postTitle || t('editor.untitled') }) }}
                     </p>
                     <div class="modal-actions">
                         <button class="secondary-btn" @click="closeModals">{{ t('editor.cancel') }}</button>
@@ -448,6 +447,18 @@
                             t('editor.discard') }}</button>
                         <button class="primary-btn" @click="handleUnsavedOption('save')">{{ t('editor.saveContinue')
                             }}</button>
+                    </div>
+                </div>
+
+                <div v-if="activeModal === 'syncConflict'" class="modal-body">
+                    <p class="confirm-text">
+                        {{ t('editor.versionConflictBody', { title: pendingConflictDetail?.title || t('editor.untitled') }) }}
+                    </p>
+                    <div class="modal-actions">
+                        <button class="secondary-btn" @click="resolveVersionConflict('local')">{{
+                            t('editor.useLocalDraft') }}</button>
+                        <button class="primary-btn" @click="resolveVersionConflict('cloud')">{{
+                            t('editor.useCloudVersion') }}</button>
                     </div>
                 </div>
 
@@ -572,6 +583,9 @@ const isSaving = ref(false)
 const isBuilding = ref(false)
 const activeModal = ref('none')
 const tempTitle = ref('')
+const pendingConflictDetail = ref<any>(null)
+const pendingConflictDraft = ref('')
+const pendingConflictSessionHistory = ref<string | null>(null)
 
 // File Menu State
 const fileTab = ref('new')
@@ -734,7 +748,9 @@ function executeFileAction() {
 function handlePostOpen(id: string) {
     const doOpen = async () => {
         await loadPost(id)
-        activeModal.value = 'none'
+        if (activeModal.value !== 'syncConflict') {
+            activeModal.value = 'none'
+        }
     }
     if (isDirty.value) handleUnsavedCheck(doOpen)
     else doOpen()
@@ -745,6 +761,74 @@ let pendingActionCallback: (() => void) | null = null
 function handleUnsavedCheck(callback: () => void) {
     pendingActionCallback = callback
     activeModal.value = 'unsaved'
+}
+
+function normalizeContentForCompare(content: string) {
+    return String(content || '').replace(/\r\n/g, '\n')
+}
+
+function clearVersionConflictState() {
+    pendingConflictDetail.value = null
+    pendingConflictDraft.value = ''
+    pendingConflictSessionHistory.value = null
+}
+
+function applyLoadedPost(detail: any, content: string, sessionHistory: string | null, syncLocalCache = false) {
+    if (!detail) return
+
+    postId.value = detail.id
+    postTitle.value = detail.title
+    isDefaultTitle.value = false
+    postStatus.value = detail.status || 'draft'
+    postDate.value = detail.date || ''
+    postUpdated.value = detail.updatedAt || detail.date || ''
+    postTags.value = detail.tags || []
+    postFont.value = detail.font || 'sans'
+    postAuthor.value = readAuthorFromDetail(detail)
+    postAIGenerated.value = readAiGeneratedFromDetail(detail)
+    localValue.value = content
+
+    savedContent.value = content
+    savedTitle.value = detail.title
+
+    if (sessionHistory) {
+        try {
+            const h = JSON.parse(sessionHistory)
+            history.value = h.stack
+            historyIndex.value = h.index
+        } catch (e) {
+            history.value = [content]
+            historyIndex.value = 0
+        }
+    } else {
+        history.value = [content]
+        historyIndex.value = 0
+    }
+
+    if (syncLocalCache) {
+        localStorage.setItem(`chronicle_draft_${detail.id}`, content)
+        sessionStorage.setItem(`chronicle_history_${detail.id}`, JSON.stringify({
+            stack: history.value,
+            index: historyIndex.value,
+        }))
+    }
+}
+
+function resolveVersionConflict(choice: 'cloud' | 'local') {
+    const detail = pendingConflictDetail.value
+    if (!detail) return
+
+    const draft = pendingConflictDraft.value
+    const sessionHistory = pendingConflictSessionHistory.value
+
+    if (choice === 'cloud') {
+        applyLoadedPost(detail, detail.content || '', null, true)
+    } else {
+        applyLoadedPost(detail, draft || detail.content || '', sessionHistory, false)
+    }
+
+    clearVersionConflictState()
+    activeModal.value = 'none'
 }
 
 function resetEditor() {
@@ -1000,7 +1084,6 @@ async function triggerAstroBuild(postId: string) {
     }
 
     isBuilding.value = true
-    postStatus.value = 'building'
     try {
         const res = await fetchWithAuth(`/api/admin/build/astro?t=${Date.now()}`, {
             method: 'POST',
@@ -1162,6 +1245,7 @@ function openSaveModal(type: 'draft' | 'publish') {
 function closeModals() {
     activeModal.value = 'none'
     pendingRoute.value = null
+    clearVersionConflictState()
 }
 
 async function handleUnsavedOption(action: 'save' | 'discard') {
@@ -1270,90 +1354,28 @@ async function loadPostById(id: string) {
         // reset metadata first to avoid carrying values from another post
         postAuthor.value = ''
         postAIGenerated.value = false
-
-        // First check for local draft
-        const draft = localStorage.getItem(`chronicle_draft_${id}`)
-        const sessionHistory = sessionStorage.getItem(`chronicle_history_${id}`)
-
-        if (draft) {
-            // We have a local unsaved draft for this ID
-            // Load base from server to get metadata, then override content
-            const detailRes = await fetchWithAuth(`/api/post?id=${id}&mode=edit&t=${Date.now()}`)
-            if (detailRes.ok) {
-                const detail = await detailRes.json()
-                postId.value = detail.id
-                postTitle.value = detail.title
-                postStatus.value = detail.status || 'draft'
-                postDate.value = detail.date || ''
-                postUpdated.value = detail.updatedAt || detail.date || ''
-                postTags.value = detail.tags || []
-                postFont.value = detail.font || 'sans'
-                postAuthor.value = readAuthorFromDetail(detail)
-                postAIGenerated.value = readAiGeneratedFromDetail(detail)
-
-                savedContent.value = detail.content // Base is server content
-                savedTitle.value = detail.title
-            }
-
-            localValue.value = draft // Override with draft
-            // Restore history if available
-            if (sessionHistory) {
-                try {
-                    const h = JSON.parse(sessionHistory)
-                    history.value = h.stack
-                    historyIndex.value = h.index
-                } catch (e) {
-                    history.value = [draft]
-                    historyIndex.value = 0
-                }
-            } else {
-                history.value = [draft]
-                historyIndex.value = 0
+        const detailRes = await fetchWithAuth(`/api/post?id=${id}&mode=edit&t=${Date.now()}`)
+        if (!detailRes.ok) {
+            const draftExists = !!localStorage.getItem(`chronicle_draft_${id}`)
+            if (!draftExists) {
+                redirectToRandomNew()
             }
             return
         }
 
-        const detailRes = await fetchWithAuth(`/api/post?id=${id}&mode=edit&t=${Date.now()}`)
-        if (detailRes.ok) {
-            const detail = await detailRes.json()
-            postId.value = detail.id
-            postTitle.value = detail.title
-            isDefaultTitle.value = false
-            postStatus.value = detail.status || 'draft'
-            postDate.value = detail.date || ''
-            postUpdated.value = detail.updatedAt || detail.date || ''
-            postTags.value = detail.tags || []
-            postFont.value = detail.font || 'sans'
-            postAuthor.value = readAuthorFromDetail(detail)
-            postAIGenerated.value = readAiGeneratedFromDetail(detail)
-            localValue.value = detail.content
+        const detail = await detailRes.json()
+        const draft = localStorage.getItem(`chronicle_draft_${id}`)
+        const sessionHistory = sessionStorage.getItem(`chronicle_history_${id}`)
 
-            // Update baseline
-            savedContent.value = detail.content
-            savedTitle.value = detail.title
-
-            // Restore session history if exists (e.g. reload page without draft change)
-            if (sessionHistory) {
-                try {
-                    const h = JSON.parse(sessionHistory)
-                    history.value = h.stack
-                    historyIndex.value = h.index
-                } catch (e) {
-                    history.value = [detail.content]
-                    historyIndex.value = 0
-                }
-            } else {
-                history.value = [detail.content]
-                historyIndex.value = 0
-            }
-        } else {
-            // If server reports not found and there's no local draft, redirect to a random new id
-            const draftExists = !!localStorage.getItem(`chronicle_draft_${id}`)
-            if (!draftExists) {
-                redirectToRandomNew()
-                return
-            }
+        if (draft && normalizeContentForCompare(draft) !== normalizeContentForCompare(detail.content || '')) {
+            pendingConflictDetail.value = detail
+            pendingConflictDraft.value = draft
+            pendingConflictSessionHistory.value = sessionHistory
+            activeModal.value = 'syncConflict'
+            return
         }
+
+        applyLoadedPost(detail, draft || detail.content || '', sessionHistory, false)
     } catch (e) {
         console.error("Failed to load post", e)
     }

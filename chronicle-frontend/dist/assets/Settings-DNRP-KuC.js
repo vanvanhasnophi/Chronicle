@@ -1,1 +1,0 @@
-import{_ as t,A as s,c as o,o as c,a as n,B as a}from"./index-vNyNB_E8.js";const r={},_={class:"settings-page"},i={class:"settings-content"};function d(p,f){const e=s("router-view");return c(),o("div",_,[n("main",i,[a(e)])])}const m=t(r,[["render",d],["__scopeId","data-v-2c4f188b"]]);export{m as default};
