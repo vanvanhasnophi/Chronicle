@@ -390,7 +390,7 @@ const homepageMode = settings?.homepageMode || "cover";
     initSplitHeroCompression();
   });
 
-  document.addEventListener('astro:before-swap', () => {
+  document.addEventListener('astro:after-swap', () => {
     stopHomeEffects();
     if (homeNavigationController) {
       homeNavigationController.abort();
