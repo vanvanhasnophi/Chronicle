@@ -189,6 +189,16 @@ const homepageMode = settings?.homepageMode || "cover";
       glow-flicker 16s ease-in-out infinite;
   }
 
+  @media (max-width: 768px) {
+    .home-container::before,
+    .home-container::after {
+      /* Reduce long-running blur animation cost on mobile to avoid heat buildup. */
+      animation: none;
+      filter: blur(34px);
+      opacity: 0.45;
+    }
+  }
+
   @keyframes glow-flicker {
     0% {
       opacity: 0.55;
@@ -254,6 +264,21 @@ const homepageMode = settings?.homepageMode || "cover";
 </style>
 
 <script type="module">
+  function markHomePostLinksForHardNavigation() {
+    const root = document.querySelector('.home-container');
+    if (!root) return;
+
+    const links = root.querySelectorAll('a[href]');
+    links.forEach((link) => {
+      const href = link.getAttribute('href') || '';
+      if (!href) return;
+      if (!href.includes('/post/')) return;
+
+      // Force full navigation for home -> post to bypass heavy SPA transition snapshotting.
+      link.setAttribute('data-astro-reload', '');
+    });
+  }
+
   function initSplitHeroCompression() {
     const scroller = document.querySelector(".main-content");
     const shell = document.querySelector(".home-container--split");
@@ -319,11 +344,13 @@ const homepageMode = settings?.homepageMode || "cover";
   initPreload();
   // Delay initialization to ensure Layout has rendered main-content
   document.addEventListener("DOMContentLoaded", () => {
+    markHomePostLinksForHardNavigation();
     initSplitHeroCompression();
   });
 
   // Re-run on page load if we're on the home page
   document.addEventListener("astro:page-load", () => {
+    markHomePostLinksForHardNavigation();
     initPreload();
     initSplitHeroCompression();
   });
