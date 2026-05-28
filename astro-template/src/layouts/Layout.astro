@@ -26,9 +26,10 @@ interface Props {
   navBackLabel?: string;
   scrollable?: boolean;
   featureFlags?: Record<string, boolean>;
+  disableMainContentTransition?: boolean;
 }
 
-const { title, settings, locale: propLocale, meta, navTitle, navBackHref, navBackLabel, scrollable } = Astro.props;
+const { title, settings, locale: propLocale, meta, navTitle, navBackHref, navBackLabel, scrollable, disableMainContentTransition } = Astro.props;
 const pageMeta = typeof meta === 'string' ? { description: meta } : (meta || {});
 const featureFlags = resolveFeatureFlags(settings?.featureFlags || Astro.props.featureFlags);
 const mediaDomain = String(process.env.MEDIA_DOMAIN || '').replace(/\/$/, '');
@@ -317,9 +318,15 @@ try {
     <div id="app">
       <NavHeader currentPath={Astro.url.pathname} locale={locale} articleTitle={navTitle} articleBackHref={navBackHref} articleBackLabel={navBackLabel} featureFlags={featureFlags} />
 
-      <div class={`main-content ${scrollable === false ? 'unscrollable' : ''}`} transition:animate="fade" >
-        <slot />
-      </div>
+      {disableMainContentTransition ? (
+        <div class={`main-content ${scrollable === false ? 'unscrollable' : ''}`}>
+          <slot />
+        </div>
+      ) : (
+        <div class={`main-content ${scrollable === false ? 'unscrollable' : ''}`} transition:animate="fade">
+          <slot />
+        </div>
+      )}
     </div>
 
     <script>

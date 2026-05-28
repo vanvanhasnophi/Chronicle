@@ -31,6 +31,7 @@ const homepageMode = settings?.homepageMode || "cover";
   title={t("nav.home")}
   settings={settings}
   scrollable={homepageMode !== "cover"}
+  disableMainContentTransition={true}
   meta={{ description: metaDescription }}
 >
   {
@@ -256,10 +257,9 @@ const homepageMode = settings?.homepageMode || "cover";
 <script type="module">
   let homeEffectsController = null;
   let homeNavigationController = null;
+  let pendingHomeFreeze = false;
 
-  function disableHomeTransitionAnimation() {
-    document.documentElement.classList.add('home-transition-disabled');
-
+  function freezeHomeEffects() {
     const hero = document.getElementById('split-hero');
     const cards = document.querySelector('.split-cards-stage');
 
@@ -277,9 +277,6 @@ const homepageMode = settings?.homepageMode || "cover";
   }
 
   function initHomeNavigationFreeze() {
-    const root = document.querySelector('.home-container');
-    if (!root) return;
-
     if (homeNavigationController) {
       homeNavigationController.abort();
       homeNavigationController = null;
@@ -288,17 +285,17 @@ const homepageMode = settings?.homepageMode || "cover";
     homeNavigationController = new AbortController();
     const { signal } = homeNavigationController;
 
-    root.addEventListener('click', (event) => {
+    document.addEventListener('click', (event) => {
       if (!(event.target instanceof Element)) return;
       const link = event.target.closest('a[href]');
-      if (!link || !root.contains(link)) return;
+      if (!link) return;
 
       const href = link.getAttribute('href') || '';
       if (!href) return;
       if (/^(mailto:|tel:|https?:\/\/|\/\/)/i.test(href)) return;
       if (!href.startsWith('/')) return;
 
-      disableHomeTransitionAnimation();
+      pendingHomeFreeze = true;
     }, { capture: true, signal });
   }
 
@@ -391,7 +388,11 @@ const homepageMode = settings?.homepageMode || "cover";
   });
 
   document.addEventListener('astro:after-swap', () => {
-    stopHomeEffects();
+    if (pendingHomeFreeze) {
+      freezeHomeEffects();
+      stopHomeEffects();
+      pendingHomeFreeze = false;
+    }
     if (homeNavigationController) {
       homeNavigationController.abort();
       homeNavigationController = null;
