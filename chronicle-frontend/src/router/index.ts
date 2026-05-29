@@ -102,13 +102,13 @@ const routes = [
     path: '/editor',
     name: 'TextEditor',
     component: TextEditorLazy,
-    meta: { requiresAuth: true, title: 'editor.createNewPost' }
+    meta: { title: 'editor.createNewPost' }
   },
   {
     path: '/editor/print',
     name: 'EditorPrintPreview',
     component: EditorPrintPreview,
-    meta: { requiresAuth: true, title: 'editor.print' }
+    meta: { title: 'editor.print' }
   },
   {
     path: '/files',

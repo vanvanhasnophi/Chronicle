@@ -25,20 +25,22 @@
                         <span v-if="!isMobile" class="btn-label">{{ t('editor.restore') }}</span>
                     </button>
 
-                    
+
                     <button class="toolbar-btn" @click="() => openPrintPreview()" :title="t('editor.print')">
                         <span class="icon-svg" v-html="Icons.print"></span>
                         <span v-if="!isMobile" class="btn-label">{{ t('editor.print') }}</span>
                     </button>
 
-                    <button class="toolbar-btn" @click="openSaveModal('draft')" :disabled="isSaving">
+                    <button class="toolbar-btn" @click="() => handleTopRightSave('draft')" :disabled="isSaving">
                         <span class="icon-svg" v-html="Icons.save"></span>
-                        <span v-if="!isMobile" class="btn-label">{{ t('editor.draft') }}</span>
+                        <span v-if="!isMobile" class="btn-label">{{ isCloudEditing ? t('editor.draft') :
+                            t('editor.save') }}</span>
                     </button>
 
                     <button class="toolbar-btn primary-action" @click="openSaveModal('publish')" :disabled="isSaving">
                         <span class="icon-svg" v-html="Icons.publish"></span>
-                        <span v-if="!isMobile" class="btn-label">{{ t('editor.publish') }}</span>
+                        <span v-if="!isMobile" class="btn-label">{{ isCloudEditing ? t('editor.publish') :
+                            t('editor.upload') }}</span>
                     </button>
                 </div>
             </div>
@@ -108,16 +110,12 @@
             <!-- Editor Pane -->
             <div v-show="showEditor" class="pane editor-pane">
                 <div class="editor-pane-surface" :class="{ 'is-searching': !!editorSearchQuery.trim() }">
-                    <div
-                        v-if="editorSearchQuery.trim()"
-                        class="editor-highlight-layer"
+                    <div v-if="editorSearchQuery.trim()" class="editor-highlight-layer"
                         :style="{ transform: `translateY(-${editorHighlightScrollTop}px)` }"
-                        v-html="editorSearchHighlightHtml"
-                    ></div>
+                        v-html="editorSearchHighlightHtml"></div>
                     <textarea ref="editorRef" v-model="localValue" class="markdown-input"
-                        :class="{ 'is-searching': !!editorSearchQuery.trim() }"
-                        :placeholder="t('editor.placeholder')" @scroll="onEditorScroll"
-                        @mouseover="activeScroll = 'editor'"></textarea>
+                        :class="{ 'is-searching': !!editorSearchQuery.trim() }" :placeholder="t('editor.placeholder')"
+                        @scroll="onEditorScroll" @mouseover="activeScroll = 'editor'"></textarea>
                 </div>
             </div>
 
@@ -129,7 +127,8 @@
             </div>
         </div>
 
-        <div v-if="editorSearchOpen" class="search-float search-float--editor" @keydown.esc.prevent="closeSearchOverlay('editor')">
+        <div v-if="editorSearchOpen" class="search-float search-float--editor"
+            @keydown.esc.prevent="closeSearchOverlay('editor')">
             <div class="search-float-header">
                 <span class="search-float-title">Editor Search</span>
                 <button class="search-close-btn" @click="closeSearchOverlay('editor')">
@@ -137,16 +136,19 @@
                 </button>
             </div>
             <div class="search-float-body">
-                <input ref="editorSearchInputRef" v-model="editorSearchQuery" class="search-input" placeholder="Find in post"
+                <input ref="editorSearchInputRef" v-model="editorSearchQuery" class="search-input"
+                    placeholder="Find in post"
                     @keydown.enter.prevent="jumpToSearchMatch('editor', $event.shiftKey ? -1 : 1)"
                     @keydown.esc.prevent="closeSearchOverlay('editor')" />
                 <div class="search-float-actions">
                     <span class="search-counter">{{ editorSearchMatchLabel }}</span>
                     <div class="search-nav-buttons">
-                        <button class="search-nav-btn" :disabled="!editorSearchMatchCount" @click="jumpToSearchMatch('editor', -1)">
+                        <button class="search-nav-btn" :disabled="!editorSearchMatchCount"
+                            @click="jumpToSearchMatch('editor', -1)">
                             ↑
                         </button>
-                        <button class="search-nav-btn" :disabled="!editorSearchMatchCount" @click="jumpToSearchMatch('editor', 1)">
+                        <button class="search-nav-btn" :disabled="!editorSearchMatchCount"
+                            @click="jumpToSearchMatch('editor', 1)">
                             ↓
                         </button>
                     </div>
@@ -154,7 +156,8 @@
             </div>
         </div>
 
-        <div v-if="previewSearchOpen" class="search-float search-float--preview" @keydown.esc.prevent="closeSearchOverlay('preview')">
+        <div v-if="previewSearchOpen" class="search-float search-float--preview"
+            @keydown.esc.prevent="closeSearchOverlay('preview')">
             <div class="search-float-header">
                 <span class="search-float-title">Preview Search</span>
                 <button class="search-close-btn" @click="closeSearchOverlay('preview')">
@@ -162,16 +165,19 @@
                 </button>
             </div>
             <div class="search-float-body">
-                <input ref="previewSearchInputRef" v-model="previewSearchQuery" class="search-input" placeholder="Find in preview"
+                <input ref="previewSearchInputRef" v-model="previewSearchQuery" class="search-input"
+                    placeholder="Find in preview"
                     @keydown.enter.prevent="jumpToSearchMatch('preview', $event.shiftKey ? -1 : 1)"
                     @keydown.esc.prevent="closeSearchOverlay('preview')" />
                 <div class="search-float-actions">
                     <span class="search-counter">{{ previewSearchMatchLabel }}</span>
                     <div class="search-nav-buttons">
-                        <button class="search-nav-btn" :disabled="!previewSearchMatchCount" @click="jumpToSearchMatch('preview', -1)">
+                        <button class="search-nav-btn" :disabled="!previewSearchMatchCount"
+                            @click="jumpToSearchMatch('preview', -1)">
                             ↑
                         </button>
-                        <button class="search-nav-btn" :disabled="!previewSearchMatchCount" @click="jumpToSearchMatch('preview', 1)">
+                        <button class="search-nav-btn" :disabled="!previewSearchMatchCount"
+                            @click="jumpToSearchMatch('preview', 1)">
                             ↓
                         </button>
                     </div>
@@ -189,7 +195,8 @@
                         {{ tab.label }}
                     </button>
 
-                    <button class="sidebar-btn sidebar-btn--print" type="button" @click="openPrintPreview({ autoPrint: true })">
+                    <button class="sidebar-btn sidebar-btn--print" type="button"
+                        @click="openPrintPreview({ autoPrint: true })">
                         <span class="icon-svg sidebar-icon" v-html="Icons.print"></span>
                         {{ t('editor.print') }}
                     </button>
@@ -207,23 +214,58 @@
                         <div v-if="fileTab === 'new'" class="tab-pane">
                             <p>{{ t('editor.file.createNew') }}</p>
                             <div class="warning-box">
-                                <strong>{{ t('editor.file.note').split(':')[0] }}</strong> {{
-                                    t('editor.file.note').split(':').slice(1).join(':') }}
+                                {{ t('editor.file.createOnlineHint') }}
                             </div>
-                            <button class="primary-btn" @click="executeFileAction">{{ t('editor.createNewPost')
-                                }}</button>
+                            <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+                                <button class="primary-btn" @click="createLocalNewPost">{{ t('editor.createNewPost')
+                                    }}</button>
+                                <button class="secondary-btn" @click="createOnlinePost">{{
+                                    t('editor.file.createOnlinePost') }}</button>
+                            </div>
                         </div>
 
-                        <!-- Open Post -->
+                        <!-- Open Post (Local Open / Recent / Uploaded) -->
                         <div v-if="fileTab === 'open'" class="tab-pane">
-                            <div v-if="fileLoading" class="loading">{{ t('post.loadingPosts') }}</div>
-                            <div v-else class="post-list">
-                                <div v-for="post in filePosts" :key="post.id" class="post-item"
-                                    @click="handlePostOpen(post.id)">
-                                    <span class="post-title">{{ post.title }}</span>
-                                    <span class="post-status status-chip" :class="post.status || 'draft'">{{
-                                        $t('status.' + (post.status || 'draft')) }}</span>
-                                    <span class="post-date">{{ formatDateUtil(post.date, locale) }}</span>
+                            <div class="open-local-section">
+                                <p>{{ t('editor.file.openLocalIntro') }}</p>
+                                <div style="display:flex;gap:8px;align-items:center;">
+                                    <button class="primary-btn" @click="requestOpenLocalFile">{{
+                                        t('editor.file.openLocal') }}</button>
+                                </div>
+                            </div>
+
+                            <div class="recent-section" style="margin-top:16px;">
+                                <h4>{{ t('editor.file.recent') }}</h4>
+                                <div v-if="recentProjects.length === 0" class="empty-library">{{
+                                    t('editor.file.noRecent') }}</div>
+                                <div v-else class="post-list">
+                                    <div v-for="(r, idx) in recentProjects" :key="r.ts + '-' + idx" class="post-item"
+                                        @click="openRecentProject(r)">
+                                        <span class="post-title">{{ r.title }}</span>
+                                        <span class="post-status status-chip"
+                                            :class="r.cloud ? 'published' : 'local'">{{ r.cloud ? t('editor.file.cloud')
+                                            : t('editor.file.local') }}</span>
+                                        <span class="post-date">{{ new Date(r.ts).toLocaleString() }}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="uploaded-section" style="margin-top:16px;">
+                                <h4>{{ t('editor.file.uploaded') }}</h4>
+                                <div v-if="!isCloudAuthenticated()" class="login-placeholder">
+                                    <p>{{ t('editor.file.loginRequired') }}</p>
+                                    <button class="primary-btn" @click="goToLogin('open-cloud-posts')">{{
+                                        t('editor.file.login') }}</button>
+                                </div>
+                                <div v-else-if="fileLoading" class="loading">{{ t('post.loadingPosts') }}</div>
+                                <div v-else class="post-list">
+                                    <div v-for="post in filePosts" :key="post.id" class="post-item"
+                                        @click="handlePostOpen(post.id)">
+                                        <span class="post-title">{{ post.title }}</span>
+                                        <span class="post-status status-chip" :class="post.status || 'draft'">{{
+                                            $t('status.' + (post.status || 'draft')) }}</span>
+                                        <span class="post-date">{{ formatDateUtil(post.date, locale) }}</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -243,9 +285,13 @@
 
                         <!-- Export -->
                         <div v-if="fileTab === 'export'" class="tab-pane">
-                            <p>{{ t('editor.file.exportasMarkdown') }}</p>
-                            <button class="primary-btn" @click="executeFileAction">{{ t('editor.file.export')
-                                }}</button>
+                            <p>{{ t('editor.file.exportIntro') }}</p>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                <button class="primary-btn" @click="saveFile">{{ t('editor.file.saveAsMarkdown')
+                                    }}</button>
+                                <button class="secondary-btn" @click="exportAsHTML">{{ t('editor.file.exportAsHtml')
+                                    }}</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -265,38 +311,45 @@
 
                 <!-- Media Body -->
                 <div v-if="activeModal === 'media'" class="modal-body media-manager-layout">
-                    <div class="modal-sidebar">
-                        <div v-for="cat in mediaCategories" :key="cat.id" class="modal-sidebar-item"
-                            :class="{ active: selectedCategory === cat.id }" @click="selectedCategory = cat.id">
-                            <span class="media-cat-icon" v-html="cat.icon"></span>
-                            {{ cat.label }}
-                        </div>
+                    <div v-if="!isCloudAuthenticated()" class="login-placeholder media-login-placeholder">
+                        <p>{{ t('editor.file.loginRequired') }}</p>
+                        <button class="primary-btn" @click="goToLogin('open-media')">{{ t('editor.file.login')
+                            }}</button>
                     </div>
-                    <div class="media-content-area">
-                        <div class="media-toolbar">
-                            <button class="primary-btn" @click="triggerFileUpload">
-                                <span>{{ t('editor.file.uploadNewFile') }}</span>
-                            </button>
-                            <input type="file" ref="fileInputRef" class="hidden-input" multiple
-                                @change="handleFileSelect" />
+                    <template v-else>
+                        <div class="modal-sidebar">
+                            <div v-for="cat in mediaCategories" :key="cat.id" class="modal-sidebar-item"
+                                :class="{ active: selectedCategory === cat.id }" @click="selectedCategory = cat.id">
+                                <span class="media-cat-icon" v-html="cat.icon"></span>
+                                {{ cat.label }}
+                            </div>
                         </div>
-                        <div class="library-section">
-                            <div v-if="uploadedImages.length > 0" class="image-grid">
-                                <div v-for="(img, idx) in uploadedImages" :key="idx" class="library-item"
-                                    @click="insertMediaMarkdown(img.name, img.path)" :title="img.name">
-                                    <div class="img-thumb" v-if="['pic'].includes(selectedCategory)"
-                                        :style="{ backgroundImage: `url(${img.thumb || img.url})` }"></div>
-                                    <div class="img-thumb icon-thumb" v-else>
-                                        <span class="scalable-icon" v-html="getIconForFile(img.name)"></span>
+                        <div class="media-content-area">
+                            <div class="media-toolbar">
+                                <button class="primary-btn" @click="triggerFileUpload">
+                                    <span>{{ t('editor.file.uploadNewFile') }}</span>
+                                </button>
+                                <input type="file" ref="fileInputRef" class="hidden-input" multiple
+                                    @change="handleFileSelect" />
+                            </div>
+                            <div class="library-section">
+                                <div v-if="uploadedImages.length > 0" class="image-grid">
+                                    <div v-for="(img, idx) in uploadedImages" :key="idx" class="library-item"
+                                        @click="insertMediaMarkdown(img.name, img.path)" :title="img.name">
+                                        <div class="img-thumb" v-if="['pic'].includes(selectedCategory)"
+                                            :style="{ backgroundImage: `url(${img.thumb || img.url})` }"></div>
+                                        <div class="img-thumb icon-thumb" v-else>
+                                            <span class="scalable-icon" v-html="getIconForFile(img.name)"></span>
+                                        </div>
+                                        <span class="img-name">{{ img.name }}</span>
                                     </div>
-                                    <span class="img-name">{{ img.name }}</span>
+                                </div>
+                                <div v-else class="empty-library">
+                                    <p>No files found.</p>
                                 </div>
                             </div>
-                            <div v-else class="empty-library">
-                                <p>No files found.</p>
-                            </div>
                         </div>
-                    </div>
+                    </template>
                 </div>
 
                 <!-- Link Body -->
@@ -343,165 +396,174 @@
                     </div>
                 </div>
             </div>
+
         </div>
+    </div>
 
-        <!-- Group 3: Save/Publish Modals -->
-        <div v-if="['draft', 'publish'].includes(activeModal)" class="modal-overlay">
-            <div class="modal-content small-modal">
-                <div class="modal-header">
-                    <h3>{{ activeModal === 'draft' ? t('editor.saveDraft') : t('editor.publishNow') }}</h3>
-                    <button class="close-btn" @click="activeModal = 'none'">
-                        <span class="icon-svg" v-html="Icons.close"></span>
-                    </button>
+    <!-- Group 3: Save/Publish Modals -->
+    <div v-if="['draft', 'publish'].includes(activeModal)" class="modal-overlay">
+        <div class="modal-content small-modal">
+            <div class="modal-header">
+                <h3>{{ activeModal === 'draft' ? (isCloudEditing ? t('editor.saveDraft') : t('editor.save')) :
+                    (isCloudEditing ? t('editor.publishNow') : t('editor.upload')) }}</h3>
+                <button class="close-btn" @click="activeModal = 'none'">
+                    <span class="icon-svg" v-html="Icons.close"></span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>{{ t('editor.postTitle') }}</label>
+                    <input v-model="tempTitle" class="modal-input" :placeholder="t('editor.titlePlaceholder')"
+                        @keyup.enter="doSave()" autofocus />
                 </div>
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label>{{ t('editor.postTitle') }}</label>
-                        <input v-model="tempTitle" class="modal-input" :placeholder="t('editor.titlePlaceholder')"
-                            @keyup.enter="doSave()" autofocus />
-                    </div>
 
-                    <div v-if="activeModal === 'publish'" class="form-group">
-                        <label>{{ t('editor.tagsLabel') }}</label>
-                        <div class="tags-input-container">
-                            <div class="tags-list">
-                                <span class="tag-badge" v-for="tag in sortTags(postTags)" :key="tag"
-                                    :class="{ featured: tag === 'featured' }">
-                                    {{ tag === 'featured' ? $t('tag.featured') : tag }}
-                                    <button class="tag-remove" @click="removeTag(tag)">
-                                        <span class="icon-svg" v-html="Icons.close"></span>
-                                    </button>
-                                </span>
-                            </div>
-                            <div class="tag-controls">
-                                <input v-model="tagInput" class="modal-input small-input"
-                                    :placeholder="t('editor.addTagPlaceholder')" @keyup.enter="addTag" />
-                                <button class="secondary-btn small-btn" @click="addTag">{{ t('editor.addTag')
-                                    }}</button>
-                                <button class="secondary-btn small-btn"
-                                    :class="{ active: postTags.includes('featured') }" @click="toggleFeatured"
-                                    :title="$t('tag.featured')">
-                                    {{ $t('tag.featured') }}
+                <div v-if="activeModal === 'publish' && !isCloudAuthenticated()"
+                    class="login-placeholder upload-login-placeholder">
+                    <p>{{ t('editor.file.loginRequired') }}</p>
+                    <button class="primary-btn" @click="goToLogin('publish-post')">{{ t('editor.file.login') }}</button>
+                </div>
+
+                <div v-if="activeModal === 'publish' && isCloudAuthenticated()" class="form-group">
+                    <label>{{ t('editor.tagsLabel') }}</label>
+                    <div class="tags-input-container">
+                        <div class="tags-list">
+                            <span class="tag-badge" v-for="tag in sortTags(postTags)" :key="tag"
+                                :class="{ featured: tag === 'featured' }">
+                                {{ tag === 'featured' ? $t('tag.featured') : tag }}
+                                <button class="tag-remove" @click="removeTag(tag)">
+                                    <span class="icon-svg" v-html="Icons.close"></span>
                                 </button>
-                            </div>
+                            </span>
+                        </div>
+                        <div class="tag-controls">
+                            <input v-model="tagInput" class="modal-input small-input"
+                                :placeholder="t('editor.addTagPlaceholder')" @keyup.enter="addTag" />
+                            <button class="secondary-btn small-btn" @click="addTag">{{ t('editor.addTag')
+                            }}</button>
+                            <button class="secondary-btn small-btn" :class="{ active: postTags.includes('featured') }"
+                                @click="toggleFeatured" :title="$t('tag.featured')">
+                                {{ $t('tag.featured') }}
+                            </button>
                         </div>
                     </div>
+                </div>
 
-                    <div v-if="activeModal === 'publish'" class="form-group">
-                        <label>{{ t('editor.authorLabel') }}</label>
-                        <input v-model="postAuthor" class="modal-input" :placeholder="t('editor.authorPlaceholder')" />
+                <div v-if="activeModal === 'publish' && isCloudAuthenticated()" class="form-group">
+                    <label>{{ t('editor.authorLabel') }}</label>
+                    <input v-model="postAuthor" class="modal-input" :placeholder="t('editor.authorPlaceholder')" />
+                </div>
+
+                <div v-if="activeModal === 'publish' && isCloudAuthenticated()" class="form-group">
+                    <CheckRow v-model="postAIGenerated" :title="$t('editor.aiGeneratedLabel')" />
+                </div>
+
+                <div class="modal-actions">
+                    <button class="secondary-btn" @click="activeModal = 'none'">{{ t('editor.cancel') }}</button>
+                    <button v-if="activeModal === 'draft' && isCloudAuthenticated()" class="primary-btn"
+                        @click="doSave()" :disabled="isSaving || isBuilding || !tempTitle.trim()">
+                        {{ isSaving ? t('editor.saving') : isBuilding ? t('editor.building') :  t('editor.saveDraft') }}
+                    </button>
+                    <button v-else class="primary-btn"
+                        @click="doSave('published')" :disabled="isSaving || isBuilding || !tempTitle.trim()">
+                        {{ isSaving ? t('editor.saving') : isBuilding ? t('editor.building') : (isCloudEditing ? t('editor.publishNow') : t('editor.upload')) }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Group 4: Confirmation Modals (Restore, Unsaved) -->
+    <div v-if="['restore', 'unsaved', 'stats', 'syncConflict'].includes(activeModal)" class="modal-overlay">
+        <div class="modal-content small-modal">
+            <div class="modal-header">
+                <h3 v-if="activeModal === 'restore'">{{ t('editor.confirmRestoreTitle') }}</h3>
+                <h3 v-else-if="activeModal === 'unsaved'">{{ t('editor.unsavedTitle') }}</h3>
+                <h3 v-else-if="activeModal === 'syncConflict'">{{ t('editor.versionConflictTitle') }}</h3>
+                <h3 v-else>{{ t('editor.statsTitle') }}</h3>
+
+                <button v-if="activeModal !== 'syncConflict'" class="close-btn" @click="activeModal = 'none'">
+                    <span class="icon-svg" v-html="Icons.close"></span>
+                </button>
+            </div>
+
+            <!-- Restore Body -->
+            <div v-if="activeModal === 'restore'" class="modal-body">
+                <p class="confirm-text">
+                    {{ t('editor.confirmRestoreBody') }}
+                </p>
+                <div class="modal-actions">
+                    <button class="secondary-btn" @click="activeModal = 'none'">{{ t('editor.cancel') }}</button>
+                    <button class="primary-btn danger-action" @click="doRestore">{{ t('editor.confirmRestoreAction')
+                    }}</button>
+                </div>
+            </div>
+
+            <!-- Unsaved Body -->
+            <div v-if="activeModal === 'unsaved'" class="modal-body">
+                <p class="confirm-text">
+                    {{ t('editor.unsavedBody', { title: postTitle || t('editor.untitled') }) }}
+                </p>
+                <div class="modal-actions">
+                    <button class="secondary-btn" @click="closeModals">{{ t('editor.cancel') }}</button>
+                    <button class="secondary-btn danger-outline" @click="handleUnsavedOption('discard')">{{
+                        t('editor.discard') }}</button>
+                    <button class="primary-btn" @click="handleUnsavedOption('save')">{{ t('editor.saveContinue')
+                    }}</button>
+                </div>
+            </div>
+
+            <div v-if="activeModal === 'syncConflict'" class="modal-body">
+                <p class="confirm-text">
+                    {{ t('editor.versionConflictBody', { title: pendingConflictDetail?.title || t('editor.untitled') })
+                    }}
+                </p>
+                <div class="modal-actions">
+                    <button class="secondary-btn" @click="resolveVersionConflict('local')">{{
+                        t('editor.useLocalDraft') }}</button>
+                    <button class="primary-btn" @click="resolveVersionConflict('cloud')">{{
+                        t('editor.useCloudVersion') }}</button>
+                </div>
+            </div>
+
+            <!-- Stats Body -->
+            <div v-if="activeModal === 'stats'" class="modal-body">
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-label">{{ t('editor.stats.words') }}</span>
+                        <span class="stat-value">{{ editorStats.wordCount }}</span>
                     </div>
-
-                    <div v-if="activeModal === 'publish'" class="form-group">
-                    <CheckRow 
-                        v-model="postAIGenerated"
-                        :title="$t('editor.aiGeneratedLabel')"
-                    />
+                    <div class="stat-item">
+                        <span class="stat-label">{{ t('editor.stats.charsWithSpaces') }}</span>
+                        <span class="stat-value">{{ editorStats.charCount }}</span>
                     </div>
-
-                    <div class="modal-actions">
-                        <button class="secondary-btn" @click="activeModal = 'none'">{{ t('editor.cancel') }}</button>
-                        <button class="primary-btn" @click="doSave()" :disabled="isSaving || isBuilding || !tempTitle.trim()">
-                            {{ isSaving ? t('editor.saving') : isBuilding ? t('editor.building') : (activeModal === 'draft' ? t('editor.saveDraft') :
-                            t('editor.publishNow')) }}
-                        </button>
+                    <div class="stat-item">
+                        <span class="stat-label">{{ t('editor.stats.charsNoSpaces') }}</span>
+                        <span class="stat-value">{{ editorStats.charCountNoSpaces }}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">{{ t('editor.stats.nonWestern') }}</span>
+                        <span class="stat-value">{{ editorStats.nonWesternCount }}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">{{ t('editor.stats.markdownChars') }}</span>
+                        <span class="stat-value">{{ editorStats.markdownCount }}</span>
                     </div>
                 </div>
             </div>
         </div>
-
-        <!-- Group 4: Confirmation Modals (Restore, Unsaved) -->
-        <div v-if="['restore', 'unsaved', 'stats', 'syncConflict'].includes(activeModal)" class="modal-overlay">
-            <div class="modal-content small-modal">
-                <div class="modal-header">
-                    <h3 v-if="activeModal === 'restore'">{{ t('editor.confirmRestoreTitle') }}</h3>
-                    <h3 v-else-if="activeModal === 'unsaved'">{{ t('editor.unsavedTitle') }}</h3>
-                    <h3 v-else-if="activeModal === 'syncConflict'">{{ t('editor.versionConflictTitle') }}</h3>
-                    <h3 v-else>{{ t('editor.statsTitle') }}</h3>
-
-                    <button v-if="activeModal !== 'syncConflict'" class="close-btn" @click="activeModal = 'none'">
-                        <span class="icon-svg" v-html="Icons.close"></span>
-                    </button>
-                </div>
-
-                <!-- Restore Body -->
-                <div v-if="activeModal === 'restore'" class="modal-body">
-                    <p class="confirm-text">
-                        {{ t('editor.confirmRestoreBody') }}
-                    </p>
-                    <div class="modal-actions">
-                        <button class="secondary-btn" @click="activeModal = 'none'">{{ t('editor.cancel') }}</button>
-                        <button class="primary-btn danger-action" @click="doRestore">{{ t('editor.confirmRestoreAction')
-                            }}</button>
-                    </div>
-                </div>
-
-                <!-- Unsaved Body -->
-                <div v-if="activeModal === 'unsaved'" class="modal-body">
-                    <p class="confirm-text">
-                        {{ t('editor.unsavedBody', { title: postTitle || t('editor.untitled') }) }}
-                    </p>
-                    <div class="modal-actions">
-                        <button class="secondary-btn" @click="closeModals">{{ t('editor.cancel') }}</button>
-                        <button class="secondary-btn danger-outline" @click="handleUnsavedOption('discard')">{{
-                            t('editor.discard') }}</button>
-                        <button class="primary-btn" @click="handleUnsavedOption('save')">{{ t('editor.saveContinue')
-                            }}</button>
-                    </div>
-                </div>
-
-                <div v-if="activeModal === 'syncConflict'" class="modal-body">
-                    <p class="confirm-text">
-                        {{ t('editor.versionConflictBody', { title: pendingConflictDetail?.title || t('editor.untitled') }) }}
-                    </p>
-                    <div class="modal-actions">
-                        <button class="secondary-btn" @click="resolveVersionConflict('local')">{{
-                            t('editor.useLocalDraft') }}</button>
-                        <button class="primary-btn" @click="resolveVersionConflict('cloud')">{{
-                            t('editor.useCloudVersion') }}</button>
-                    </div>
-                </div>
-
-                <!-- Stats Body -->
-                <div v-if="activeModal === 'stats'" class="modal-body">
-                    <div class="stats-grid">
-                        <div class="stat-item">
-                            <span class="stat-label">{{ t('editor.stats.words') }}</span>
-                            <span class="stat-value">{{ editorStats.wordCount }}</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">{{ t('editor.stats.charsWithSpaces') }}</span>
-                            <span class="stat-value">{{ editorStats.charCount }}</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">{{ t('editor.stats.charsNoSpaces') }}</span>
-                            <span class="stat-value">{{ editorStats.charCountNoSpaces }}</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">{{ t('editor.stats.nonWestern') }}</span>
-                            <span class="stat-value">{{ editorStats.nonWesternCount }}</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">{{ t('editor.stats.markdownChars') }}</span>
-                            <span class="stat-value">{{ editorStats.markdownCount }}</span>
-                        </div>
-                    </div>
-                </div>
+    </div>
+    <!-- Upload Toast -->
+    <div v-if="uploadState.show" class="upload-toast" :class="uploadState.status">
+        <div class="toast-content">
+            <div class="toast-header-row">
+                <span class="toast-title">{{ t('editor.fileUpload') }}</span>
+                <button class="toast-close" @click="uploadState.show = false">
+                    <span class="icon-svg" v-html="Icons.close"></span>
+                </button>
             </div>
-        </div>
-        <!-- Upload Toast -->
-        <div v-if="uploadState.show" class="upload-toast" :class="uploadState.status">
-            <div class="toast-content">
-                <div class="toast-header-row">
-                    <span class="toast-title">{{ t('editor.fileUpload') }}</span>
-                    <button class="toast-close" @click="uploadState.show = false">
-                        <span class="icon-svg" v-html="Icons.close"></span>
-                    </button>
-                </div>
-                <div class="toast-message">{{ uploadState.message }}</div>
-                <div v-if="['uploading', 'processing'].includes(uploadState.status)" class="toast-progress-bg">
-                    <div class="toast-progress-bar" :style="{ width: uploadState.progress + '%' }"></div>
-                </div>
+            <div class="toast-message">{{ uploadState.message }}</div>
+            <div v-if="['uploading', 'processing'].includes(uploadState.status)" class="toast-progress-bg">
+                <div class="toast-progress-bar" :style="{ width: uploadState.progress + '%' }"></div>
             </div>
         </div>
     </div>
@@ -529,23 +591,57 @@ const { t, locale } = useI18n()
 const { show: showToast } = useToast()
 const CDN_BASE_URL = import.meta.env.VITE_CDN_BASE_URL || ''
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
+const editorQueryId = computed(() => {
+    const id = route.query.id
+    return Array.isArray(id) ? id[0] : id
+})
 
-// Helper: redirect to a randomized new-id. Uses full-location replace to emulate
-// a server-side replace (avoids creating a history entry and forces reload).
-function redirectToRandomNew() {
-    const randomId = (typeof crypto !== 'undefined' && (crypto as any).randomUUID)
+const isCloudEditing = computed(() => !!editorQueryId.value)
+
+function createOnlineDraftId() {
+    return (typeof crypto !== 'undefined' && (crypto as any).randomUUID)
         ? `new-${(crypto as any).randomUUID()}`
         : `new-${Math.random().toString(36).substring(2, 9)}`
+}
+
+function getCloudAuthSession() {
     try {
-        const params = new URLSearchParams(window.location.search)
-        params.set('id', randomId)
-        const url = window.location.pathname + (params.toString() ? `?${params.toString()}` : '')
-        // Use location.replace to avoid adding a history entry (closest to 301/replace)
-        window.location.replace(url)
-    } catch (e) {
-        // Fallback to router.replace if URL APIs unavailable
-        router.replace({ query: { ...route.query, id: randomId } as any })
-    }
+        const raw = localStorage.getItem('chronicle_auth')
+        if (!raw) return null
+        const parsed = JSON.parse(raw)
+        if (parsed?.expiry && Number(parsed.expiry) > Date.now()) return parsed
+        if (raw === 'true') return { token: 'active', expiry: Date.now() + 24 * 60 * 60 * 1000 }
+    } catch (e) { }
+    return null
+}
+
+const cloudAuthSession = ref(getCloudAuthSession())
+
+function refreshCloudAuthState() {
+    cloudAuthSession.value = getCloudAuthSession()
+    return !!cloudAuthSession.value
+}
+
+function isCloudAuthenticated() {
+    return !!cloudAuthSession.value
+}
+
+function goToLogin(action: string) {
+    router.push({
+        path: '/login',
+        query: {
+            next: route.fullPath || '/editor',
+            source: 'editor',
+            action,
+        } as any,
+    })
+}
+
+function requireCloudAuth(action: string) {
+    refreshCloudAuthState()
+    if (isCloudAuthenticated()) return true
+    goToLogin(action)
+    return false
 }
 
 const props = withDefaults(defineProps<{
@@ -570,7 +666,7 @@ watch(postTitle, (val) => {
     if (val && val !== t('editor.untitled')) isDefaultTitle.value = false
 }, { immediate: true })
 const postId = ref<string | null>(null)
-const postStatus = ref<'draft' | 'published' | 'modifying' | 'building'>('draft')
+const postStatus = ref<'local' | 'draft' | 'published' | 'modifying' | 'building'>('local')
 const postTags = ref<string[]>([])
 const postFont = ref<string>('sans')
 const postAuthor = ref<string>('') // æ–°å¢žä½œè€…å­—æ®µ
@@ -594,10 +690,47 @@ const fileLoading = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 const selectedImportFile = ref<File | null>(null)
 
+// Local file handle / path for desktop/browser FS API
+const currentFileHandle = ref<any>(null)
+const currentFilePath = ref<string | null>(null)
+
+// Recent local projects (stored in localStorage as metadata only)
+const RECENT_KEY = 'chronicle_recent_projects'
+const recentProjects = ref<Array<{ title: string; path?: string; cloud?: boolean; ts: number }>>([])
+
+function loadRecentProjects() {
+    try {
+        const raw = localStorage.getItem(RECENT_KEY)
+        if (!raw) {
+            recentProjects.value = []
+            return
+        }
+        recentProjects.value = JSON.parse(raw || '[]')
+    } catch (e) {
+        recentProjects.value = []
+    }
+}
+
+function saveRecentProjects() {
+    try {
+        localStorage.setItem(RECENT_KEY, JSON.stringify(recentProjects.value.slice(0, 10)))
+    } catch (e) { }
+}
+
+function pushRecentProject(meta: { title: string; path?: string; cloud?: boolean }) {
+    const existing = recentProjects.value.findIndex(r => r.path && meta.path && r.path === meta.path)
+    const entry = { title: meta.title || t('editor.untitled'), path: meta.path, cloud: !!meta.cloud, ts: Date.now() }
+    if (existing >= 0) {
+        recentProjects.value.splice(existing, 1)
+    }
+    recentProjects.value.unshift(entry)
+    recentProjects.value = recentProjects.value.slice(0, 10)
+    saveRecentProjects()
+}
+
 const fileTabs = computed(() => [
     { id: 'new', label: t('editor.file.new'), icon: Icons.plus },
     { id: 'open', label: t('editor.file.open'), icon: Icons.folder },
-    { id: 'import', label: t('editor.file.import'), icon: Icons.document },
     { id: 'export', label: t('editor.file.export'), icon: Icons.save }
 ])
 
@@ -666,6 +799,7 @@ function buildTocFromMarkdown(markdown: string) {
 
 // File Menu Logic
 async function openFileMenu() {
+    refreshCloudAuthState()
     activeModal.value = 'file'
     // Preload posts if switching to open tab? Or wait until user clicks.
     // Let's reset tab
@@ -673,8 +807,15 @@ async function openFileMenu() {
 }
 
 async function handleFileTabChange(tab: string) {
+    refreshCloudAuthState()
     fileTab.value = tab
+    if (tab === 'open') loadRecentProjects()
     if (tab === 'open') {
+        if (!isCloudAuthenticated()) {
+            filePosts.value = []
+            fileLoading.value = false
+            return
+        }
         fileLoading.value = true
         try {
             const res = await fetchWithAuth(`/api/posts?includeDrafts=true&t=${Date.now()}`)
@@ -698,21 +839,30 @@ function handleImportSelect(e: Event) {
     }
 }
 
-function executeFileAction() {
-    if (fileTab.value === 'export') {
-        const blob = new Blob([localValue.value], { type: 'text/markdown;charset=utf-8' })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `${postTitle.value.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.md`
-        a.click()
-        URL.revokeObjectURL(url)
-        activeModal.value = 'none'
-        return
-    }
+function clearCurrentLocalDocument() {
+    currentFileHandle.value = null
+    currentFilePath.value = null
+    postId.value = null
+    postTitle.value = t('editor.untitled')
+    isDefaultTitle.value = true
+    postStatus.value = 'local'
+    postDate.value = ''
+    postUpdated.value = ''
+    postTags.value = []
+    postFont.value = 'sans'
+    postAuthor.value = ''
+    postAIGenerated.value = false
+    localValue.value = ''
+    savedContent.value = ''
+    savedTitle.value = t('editor.untitled')
+    history.value = ['']
+    historyIndex.value = 0
+}
 
+function executeFileAction() {
     if (fileTab.value === 'new') {
         const doNew = () => {
+            clearCurrentLocalDocument()
             resetEditor()
             activeModal.value = 'none'
         }
@@ -720,32 +870,211 @@ function executeFileAction() {
         else doNew()
         return
     }
+    // Export/import actions are handled by dedicated UI buttons now
+}
 
-    if (fileTab.value === 'import' && selectedImportFile.value) {
-        const file = selectedImportFile.value
-        const doImport = () => {
-            const reader = new FileReader()
-            reader.onload = (e) => {
-                if (e.target?.result) {
-                    localValue.value = e.target.result as string
-                    postTitle.value = file.name.replace(/\.[^/.]+$/, "")
-                    activeModal.value = 'none'
-                    postId.value = null
-                    postStatus.value = 'draft'
-
-                    // Clear selection
-                    selectedImportFile.value = null
-                    if (fileInput.value) fileInput.value.value = ''
-                }
-            }
-            reader.readAsText(file)
+// File system helpers (browser FS API with fallback)
+async function openLocalFilePicker() {
+    try {
+        if ((window as any).showOpenFilePicker) {
+            const [handle] = await (window as any).showOpenFilePicker({
+                multiple: false,
+                types: [{
+                    description: 'Markdown',
+                    accept: { 'text/markdown': ['.md', '.markdown'], 'text/plain': ['.txt'] }
+                }]
+            })
+            const file = await handle.getFile()
+            const text = await file.text()
+            currentFileHandle.value = handle
+            currentFilePath.value = handle.name || file.name
+            localValue.value = text
+            postTitle.value = file.name.replace(/\.[^/.]+$/, '')
+            postId.value = null
+            postStatus.value = 'local'
+            savedContent.value = text
+            savedTitle.value = postTitle.value
+            history.value = [text]
+            historyIndex.value = 0
+            pushRecentProject({ title: postTitle.value, path: file.name, cloud: false })
+            activeModal.value = 'none'
+            return
         }
-        if (isDirty.value) handleUnsavedCheck(doImport)
-        else doImport()
+        // Fallback: use hidden input
+        const input = document.createElement('input')
+        input.type = 'file'
+        input.accept = '.md,.markdown,.txt'
+        input.onchange = (e: any) => {
+            const f = e.target.files && e.target.files[0]
+            if (!f) return
+            const reader = new FileReader()
+            reader.onload = (ev) => {
+                const txt = ev.target?.result as string || ''
+                localValue.value = txt
+                postTitle.value = f.name.replace(/\.[^/.]+$/, '')
+                currentFilePath.value = f.name
+                postId.value = null
+                postStatus.value = 'local'
+                savedContent.value = txt
+                savedTitle.value = postTitle.value
+                history.value = [txt]
+                historyIndex.value = 0
+                pushRecentProject({ title: postTitle.value, path: f.name, cloud: false })
+                activeModal.value = 'none'
+            }
+            reader.readAsText(f)
+        }
+        input.click()
+    } catch (e) {
+        console.error('openLocalFilePicker failed', e)
+    }
+}
+
+function resetCurrentFile() {
+    clearCurrentLocalDocument()
+    resetEditor()
+}
+
+function openRecentProject(r: any) {
+    if (r.cloud && r.path) {
+        // treat path as cloud id if present
+        void loadPostById(r.path)
+        activeModal.value = 'none'
+        return
+    }
+    // For local recent entries, prompt user to re-open file
+    const doOpen = () => openLocalFilePicker()
+    if (isDirty.value) handleUnsavedCheck(doOpen)
+    else doOpen()
+}
+
+function requestOpenLocalFile() {
+    const doOpen = () => void openLocalFilePicker()
+    if (isDirty.value) handleUnsavedCheck(doOpen)
+    else doOpen()
+}
+
+function createLocalNewPost() {
+    const doNew = () => {
+        clearCurrentLocalDocument()
+        resetEditor()
+        activeModal.value = 'none'
+    }
+    if (isDirty.value) handleUnsavedCheck(doNew)
+    else doNew()
+}
+
+function createOnlinePost() {
+    const doOnline = () => {
+        activeModal.value = 'none'
+        router.push({ path: '/editor', query: { id: createOnlineDraftId() } })
+    }
+    if (!isCloudAuthenticated()) {
+        goToLogin('create-cloud-post')
+        return
+    }
+    if (isDirty.value) handleUnsavedCheck(doOnline)
+    else doOnline()
+}
+
+async function writeFileHandle(handle: any, contents: string) {
+    if (!handle) return false
+    try {
+        if (handle.createWritable) {
+            const writable = await handle.createWritable()
+            await writable.write(contents)
+            await writable.close()
+            return true
+        } else if (handle.write) {
+            // older spec
+            await handle.write(contents)
+            return true
+        }
+    } catch (e) {
+        console.error('writeFileHandle error', e)
+    }
+    return false
+}
+
+async function saveFile() {
+    try {
+        if (currentFileHandle.value) {
+            const ok = await writeFileHandle(currentFileHandle.value, localValue.value)
+            if (ok) {
+                savedContent.value = localValue.value
+                savedTitle.value = postTitle.value
+                pushRecentProject({ title: postTitle.value, path: currentFilePath.value || undefined, cloud: false })
+                showToast(t('editor.file.savedToFile') as string)
+                activeModal.value = 'none'
+                return true
+            }
+        }
+        return await saveAs()
+    } catch (e) {
+        console.error('saveFile failed', e)
+        return false
+    }
+}
+
+async function saveAs() {
+    try {
+        if ((window as any).showSaveFilePicker) {
+            const handle = await (window as any).showSaveFilePicker({
+                suggestedName: `${(postTitle.value || 'untitled').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.md`,
+                types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }]
+            })
+            const ok = await writeFileHandle(handle, localValue.value)
+            if (ok) {
+                currentFileHandle.value = handle
+                currentFilePath.value = (handle.name || null)
+                savedContent.value = localValue.value
+                savedTitle.value = postTitle.value
+                pushRecentProject({ title: postTitle.value, path: currentFilePath.value || undefined, cloud: false })
+                showToast(t('editor.file.savedToFile') as string)
+                activeModal.value = 'none'
+                return true
+            }
+        }
+        // Fallback: trigger download
+        const blob = new Blob([localValue.value], { type: 'text/markdown;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        const filename = `${(postTitle.value || 'untitled').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.md`
+        a.href = url
+        a.download = filename
+        a.click()
+        URL.revokeObjectURL(url)
+        currentFileHandle.value = null
+        currentFilePath.value = filename
+        savedContent.value = localValue.value
+        savedTitle.value = postTitle.value
+        pushRecentProject({ title: postTitle.value, path: filename, cloud: false })
+        activeModal.value = 'none'
+        return true
+    } catch (e) {
+        console.error('saveAs failed', e)
+        return false
+    }
+}
+
+async function exportAsHTML() {
+    try {
+        const html = convertToHtml(localValue.value, { wrapBlocks: true })
+        const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${(postTitle.value || 'untitled').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.html`
+        a.click()
+        URL.revokeObjectURL(url)
+        activeModal.value = 'none'
+    } catch (e) {
+        console.error('exportAsHTML failed', e)
     }
 }
 
 function handlePostOpen(id: string) {
+    if (!requireCloudAuth('open-cloud-post')) return
     const doOpen = async () => {
         await loadPost(id)
         if (activeModal.value !== 'syncConflict') {
@@ -832,10 +1161,7 @@ function resolveVersionConflict(choice: 'cloud' | 'local') {
 }
 
 function resetEditor() {
-    router.push({ query: { id: 'new' } }) // Update URL
-    setTimeout(() => {
-        initLoad() // Will read 'new' from query
-    }, 50)
+    router.push({ path: '/editor' })
 }
 
 function loadPost(id: string) {
@@ -859,27 +1185,17 @@ const MAX_HISTORY = 50
 
 // Persist Logic
 const draftKey = computed(() => {
-    const qId = route.query.id as string
-    if (postId.value) return `chronicle_draft_${postId.value}`
-    if (qId && qId.startsWith('new')) return `chronicle_draft_${qId}`
-    return 'chronicle_draft_new'
+    if (postId.value && postId.value !== 'new') return `chronicle_draft_${postId.value}`
+    if (editorQueryId.value === 'new') return 'chronicle_draft_new'
+    return 'chronicle_draft_local'
 })
 const historyKey = computed(() => {
-    const qId = route.query.id as string
-    if (postId.value) return `chronicle_history_${postId.value}`
-    if (qId && qId.startsWith('new')) return `chronicle_history_${qId}`
-    return 'chronicle_history_new'
+    if (postId.value && postId.value !== 'new') return `chronicle_history_${postId.value}`
+    if (editorQueryId.value === 'new') return 'chronicle_history_new'
+    return 'chronicle_history_local'
 })
 
-const saveToLocalStorage = debounce(() => {
-    // Save Content Draft
-    localStorage.setItem(draftKey.value, localValue.value)
-    // Save History Stack (Session only)
-    sessionStorage.setItem(historyKey.value, JSON.stringify({
-        stack: history.value,
-        index: historyIndex.value
-    }))
-}, 1000)
+// local draft autosave removed: local editing uses explicit file save/load operations
 
 // Tag Management
 const tagInput = ref('')
@@ -919,7 +1235,8 @@ function toggleFeatured() {
 }
 
 async function restorePost() {
-    if (!postId.value) return
+    if (!isCloudEditing.value || !postId.value) return
+    if (!requireCloudAuth('restore-post')) return
     activeModal.value = 'restore'
 }
 
@@ -963,26 +1280,26 @@ async function renderMermaidBlocksInMarkdown(md: string) {
         // ignore init errors
     }
 
-        function sanitizeSvg(svg: string) {
-            if (!svg) return svg
-            // Normalize any absolute URL marker references to a single global fragment id
-            // and fall back other url(#id) usages to the global arrow to ensure consistent rendering.
-            try {
-                // Remove absolute URL wrapper if present
-                svg = svg.replace(/marker-(?:end|start)=("|')?url\([^#)]*#([^\)"']+)\)("|')?/g, 'marker-$1')
-            } catch (e) {
-                // noop
-            }
-            // Replace any marker-(end|start)="url(#whatever)" with the global id
-            svg = svg.replace(/marker-(end|start)=("|')?url\(\#([^\)"']+)\)("|')?/g, (m, pos) => {
-                return `marker-${pos}="url(#chronicle-mermaid-arrow)"`
-            })
-            // Also replace standalone url(#...) occurrences (e.g., in styles) to point to global arrow
-            svg = svg.replace(/url\((?:"|')?\#([^\)"']+)(?:"|')?\)/g, 'url(#chronicle-mermaid-arrow)')
-            return svg
+    function sanitizeSvg(svg: string) {
+        if (!svg) return svg
+        // Normalize any absolute URL marker references to a single global fragment id
+        // and fall back other url(#id) usages to the global arrow to ensure consistent rendering.
+        try {
+            // Remove absolute URL wrapper if present
+            svg = svg.replace(/marker-(?:end|start)=("|')?url\([^#)]*#([^\)"']+)\)("|')?/g, 'marker-$1')
+        } catch (e) {
+            // noop
         }
+        // Replace any marker-(end|start)="url(#whatever)" with the global id
+        svg = svg.replace(/marker-(end|start)=("|')?url\(\#([^\)"']+)\)("|')?/g, (m, pos) => {
+            return `marker-${pos}="url(#chronicle-mermaid-arrow)"`
+        })
+        // Also replace standalone url(#...) occurrences (e.g., in styles) to point to global arrow
+        svg = svg.replace(/url\((?:"|')?\#([^\)"']+)(?:"|')?\)/g, 'url(#chronicle-mermaid-arrow)')
+        return svg
+    }
 
-        const regex = /```\s*mermaid\s*\n([\s\S]*?)\n```/g
+    const regex = /```\s*mermaid\s*\n([\s\S]*?)\n```/g
     let lastIndex = 0
     let out = ''
     let match: RegExpExecArray | null
@@ -994,10 +1311,10 @@ async function renderMermaidBlocksInMarkdown(md: string) {
         try {
             const id = 'mermaid_' + Date.now() + '_' + (idx++)
             const res = await mermaid.render(id, code)
-                        let svg = res && (res.svg || res)
-                        svg = String(svg || '')
-                        svg = sanitizeSvg(svg)
-                        out += `<div class="mermaid-svg">${svg}</div>`
+            let svg = res && (res.svg || res)
+            svg = String(svg || '')
+            svg = sanitizeSvg(svg)
+            out += `<div class="mermaid-svg">${svg}</div>`
         } catch (e) {
             console.warn('mermaid render failed on save, leaving source block', e)
             out += full
@@ -1113,6 +1430,49 @@ async function triggerAstroBuild(postId: string) {
 }
 
 async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
+    if (!isCloudEditing.value && activeModal.value !== 'publish') {
+        const titleToKeep = (tempTitle.value && tempTitle.value.trim())
+            ? tempTitle.value
+            : (isDefaultTitle.value ? t('editor.untitled') : postTitle.value)
+
+        const now = new Date().toISOString()
+        postId.value = null
+        postTitle.value = titleToKeep
+        postStatus.value = 'local'
+        postUpdated.value = now
+        if (!postDate.value) postDate.value = now
+        savedContent.value = localValue.value
+        savedTitle.value = titleToKeep
+        activeModal.value = 'none'
+        await saveFile()
+        return
+    }
+
+    if (!isCloudEditing.value && activeModal.value === 'publish') {
+        if (!requireCloudAuth('create-cloud-post')) return
+
+        const titleToSeed = (tempTitle.value && tempTitle.value.trim())
+            ? tempTitle.value.trim()
+            : (isDefaultTitle.value ? t('editor.untitled') : postTitle.value)
+
+        localStorage.setItem('chronicle_draft_new', localValue.value)
+        localStorage.setItem('chronicle_draft_new_meta', JSON.stringify({
+            title: titleToSeed,
+            tags: postTags.value,
+            font: postFont.value,
+            author: postAuthor.value,
+            aiGenerated: postAIGenerated.value,
+        }))
+        sessionStorage.setItem('chronicle_history_new', JSON.stringify({
+            stack: history.value,
+            index: historyIndex.value,
+        }))
+
+        router.replace({ path: '/editor', query: { id: 'new' } })
+        return
+    }
+
+    const previousPostId = postId.value
     let status = forceStatus
     if (!status) {
         // Determine intent based on modal
@@ -1129,7 +1489,11 @@ async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
             }
         } else if (intent === 'unsaved') {
             // Default to keeping current status
-            status = postStatus.value === 'building' ? 'published' : postStatus.value
+            if (postStatus.value === 'local') {
+                status = 'draft'
+            } else {
+                status = postStatus.value === 'building' ? 'published' : postStatus.value
+            }
         }
     }
 
@@ -1169,10 +1533,9 @@ async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
         if (res.ok) {
             const data = await res.json()
             if (data.id) {
-                // If we were new, clear the temp draft before switching ID
-                if (!postId.value) {
-                    localStorage.removeItem(draftKey.value)
-                    sessionStorage.removeItem(historyKey.value)
+                if (previousPostId === 'new') {
+                    localStorage.removeItem('chronicle_draft_new')
+                    sessionStorage.removeItem('chronicle_history_new')
                 }
 
                 postId.value = data.id
@@ -1189,7 +1552,18 @@ async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
                 // But usually save doesn't change content, just persists.
 
                 // Clear draft for current ID since it's saved
-                localStorage.removeItem(draftKey.value)
+                if (previousPostId && previousPostId !== 'new') {
+                    localStorage.removeItem(`chronicle_draft_${previousPostId}`)
+                    sessionStorage.removeItem(`chronicle_history_${previousPostId}`)
+                }
+
+                if (!previousPostId && activeModal.value === 'publish') {
+                    const currentUrl = new URL(window.location.href)
+                    currentUrl.searchParams.set('id', data.id)
+                    router.replace(currentUrl.pathname + currentUrl.search)
+                } else if (previousPostId === 'new' && route.query.id !== data.id) {
+                    router.replace({ query: { ...route.query, id: data.id } as any })
+                }
             }
 
             const shouldBuildAstro = status === 'published'
@@ -1237,7 +1611,51 @@ async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
     }
 }
 
+// Directly save local posts without opening the modal
+async function saveLocalDirect(titleArg?: string) {
+    try {
+        const titleToKeep = (titleArg && titleArg.trim())
+            ? titleArg.trim()
+            : (isDefaultTitle.value ? t('editor.untitled') : postTitle.value)
+
+        const now = new Date().toISOString()
+        postId.value = null
+        postTitle.value = titleToKeep
+        postStatus.value = 'local'
+        postUpdated.value = now
+        if (!postDate.value) postDate.value = now
+        savedContent.value = localValue.value
+        savedTitle.value = titleToKeep
+
+        const ok = await saveFile()
+        if (ok) {
+            // If we have a file path/handle, use its filename as displayed title
+            if (currentFilePath.value) {
+                const name = String(currentFilePath.value).replace(/^.*[\\\/]/, '').replace(/\.[^/.]+$/, '')
+                postTitle.value = name || titleToKeep
+                savedTitle.value = postTitle.value
+            }
+            return true
+        }
+        return false
+    } catch (e) {
+        console.error('saveLocalDirect failed', e)
+        return false
+    }
+}
+
+function handleTopRightSave(type: 'draft' | 'publish') {
+    // For local editing, perform direct save without modal
+    if (!isCloudEditing.value) {
+        void saveLocalDirect()
+        return
+    }
+    // For cloud editing, keep previous behavior that may need modal input
+    openSaveModal(type)
+}
+
 function openSaveModal(type: 'draft' | 'publish') {
+    refreshCloudAuthState()
     tempTitle.value = postTitle.value
     activeModal.value = type
 }
@@ -1292,7 +1710,6 @@ function pushHistory(val: string) {
     }
     historyIndex.value = history.value.length - 1
 
-    saveToLocalStorage()
 }
 
 const debouncedPush = debounce(pushHistory, 500)
@@ -1338,12 +1755,6 @@ onBeforeRouteUpdate(async (to, from, next) => {
 
 // Watch query change to reload data when navigation keeps component alive
 watch(() => route.query.id, async (newId, oldId) => {
-    // If opening a brand-new editor (literal 'new'), redirect to randomized ID
-    if (newId === 'new') {
-        redirectToRandomNew()
-        return
-    }
-
     if (newId !== oldId) {
         await initLoad()
     }
@@ -1351,97 +1762,127 @@ watch(() => route.query.id, async (newId, oldId) => {
 
 async function loadPostById(id: string) {
     try {
-        // reset metadata first to avoid carrying values from another post
         postAuthor.value = ''
         postAIGenerated.value = false
         const detailRes = await fetchWithAuth(`/api/post?id=${id}&mode=edit&t=${Date.now()}`)
         if (!detailRes.ok) {
-            const draftExists = !!localStorage.getItem(`chronicle_draft_${id}`)
-            if (!draftExists) {
-                redirectToRandomNew()
-            }
-            return
+            return false
         }
-
         const detail = await detailRes.json()
         const draft = localStorage.getItem(`chronicle_draft_${id}`)
         const sessionHistory = sessionStorage.getItem(`chronicle_history_${id}`)
-
         if (draft && normalizeContentForCompare(draft) !== normalizeContentForCompare(detail.content || '')) {
             pendingConflictDetail.value = detail
             pendingConflictDraft.value = draft
             pendingConflictSessionHistory.value = sessionHistory
             activeModal.value = 'syncConflict'
-            return
+            return true
         }
-
         applyLoadedPost(detail, draft || detail.content || '', sessionHistory, false)
+        return true
     } catch (e) {
         console.error("Failed to load post", e)
+        return false
     }
 }
 
 async function initLoad() {
-    const queryId = route.query.id as string
+    refreshCloudAuthState()
+    const queryId = editorQueryId.value
 
-    if (queryId === 'new') {
-        redirectToRandomNew()
+    // 1. 未登录直接跳转登录
+    if (queryId && !isCloudAuthenticated()) {
+        goToLogin(queryId === 'new' ? 'create-cloud-post' : 'open-cloud-post')
         return
     }
 
-    if (queryId && queryId.startsWith('new')) {
-        // Reset state for new post
+
+    // 2. id=new，向后端请求分配唯一id，跳转到 id=new-[id]
+    if (queryId === 'new') {
+        try {
+            const res = await fetchWithAuth('/api/post/allocate-id', { method: 'POST' })
+            if (res.ok) {
+                const data = await res.json()
+                if (data && data.id) {
+                    router.replace({ path: '/editor', query: { id: `new-${data.id}` } })
+                    return
+                }
+            }
+        } catch (e) {}
+        // 分配失败，回退本地新建
         postId.value = null
         postTitle.value = t('editor.untitled')
         isDefaultTitle.value = true
-        postStatus.value = 'draft'
-        postTags.value = []
-        postFont.value = 'sans'
+        postStatus.value = 'local'
+        postDate.value = ''
+        postUpdated.value = ''
         postAuthor.value = ''
         postAIGenerated.value = false
         localValue.value = ''
-
         savedContent.value = ''
         savedTitle.value = t('editor.untitled')
+        history.value = ['']
+        historyIndex.value = 0
+        return
+    }
 
-        // Check draft/history for this specific ID
-        const dKey = `chronicle_draft_${queryId}`
-        const hKey = `chronicle_history_${queryId}`
-
-        const draft = localStorage.getItem(dKey)
-        const sessionHistory = sessionStorage.getItem(hKey)
-
-        if (draft) {
-            localValue.value = draft
-        }
-
-        if (sessionHistory) {
-            try {
-                const h = JSON.parse(sessionHistory)
-                history.value = h.stack
-                historyIndex.value = h.index
-            } catch (e) {
-                history.value = [localValue.value]
-                historyIndex.value = 0
+    // 3. id=new-xxx，调用后端校验接口，若不可用则回退到 id=new，否则分配该 id 并清空编辑区
+    if (queryId && /^new-([a-zA-Z0-9\-_]+)$/.test(queryId)) {
+        const match = queryId.match(/^new-([a-zA-Z0-9\-_]+)$/)
+        const candidateId = match && match[1]
+        let valid = false
+        try {
+            const res = await fetchWithAuth('/api/post/validate-id', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: candidateId })
+            })
+            if (res.ok) {
+                const data = await res.json()
+                valid = !!(data && data.valid)
             }
-        } else {
-            history.value = [localValue.value]
-            historyIndex.value = 0
+        } catch (e) {}
+        if (!valid) {
+            router.replace({ path: '/editor', query: { id: 'new' } })
+            return
+        }
+        // id 可用，清空编辑区，准备新建云端文章
+        postId.value = candidateId
+        postTitle.value = t('editor.untitled')
+        isDefaultTitle.value = true
+        postStatus.value = 'draft'
+        postDate.value = ''
+        postUpdated.value = ''
+        postAuthor.value = ''
+        postAIGenerated.value = false
+        localValue.value = ''
+        savedContent.value = ''
+        savedTitle.value = t('editor.untitled')
+        history.value = ['']
+        historyIndex.value = 0
+        return
+    }
+
+    // 4. 非法 id，回退到 id=new
+    if (queryId && !/^[a-zA-Z0-9\-_]+$/.test(queryId)) {
+        router.replace({ path: '/editor', query: { id: 'new' } })
+        return
+    }
+
+    // 4. id=xxx，尝试加载，失败则回退到 id=new
+    if (queryId) {
+        const ok = await loadPostById(queryId)
+        if (!ok) {
+            router.replace({ path: '/editor', query: { id: 'new' } })
         }
         return
     }
 
-    if (queryId) {
-        await loadPostById(queryId)
-        return
-    }
-
-    // No ID parameter -> Same as 'new' logic for now or redirect
-    // We treat no ID as create mode
+    // 5. 无id，进入本地模式
     postId.value = null
     postTitle.value = t('editor.untitled')
     isDefaultTitle.value = true
-    postStatus.value = 'draft'
+    postStatus.value = 'local'
     postDate.value = ''
     postUpdated.value = ''
     postAuthor.value = ''
@@ -1449,11 +1890,7 @@ async function initLoad() {
     localValue.value = ''
     savedContent.value = ''
     savedTitle.value = t('editor.untitled')
-
-    // Check 'new' draft
-    const draft = localStorage.getItem('chronicle_draft_new')
-    if (draft) localValue.value = draft
-    history.value = [localValue.value]
+    history.value = ['']
     historyIndex.value = 0
 }
 
@@ -1467,8 +1904,6 @@ watch(localValue, (val) => {
     if (!isTimeTraveling.value) {
         debouncedPush(val)
     }
-    // Also invoke save immediately (debounced inside) for draft
-    saveToLocalStorage()
     void nextTick(() => {
         refreshPreviewSearchSource()
         applyPreviewSearchHighlights()
@@ -1482,7 +1917,7 @@ function undo() {
         localValue.value = history.value[historyIndex.value]
         nextTick(() => {
             isTimeTraveling.value = false
-            saveToLocalStorage()
+            // no auto-save for local file mode
         })
     }
 }
@@ -1494,7 +1929,7 @@ function redo() {
         localValue.value = history.value[historyIndex.value]
         nextTick(() => {
             isTimeTraveling.value = false
-            saveToLocalStorage()
+            // no auto-save for local file mode
         })
     }
 }
@@ -1902,6 +2337,12 @@ function onKeydown(e: KeyboardEvent) {
     }
 
     if (key === 's') {
+        if (!isCloudEditing.value) {
+            e.preventDefault()
+            e.stopPropagation()
+            void saveLocalDirect()
+            return
+        }
         openSaveModal('publish')
         e.preventDefault()
         e.stopPropagation()
@@ -1976,6 +2417,10 @@ const getIconForFile = (name: string) => {
 
 async function fetchServerImages() {
     try {
+        if (!isCloudAuthenticated()) {
+            uploadedImages.value = []
+            return
+        }
         const path = selectedCategory.value
         const res = await fetchWithAuth(`/api/files?path=${encodeURIComponent(path)}&t=${Date.now()}`)
         if (res.ok) {
@@ -1993,6 +2438,11 @@ async function fetchServerImages() {
 }
 
 async function openImageModal() {
+    refreshCloudAuthState()
+    if (!isCloudEditing.value || postStatus.value === 'local') {
+        fileInputRef.value?.click()
+        return
+    }
     activeModal.value = 'media'
     selectedCategory.value = 'pic' // Default start
     fetchServerImages()
@@ -2011,15 +2461,15 @@ function insertMediaMarkdown(name: string, path: string, category?: string) {
     let insertText = ''
 
     // 1. Image (Keep standard markdown image)
+    const markdownPath = /^(https?:|blob:|data:|file:|\/)/i.test(path) ? path : `${CDN_BASE_URL}${path}`
+
     if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) {
         // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¤ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â½ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¥ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¾ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¹ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¼ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â½ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¥CDN
-        const url = !path.startsWith('http') ? `${CDN_BASE_URL}${path}` : path;
-        insertText = `\n![${name}](${url})\n`;
+        insertText = `\n![${name}](${markdownPath})\n`;
     }
     // 2. Audio/Video/Doc/Other -> Use standard Link syntax, Parser will render as Card
     else {
-        const url = !path.startsWith('http') ? `${CDN_BASE_URL}${path}` : path;
-        insertText = `\n[${name}](${url})\n`;
+        insertText = `\n[${name}](${markdownPath})\n`;
     }
 
     localValue.value = text.substring(0, start) + insertText + text.substring(end);
@@ -2036,12 +2486,22 @@ function insertMediaMarkdown(name: string, path: string, category?: string) {
 }
 
 function triggerFileUpload() {
+    refreshCloudAuthState()
     fileInputRef.value?.click()
 }
 
 async function handleFileSelect(event: Event) {
     const input = event.target as HTMLInputElement
     if (input.files && input.files[0]) {
+        if (!isCloudEditing.value) {
+            const files = Array.from(input.files)
+            files.forEach((file) => {
+                const localPath = URL.createObjectURL(file)
+                insertMediaMarkdown(file.name, localPath)
+            })
+            input.value = ''
+            return
+        }
         const file = input.files[0]
         const filename = encodeURIComponent(file.name)
 
@@ -2268,8 +2728,9 @@ const fontClass = computed(() => {
     display: flex;
     flex-direction: column;
     gap: 0;
-    padding: 0 12px;
-    background: var(--bg-secondary);
+    padding: 4px 12px 0 12px;
+    /*background: var(--bg-secondary);*/
+    background: var(--component-bg-blur);
     border-bottom: 1px solid var(--border-color);
     position: sticky;
     /* keep toolbar fixed inside editor viewport */
@@ -2352,7 +2813,7 @@ const fontClass = computed(() => {
 }
 
 .post-title-display {
-    margin: 0;
+    margin: 0 0 0 10px;
     font-size: 16px;
     font-weight: 700;
     font-variation-settings: 'wght' 700;
@@ -2637,6 +3098,11 @@ const fontClass = computed(() => {
     gap: 8px;
 }
 
+button{
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+    border-radius: 8px;
+}
+
 .search-nav-btn {
     width: 30px;
     height: 30px;
@@ -2658,7 +3124,8 @@ const fontClass = computed(() => {
     left: 0;
     width: 100%;
     height: 100%;
-    background: var(--component-bg-blur-alt);
+    background: #000a;
+    backdrop-filter: blur(4px);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -2738,6 +3205,11 @@ const fontClass = computed(() => {
     color: var(--text-primary);
 }
 
+.close-btn :deep(svg){
+    min-width: 20px;
+    min-height: 20px;
+}
+
 .modal-body {
     padding: 16px;
     overflow-y: auto;
@@ -2771,6 +3243,8 @@ const fontClass = computed(() => {
     color: var(--component-text-primary);
     font-size: 14px;
 }
+
+
 
 .modal-sidebar-item:hover {
     background: var(--component-bg-hover);
@@ -2852,7 +3326,6 @@ const fontClass = computed(() => {
     color: var(--text-on-accent);
     border: none;
     padding: 8px 16px;
-    border-radius: 4px;
     cursor: pointer;
 }
 
@@ -3037,7 +3510,7 @@ const fontClass = computed(() => {
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     color: var(--text-primary);
-    border-radius: 4px;
+    border-radius: 8px;
     outline: none;
 }
 
@@ -3049,6 +3522,7 @@ const fontClass = computed(() => {
     display: flex;
     justify-content: flex-end;
     gap: 10px;
+    margin-top: 12px;
 }
 
 .secondary-btn {
@@ -3056,7 +3530,6 @@ const fontClass = computed(() => {
     border: 1px solid var(--border-color);
     color: var(--component-text-primary);
     padding: 8px 16px;
-    border-radius: 4px;
     cursor: pointer;
 }
 
@@ -3134,7 +3607,7 @@ const fontClass = computed(() => {
     gap: 8px;
     background: var(--component-bg-hover);
     padding: 8px;
-    border-radius: 4px;
+    border-radius: 8px;
     border: 1px solid var(--border-color);
 }
 
@@ -3146,15 +3619,15 @@ const fontClass = computed(() => {
 }
 
 .tag-badge {
-    background: var(--component-bg-secondary);
+    background: var(--accent-color-bg);
     color: var(--component-text-primary);
     font-size: 12px;
-    padding: 2px 6px;
-    border-radius: 6px;
+    padding: 2px 8px;
+    border-radius: 4px;
     display: flex;
     align-items: center;
     gap: 4px;
-    border: 1px solid var(--border-color);
+    border: none;
     user-select: none;
 }
 
@@ -3199,6 +3672,7 @@ const fontClass = computed(() => {
 .small-btn {
     padding: 6px 12px;
     font-size: 13px;
+    border-color: var(--border-color-blur);
 }
 
 .small-btn.active {
@@ -3261,7 +3735,6 @@ const fontClass = computed(() => {
     flex: 1;
     display: flex;
     flex-direction: column;
-    padding: 20px;
     overflow: hidden;
 }
 
@@ -3269,9 +3742,8 @@ const fontClass = computed(() => {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
     border-bottom: 1px solid var(--border-color);
-    padding-bottom: 15px;
+    padding: 15px;
 }
 
 .header h3 {
@@ -3283,6 +3755,8 @@ const fontClass = computed(() => {
 .content-body {
     flex: 1;
     overflow-y: auto;
+    margin-top: 0;
+    padding: 10px 20px;
 }
 
 .warning-box {
@@ -3512,6 +3986,12 @@ const fontClass = computed(() => {
 .danger-outline {
     border-color: var(--status-error);
     color: var(--status-error);
+}
+
+.danger-outline:hover {
+    background: var(--status-error);
+    border-color: var(--status-error);
+    color: var(--text-on-accent);
 }
 
 @keyframes slideIn {

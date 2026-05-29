@@ -26,7 +26,8 @@ const allowedOrigins = [
     'https://blogmanager.eightyfor.top',
     'http://localhost:3000',
     'http://localhost:5173',
-    'http://localhost:4321'
+    'http://localhost:4321',
+    'http://localhost:4173'
 ];
 const corsOptions = {
     origin: function(origin, callback) {
@@ -3574,6 +3575,7 @@ app.post('/api/post', (req, res) => {
         // track whether this post was already published before this request
         let wasPublished = false;
 
+        // 编辑：仅允许已存在 id
         if (data.id) {
             post = posts.find(p => p.id === data.id);
             if (post) wasPublished = post.status === 'published';
@@ -3584,7 +3586,6 @@ app.post('/api/post', (req, res) => {
                 if (content !== undefined) {
                     post.summary = content.slice(0, 200).replace(/[#*`\[\]]/g, '');
                 }
-
                 // For directory-based storage, manage draft files instead of draftFilename
                 if (status === 'modifying') {
                     post.status = 'modifying';
@@ -3605,8 +3606,18 @@ app.post('/api/post', (req, res) => {
             }
         }
 
+        // 新建：始终由后端分配唯一 id，忽略前端传入的 id
         if (!post) {
-            const id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36);
+            const existingIds = new Set(posts.map(p => p.id));
+            let id;
+            let tryCount = 0;
+            do {
+                id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+                tryCount++;
+            } while (existingIds.has(id) && tryCount < 10);
+            if (existingIds.has(id)) {
+                return res.status(500).json({ success: false, message: 'Failed to allocate unique id' });
+            }
             const filename = `${id}.md`;
             post = {
                 id,
@@ -3746,6 +3757,46 @@ app.delete('/api/post', (req, res) => {
         res.json({ success: true });
     } catch(e) {
         res.status(500).send('Error');
+    }
+});
+
+// 分配唯一 post id
+app.post('/api/post/allocate-id', (req, res) => {
+    try {
+        let posts = [];
+        try { posts = JSON.parse(fs.readFileSync(INDEX_FILE, 'utf-8') || '[]'); } catch(e){}
+        const existingIds = new Set(posts.map(p => p.id));
+        let id;
+        let tryCount = 0;
+        do {
+            id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+            tryCount++;
+        } while (existingIds.has(id) && tryCount < 10);
+        if (existingIds.has(id)) {
+            return res.status(500).json({ success: false, message: 'Failed to allocate unique id' });
+        }
+        res.json({ success: true, id });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message || 'Failed to allocate id' });
+    }
+});
+
+// 校验 id 格式和可用性（未被占用且格式合法）
+app.post('/api/post/validate-id', (req, res) => {
+    try {
+        const { id } = req.body || {};
+        if (!id || typeof id !== 'string' || !/^[a-zA-Z0-9\-]{6,}$/.test(id)) {
+            return res.json({ success: false, valid: false, reason: 'invalid-format' });
+        }
+        let posts = [];
+        try { posts = JSON.parse(fs.readFileSync(INDEX_FILE, 'utf-8') || '[]'); } catch(e){}
+        const exists = posts.some(p => p.id === id);
+        if (exists) {
+            return res.json({ success: true, valid: false, reason: 'conflict' });
+        }
+        return res.json({ success: true, valid: true });
+    } catch (e) {
+        res.status(500).json({ success: false, valid: false, reason: 'error', message: e.message || 'validate failed' });
     }
 });
 

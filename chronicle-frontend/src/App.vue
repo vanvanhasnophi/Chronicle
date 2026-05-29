@@ -3,7 +3,7 @@ import { fetchWithAuth } from './utils/fetchWithAuth';
 import { readApiErrorMessage } from './utils/apiError.ts'
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
-import { Icons } from './utils/icons'
+import { ShellIcons } from './utils/shellIcons'
 import { ensureNotoLoaded } from './utils/fontLoader'
 import { hexToRgbString } from './utils/colorUtils'
 import { resolveBackgroundCompression, resolveBackgroundUrl } from './utils/backgroundSettings'
@@ -16,6 +16,7 @@ import { useI18n } from 'vue-i18n'
 const route = useRoute()
 const router = useRouter()
 const isPrintPreviewRoute = computed(() => route.path === '/editor/print')
+const isEditorRoute = computed(() => route.path === '/editor' || isPrintPreviewRoute.value)
 const isBackend = computed(() => {
   // Explicit frontend routes: Home, BlogList, BlogPost, Search, Friends
   const frontendPrefixes = ['/', '/blogs', '/post', '/search', '/friends']
@@ -55,6 +56,21 @@ const backgroundObjectUrls = new Set<string>()
 let currentBackgroundUrl = ''
 let backgroundSuspended = false
 let bgRouteSuspendTimer: number | null = null
+
+function syncEditorBackgroundLayerUsage() {
+  try {
+    const hideLayer = isEditorRoute.value
+    try {
+      if (hideLayer) document.body.classList.add('editor-no-bg-layer')
+      else document.body.classList.remove('editor-no-bg-layer')
+    } catch (e) { }
+
+    const layer = document.getElementById('chronicle-bg-layer')
+    if (layer) {
+      layer.style.display = hideLayer ? 'none' : 'block'
+    }
+  } catch (e) { }
+}
 
 function parseBackgroundMeta(raw: any) {
   try {
@@ -654,6 +670,7 @@ function applyBackendLocaleIfNeeded() {
 onMounted(async () => {
   // Always apply settings global (fonts)
   await applySettings()
+  try { syncEditorBackgroundLayerUsage() } catch (e) { }
 
   // Defer custom background rendering until LCP is finished.
   try { scheduleCustomBackgroundAfterLcp() } catch (e) { }
@@ -808,12 +825,14 @@ onBeforeUnmount(() => {
     }
     backgroundSuspended = false
   } catch (e) { }
+  try { document.body.classList.remove('editor-no-bg-layer') } catch (e) { }
 })
 
 // when route changes, switch between frontend/backend locale policies
 watch(route, () => {
   // navigation happened -> give navigation priority over background rendering
   isMenuOpen.value = false
+  try { syncEditorBackgroundLayerUsage() } catch (e) { }
   // cancel any in-progress background staging
   try { bgRenderVersion++ } catch (e) { }
   try {
@@ -824,9 +843,13 @@ watch(route, () => {
     }
     // resume background rendering shortly after navigation settles
     bgRouteSuspendTimer = window.setTimeout(() => {
-      try { backgroundSuspended = false } catch (e) { }
+      // Keep background suspended while editor is active.
+      try { backgroundSuspended = isEditorRoute.value } catch (e) { }
       try { bgRouteSuspendTimer = null } catch (e) { }
-      try { void applySettings() } catch (e) { }
+      try {
+        if (!isEditorRoute.value) void applySettings()
+      } catch (e) { }
+      try { syncEditorBackgroundLayerUsage() } catch (e) { }
     }, 250)
   } catch (e) { }
 
@@ -842,7 +865,6 @@ watch(route, () => {
 const isMenuOpen = ref(false)
 const isBuildActive = computed(() => route.path.startsWith('/settings/build'))
 import { APP_VERSION, APP_YEAR } from './version'
-import { isVariableDeclaration } from 'typescript';
 const docTitle = ref(typeof document !== 'undefined' ? document.title : '')
 let titleObserver: MutationObserver | null = null
 
@@ -934,7 +956,7 @@ async function rebuildFrontend() {
   <div id="app">
     <template v-if="showBackendShell">
       <button class="menu-toggle backend-menu-toggle" @click="isMenuOpen = !isMenuOpen" 
-        v-html="isMenuOpen ? null : Icons.menu" aria-label="Toggle backend navigation"></button>
+        v-html="isMenuOpen ? null : ShellIcons.menu" aria-label="Toggle backend navigation"></button>
 
       <aside class="backend-sidebar" :class="{ 'mobile-open': isMenuOpen }">
         <div class="backend-sidebar-header">
@@ -943,7 +965,7 @@ async function rebuildFrontend() {
             <span class="backend-brand-subtitle">Manager</span>
           </div>
           <button v-if="isMenuOpen" class="nav-close backend-close" @click="isMenuOpen = false" aria-label="Close menu">
-            <span class="nav-close-icon" v-html="Icons.cross"></span>
+            <span class="nav-close-icon" v-html="ShellIcons.cross"></span>
           </button>
         </div>
 
@@ -955,7 +977,7 @@ async function rebuildFrontend() {
             <button type="button" class="nav-link backend-nav-link backend-tree-toggle"
               @click="toggleBackendContent">
               <span>{{ $t('nav.content') }}</span>
-              <span class="backend-tree-caret" :class="{ open: backendContentOpen }" v-html="Icons.chevron"></span>
+              <span class="backend-tree-caret" :class="{ open: backendContentOpen }" v-html="ShellIcons.chevron"></span>
             </button>
             <div v-show="backendContentOpen" class="backend-tree-children">
               <RouterLink to="/manage" class="nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('nav.posts') }}</RouterLink>
@@ -969,7 +991,7 @@ async function rebuildFrontend() {
             <button type="button" class="nav-link backend-nav-link backend-tree-toggle"
               @click="toggleBackendSettings">
               <span>{{ $t('nav.settings') }}</span>
-              <span class="backend-tree-caret" :class="{ open: backendSettingsOpen }" v-html="Icons.chevron"></span>
+              <span class="backend-tree-caret" :class="{ open: backendSettingsOpen }" v-html="ShellIcons.chevron"></span>
             </button>
             <div v-show="backendSettingsOpen" class="backend-tree-children">
               <RouterLink to="/settings/appearance" class="nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.appearance') }}</RouterLink>
@@ -980,16 +1002,16 @@ async function rebuildFrontend() {
         </div>
         <div class="backend-sidebar-footer">
           <RouterLink to="/settings/build" :class="['nav-link backend-nav-link sidebar-footer-item sidebar-footer-link', { 'router-link-active': isBuildActive }]" @click="isMenuOpen = false" :aria-current="isBuildActive ? 'page' : null">
-            <span class="icon-svg footer-icon" v-html="Icons.columns"></span>
+            <span class="icon-svg footer-icon" v-html="ShellIcons.columns"></span>
             <span class="footer-label">{{ $t('nav.build') }}</span>
           </RouterLink>
 
           <button class="sidebar-footer-item sidebar-footer-icon-btn" type="button" @click="rebuildFrontend" :disabled="!isAvailable" :class="{ 'inprogress': isRebuilding }" :title="$t('nav.buildNow')" aria-label="{{ $t('nav.buildNow') }}">
-            <span class="icon-svg footer-icon" v-html="Icons.refresh"></span>
+            <span class="icon-svg footer-icon" v-html="ShellIcons.refresh"></span>
           </button>
 
           <button class="sidebar-footer-item sidebar-footer-icon-btn" type="button" @click="openFrontend" :title="$t('nav.openFrontend')" aria-label="{{ $t('nav.openFrontend') }}">
-            <span class="icon-svg footer-icon" v-html="Icons.link"></span>
+            <span class="icon-svg footer-icon" v-html="ShellIcons.link"></span>
           </button>
         </div>
       </aside>

@@ -870,6 +870,12 @@ body.backend::after {
   pointer-events: none;
   display: block;
 }
+
+/* Editor routes opt out of the dedicated background layer. */
+body.editor-no-bg-layer #chronicle-bg-layer {
+  display: none !important;
+}
+
 /* Order inside layer (lower z => behind): image -> solid surface -> overlay */
 #chronicle-bg-layer .bg-image {
   position: absolute;

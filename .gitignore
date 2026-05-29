@@ -8,6 +8,8 @@ node_modules/
 server/data/*
 server/logs/*
 chronicle-frontend/.env.production
+chronicle-frontend/dist/server
+chronicle-frontend/dist/server/*
 scripts/media_speed_test.sh
 server/log/*
 .env

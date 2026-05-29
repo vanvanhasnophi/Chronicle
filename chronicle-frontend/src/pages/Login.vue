@@ -53,18 +53,28 @@
 <script setup lang="ts">
 import { fetchWithAuth } from '../utils/fetchWithAuth';
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { startAuthentication } from '@simplewebauthn/browser'
 import { Icons } from '../utils/icons' 
 import { useI18n } from 'vue-i18n'
 
 const router = useRouter()
+const route = useRoute()
 const { t } = useI18n()
 const password = ref('')
 const loading = ref(false)
 const error = ref('')
 const show2FAGate = ref(false)
 const inputCode = ref('')
+
+function resolveLoginTarget() {
+  const next = route.query.next
+  const target = Array.isArray(next) ? next[0] : next
+  if (typeof target === 'string' && target.startsWith('/')) {
+    return target
+  }
+  return '/manage'
+}
 
 const resetLogin = () => {
     show2FAGate.value = false
@@ -79,7 +89,7 @@ const completeLogin = () => {
         expiry: Date.now() + 24 * 60 * 60 * 1000 
     }
     localStorage.setItem('chronicle_auth', JSON.stringify(session))
-    router.push('/manage')
+  router.replace(resolveLoginTarget())
 }
 
 const handleLogin = async () => {
