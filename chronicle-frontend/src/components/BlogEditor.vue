@@ -6,15 +6,15 @@
                 <div class="meta-left">
                     <h4 class="post-title-display">{{ postTitle }}</h4>
                     <span :class="['status-chip', postStatus]">{{ $t('status.' + (postStatus || 'published')) }}</span>
-                    <span v-if="isBuilding" class="build-hint">{{ t('editor.building') }}</span>
+                    <span v-if="isBuilding" class="build-hint"><QuarterCircleSpinner :size="18"/>{{ t('editor.building') }}</span>
                     <div class="meta-dates">
                         <span class="date-item" v-if="postUpdated" title="Last Edited">
                             <span class="icon-svg tiny" v-html="Icons.edit"></span>
-                            {{ formatDateTime(postUpdated, locale) }}
+                            {{ formatDateTime(postUpdated, locale, true, false, true, t) }}
                         </span>
                         <span class="date-item faded" v-if="postDate" title="Created On">
                             <span class="icon-svg tiny" v-html="Icons.clock"></span>
-                            {{ formatDateTime(postDate, locale) }}
+                            {{ formatDateTime(postDate, locale, true, false, true, t) }}
                         </span>
                     </div>
                 </div>
@@ -244,7 +244,7 @@
                                         <span class="post-title">{{ r.title }}</span>
                                         <span class="post-status status-chip"
                                             :class="r.cloud ? 'published' : 'local'">{{ r.cloud ? t('editor.file.cloud')
-                                            : t('editor.file.local') }}</span>
+                                                : t('editor.file.local') }}</span>
                                         <span class="post-date">{{ new Date(r.ts).toLocaleString() }}</span>
                                     </div>
                                 </div>
@@ -459,13 +459,17 @@
 
                 <div class="modal-actions">
                     <button class="secondary-btn" @click="activeModal = 'none'">{{ t('editor.cancel') }}</button>
-                    <button v-if="activeModal === 'draft' && isCloudAuthenticated()" class="primary-btn"
-                        @click="doSave()" :disabled="isSaving || isBuilding || !tempTitle.trim()">
-                        {{ isSaving ? t('editor.saving') : isBuilding ? t('editor.building') :  t('editor.saveDraft') }}
+                    <button v-if="activeModal === 'draft'" class="primary-btn" @click="doSave('draft')"
+                        :disabled="isSaving || isBuilding || !tempTitle.trim()">
+                        {{ isSaving ? t('editor.saving') : isBuilding ? t('editor.building') : t('editor.saveDraft') }}
                     </button>
-                    <button v-else class="primary-btn"
-                        @click="doSave('published')" :disabled="isSaving || isBuilding || !tempTitle.trim()">
-                        {{ isSaving ? t('editor.saving') : isBuilding ? t('editor.building') : (isCloudEditing ? t('editor.publishNow') : t('editor.upload')) }}
+                    <button v-else-if="activeModal === 'publish' && isCloudEditing" class="primary-btn" @click="doSave('publish')"
+                        :disabled="isSaving || isBuilding || !tempTitle.trim()">
+                        {{ isSaving ? t('editor.saving') : isBuilding ? t('editor.building') : t('editor.publishNow') }}
+                    </button>
+                    <button v-else class="primary-btn" @click="doSave('upload')"
+                        :disabled="!isCloudAuthenticated() || isSaving || isBuilding || !tempTitle.trim()">
+                        {{ isSaving ? t('editor.saving') : isBuilding ? t('editor.building') : t('editor.upload') }}
                     </button>
                 </div>
             </div>
@@ -582,7 +586,7 @@ import { sortTags } from '../utils/tagUtils'
 import { useI18n } from 'vue-i18n'
 import CheckRow from './ui/CheckRow.vue';
 import { formatDate as formatDateUtil, formatDateTime } from '../utils/dateUtils'
-import { Check } from 'lucide-vue-next';
+import QuarterCircleSpinner from './ui/QuarterCircleSpinner.vue'
 import useToast from '../composables/useToast'
 
 const route = useRoute()
@@ -1429,8 +1433,10 @@ async function triggerAstroBuild(postId: string) {
     }
 }
 
-async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
-    if (!isCloudEditing.value && activeModal.value !== 'publish') {
+async function doSave(action?: 'local' | 'draft' | 'publish' | 'upload' | 'unsaved') {
+    // Determine intent based on action
+    const intent = action || (activeModal.value || 'draft')
+    if (intent === 'local' || !intent&&(!isCloudEditing.value && activeModal.value !== 'publish')) {
         const titleToKeep = (tempTitle.value && tempTitle.value.trim())
             ? tempTitle.value
             : (isDefaultTitle.value ? t('editor.untitled') : postTitle.value)
@@ -1448,88 +1454,135 @@ async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
         return
     }
 
-    if (!isCloudEditing.value && activeModal.value === 'publish') {
+    if (intent === 'upload' || !intent&&(!isCloudEditing.value && activeModal.value === 'publish')) {
         if (!requireCloudAuth('create-cloud-post')) return
 
         const titleToSeed = (tempTitle.value && tempTitle.value.trim())
             ? tempTitle.value.trim()
             : (isDefaultTitle.value ? t('editor.untitled') : postTitle.value)
 
-        localStorage.setItem('chronicle_draft_new', localValue.value)
-        localStorage.setItem('chronicle_draft_new_meta', JSON.stringify({
-            title: titleToSeed,
-            tags: postTags.value,
-            font: postFont.value,
-            author: postAuthor.value,
-            aiGenerated: postAIGenerated.value,
-        }))
-        sessionStorage.setItem('chronicle_history_new', JSON.stringify({
-            stack: history.value,
-            index: historyIndex.value,
-        }))
+        // Request an id from backend now, store draft under id-specific keys, then redirect to new-[id]
+        try {
+            const allocRes = await fetchWithAuth('/api/post/allocate-id', { method: 'POST' })
+            if (allocRes.ok) {
+                const allocData = await allocRes.json()
+                const newId = allocData && allocData.id
+                if (newId) {
+                    localStorage.setItem(`chronicle_draft_${newId}`, localValue.value)
+                    localStorage.setItem(`chronicle_draft_meta_${newId}`, JSON.stringify({
+                        title: titleToSeed,
+                        tags: postTags.value,
+                        font: postFont.value,
+                        author: postAuthor.value,
+                        aiGenerated: postAIGenerated.value,
+                    }))
+                    sessionStorage.setItem(`chronicle_history_${newId}`, JSON.stringify({
+                        stack: history.value,
+                        index: historyIndex.value,
+                    }))
+                    router.replace({ path: '/editor', query: { id: `new-${newId}` } })
+                    postId.value = newId
+                    activeModal.value = 'none'
+                    await doSave('publish')
+                    return
+                }
+            }
+        } catch (e) {
+            console.error('[BlogEditor] allocate-id failed during upload redirect', e)
+        }
 
-        router.replace({ path: '/editor', query: { id: 'new' } })
+        // Fallback: behave as before (open new local)
+        postId.value = null
+        postTitle.value = t('editor.untitled')
+        isDefaultTitle.value = true
+        postStatus.value = 'local'
+        postDate.value = ''
+        postUpdated.value = ''
+        postAuthor.value = ''
+        postAIGenerated.value = false
+        localValue.value = ''
+        savedContent.value = ''
+        savedTitle.value = t('editor.untitled')
+        history.value = ['']
+        historyIndex.value = 0
         return
     }
 
     const previousPostId = postId.value
-    let status = forceStatus
-    if (!status) {
-        // Determine intent based on modal
-        const intent = activeModal.value
+    let status = postStatus.value
 
-        if (intent === 'publish') {
-            status = 'published'
-        } else if (intent === 'draft') {
-            // If we are currently published or modifying, we stay in modifying state (draft of published)
-            if (postStatus.value === 'published' || postStatus.value === 'modifying') {
-                status = 'modifying'
-            } else {
-                status = 'draft'
-            }
-        } else if (intent === 'unsaved') {
-            // Default to keeping current status
-            if (postStatus.value === 'local') {
-                status = 'draft'
-            } else {
-                status = postStatus.value === 'building' ? 'published' : postStatus.value
-            }
+    if (intent === 'publish') {
+        status = 'published'
+    } else if (intent === 'draft') {
+        // If we are currently published or modifying, we stay in modifying state (draft of published)
+        if (postStatus.value === 'published' || postStatus.value === 'modifying') {
+            status = 'modifying'
+        } else {
+            status = 'draft'
+        }
+    } else if (intent === 'unsaved' || intent === 'local') {
+        // Default to keeping current status
+        if (postStatus.value === 'local') {
+            status = 'draft'
+        } else {
+            status = postStatus.value === 'building' ? 'published' : postStatus.value
         }
     }
 
     isSaving.value = true
     try {
-        // Ensure title sent to server reflects client locale when it's still the default
         const titleToSend = (tempTitle.value && tempTitle.value.trim())
             ? tempTitle.value
             : (isDefaultTitle.value ? t('editor.untitled') : postTitle.value)
 
-        // 原文始终保留为 Markdown；发布时同步提交预编译 HTML。
-        // 不在客户端注入或生成 heading ids/toc — 由服务器根据实际 compiled HTML 生成权威 TOC 和 ids。
         const contentToSend = localValue.value
         const toc: Array<{ id: string; text: string; level: number }> = []
         let compiledHtml = ''
         if (status === 'published') {
             compiledHtml = convertToHtml(contentToSend, { wrapBlocks: true })
             compiledHtml = await prerenderMermaidInCompiledHtml(compiledHtml)
-            // do NOT call injectHeadingIds here; server will inject authoritative ids
         }
+
+        let requestId = postId.value
+        let isNewPost = false
+
+        if (!requestId) {
+            const queryId = editorQueryId.value
+            if (queryId && queryId.startsWith('new-')) {
+                requestId = queryId.replace(/^new-/, '')
+                isNewPost = true
+            } else {
+                const allocRes = await fetchWithAuth('/api/post/allocate-id', { method: 'POST' })
+                if (allocRes.ok) {
+                    const allocData = await allocRes.json()
+                    requestId = allocData && allocData.id
+                    isNewPost = true
+                }
+                if (!requestId) {
+                    alert('Failed to allocate id')
+                    return
+                }
+            }
+        }
+
         const res = await fetchWithAuth(`/api/post?t=${Date.now()}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                id: postId.value,
+                id: requestId,
                 title: titleToSend,
                 content: contentToSend,
                 status: status,
                 tags: postTags.value,
                 font: postFont.value,
-                author: postAuthor.value, // Ã¦â€“Â°Ã¥Â¢Å¾Ã¤Â½Å“Ã¨â‚¬â€¦Ã¥Â­â€”Ã¦Â®Âµ
-                aiGenerated: postAIGenerated.value, // Ã¦â€“Â°Ã¥Â¢Å¾AIÃ§â€Å¸Ã¦Ë†ÂÃ¥Â­â€”Ã¦Â®Âµ
+                author: postAuthor.value,
+                aiGenerated: postAIGenerated.value,
                 compiledHtml,
                 toc,
+                newPost: isNewPost,
             })
         })
+
         if (res.ok) {
             const data = await res.json()
             if (data.id) {
@@ -1544,35 +1597,29 @@ async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
                 postUpdated.value = new Date().toISOString()
                 if (!postDate.value) postDate.value = postUpdated.value
 
-                // Update baseline
                 savedContent.value = localValue.value
                 savedTitle.value = tempTitle.value
 
-                // Update history to include this save point if not already
-                // But usually save doesn't change content, just persists.
-
-                // Clear draft for current ID since it's saved
                 if (previousPostId && previousPostId !== 'new') {
                     localStorage.removeItem(`chronicle_draft_${previousPostId}`)
                     sessionStorage.removeItem(`chronicle_history_${previousPostId}`)
                 }
 
-                if (!previousPostId && activeModal.value === 'publish') {
+                if (!previousPostId && intent === 'publish') {
                     const currentUrl = new URL(window.location.href)
                     currentUrl.searchParams.set('id', data.id)
                     router.replace(currentUrl.pathname + currentUrl.search)
                 } else if (previousPostId === 'new' && route.query.id !== data.id) {
                     router.replace({ query: { ...route.query, id: data.id } as any })
+                } else if (editorQueryId.value && editorQueryId.value.startsWith('new-')) {
+                    router.replace({ query: { id: data.id } as any })
                 }
             }
 
             const shouldBuildAstro = status === 'published'
-            // Show toast?
-            // alert(`Successfully ${status === 'draft' ? 'saved as Draft' : 'Published'}!`)
             closeModals()
 
             if (shouldBuildAstro) {
-                // First, attempt to read server settings. If this fails, treat as false (do not trigger build).
                 let allowBuild = false
                 try {
                     const sres = await fetchWithAuth(`/api/settings?t=${Date.now()}`)
@@ -1583,7 +1630,6 @@ async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
                         allowBuild = false
                     }
                 } catch (e) {
-                    // network or other error reading settings -> treat as false
                     allowBuild = false
                 }
 
@@ -1597,14 +1643,41 @@ async function doSave(forceStatus?: 'draft' | 'published' | 'modifying') {
                         showToast(`${t('settings.buildErrorPrefix') as string}${rawMessage}`, { status: 'error', position: 'bottom-center', shape: 'capsule' })
                     }
                 } else {
-                    // Not allowed or failed to read settings -> skip build
                     postStatus.value = 'published'
                 }
             }
         } else {
-            alert('Save failed')
+            const errorData = await res.json().catch(() => ({}))
+            const errorMessage = errorData.message || 'Save failed'
+
+            if (res.status === 400) {
+                if (errorMessage === 'ID already exists' || errorMessage === 'Invalid id format' || errorMessage === 'ID required') {
+                    try {
+                        const allocRes = await fetchWithAuth('/api/post/allocate-id', { method: 'POST' })
+                        if (allocRes.ok) {
+                            const allocData = await allocRes.json()
+                            const newId = allocData && allocData.id
+                            if (newId) {
+                                showToast(t('editor.usingNewIdRetry') as string, { status: 'warning', position: 'bottom-center', shape: 'capsule' })
+                                const currentUrl = new URL(window.location.href)
+                                currentUrl.searchParams.set('id', `new-${newId}`)
+                                router.replace(currentUrl.pathname + currentUrl.search)
+                                return
+                            }
+                        }
+                    } catch (e) {
+                        console.error('[BlogEditor] allocate-id failed after error', e)
+                    }
+                    alert(`${errorMessage}. Please try again.`)
+                } else {
+                    alert(errorMessage)
+                }
+            } else {
+                alert(errorMessage)
+            }
         }
     } catch (e) {
+        console.error('[BlogEditor] Save error', e)
         alert('Error saving')
     } finally {
         isSaving.value = false
@@ -1790,6 +1863,21 @@ async function initLoad() {
     refreshCloudAuthState()
     const queryId = editorQueryId.value
 
+    // 严格校验 query：仅允许存在单一的 `id` 参数；否则导航到无 query（本地 editor）
+    try {
+        const qkeys = Object.keys(route.query || {})
+        if (qkeys.length > 0) {
+            if (!(qkeys.length === 1 && qkeys[0] === 'id')) {
+                router.replace({ path: '/editor' })
+                return
+            }
+        }
+    } catch (e) {
+        // 如果读取 query 失败，回退到无 query
+        router.replace({ path: '/editor' })
+        return
+    }
+
     // 1. 未登录直接跳转登录
     if (queryId && !isCloudAuthenticated()) {
         goToLogin(queryId === 'new' ? 'create-cloud-post' : 'open-cloud-post')
@@ -1808,7 +1896,7 @@ async function initLoad() {
                     return
                 }
             }
-        } catch (e) {}
+        } catch (e) { }
         // 分配失败，回退本地新建
         postId.value = null
         postTitle.value = t('editor.untitled')
@@ -1826,11 +1914,12 @@ async function initLoad() {
         return
     }
 
-    // 3. id=new-xxx，调用后端校验接口，若不可用则回退到 id=new，否则分配该 id 并清空编辑区
+    // 3. id=new-xxx，调用后端校验接口
     if (queryId && /^new-([a-zA-Z0-9\-_]+)$/.test(queryId)) {
         const match = queryId.match(/^new-([a-zA-Z0-9\-_]+)$/)
         const candidateId = match && match[1]
         let valid = false
+        let reason = ''
         try {
             const res = await fetchWithAuth('/api/post/validate-id', {
                 method: 'POST',
@@ -1840,32 +1929,66 @@ async function initLoad() {
             if (res.ok) {
                 const data = await res.json()
                 valid = !!(data && data.valid)
+                reason = data && data.reason || ''
             }
-        } catch (e) {}
-        if (!valid) {
+        } catch (e) { }
+
+        // 如果id已存在（conflict），加载已有文章，地址栏变为id=xxx
+        if (reason === 'conflict') {
+            if (!candidateId) {
+                router.replace({ path: '/editor', query: { id: 'new' } })
+                return
+            }
+            const ok = await loadPostById(candidateId)
+            if (ok) {
+                router.replace({ query: { id: candidateId } as any })
+            } else {
+                router.replace({ path: '/editor', query: { id: 'new' } })
+            }
+            return
+        }
+
+        // 如果id格式不合法（invalid-format），回退到id=new
+        if (!valid || reason === 'invalid-format') {
             router.replace({ path: '/editor', query: { id: 'new' } })
             return
         }
-        // id 可用，清空编辑区，准备新建云端文章
+
+        // id可用，尝试从本地存储恢复临时草稿（如果存在），否则清空编辑区准备新建云端文章
         postId.value = candidateId
-        postTitle.value = t('editor.untitled')
-        isDefaultTitle.value = true
+        const draftKey = `chronicle_draft_${candidateId}`
+        const metaKey = `chronicle_draft_meta_${candidateId}`
+        const historyKey = `chronicle_history_${candidateId}`
+        const savedDraft = localStorage.getItem(draftKey)
+        const savedMetaRaw = localStorage.getItem(metaKey)
+        const savedHistoryRaw = sessionStorage.getItem(historyKey)
+        let savedMeta = null
+        try { savedMeta = savedMetaRaw ? JSON.parse(savedMetaRaw) : null } catch (e) { savedMeta = null }
+        let savedHistory = null
+        try { savedHistory = savedHistoryRaw ? JSON.parse(savedHistoryRaw) : null } catch (e) { savedHistory = null }
+
+        postTitle.value = (savedMeta && savedMeta.title) ? savedMeta.title : t('editor.untitled')
+        isDefaultTitle.value = !(savedMeta && savedMeta.title)
         postStatus.value = 'draft'
         postDate.value = ''
         postUpdated.value = ''
-        postAuthor.value = ''
-        postAIGenerated.value = false
-        localValue.value = ''
+        postAuthor.value = (savedMeta && savedMeta.author) ? savedMeta.author : ''
+        postAIGenerated.value = !!(savedMeta && savedMeta.aiGenerated)
+        localValue.value = savedDraft || ''
         savedContent.value = ''
-        savedTitle.value = t('editor.untitled')
-        history.value = ['']
-        historyIndex.value = 0
+        savedTitle.value = postTitle.value
+        history.value = (savedHistory && savedHistory.stack) ? savedHistory.stack : ['']
+        historyIndex.value = (savedHistory && typeof savedHistory.index === 'number') ? savedHistory.index : 0
+        postTags.value = (savedMeta && savedMeta.tags) ? savedMeta.tags : []
+        postFont.value = (savedMeta && savedMeta.font) ? savedMeta.font : 'sans'
+        // If we restored from localStorage, remove the temporary keys to avoid reuse
+        try { localStorage.removeItem(draftKey); localStorage.removeItem(metaKey); sessionStorage.removeItem(historyKey) } catch (e) { }
         return
     }
 
-    // 4. 非法 id，回退到 id=new
+    // 4. 非法 id，回退至本地 editor（no query）
     if (queryId && !/^[a-zA-Z0-9\-_]+$/.test(queryId)) {
-        router.replace({ path: '/editor', query: { id: 'new' } })
+        router.replace({ path: '/editor' })
         return
     }
 
@@ -2790,6 +2913,9 @@ const fontClass = computed(() => {
     line-height: 1.2;
     color: var(--component-text-secondary);
     overflow: hidden;
+    transition: all 0.2s;
+    --webkit-font-smoothing: antialiased;
+    --moz-osx-font-smoothing: grayscale;
 }
 
 .date-item {
@@ -3098,10 +3224,17 @@ const fontClass = computed(() => {
     gap: 8px;
 }
 
-button{
+button {
     transition: background-color 0.2s, color 0.2s, border-color 0.2s;
     border-radius: 8px;
 }
+
+button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+
 
 .search-nav-btn {
     width: 30px;
@@ -3205,7 +3338,7 @@ button{
     color: var(--text-primary);
 }
 
-.close-btn :deep(svg){
+.close-btn :deep(svg) {
     min-width: 20px;
     min-height: 20px;
 }
@@ -3450,17 +3583,15 @@ button{
     background: var(--featured-bg);
 }
 
-.status-chip.building {
-    color: var(--warning);
-    border-color: var(--warning);
-    background: var(--warning-bg);
-}
-
 .build-hint {
-    color: var(--warning);
+    color: var(--status-progress);
     font-size: 0.82rem;
-    font-weight: 600;
+    font-weight: 500;
+    font-variation-settings: 'wght' 500;
     letter-spacing: 0.02em;
+    align-items: center;
+    display: inline-flex;
+    gap: 6px;
 }
 
 .toolbar-btn.danger-btn {

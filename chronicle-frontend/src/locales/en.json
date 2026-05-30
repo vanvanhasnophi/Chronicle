@@ -445,7 +445,7 @@
   "editor": {
     "restore": "Restore",
     "save": "Save",
-    "upload":"Upload",
+    "upload": "Upload",
     "draft": "Draft",
     "publish": "Publish",
     "fileUpload": "File Upload",
@@ -532,6 +532,7 @@
     "countWordsPlural": "{count} words",
     "rows": "Rows",
     "cols": "Cols",
+    "usingNewIdRetry": "ID conflict, new ID allocated. Please try again.",
     "code": {
       "lineCol": "Line: {line} | Col: {col}",
       "charSing": "{count} Char",
@@ -550,5 +551,13 @@
   },
   "formula": {
     "copied": "Formula copied"
+  },
+  "date": {
+    "justNow": "just now",
+    "minutesAgo": "{count}m ago",
+    "hoursAgo": "{count}h ago",
+    "yesterday": "yesterday",
+    "twoDaysAgo": "2d ago",
+    "daysAgo": "{count}d ago"
   }
 }

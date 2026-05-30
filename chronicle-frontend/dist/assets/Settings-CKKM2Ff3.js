@@ -1,0 +1,1 @@
+import{_ as t,B as s,c as o,o as c,a as n,C as a}from"./index-DPpTv_Gk.js";const r={},_={class:"settings-page"},i={class:"settings-content"};function d(p,f){const e=s("router-view");return c(),o("div",_,[n("main",i,[a(e)])])}const m=t(r,[["render",d],["__scopeId","data-v-2c4f188b"]]);export{m as default};

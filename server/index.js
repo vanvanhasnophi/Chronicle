@@ -3563,7 +3563,20 @@ app.post('/api/restore', (req, res) => {
 app.post('/api/post', (req, res) => {
     try {
         const data = req.body;
-        if (!data.title) return res.status(400).send('Missing title');
+
+        if (!data.id) {
+            return res.status(400).json({ success: false, message: 'ID required' });
+        }
+
+        if (typeof data.id !== 'string' || !/^[a-zA-Z0-9\-]{6,}$/.test(data.id)) {
+            return res.status(400).json({ success: false, message: 'Invalid id format' });
+        }
+
+        if (!data.title) {
+            return res.status(400).json({ success: false, message: 'Missing title' });
+        }
+
+        const newPost = data.newPost === true;
 
         let posts = [];
         try { posts = JSON.parse(fs.readFileSync(INDEX_FILE, 'utf-8') || '[]'); } catch(e){}
@@ -3572,25 +3585,43 @@ app.post('/api/post', (req, res) => {
         const now = new Date().toISOString();
         const content = data.content;
         const status = data.status;
-        // track whether this post was already published before this request
         let wasPublished = false;
 
-        // 编辑：仅允许已存在 id
-        if (data.id) {
-            post = posts.find(p => p.id === data.id);
-            if (post) wasPublished = post.status === 'published';
-            if (post) {
+        const existingPost = posts.find(p => p.id === data.id);
+
+        if (newPost) {
+            if (existingPost) {
+                return res.status(400).json({ success: false, message: 'ID already exists' });
+            }
+            const filename = `${data.id}.md`;
+            post = {
+                id: data.id,
+                title: data.title,
+                date: now,
+                updatedAt: now,
+                filename,
+                dir: data.id,
+                summary: (content || '').slice(0, 200).replace(/[#*`\[\]]/g, ''),
+                tags: sortTags(data.tags || []),
+                font: data.font || 'sans',
+                author: String(data.author || '').trim(),
+                aiGenerated: !!data.aiGenerated,
+                status: status || 'draft'
+            };
+            posts.push(post);
+        } else {
+            if (existingPost) {
+                post = existingPost;
+                wasPublished = post.status === 'published';
                 post.title = data.title || post.title;
                 if (data.author !== undefined) post.author = String(data.author || '').trim();
                 if (data.aiGenerated !== undefined) post.aiGenerated = !!data.aiGenerated;
                 if (content !== undefined) {
                     post.summary = content.slice(0, 200).replace(/[#*`\[\]]/g, '');
                 }
-                // For directory-based storage, manage draft files instead of draftFilename
                 if (status === 'modifying') {
                     post.status = 'modifying';
                 } else if (status === 'published') {
-                    // Remove any draft file named <id>-draft.md if promoting to published
                     const dir = getPostDir(post)
                     const draftPath = path.join(dir, `${post.id}-draft.md`)
                     if (fs.existsSync(draftPath)) fs.unlinkSync(draftPath)
@@ -3601,44 +3632,28 @@ app.post('/api/post', (req, res) => {
                 if (data.tags) post.tags = sortTags(data.tags || []);
                 if (data.font) post.font = data.font;
                 post.updatedAt = now;
-                // Ensure post.dir exists for new/legacy posts
                 if (!post.dir) post.dir = post.id
+            } else {
+                const filename = `${data.id}.md`;
+                post = {
+                    id: data.id,
+                    title: data.title,
+                    date: now,
+                    updatedAt: now,
+                    filename,
+                    dir: data.id,
+                    summary: (content || '').slice(0, 200).replace(/[#*`\[\]]/g, ''),
+                    tags: sortTags(data.tags || []),
+                    font: data.font || 'sans',
+                    author: String(data.author || '').trim(),
+                    aiGenerated: !!data.aiGenerated,
+                    status: status || 'draft'
+                };
+                posts.push(post);
             }
         }
 
-        // 新建：始终由后端分配唯一 id，忽略前端传入的 id
-        if (!post) {
-            const existingIds = new Set(posts.map(p => p.id));
-            let id;
-            let tryCount = 0;
-            do {
-                id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-                tryCount++;
-            } while (existingIds.has(id) && tryCount < 10);
-            if (existingIds.has(id)) {
-                return res.status(500).json({ success: false, message: 'Failed to allocate unique id' });
-            }
-            const filename = `${id}.md`;
-            post = {
-                id,
-                title: data.title,
-                date: now,
-                updatedAt: now,
-                filename,
-                dir: id,
-                summary: (content || '').slice(0, 200).replace(/[#*`\[\]]/g, ''),
-                tags: sortTags(data.tags || []),
-                font: data.font || 'sans',
-                author: String(data.author || '').trim(),
-                aiGenerated: !!data.aiGenerated,
-                status: status || 'draft'
-            };
-            posts.push(post);
-            data.id = id;
-        }
-
-        if (content !== undefined || !data.id) {
-            // Write content to per-post directory (draft or content)
+        if (content !== undefined) {
             try {
                 if (post.status === 'modifying') {
                     writePostContentToDisk(post, content || '', { draft: true })
@@ -3649,11 +3664,6 @@ app.post('/api/post', (req, res) => {
                 console.error('[Post] Failed to write content to disk', e)
             }
         } else {
-             // If content wasn't sent but metadata was updated, we should update the file metadata too.
-             // But reading, decrypting, updating FM, encrypting, saving is expensive.
-             // Given BlogEditor always sends content, we might skip this edge case or handle it.
-             // For robustness (user request: "ensure... linking"), allow metadata-only update to file:
-             // metadata-only update: update front matter in existing content.md (or legacy file)
              const dir = getPostDir(post)
              const candidate1 = path.join(dir, `${post.id}-content.md`)
              const candidate2 = path.join(dir, `${post.id}-draft.md`)
@@ -3680,19 +3690,15 @@ app.post('/api/post', (req, res) => {
 
         let compiledHtml = readCompiledHtmlFromDisk(post) || '';
 
-        // If frontend sent compiledHtml (static HTML) or html, sanitize and store it on disk
         if (data.compiledHtml || data.html) {
             try {
                 const sanitized = sanitizeHtml(data.compiledHtml || data.html);
-                // Inject ids into headings in the sanitized HTML so HTML is authoritative
                 try {
                     const injected = injectIdsIntoHtml(sanitized);
                     compiledHtml = injected.html || sanitized;
                     writeCompiledHtmlToDisk(post, compiledHtml);
-                    // Also write the toc produced by injection to disk so toc matches HTML
                     try { writeTocToDisk(post, injected.toc || []); post.toc = injected.toc || []; } catch(e) { console.error('[Toc] write failed after inject', e); }
                 } catch (e) {
-                    // fall back to writing sanitized HTML if injection fails
                     compiledHtml = sanitized;
                     writeCompiledHtmlToDisk(post, compiledHtml);
                 }
@@ -3701,7 +3707,6 @@ app.post('/api/post', (req, res) => {
             }
         }
 
-        // Server-generated TOC: ignore client-provided toc and generate from compiled HTML or markdown.
         try {
             const sourceHtml = compiledHtml || '';
             const sourceMd = content || readPostContentFromDisk(post) || '';
@@ -3714,24 +3719,9 @@ app.post('/api/post', (req, res) => {
 
         writeIndexFile(posts);
         res.json({ success: true, id: post.id });
-
-        // If this request caused a promotion to published, and settings allow it,
-        // trigger an async frontend build from the server side.
-        try {
-            const settings = getBuildSettings();
-            const shouldAutoBuild = !!settings.autoBuildOnPublish;
-            const becamePublished = post && post.status === 'published' && !wasPublished;
-            if (shouldAutoBuild && becamePublished) {
-                console.log('[AutoBuild] Post published — triggering frontend build (async)');
-                // non-blocking trigger; buildAstroFrontendWithTimeout resolves with status or timeout
-                buildAstroFrontendWithTimeout(settings, { granularity: settings.buildGranularity })
-                    .then(result => console.log('[AutoBuild] Build result:', result.status, result.buildId))
-                    .catch(err => console.error('[AutoBuild] Build failed:', err && err.message ? err.message : err));
-            }
-        } catch (e) { console.error('[AutoBuild] Failed to check/trigger build on publish', e) }
     } catch(e) {
         console.error(e);
-        res.status(500).send('Error');
+        res.status(500).json({ success: false, message: 'Error' });
     }
 });
 

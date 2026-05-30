@@ -22,7 +22,7 @@
     "sourceName": "1777967122977_kws5_R-C.jpg",
     "originalName": "1777967122977_kws5_R-C.jpg"
   },
-  "frontendBackgroundMeta": "{\"posX\":50,\"posY\":50,\"size\":132,\"blur\":0,\"overlayLightColor\":\"#ffffff\",\"overlayLightOpacity\":88,\"overlayDarkColor\":\"#000000\",\"overlayDarkOpacity\":88,\"overlayColor\":\"#000000\",\"overlayOpacity\":88,\"compressionFactor\":1,\"compression\":1,\"bgCompression\":1}",
+  "frontendBackgroundMeta": "{\"posX\":50,\"posY\":50,\"size\":132,\"blur\":38,\"overlayLightColor\":\"#ffffff\",\"overlayLightOpacity\":88,\"overlayDarkColor\":\"#000000\",\"overlayDarkOpacity\":88,\"overlayColor\":\"#000000\",\"overlayOpacity\":88,\"compressionFactor\":21.865199999999998,\"compression\":21.865199999999998,\"bgCompression\":21.865199999999998}",
   "backendBackgroundMeta": "{\"posX\":50,\"posY\":50,\"size\":100,\"blur\":10,\"overlayLightColor\":\"#ffffff\",\"overlayLightOpacity\":75,\"overlayDarkColor\":\"#000000\",\"overlayDarkOpacity\":85,\"overlayColor\":\"#000000\",\"overlayOpacity\":85,\"compressionFactor\":6.48,\"compression\":6.48,\"bgCompression\":6.48}",
   "scheduledBuildEnabled": false,
   "scheduledBuildMode": "daily",
@@ -36,7 +36,7 @@
   "frontendUrl": "blog.eightyfor.top",
   "frontendCodeDir": "/opt/Chronicle/astro-template",
   "frontendBuildTargetDir": "/var/www/blog.eightyfor.top",
-  "frontendBackgroundCompression": 1,
+  "frontendBackgroundCompression": 21.865199999999998,
   "backendBackgroundCompression": 6.48,
   "featureFlags": {
     "searchSuggestions": true,

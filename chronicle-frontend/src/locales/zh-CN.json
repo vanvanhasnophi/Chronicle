@@ -542,6 +542,7 @@
     },
     "rows": "行数",
     "cols": "列数",
+    "usingNewIdRetry": "ID冲突，已分配新ID，请重试",
     "view": {
       "split": "分屏",
       "edit": "仅编辑",
@@ -550,5 +551,13 @@
   },
   "formula": {
     "copied": "公式已复制"
+  },
+  "date": {
+    "justNow": "刚刚",
+    "minutesAgo": "{count}分钟前",
+    "hoursAgo": "{count}小时前",
+    "yesterday": "昨天",
+    "twoDaysAgo": "前天",
+    "daysAgo": "{count}天前"
   }
 }

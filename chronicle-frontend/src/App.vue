@@ -960,7 +960,7 @@ async function rebuildFrontend() {
 
       <aside class="backend-sidebar" :class="{ 'mobile-open': isMenuOpen }">
         <div class="backend-sidebar-header">
-          <div class="backend-brand" @click="router.push('/manage')">
+          <div class="backend-brand" @click="router.push('/dashboard'); isMenuOpen = false" style="cursor: pointer;">
             <h1 class="app-title">{{ $t('app.title') }}</h1>
             <span class="backend-brand-subtitle">Manager</span>
           </div>
@@ -1212,6 +1212,7 @@ async function rebuildFrontend() {
   margin: 0;
   font-size: 1.35rem;
   line-height: 1.1;
+  padding: 0;
 }
 
 .backend-brand-subtitle {
