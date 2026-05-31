@@ -383,6 +383,8 @@ button:hover, .upload-btn:hover {
 .icon-btn {
     padding: 6px;
     border-radius: 6px;
+    width: 32px;
+    height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;

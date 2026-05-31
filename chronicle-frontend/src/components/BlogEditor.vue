@@ -3054,7 +3054,7 @@ const fontClass = computed(() => {
 .editor-highlight-layer {
     position: absolute;
     inset: 0;
-    padding: 16px;
+    padding: 16px 16px 50vh 16px;
     font-family: 'Consolas', monospace;
     font-size: 14px;
     line-height: 1.5;
@@ -3074,7 +3074,7 @@ const fontClass = computed(() => {
     background: var(--bg-primary);
     color: var(--text-primary);
     border: none;
-    padding: 16px;
+    padding: 16px 16px 50vh 16px;
     font-family: 'Consolas', monospace;
     font-size: 14px;
     line-height: 1.5;
@@ -3091,7 +3091,7 @@ const fontClass = computed(() => {
 
 .preview-pane {
     background: var(--bg-primary);
-    padding: 16px;
+    padding: 16px 16px 50vh 16px;
     box-sizing: border-box;
 }
 

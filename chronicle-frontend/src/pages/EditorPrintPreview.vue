@@ -70,7 +70,7 @@ const storageKey = computed(() => {
 const fontClass = computed(() => `font-${snapshot.value?.font || 'sans'}`)
 function forceLightTheme() {
   try {
-    document.documentElement.setAttribute('data-theme', 'light')
+    document.body.setAttribute('data-theme', 'light')
     document.body.setAttribute('data-backend-theme', 'light')
     document.body.classList.add('backend')
   } catch (e) { }
@@ -252,4 +252,39 @@ h1.print-title {
     font-size: 24px;
   }
 }
+
+.print-content :deep(.editor-footer){
+  display: none;
+}
+
+.print-content :deep(.code-chunk-container .toolbar){
+  display: none;
+}
+
+.print-content :deep(.code-chunk-container .editor-wrapper,.code-textarea,.syntax-highlight){
+  max-height: none !important;
+}
+
+.print-content :deep(.code-chunk-container){
+  max-height: none !important;
+}
+
+.print-content :deep(.code-textarea){
+  max-height: none !important;
+  overflow: hidden !important;
+}
+
+.print-content :deep(.syntax-highlight){
+  max-height: none !important;
+  overflow: hidden !important;
+}
+
+.print-content :deep(thead){
+  background: #ccc;
+}
+
+.print-content :deep(.code-chunk-container.mermaid .editor-wrapper){
+  display: none;
+}
+
 </style>

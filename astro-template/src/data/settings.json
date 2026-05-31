@@ -1,19 +1,17 @@
 {
   "frontendLocale": "follow",
   "backendLocale": "en",
-  "frontendFont": "sans",
+  "frontendFont": "serif",
   "backendFont": "sans",
   "frontendTheme": "follow",
   "frontendAccent": "#2ea35f",
   "backendTheme": "follow",
   "frontendBackground": {
     "url": "/server/data/background/chr_f_bg-1770999133303_vne7_177099908700-992-8da3fd1d6e.webp",
-    "path": "chr_f_bg-1770999133303_vne7_177099908700-992-8da3fd1d6e.webp",
+    "path": "/server/data/background/chr_f_bg-1770999133303_vne7_177099908700-992-8da3fd1d6e.webp",
     "sourcePath": "pic/1770999133303_vne7_177099908700-992.webp",
     "sourceName": "1770999133303_vne7_177099908700-992.webp",
-    "originalName": "1770999133303_vne7_177099908700-992.webp",
-    "generatedPath": "chr_f_bg-1770999133303_vne7_177099908700-992-8da3fd1d6e.webp",
-    "generatedName": "chr_f_bg-1770999133303_vne7_177099908700-992-8da3fd1d6e.webp"
+    "originalName": "1770999133303_vne7_177099908700-992.webp"
   },
   "backendBackground": {
     "url": "/server/data/background/chr_b_bg-1777967122977_kws5_R-C-48e62da1b6.webp",

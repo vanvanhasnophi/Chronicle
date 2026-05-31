@@ -3,18 +3,24 @@
     <div class="manager-header">
       <h1 class="page-title">{{ $t('post.manageTitle') }}</h1>
       <div class="header-actions">
-        <button class="secondary-action-btn" @click="republishAll" :disabled="republishing || loading || posts.length === 0">
+        <button class="secondary-action-btn" @click="republishAll"
+          :disabled="republishing || loading || posts.length === 0">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
           {{ republishing ? $t('post.republishingAll') : $t('post.republishAll') }}
         </button>
         <button class="new-post-btn" @click="createNew">
-          <span class="plus">+</span> {{ $t('post.newPost') }}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg> {{ $t('post.newPost') }}
         </button>
       </div>
     </div>
 
     <div v-if="loading" class="loading">{{ $t('post.loadingPosts') }}</div>
     <div v-else-if="posts.length === 0" class="empty">{{ $t('post.noPostsFound') }}</div>
-    
+
     <div v-else class="table-wrapper">
       <table class="posts-table">
         <thead>
@@ -26,29 +32,24 @@
           </tr>
         </thead>
         <tbody>
-            <tr v-for="post in posts" :key="post.id">
+          <tr v-for="post in posts" :key="post.id">
             <td class="col-title">
               <div v-if="renamingId === post.id" class="rename-box">
-                  <input 
-                    :id="`rename-input-${post.id}`"
-                    v-model="tempRenameTitle" 
-                    @blur="saveRename(post)" 
-                    @keyup.enter="saveRename(post)"
-                    @keyup.esc="cancelRename"
-                    class="rename-input"
-                  />
+                <input :id="`rename-input-${post.id}`" v-model="tempRenameTitle" @blur="saveRename(post)"
+                  @keyup.enter="saveRename(post)" @keyup.esc="cancelRename" class="rename-input" />
               </div>
               <div v-else class="title-container" @dblclick="startRename(post)" :title="$t('post.renameHint')">
-                  <span class="title-text">{{ post.title }}</span>
-                  <span class="edit-icon-hint" @click.stop="startRename(post)">✎</span>
+                <span class="title-text">{{ post.title }}</span>
+                <span class="edit-icon-hint" @click.stop="startRename(post)">✎</span>
               </div>
-              
+
               <span v-if="post.tags && post.tags.length" class="tags-row">
-                 <span v-for="tag in sortTags(post.tags)" :key="tag" class="tag-badge">{{ tag === 'featured' ? $t('tag.featured') : tag }}</span>
+                <span v-for="tag in sortTags(post.tags)" :key="tag" class="tag-badge">{{ tag === 'featured' ?
+                  $t('tag.featured') : tag }}</span>
               </span>
             </td>
             <td>
-              <span :class="['status-badge', (typeof post.status === 'string' ? post.status : 'published') ]">
+              <span :class="['status-badge', (typeof post.status === 'string' ? post.status : 'published')]">
                 {{ $t('status.' + (typeof post.status === 'string' ? post.status : 'published')) }}
               </span>
             </td>
@@ -93,50 +94,50 @@ const tempRenameTitle = ref('')
 const renameInput = ref<HTMLInputElement | null>(null)
 
 function startRename(post: Post) {
-    renamingId.value = post.id
-    tempRenameTitle.value = post.title
-    nextTick(() => {
-        // Focus input if possible (v-for ref handling is tricky, simplified here assumption)
-        // With v-for ref array, it's better to just use autofocus or find element
-        const el = document.getElementById(`rename-input-${post.id}`)
-        if (el) el.focus()
-    })
+  renamingId.value = post.id
+  tempRenameTitle.value = post.title
+  nextTick(() => {
+    // Focus input if possible (v-for ref handling is tricky, simplified here assumption)
+    // With v-for ref array, it's better to just use autofocus or find element
+    const el = document.getElementById(`rename-input-${post.id}`)
+    if (el) el.focus()
+  })
 }
 
 async function saveRename(post: Post) {
-    if (!renamingId.value) return
-    const newTitle = tempRenameTitle.value.trim()
-    
-    if (newTitle && newTitle !== post.title) {
-         try {
-             const res = await fetchWithAuth(`/api/post?t=${Date.now()}`, {
-                 method: 'POST',
-                 body: JSON.stringify({
-                     id: post.id,
-                     title: newTitle
-                 })
-             })
-             if (res.ok) {
-                 post.title = newTitle
-             } else {
-                 alert(t('post.renameFailed'))
-             }
-         } catch(e) {
-             alert(t('post.errorRenaming'))
-         }
+  if (!renamingId.value) return
+  const newTitle = tempRenameTitle.value.trim()
+
+  if (newTitle && newTitle !== post.title) {
+    try {
+      const res = await fetchWithAuth(`/api/post?t=${Date.now()}`, {
+        method: 'POST',
+        body: JSON.stringify({
+          id: post.id,
+          title: newTitle
+        })
+      })
+      if (res.ok) {
+        post.title = newTitle
+      } else {
+        alert(t('post.renameFailed'))
+      }
+    } catch (e) {
+      alert(t('post.errorRenaming'))
     }
-    
-    renamingId.value = null
+  }
+
+  renamingId.value = null
 }
 
 function cancelRename() {
-    renamingId.value = null
+  renamingId.value = null
 }
 
 const getStatus = (s: any) => {
-    if (typeof s === 'string') return s
-    // If it's an object (likely Event due to bug) or undefined, fallback
-    return 'published'
+  if (typeof s === 'string') return s
+  // If it's an object (likely Event due to bug) or undefined, fallback
+  return 'published'
 }
 
 const formatDate = (isoStr: string) => {
@@ -152,13 +153,13 @@ const createNew = () => {
 }
 
 const editPost = (id: string) => {
-    window.open(`/editor?id=${id}`, '_blank')
+  window.open(`/editor?id=${id}`, '_blank')
 }
 
 const deletePost = async (id: string) => {
-    if (!confirm(t('post.confirmDelete'))) return
-    
-    try {
+  if (!confirm(t('post.confirmDelete'))) return
+
+  try {
     const authToken = (() => {
       try {
         const raw = localStorage.getItem('chronicle_auth')
@@ -170,87 +171,87 @@ const deletePost = async (id: string) => {
       }
     })()
 
-        const res = await fetchWithAuth(`/api/post?id=${id}&t=${Date.now()}`, {
-          method: 'DELETE',
-          headers: authToken ? { 'X-Chronicle-Auth': authToken } : {},
-        })
-        
-        if (res.ok) {
-            // refresh
-            loadPosts()
-        } else {
-            alert(t('post.failedToDelete'))
-        }
-    } catch(e) {
-        alert(t('post.errorDeleting'))
+    const res = await fetchWithAuth(`/api/post?id=${id}&t=${Date.now()}`, {
+      method: 'DELETE',
+      headers: authToken ? { 'X-Chronicle-Auth': authToken } : {},
+    })
+
+    if (res.ok) {
+      // refresh
+      loadPosts()
+    } else {
+      alert(t('post.failedToDelete'))
     }
+  } catch (e) {
+    alert(t('post.errorDeleting'))
+  }
 }
 
 async function loadPosts() {
-    loading.value = true
-    try {
-        const res = await fetchWithAuth(`/api/posts?includeDrafts=true&t=${Date.now()}`)
-        if (res.ok) {
-        posts.value = await res.json()
-        }
-    } catch (e) {
-        console.error(e)
-    } finally {
-        loading.value = false
+  loading.value = true
+  try {
+    const res = await fetchWithAuth(`/api/posts?includeDrafts=true&t=${Date.now()}`)
+    if (res.ok) {
+      posts.value = await res.json()
     }
+  } catch (e) {
+    console.error(e)
+  } finally {
+    loading.value = false
+  }
 }
 
 async function republishAll() {
-    if (republishing.value) return
-    if (!posts.value.some((post) => getStatus(post.status) === 'published')) {
-      showToast(t('post.noPublishedPosts'), { status: 'warning', position: 'bottom-center', shape: 'capsule', duration: 3000 })
-      return
+  if (republishing.value) return
+  if (!posts.value.some((post) => getStatus(post.status) === 'published')) {
+    showToast(t('post.noPublishedPosts'), { status: 'warning', position: 'bottom-center', shape: 'capsule', duration: 3000 })
+    return
+  }
+
+  if (!confirm(t('post.republishAllConfirm'))) return
+
+  republishing.value = true
+  try {
+    const res = await fetchWithAuth(`/api/admin/posts/republish-all?t=${Date.now()}`, {
+      method: 'POST',
+    })
+
+    const payload = await res.json().catch(() => null)
+    if (!res.ok || !payload?.success) {
+      throw new Error(payload?.message || t('post.republishAllFailed'))
     }
 
-    if (!confirm(t('post.republishAllConfirm'))) return
+    const successList = Array.isArray(payload.successList) ? payload.successList : Array.isArray(payload.republishedPosts) ? payload.republishedPosts : []
+    const failureList = Array.isArray(payload.failureList) ? payload.failureList : []
+    const skippedList = Array.isArray(payload.skippedList) ? payload.skippedList : Array.isArray(payload.skippedPosts) ? payload.skippedPosts : []
 
-    republishing.value = true
-    try {
-      const res = await fetchWithAuth(`/api/admin/posts/republish-all?t=${Date.now()}`, {
-        method: 'POST',
-      })
-
-      const payload = await res.json().catch(() => null)
-      if (!res.ok || !payload?.success) {
-        throw new Error(payload?.message || t('post.republishAllFailed'))
-      }
-
-      const successList = Array.isArray(payload.successList) ? payload.successList : Array.isArray(payload.republishedPosts) ? payload.republishedPosts : []
-      const failureList = Array.isArray(payload.failureList) ? payload.failureList : []
-      const skippedList = Array.isArray(payload.skippedList) ? payload.skippedList : Array.isArray(payload.skippedPosts) ? payload.skippedPosts : []
-
-      const successCount = Number(payload.successCount ?? successList.length ?? 0)
-      const failureCount = Number(payload.failureCount ?? failureList.length ?? 0)
-      const skippedCount = Number(payload.skippedCount ?? skippedList.length ?? 0)
-      const buildStatus = payload.build?.status
-      const buildMessage = payload.build?.message ? ` ${payload.build.message}` : ''
-      const html = buildRepublishToastHtml({
-        successCount,
-        failureCount,
-        skippedCount,
-        successList,
-        failureList,
-        skippedList,
-      })
-      const toastStatus = failureCount > 0 ? 'error' : (skippedCount > 0 ? 'warning' : 'success')
-      showToast(`${t('post.republishToastTitle')}：${html}${buildStatus ? ` <span class="republish-build-note">(${escapeHtml(buildStatus)}${buildMessage ? ` ${escapeHtml(buildMessage)}` : ''})</span>` : ''}`, {
-        status: toastStatus,
-        position: 'bottom-center',
-        shape: 'capsule',
-        duration: 6000,
-        rich: true,
-      })
-      await loadPosts()
-    } catch (error: any) {
-      showToast(error?.message || t('post.republishAllFailed'), { status: 'error', position: 'bottom-center', shape: 'capsule', duration: 4000 })
-    } finally {
-      republishing.value = false
-    }
+    const successCount = Number(payload.successCount ?? successList.length ?? 0)
+    const failureCount = Number(payload.failureCount ?? failureList.length ?? 0)
+    const skippedCount = Number(payload.skippedCount ?? skippedList.length ?? 0)
+    const buildStatus = payload.build?.status
+    const buildMessage = payload.build?.message ? ` ${payload.build.message}` : ''
+    const html = buildRepublishToastHtml({
+      successCount,
+      failureCount,
+      skippedCount,
+      successList,
+      failureList,
+      skippedList,
+    })
+    const toastStatus = failureCount > 0 ? 'error' : (skippedCount > 0 ? 'warning' : 'success')
+    showToast(`${t('post.republishToastTitle')}：${html}${buildStatus ? ` <span class="republish-build-note">(${escapeHtml(buildStatus)}${buildMessage ? ` ${escapeHtml(buildMessage)}` : ''})</span>` : ''}`, {
+      status: toastStatus,
+      position: 'bottom-center',
+      shape: 'capsule',
+      duration: 6000,
+      rich: true,
+    })
+    await loadPosts()
+  } catch (error: any) {
+    showToast(error?.message || t('post.republishAllFailed'), { status: 'error', position: 'bottom-center', shape: 'capsule', duration: 4000 })
+  } finally {
+    republishing.value = false
+  }
 }
 
 function escapeHtml(input: any) {
@@ -283,7 +284,7 @@ function buildRepublishToastHtml(payload: {
 }
 
 onMounted(() => {
-    loadPosts()
+  loadPosts()
 })
 </script>
 
@@ -300,8 +301,6 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 30px;
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 15px;
 }
 
 .header-actions {
@@ -317,35 +316,58 @@ onMounted(() => {
 }
 
 .new-post-btn {
+  flex-shrink: 0;
   background: var(--accent-color);
   color: var(--text-on-accent);
   border: none;
   padding: 8px 16px;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
+  line-height: 1;
   font-size: 14px;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  transition: all 0.2s;
 }
+
+.new-post-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
 .new-post-btn:hover {
   background: var(--accent-color-hover);
 }
 
 .secondary-action-btn {
+  display: flex;
+  flex-shrink: 0;
   background: transparent;
   color: var(--component-text-primary);
   border: 1px solid var(--border-color);
   padding: 8px 16px;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
+  line-height: 1;
   font-size: 14px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   transition: all 0.2s;
 }
+
+.secondary-action-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
 .secondary-action-btn:hover:not(:disabled) {
   border-color: var(--accent-color);
   color: var(--accent-color);
 }
+
 .secondary-action-btn:disabled,
 .new-post-btn:disabled {
   opacity: 0.6;
@@ -353,7 +375,7 @@ onMounted(() => {
 }
 
 .table-wrapper {
-  background: var(--bg-primary);
+  background: transparent;
   border-radius: 8px;
   border: 1px solid var(--border-color);
   overflow: hidden;
@@ -364,22 +386,26 @@ onMounted(() => {
   border-collapse: collapse;
 }
 
-.posts-table th, .posts-table td {
+.posts-table th,
+.posts-table td {
   padding: 16px;
   text-align: left;
   border-bottom: 1px solid var(--border-color);
 }
 
 .posts-table th {
-  background: var(--bg-secondary);
+  background: var(--component-bg-blur);
   color: var(--component-text-secondary);
   font-weight: 600;
   font-size: 0.9em;
 }
-
+.posts-table tr{
+  background: var(--component-bg-blur-alt);
+}
 .posts-table tr:hover {
   background: var(--component-bg-hover);
 }
+
 .posts-table tr:last-child td {
   border-bottom: none;
 }
@@ -387,6 +413,7 @@ onMounted(() => {
 .col-title {
   min-width: 200px;
 }
+
 .title-text {
   display: inline-block;
   font-size: 1.1em;
@@ -394,30 +421,33 @@ onMounted(() => {
   font-weight: 500;
   cursor: pointer;
 }
+
 .title-container:hover .title-text {
   color: var(--accent-color);
   text-decoration: underline;
 }
+
 .edit-icon-hint {
-    opacity: 0;
-    margin-left: 8px;
-    cursor: pointer;
-    font-size: 12px;
-    color: var(--component-text-secondary);
+  opacity: 0;
+  margin-left: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--component-text-secondary);
 }
+
 .title-container:hover .edit-icon-hint {
-    opacity: 1;
+  opacity: 1;
 }
 
 .rename-input {
   background: var(--bg-primary);
   border: 1px solid var(--accent-color);
-    color: var(--text-primary);
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 1.1em;
-    width: 100%;
-    box-sizing: border-box;
+  color: var(--text-primary);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 1.1em;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .tags-row {
@@ -425,6 +455,7 @@ onMounted(() => {
   gap: 6px;
   margin-top: 4px;
 }
+
 .tag-badge {
   font-size: 0.75em;
   background: var(--component-bg-hover);
@@ -443,16 +474,19 @@ onMounted(() => {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
+
 .status-badge.draft {
   background: var(--component-bg-secondary);
   color: var(--component-text-secondary);
   border: 1px solid var(--border-color);
 }
+
 .status-badge.published {
   background: var(--component-bg-hover);
   color: var(--accent-color);
   border: 1px solid var(--accent-color);
 }
+
 .status-badge.modifying {
   background: var(--component-bg-hover);
   color: var(--featured);
@@ -461,7 +495,7 @@ onMounted(() => {
 
 .action-btn {
   background: transparent;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border-color-blur);
   color: var(--component-text-primary);
   padding: 4px 10px;
   border-radius: 3px;
@@ -469,24 +503,45 @@ onMounted(() => {
   font-size: 0.9em;
   transition: all 0.2s;
 }
+
 .action-btn:hover {
   border-color: var(--accent-color);
   color: var(--accent-color);
 }
 
 .delete-btn {
-    margin-left: 8px;
-    border-color: var(--border-color);
-    color: var(--component-text-secondary);
-}
-.delete-btn:hover {
-    border-color: var(--status-error);
-    color: var(--status-error);
+  margin-left: 8px;
+  border-color: var(--border-color);
+  color: var(--component-text-secondary);
 }
 
-.loading, .empty {
+.delete-btn:hover {
+  border-color: var(--status-error);
+  color: var(--status-error);
+}
+
+.loading,
+.empty {
   text-align: center;
   padding: 40px;
   color: var(--component-text-secondary);
+}
+
+@media (max-width: 768px) {
+  .manager-container {
+    padding: 20px 10px;
+  }
+
+  .header-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .new-post-btn,
+  .secondary-action-btn {
+    width: 100%;
+    justify-content: center;
+  }
 }
 </style>

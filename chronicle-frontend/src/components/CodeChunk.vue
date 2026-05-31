@@ -1,5 +1,5 @@
 <template>
-  <div class="code-chunk-container">
+  <div class="code-chunk-container" :class="selectedLanguage">
     <div class="editor-header">
       <div class="header-left">
         <select v-model="selectedLanguage" @change="updateHighlighting" class="language-selector transparent-select" :title="selectedLanguage" :disabled="readonly" style="font-family:var(--app-font-stack)">
@@ -95,7 +95,7 @@
         <AsyncHighlight
           :code="code"
           :language="selectedLanguage"
-          :style-object="{ minHeight: textareaHeight, maxHeight: textareaHeight, height: textareaHeight, padding: '0.7rem 1.5rem 1.2rem 1.5rem', boxSizing: 'border-box' }"
+          :style-object="{ height: textareaHeight, padding: '0.7rem 1.5rem 1.2rem 1.5rem', boxSizing: 'border-box' }"
           ref="highlightLayer"
         />
         <!-- 文本输入层 -->
@@ -112,14 +112,14 @@
           spellcheck="false"
           :placeholder="placeholder"
           :readonly="readonly"
-          :style="{ minHeight: textareaHeight, maxHeight: textareaHeight, height: textareaHeight, padding: '0.7rem 1.5rem 1.2rem 1.5rem', color: 'transparent', boxSizing: 'border-box' }"
+          :style="{ height: textareaHeight, padding: '0.7rem 1.5rem 1.2rem 1.5rem', color: 'transparent', boxSizing: 'border-box' }"
         ></textarea>
       </div>
     </div>
     
     <!-- mermaid 预览区域 -->
     <div v-if="selectedLanguage === 'mermaid' && mermaidMode !== 'code'" class="mermaid-preview" ref="mermaidPreview" style="padding:0.5rem 1rem;">
-      <div ref="mermaidContainer"></div>
+      <div ref="mermaidContainer" style="align-items: center; justify-content: center; display: flex;"></div>
     </div>
 
     <div class="editor-footer" v-if="showFooter">
@@ -140,10 +140,9 @@
 // 已有computed引入，无需重复
 const textareaHeight = computed(() => {
   const lines = code.value.split('\n').length
-  const lineHeight = 20 // px
+  const lineHeight = 17.55 // px
   const minHeight = 80 // px
-  const maxHeight = 360 // px
-  const h = Math.max(minHeight, Math.min(maxHeight, lines * lineHeight + 24))
+  const h = Math.max(minHeight, lines * lineHeight + 40)
   return h + 'px'
 })
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
@@ -245,10 +244,9 @@ const lineCount = computed(() => {
 // 代码块高度自适应，最大高度 360px，最小 80px
 const editorHeight = computed(() => {
   const lines = code.value.split('\n').length
-  const lineHeight = 20 // px
+  const lineHeight = 17.55 // px
   const minHeight = 80 // px
-  const maxHeight = 360 // px
-  const h = Math.max(minHeight, Math.min(maxHeight, lines * lineHeight + 24))
+  const h = Math.max(minHeight, lines * lineHeight + 40)
   return h + 'px'
 })
 
@@ -500,15 +498,15 @@ function syncScroll() {
   if (highlightDom && codeInput.value) {
     highlightDom.scrollTop = codeInput.value.scrollTop;
     highlightDom.scrollLeft = codeInput.value.scrollLeft;
-    console.log('[syncScroll]', {
+    /* console.log('[syncScroll]', {
       textareaScrollTop: codeInput.value.scrollTop,
       textareaScrollLeft: codeInput.value.scrollLeft,
       highlightScrollTop: highlightDom.scrollTop,
       highlightScrollLeft: highlightDom.scrollLeft
-    });
-  } else {
+    });*/
+  }/* else {
     console.log('[syncScroll] highlightDom is', highlightDom);
-  }
+  }*/
 }
 
 // 更新当前行和列
@@ -995,6 +993,7 @@ watch(() => props.language, (n) => {
   display: flex;
   overflow: auto;
   width: 100%;
+  max-height: 360px;
 }
 .line-numbers {
   background: transparent;
@@ -1027,6 +1026,7 @@ watch(() => props.language, (n) => {
   left: 0;
   width: 100%;
   height: 100%;
+  max-height: 360px;
   margin: 0;
   padding: 1rem 1rem 1rem 0.5rem;
   background: transparent;
@@ -1034,7 +1034,7 @@ watch(() => props.language, (n) => {
   font-family: inherit;
   font-size: 13.5px;
   line-height: 1.3em;
-  overflow-wrap: nowrap !important;
+  overflow-wrap: nowrap;
   overflow: auto;
   tab-size: 2;
   vertical-align: top;
@@ -1046,6 +1046,7 @@ watch(() => props.language, (n) => {
   left: 0;
   width: 100%;
   height: 100%;
+  max-height: 360px;
   padding: 1rem 1rem 1rem 0.5rem;
   background: transparent;
   color: transparent;
