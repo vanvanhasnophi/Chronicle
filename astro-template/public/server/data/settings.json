@@ -7,21 +7,23 @@
   "frontendAccent": "#2ea35f",
   "backendTheme": "follow",
   "frontendBackground": {
-    "url": "/server/data/background/chr_f_bg-1770999133303_vne7_177099908700-992-8da3fd1d6e.webp",
-    "path": "/server/data/background/chr_f_bg-1770999133303_vne7_177099908700-992-8da3fd1d6e.webp",
-    "sourcePath": "pic/1770999133303_vne7_177099908700-992.webp",
-    "sourceName": "1770999133303_vne7_177099908700-992.webp",
-    "originalName": "1770999133303_vne7_177099908700-992.webp"
+    "url": "/server/data/background/chr_f_bg-1777967122977_kws5_R-C-c9c1b43aaf.webp",
+    "path": "chr_f_bg-1777967122977_kws5_R-C-c9c1b43aaf.webp",
+    "sourcePath": "pic/1777967122977_kws5_R-C.jpg",
+    "sourceName": "1777967122977_kws5_R-C.jpg",
+    "generatedPath": "chr_f_bg-1777967122977_kws5_R-C-c9c1b43aaf.webp",
+    "generatedName": "chr_f_bg-1777967122977_kws5_R-C-c9c1b43aaf.webp"
   },
   "backendBackground": {
     "url": "/server/data/background/chr_b_bg-1777967122977_kws5_R-C-48e62da1b6.webp",
-    "path": "/server/data/background/chr_b_bg-1777967122977_kws5_R-C-48e62da1b6.webp",
+    "path": "chr_b_bg-1777967122977_kws5_R-C-48e62da1b6.webp",
     "sourcePath": "pic/1777967122977_kws5_R-C.jpg",
     "sourceName": "1777967122977_kws5_R-C.jpg",
-    "originalName": "1777967122977_kws5_R-C.jpg"
+    "generatedPath": "chr_b_bg-1777967122977_kws5_R-C-48e62da1b6.webp",
+    "generatedName": "chr_b_bg-1777967122977_kws5_R-C-48e62da1b6.webp"
   },
-  "frontendBackgroundMeta": "{\"posX\":50,\"posY\":50,\"size\":132,\"blur\":38,\"overlayLightColor\":\"#ffffff\",\"overlayLightOpacity\":88,\"overlayDarkColor\":\"#000000\",\"overlayDarkOpacity\":88,\"overlayColor\":\"#000000\",\"overlayOpacity\":88,\"compressionFactor\":21.865199999999998,\"compression\":21.865199999999998,\"bgCompression\":21.865199999999998}",
-  "backendBackgroundMeta": "{\"posX\":50,\"posY\":50,\"size\":100,\"blur\":10,\"overlayLightColor\":\"#ffffff\",\"overlayLightOpacity\":75,\"overlayDarkColor\":\"#000000\",\"overlayDarkOpacity\":85,\"overlayColor\":\"#000000\",\"overlayOpacity\":85,\"compressionFactor\":6.48,\"compression\":6.48,\"bgCompression\":6.48}",
+  "frontendBackgroundMeta": "{\"url\":\"/server/data/background/chr_f_bg-1777967122977_kws5_R-C-c9c1b43aaf.webp\",\"sourcePath\":\"pic/1777967122977_kws5_R-C.jpg\",\"sourceName\":\"1777967122977_kws5_R-C.jpg\",\"mode\":\"cover\",\"posX\":50,\"posY\":50,\"size\":132,\"blur\":25,\"overlayLightColor\":\"#ffffff\",\"overlayLightOpacity\":83,\"overlayDarkColor\":\"#000000\",\"overlayDarkOpacity\":87,\"overlayColor\":\"#000000\",\"overlayOpacity\":87,\"compressionFactor\":16.2,\"compression\":16.2,\"bgCompression\":16.2}",
+  "backendBackgroundMeta": "{\"url\":\"/server/data/background/chr_b_bg-1777967122977_kws5_R-C-48e62da1b6.webp\",\"sourcePath\":\"pic/1777967122977_kws5_R-C.jpg\",\"sourceName\":\"1777967122977_kws5_R-C.jpg\",\"mode\":\"cover\",\"posX\":50,\"posY\":50,\"size\":100,\"blur\":22,\"overlayLightColor\":\"#ffffff\",\"overlayLightOpacity\":78,\"overlayDarkColor\":\"#000000\",\"overlayDarkOpacity\":84,\"overlayColor\":\"#000000\",\"overlayOpacity\":84,\"compressionFactor\":14.256,\"compression\":14.256,\"bgCompression\":14.256}",
   "scheduledBuildEnabled": false,
   "scheduledBuildMode": "daily",
   "scheduledBuildInterval": "daily",
@@ -34,12 +36,12 @@
   "frontendUrl": "blog.eightyfor.top",
   "frontendCodeDir": "/opt/Chronicle/astro-template",
   "frontendBuildTargetDir": "/var/www/blog.eightyfor.top",
-  "frontendBackgroundCompression": 21.865199999999998,
-  "backendBackgroundCompression": 6.48,
+  "frontendBackgroundCompression": 16.2,
+  "backendBackgroundCompression": 14.256,
   "featureFlags": {
     "searchSuggestions": true,
     "relatedPosts": true,
-    "collectionPage": true,
+    "collectionPage": false,
     "aboutPage": true,
     "friendsPage": true,
     "traffic": true
@@ -56,7 +58,7 @@
     },
     {
       "name": "Waiwai",
-      "avatar": "https://file.eightyfor.top/data/upload/pic/1770999133303_vne7_177099908700-992.webp",
+      "avatar": "https://file.eightyfor.top/server/data/upload/pic/1779124827417_iwou_87f6fdc5c3b8bef6be1910e52290cf42.jpg",
       "intro": "非常乐意并享受被人挂网上的感觉",
       "homeUrl": "https://example.com",
       "storyPostId": "6c96284f-a6ec-44d8-a0ed-acce66641cde"

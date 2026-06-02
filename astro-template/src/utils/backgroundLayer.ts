@@ -200,13 +200,44 @@ export async function stageBackgroundLayer(
         overlayEl.style.background = overlayValue || 'transparent';
       }
       if (imgEl) {
-        imgEl.style.backgroundPosition = `${(meta && meta.posX) || 50}% ${(meta && meta.posY) || 50}%`;
-        imgEl.style.backgroundSize = `${(meta && meta.size) || 100}%`;
         imgEl.style.filter = `blur(${(meta && meta.blur) || 0}px)`;
+
+        const mode = meta && meta.mode ? meta.mode : 'cover';
+        const compression = (meta && (meta.compressionFactor || meta.compression || meta.bgCompression || meta.scale)) || 1;
+
+        switch (mode) {
+          case 'cover':
+            imgEl.style.backgroundPosition = 'center';
+            imgEl.style.backgroundSize = 'cover';
+            imgEl.style.backgroundRepeat = 'no-repeat';
+            break;
+          case 'contain':
+            imgEl.style.backgroundPosition = 'center';
+            imgEl.style.backgroundSize = 'contain';
+            imgEl.style.backgroundRepeat = 'no-repeat';
+            break;
+          case 'fill':
+            imgEl.style.backgroundPosition = 'center';
+            imgEl.style.backgroundSize = '100% 100%';
+            imgEl.style.backgroundRepeat = 'no-repeat';
+            break;
+          case 'tile':
+            imgEl.style.backgroundPosition = '0 0';
+            const tileSize = ((meta && meta.size) || 100) * compression;
+            imgEl.style.backgroundSize = `${tileSize}%`;
+            imgEl.style.backgroundRepeat = 'repeat';
+            break;
+          case 'custom':
+            imgEl.style.backgroundPosition = `${(meta && meta.posX) || 50}% ${(meta && meta.posY) || 50}%`;
+            const customSize = ((meta && meta.size) || 100) * compression;
+            imgEl.style.backgroundSize = `${customSize}%`;
+            imgEl.style.backgroundRepeat = 'no-repeat';
+            break;
+        }
       }
       return; // 直接返回，保持已存在的图片和状态
     }
-    
+
     // 清除强制重载标记
     layer.removeAttribute('data-force-reload');
 
@@ -229,9 +260,40 @@ export async function stageBackgroundLayer(
     // 第三步：设置图片样式（但不立即加载图片）
     if (imgEl) {
       imgEl.style.backgroundImage = 'none';
-      imgEl.style.backgroundPosition = `${(meta && meta.posX) || 50}% ${(meta && meta.posY) || 50}%`;
-      imgEl.style.backgroundSize = `${(meta && meta.size) || 100}%`;
       imgEl.style.filter = `blur(${(meta && meta.blur) || 0}px)`;
+
+      const mode = meta && meta.mode ? meta.mode : 'cover';
+      const compression = (meta && (meta.compressionFactor || meta.compression || meta.bgCompression || meta.scale)) || 1;
+
+      switch (mode) {
+        case 'cover':
+          imgEl.style.backgroundPosition = 'center';
+          imgEl.style.backgroundSize = 'cover';
+          imgEl.style.backgroundRepeat = 'no-repeat';
+          break;
+        case 'contain':
+          imgEl.style.backgroundPosition = 'center';
+          imgEl.style.backgroundSize = 'contain';
+          imgEl.style.backgroundRepeat = 'no-repeat';
+          break;
+        case 'fill':
+          imgEl.style.backgroundPosition = 'center';
+          imgEl.style.backgroundSize = '100% 100%';
+          imgEl.style.backgroundRepeat = 'no-repeat';
+          break;
+        case 'tile':
+          imgEl.style.backgroundPosition = '0 0';
+          const tileSize = ((meta && meta.size) || 100) * compression;
+          imgEl.style.backgroundSize = `${tileSize}%`;
+          imgEl.style.backgroundRepeat = 'repeat';
+          break;
+        case 'custom':
+          imgEl.style.backgroundPosition = `${(meta && meta.posX) || 50}% ${(meta && meta.posY) || 50}%`;
+          const customSize = ((meta && meta.size) || 100) * compression;
+          imgEl.style.backgroundSize = `${customSize}%`;
+          imgEl.style.backgroundRepeat = 'no-repeat';
+          break;
+      }
     }
 
     // 异步准备图片
@@ -252,38 +314,52 @@ export async function stageBackgroundLayer(
           // 触发fade动画
           void (imgEl && (imgEl as HTMLElement).offsetHeight);
           requestAnimationFrame(() => {
+            if (renderId !== bgRenderVersion) return;
+            setTimeout(() => {
               if (renderId !== bgRenderVersion) return;
+
+              const onTransitionEnd = (ev: TransitionEvent) => {
+                if (ev.target !== imgEl || ev.propertyName !== 'opacity') return;
+
+                if (imgEl) imgEl.removeEventListener('transitionend', onTransitionEnd as any);
+              };
+
+              if (imgEl) imgEl.addEventListener('transitionend', onTransitionEnd as any);
+              layer.classList.add('is-ready');
+              console.info('[bg] fade-start', renderId, 'is-ready class added');
+
+              // 延迟清理旧的 blob URLs，确保新的图片已经完全显示
               setTimeout(() => {
                 if (renderId !== bgRenderVersion) return;
 
-                const onTransitionEnd = (ev: TransitionEvent) => {
-                  if (ev.target !== imgEl || ev.propertyName !== 'opacity') return;
-
-                  // 清理不用的blob URLs
-                  const keep = (prepared && prepared.preparedUrl) ? prepared.preparedUrl : '';
+                const keep = (prepared && prepared.preparedUrl) ? prepared.preparedUrl : '';
+                if (keep) {
                   backgroundObjectUrls.forEach((u) => {
                     if (u && u !== keep) {
-                      URL.revokeObjectURL(u);
+                      try {
+                        URL.revokeObjectURL(u);
+                      } catch (e) {
+                        console.warn('[bg] Failed to revoke URL:', u, e);
+                      }
                       backgroundObjectUrls.delete(u);
                     }
                   });
+                }
+              }, 1000); // 延迟 1 秒清理
 
-                  if (imgEl) imgEl.removeEventListener('transitionend', onTransitionEnd as any);
-                };
-
-                if (imgEl) imgEl.addEventListener('transitionend', onTransitionEnd as any);
-                layer.classList.add('is-ready');
-                console.info('[bg] fade-start', renderId, 'is-ready class added');
-                
-                // 调试：检查背景层状态
-                console.info('[bg] Layer state:', {
-                  hasIsReady: layer.classList.contains('is-ready'),
-                  imgBackground: imgEl?.style.backgroundImage,
-                  imgOpacity: imgEl?.style.opacity,
-                  computedOpacity: imgEl ? getComputedStyle(imgEl).opacity : 'no imgEl'
-                });
-              }, 30);
-            });
+              // 调试：检查背景层状态
+              /*
+              console.info('[bg] Layer state:', {
+                hasIsReady: layer.classList.contains('is-ready'),
+                imgBackground: imgEl?.style.backgroundImage,
+                imgOpacity: imgEl?.style.opacity,
+                computedOpacity: imgEl ? getComputedStyle(imgEl).opacity : 'no imgEl',
+                preparedUrl: prepared?.preparedUrl,
+                keepUrl: (prepared && prepared.preparedUrl) ? prepared.preparedUrl : 'none'
+              });
+              */
+            }, 30);
+          });
         } catch (e) {
           console.error('[bg] Error in prepare:', e);
         }
@@ -345,17 +421,17 @@ export function forceBackgroundReload() {
   try {
     const newTheme = document.documentElement.getAttribute('data-theme') || '';
     const oldTheme = currentTheme;
-    
+
     // 更新当前主题
     currentTheme = newTheme;
-    
+
     // 强制重载背景层
     bgRenderVersion++;
-    console.log('[BackgroundLayer] Manual theme change, forcing reload', { 
-      old: oldTheme, 
-      new: newTheme 
+    console.log('[BackgroundLayer] Manual theme change, forcing reload', {
+      old: oldTheme,
+      new: newTheme
     });
-    
+
     return true;
   } catch (e) {
     console.error('[BackgroundLayer] Error in forceBackgroundReload:', e);

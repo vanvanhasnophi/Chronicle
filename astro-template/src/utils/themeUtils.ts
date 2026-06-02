@@ -74,11 +74,43 @@ export function writeBackgroundMetaVars(scope: 'frontend' | 'backend', meta: any
   const prefix = scope === 'frontend' ? '--frontend' : '--backend';
 
   try {
-    const compression = Number(meta.compressionFactor ?? meta.compression ?? meta.bgCompression ?? 1);
-    document.documentElement.style.setProperty(`${prefix}-bg-compression`, String(Number.isFinite(compression) && compression > 0 ? compression : 1));
-    document.documentElement.style.setProperty(`${prefix}-bg-pos`, `${meta.posX || 50}% ${meta.posY || 50}%`);
-    document.documentElement.style.setProperty(`${prefix}-bg-size`, `${meta.size || 100}%`);
+    const compression = Number(meta.compressionFactor ?? meta.compression ?? meta.bgCompression ?? meta.scale ?? 1);
+    const mode = meta.mode || 'cover';
+    
+    document.documentElement.style.setProperty(`${prefix}-bg-mode`, mode);
+    
+    switch (mode) {
+      case 'cover':
+        document.documentElement.style.setProperty(`${prefix}-bg-pos`, 'center');
+        document.documentElement.style.setProperty(`${prefix}-bg-size`, 'cover');
+        document.documentElement.style.setProperty(`${prefix}-bg-repeat`, 'no-repeat');
+        break;
+      case 'contain':
+        document.documentElement.style.setProperty(`${prefix}-bg-pos`, 'center');
+        document.documentElement.style.setProperty(`${prefix}-bg-size`, 'contain');
+        document.documentElement.style.setProperty(`${prefix}-bg-repeat`, 'no-repeat');
+        break;
+      case 'fill':
+        document.documentElement.style.setProperty(`${prefix}-bg-pos`, 'center');
+        document.documentElement.style.setProperty(`${prefix}-bg-size`, '100% 100%');
+        document.documentElement.style.setProperty(`${prefix}-bg-repeat`, 'no-repeat');
+        break;
+      case 'tile':
+        document.documentElement.style.setProperty(`${prefix}-bg-pos`, '0 0');
+        const tileSize = (meta.size || 100) * (Number.isFinite(compression) && compression > 0 ? compression : 1);
+        document.documentElement.style.setProperty(`${prefix}-bg-size`, `${tileSize}%`);
+        document.documentElement.style.setProperty(`${prefix}-bg-repeat`, 'repeat');
+        break;
+      case 'custom':
+        document.documentElement.style.setProperty(`${prefix}-bg-pos`, `${meta.posX || 50}% ${meta.posY || 50}%`);
+        const customSize = (meta.size || 100) * (Number.isFinite(compression) && compression > 0 ? compression : 1);
+        document.documentElement.style.setProperty(`${prefix}-bg-size`, `${customSize}%`);
+        document.documentElement.style.setProperty(`${prefix}-bg-repeat`, 'no-repeat');
+        break;
+    }
+    
     document.documentElement.style.setProperty(`${prefix}-bg-blur`, `${meta.blur || 0}px`);
+    document.documentElement.style.setProperty(`${prefix}-bg-compression`, String(Number.isFinite(compression) && compression > 0 ? compression : 1));
 
     const overlayLight = meta.overlayLightColor || meta.overlayColor || 'transparent';
     const overlayLightOpa = (meta.overlayLightOpacity != null) ? ((meta.overlayLightOpacity || 0) / 100) : ((meta.overlayOpacity || 0) / 100);
@@ -102,7 +134,6 @@ export function writeBackgroundMetaVars(scope: 'frontend' | 'backend', meta: any
     console.error('[themeUtils] Error writing background meta vars:', e);
   }
 }
-
 /**
  * 更新已解析的overlay CSS变量
  */

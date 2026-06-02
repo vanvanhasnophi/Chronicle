@@ -85,9 +85,41 @@ function writeBackgroundMetaVars(scope: 'frontend' | 'backend', meta: any) {
   if (!meta) return
   const prefix = scope === 'frontend' ? '--frontend' : '--backend'
   try {
-    const compression = resolveBackgroundCompression(meta, scope)
-    document.documentElement.style.setProperty(`${prefix}-bg-pos`, `${meta.posX || 50}% ${meta.posY || 50}%`)
-    document.documentElement.style.setProperty(`${prefix}-bg-size`, `${meta.size || 100}%`)
+    const compression = meta.compressionFactor || meta.compression || meta.bgCompression || meta.scale || 1
+    const mode = meta.mode || 'cover'
+
+    document.documentElement.style.setProperty(`${prefix}-bg-mode`, mode)
+
+    switch (mode) {
+      case 'cover':
+        document.documentElement.style.setProperty(`${prefix}-bg-pos`, 'center')
+        document.documentElement.style.setProperty(`${prefix}-bg-size`, 'cover')
+        document.documentElement.style.setProperty(`${prefix}-bg-repeat`, 'no-repeat')
+        break
+      case 'contain':
+        document.documentElement.style.setProperty(`${prefix}-bg-pos`, 'center')
+        document.documentElement.style.setProperty(`${prefix}-bg-size`, 'contain')
+        document.documentElement.style.setProperty(`${prefix}-bg-repeat`, 'no-repeat')
+        break
+      case 'fill':
+        document.documentElement.style.setProperty(`${prefix}-bg-pos`, 'center')
+        document.documentElement.style.setProperty(`${prefix}-bg-size`, '100% 100%')
+        document.documentElement.style.setProperty(`${prefix}-bg-repeat`, 'no-repeat')
+        break
+      case 'tile':
+        document.documentElement.style.setProperty(`${prefix}-bg-pos`, '0 0')
+        const tileSize = (meta.size || 100) * (compression || 1)
+        document.documentElement.style.setProperty(`${prefix}-bg-size`, `${tileSize}%`)
+        document.documentElement.style.setProperty(`${prefix}-bg-repeat`, 'repeat')
+        break
+      case 'custom':
+        document.documentElement.style.setProperty(`${prefix}-bg-pos`, `${meta.posX || 50}% ${meta.posY || 50}%`)
+        const customSize = (meta.size || 100) * (compression || 1)
+        document.documentElement.style.setProperty(`${prefix}-bg-size`, `${customSize}%`)
+        document.documentElement.style.setProperty(`${prefix}-bg-repeat`, 'no-repeat')
+        break
+    }
+
     document.documentElement.style.setProperty(`${prefix}-bg-blur`, `${meta.blur || 0}px`)
     document.documentElement.style.setProperty(`${prefix}-bg-compression`, String(compression || 1))
 
@@ -236,9 +268,40 @@ async function stageBackgroundLayer(
       if (overlayEl) overlayEl.style.background = overlayValue || 'transparent'
       if (imgEl) {
         imgEl.style.backgroundImage = 'none'
-        imgEl.style.backgroundPosition = `${(meta && meta.posX) || 50}% ${(meta && meta.posY) || 50}%`
-        imgEl.style.backgroundSize = `${(meta && meta.size) || 100}%`
         imgEl.style.filter = `blur(${(meta && meta.blur) || 0}px)`
+
+        const mode = meta && meta.mode ? meta.mode : 'cover'
+        const compression = (meta && (meta.compressionFactor || meta.compression || meta.bgCompression || meta.scale)) || 1
+
+        switch (mode) {
+          case 'cover':
+            imgEl.style.backgroundPosition = 'center'
+            imgEl.style.backgroundSize = 'cover'
+            imgEl.style.backgroundRepeat = 'no-repeat'
+            break
+          case 'contain':
+            imgEl.style.backgroundPosition = 'center'
+            imgEl.style.backgroundSize = 'contain'
+            imgEl.style.backgroundRepeat = 'no-repeat'
+            break
+          case 'fill':
+            imgEl.style.backgroundPosition = 'center'
+            imgEl.style.backgroundSize = '100% 100%'
+            imgEl.style.backgroundRepeat = 'no-repeat'
+            break
+          case 'tile':
+            imgEl.style.backgroundPosition = '0 0'
+            const tileSize = ((meta && meta.size) || 100) * compression
+            imgEl.style.backgroundSize = `${tileSize}%`
+            imgEl.style.backgroundRepeat = 'repeat'
+            break
+          case 'custom':
+            imgEl.style.backgroundPosition = `${(meta && meta.posX) || 50}% ${(meta && meta.posY) || 50}%`
+            const customSize = ((meta && meta.size) || 100) * compression
+            imgEl.style.backgroundSize = `${customSize}%`
+            imgEl.style.backgroundRepeat = 'no-repeat'
+            break
+        }
       }
     } catch (e) { }
 
@@ -487,7 +550,7 @@ async function applySettings() {
   try {
     const s = await getSettings()
     try {
-      ;(window as any).__CHRONICLE_SETTINGS__ = {
+      ; (window as any).__CHRONICLE_SETTINGS__ = {
         ...(window as any).__CHRONICLE_SETTINGS__,
         ...s,
         gaMeasurementId: s?.gaMeasurementId || ''
@@ -957,7 +1020,7 @@ async function rebuildFrontend() {
 <template>
   <div id="app">
     <template v-if="showBackendShell">
-      <button class="menu-toggle backend-menu-toggle" @click="isMenuOpen = !isMenuOpen" 
+      <button class="menu-toggle backend-menu-toggle" @click="isMenuOpen = !isMenuOpen"
         v-html="isMenuOpen ? null : ShellIcons.menu" aria-label="Toggle backend navigation"></button>
 
       <aside class="sidebar backend-sidebar" :class="{ 'mobile-open': isMenuOpen }">
@@ -971,10 +1034,13 @@ async function rebuildFrontend() {
           </button>
         </div>
 
-          <div class="sidebar-nav">
-          <RouterLink to="/dashboard" class="sidebar-items nav-link backend-nav-link" @click="isMenuOpen = false">{{ $t('nav.dashboard') }}</RouterLink>
-          <RouterLink to="/files" class="sidebar-items nav-link backend-nav-link" @click="isMenuOpen = false">{{ $t('nav.files') }}</RouterLink>
-          <RouterLink to="/traffic" class="sidebar-items nav-link backend-nav-link" @click="isMenuOpen = false">{{ $t('nav.traffic') }}</RouterLink>
+        <div class="sidebar-nav">
+          <RouterLink to="/dashboard" class="sidebar-items nav-link backend-nav-link" @click="isMenuOpen = false">{{
+            $t('nav.dashboard') }}</RouterLink>
+          <RouterLink to="/files" class="sidebar-items nav-link backend-nav-link" @click="isMenuOpen = false">{{
+            $t('nav.files') }}</RouterLink>
+          <RouterLink to="/traffic" class="sidebar-items nav-link backend-nav-link" @click="isMenuOpen = false">{{
+            $t('nav.traffic') }}</RouterLink>
           <div class="backend-tree-group" :class="{ expanded: backendContentOpen, active: isContentRoute }">
             <button type="button" class="sidebar-items nav-link backend-nav-link backend-tree-toggle"
               @click="toggleBackendContent">
@@ -982,44 +1048,59 @@ async function rebuildFrontend() {
               <span class="backend-tree-caret" :class="{ open: backendContentOpen }" v-html="ShellIcons.chevron"></span>
             </button>
             <div v-show="backendContentOpen" class="backend-tree-children">
-              <RouterLink to="/manage" class="sidebar-items nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('nav.posts') }}</RouterLink>
-              <RouterLink to="/settings/collection" class="sidebar-items nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.shortCollection') }}</RouterLink>
-              <RouterLink to="/settings/homepage" class="sidebar-items nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.shortHome') }}</RouterLink>
-              <RouterLink to="/settings/friends" class="sidebar-items nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.friends') }}</RouterLink>
-              <RouterLink to="/settings/about" class="sidebar-items nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.shortAbout') }}</RouterLink>
+              <RouterLink to="/manage" class="sidebar-items nav-link backend-nav-link backend-tree-child"
+                @click="isMenuOpen = false">{{ $t('nav.posts') }}</RouterLink>
+              <RouterLink to="/settings/collection" class="sidebar-items nav-link backend-nav-link backend-tree-child"
+                @click="isMenuOpen = false">{{ $t('settings.shortCollection') }}</RouterLink>
+              <RouterLink to="/settings/homepage" class="sidebar-items nav-link backend-nav-link backend-tree-child"
+                @click="isMenuOpen = false">{{ $t('settings.shortHome') }}</RouterLink>
+              <RouterLink to="/settings/friends" class="sidebar-items nav-link backend-nav-link backend-tree-child"
+                @click="isMenuOpen = false">{{ $t('settings.friends') }}</RouterLink>
+              <RouterLink to="/settings/about" class="sidebar-items nav-link backend-nav-link backend-tree-child"
+                @click="isMenuOpen = false">{{ $t('settings.shortAbout') }}</RouterLink>
             </div>
           </div>
           <div class="backend-tree-group" :class="{ expanded: backendSettingsOpen, active: isSettingsRoute }">
             <button type="button" class="sidebar-items nav-link backend-nav-link backend-tree-toggle"
               @click="toggleBackendSettings">
               <span>{{ $t('nav.settings') }}</span>
-              <span class="backend-tree-caret" :class="{ open: backendSettingsOpen }" v-html="ShellIcons.chevron"></span>
+              <span class="backend-tree-caret" :class="{ open: backendSettingsOpen }"
+                v-html="ShellIcons.chevron"></span>
             </button>
             <div v-show="backendSettingsOpen" class="backend-tree-children">
-              <RouterLink to="/settings/appearance" class="sidebar-items nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.appearance') }}</RouterLink>
-              <RouterLink to="/settings/features" class="sidebar-items nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.shortFeatures') }}</RouterLink>
-              <RouterLink to="/settings/security" class="sidebar-items nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.security') }}</RouterLink>
+              <RouterLink to="/settings/appearance" class="sidebar-items nav-link backend-nav-link backend-tree-child"
+                @click="isMenuOpen = false">{{ $t('settings.appearance') }}</RouterLink>
+              <RouterLink to="/settings/features" class="sidebar-items nav-link backend-nav-link backend-tree-child"
+                @click="isMenuOpen = false">{{ $t('settings.shortFeatures') }}</RouterLink>
+              <RouterLink to="/settings/security" class="sidebar-items nav-link backend-nav-link backend-tree-child"
+                @click="isMenuOpen = false">{{ $t('settings.security') }}</RouterLink>
             </div>
           </div>
         </div>
         <div class="backend-sidebar-footer">
-          <RouterLink to="/settings/build" :class="['sidebar-items nav-link backend-nav-link sidebar-footer-item sidebar-footer-link', { 'router-link-active': isBuildActive }]" @click="isMenuOpen = false" :aria-current="isBuildActive ? 'page' : null">
+          <RouterLink to="/settings/build"
+            :class="['sidebar-items nav-link backend-nav-link sidebar-footer-item sidebar-footer-link', { 'router-link-active': isBuildActive }]"
+            @click="isMenuOpen = false" :aria-current="isBuildActive ? 'page' : null">
             <span class="icon-svg footer-icon" v-html="ShellIcons.columns"></span>
             <span class="footer-label">{{ $t('nav.build') }}</span>
           </RouterLink>
 
-          <button class="sidebar-footer-item sidebar-footer-icon-btn" type="button" @click="rebuildFrontend" :disabled="!isAvailable" :class="{ 'inprogress': isRebuilding }" :title="$t('nav.buildNow')" aria-label="{{ $t('nav.buildNow') }}">
+          <button class="sidebar-footer-item sidebar-footer-icon-btn" type="button" @click="rebuildFrontend"
+            :disabled="!isAvailable" :class="{ 'inprogress': isRebuilding }" :title="$t('nav.buildNow')"
+            aria-label="{{ $t('nav.buildNow') }}">
             <span class="icon-svg footer-icon" v-html="ShellIcons.refresh"></span>
           </button>
 
-          <button class="sidebar-footer-item sidebar-footer-icon-btn" type="button" @click="openFrontend" :title="$t('nav.openFrontend')" aria-label="{{ $t('nav.openFrontend') }}">
+          <button class="sidebar-footer-item sidebar-footer-icon-btn" type="button" @click="openFrontend"
+            :title="$t('nav.openFrontend')" aria-label="{{ $t('nav.openFrontend') }}">
             <span class="icon-svg footer-icon" v-html="ShellIcons.link"></span>
           </button>
         </div>
       </aside>
     </template>
 
-    <main class="main-content" :class="{ 'no-nav': route.path === '/editor', 'backend-main': showBackendShell, 'print-preview': isPrintPreviewRoute }">
+    <main class="main-content"
+      :class="{ 'no-nav': route.path === '/editor', 'backend-main': showBackendShell, 'print-preview': isPrintPreviewRoute }">
       <RouterView />
     </main>
     <FilePreviewModal />
@@ -1210,16 +1291,16 @@ async function rebuildFrontend() {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  border-radius:12px;
+  border-radius: 12px;
 }
 
 .backend-tree-group.active,
-.backend-tree-group.expanded  {
+.backend-tree-group.expanded {
   background: var(--component-bg-blur-alt);
   color: var(--component-text-primary-hover);
 }
 
-.backend-tree-group.active:not(.expanded) .backend-tree-toggle{
+.backend-tree-group.active:not(.expanded) .backend-tree-toggle {
   background: var(--component-bg-hover);
   color: var(--component-text-primary-hover);
 }
@@ -1242,12 +1323,14 @@ async function rebuildFrontend() {
   width: 1rem;
   height: 1rem;
   transition: transform 0.18s ease;
-  transform: rotate(0deg); /* closed = down */
+  transform: rotate(0deg);
+  /* closed = down */
   flex: 0 0 auto;
 }
 
 .backend-tree-caret.open {
-  transform: rotate(180deg); /* open = up */
+  transform: rotate(180deg);
+  /* open = up */
 }
 
 .backend-tree-caret svg {
@@ -1273,7 +1356,8 @@ async function rebuildFrontend() {
   color: var(--component-text-primary-hover);
 }
 
-.backend-nav-link, .sidebar-footer-link {
+.backend-nav-link,
+.sidebar-footer-link {
   width: 100%;
   box-sizing: border-box;
   text-align: left;
@@ -1288,7 +1372,8 @@ async function rebuildFrontend() {
   align-items: center;
   justify-content: space-between;
   flex: 0 0 auto;
-  margin-top: auto; /* stick to bottom */
+  margin-top: auto;
+  /* stick to bottom */
 }
 
 .sidebar-footer-item {
@@ -1309,22 +1394,56 @@ async function rebuildFrontend() {
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
 }
 
-.sidebar-footer-icon-btn { justify-content: center; width: 44px; height: 36px; }
-.sidebar-footer-item:disabled { opacity: 0.6; cursor: not-allowed; }
-.sidebar-footer-item:disabled:hover { background: transparent; color: var(--text-inactive); }
-:deep(.sidebar-footer-icon-btn.inprogress svg) { animation: spin 5s linear infinite; }
-.sidebar-footer-item:hover { background: var(--component-bg-hover); color: var(--component-text-primary-hover); }
+.sidebar-footer-icon-btn {
+  justify-content: center;
+  width: 44px;
+  height: 36px;
+}
+
+.sidebar-footer-item:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.sidebar-footer-item:disabled:hover {
+  background: transparent;
+  color: var(--text-inactive);
+}
+
+:deep(.sidebar-footer-icon-btn.inprogress svg) {
+  animation: spin 5s linear infinite;
+}
+
+.sidebar-footer-item:hover {
+  background: var(--component-bg-hover);
+  color: var(--component-text-primary-hover);
+}
 
 
 /* Ensure v-html injected SVGs are vertically centered inside footer items */
-.footer-icon { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; line-height: 0; }
-/* scoped styles need :deep to target injected SVG elements */
-:deep(.footer-icon) svg { width: 20px !important; height: 20px !important; display: block !important; }
-.footer-label { font-size: 1rem; }
+.footer-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  line-height: 0;
+}
 
+/* scoped styles need :deep to target injected SVG elements */
+:deep(.footer-icon) svg {
+  width: 20px !important;
+  height: 20px !important;
+  display: block !important;
+}
+
+.footer-label {
+  font-size: 1rem;
+}
 </style>

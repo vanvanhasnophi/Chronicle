@@ -3,24 +3,14 @@
     <h2 style="margin-bottom: 0;">{{ $t('settings.friends') }}</h2>
     <p class="hint">{{ $t('settings.friendsHint') }}</p>
 
-    <CheckRow
-      v-model="enabled"
-      :title="$t('settings.featureToggle')"
-      :hint="$t('settings.featureFriendsPageHint')"
-    />
+    <CheckRow v-model="enabled" :title="$t('settings.featureToggle')" :hint="$t('settings.featureFriendsPageHint')" />
 
     <div class="global-style-row">
       <label class="field">
         <span>{{ $t('settings.friendCardGlobalStyle') }}</span>
         <div class="style-picker" style="margin-top: .5rem;">
-          <button
-            v-for="option in styleOptions"
-            :key="option.value"
-            type="button"
-            class="style-option"
-            :class="{ active: friendsGlobalStyle === option.value }"
-            @click="friendsGlobalStyle = option.value"
-          >
+          <button v-for="option in styleOptions" :key="option.value" type="button" class="style-option"
+            :class="{ active: friendsGlobalStyle === option.value }" @click="friendsGlobalStyle = option.value">
             <span class="style-option__thumb" :class="`style-${option.value}`"></span>
             <strong>{{ option.label }}</strong>
           </button>
@@ -28,26 +18,21 @@
       </label>
     </div>
 
-    <CardListEditor
-      :cards="cards"
-      @add="openCreateCard"
-      @edit="openEditCard"
-      @remove="removeCard"
-      @move="moveCard"
-    />
+    <CardListEditor :cards="cards" @add="openCreateCard" @edit="openEditCard" @remove="removeCard" @move="moveCard" />
 
     <div class="actions">
       <button class="primary" :disabled="saving" @click="saveAll">{{ $t('settings.save') }}</button>
       <button class="secondary" :disabled="saving" @click="resetAll">{{ $t('settings.reset') }}</button>
     </div>
 
-    <div v-if="isModalOpen && draftCard" class="friend-modal-overlay" @click.self="closeModal">
+    <div v-if="isModalOpen && draftCard" class="modal-overlay friend-modal-overlay" @click.self="closeModal">
       <div class="friend-modal">
         <div class="friend-modal__header">
           <div>
             <h3>{{ modalTitle }}</h3>
           </div>
-          <button type="button" class="close-btn" @click="closeModal"><span class="icon-svg" v-html="Icons.close"></span></button>
+          <button type="button" class="close-btn" @click="closeModal"><span class="icon-svg"
+              v-html="Icons.close"></span></button>
         </div>
 
         <div class="friend-modal__body">
@@ -71,12 +56,16 @@
 
             <label class="field field-wide">
               <span>{{ $t('settings.friendCardAvatar') }}</span>
+              <div style="width: 100%;display: flex; flex-direction: row; gap: .5rem;">
               <input v-model.trim="draftCard.avatar" :placeholder="$t('settings.friendCardAvatarPlaceholder')" />
+              <button type="button" class="primary" style="flex-shrink: 0;" @click="openAvatarPicker">{{ $t('settings.chooseImage') }}</button>
+            </div>
             </label>
 
             <label class="field field-wide">
               <span>{{ $t('settings.friendCardIntro') }}</span>
-              <textarea v-model.trim="draftCard.intro" rows="4" :placeholder="$t('settings.friendCardIntroPlaceholder')"></textarea>
+              <textarea v-model.trim="draftCard.intro" rows="4"
+                :placeholder="$t('settings.friendCardIntroPlaceholder')"></textarea>
             </label>
 
             <label class="field field-wide">
@@ -86,7 +75,8 @@
 
             <label class="field field-wide">
               <span>{{ $t('settings.friendCardStory') }}</span>
-              <PostIdPicker v-model="draftCard.storyPostId" :placeholder="$t('settings.friendCardStorySearchPlaceholder')" />
+              <PostIdPicker v-model="draftCard.storyPostId"
+                :placeholder="$t('settings.friendCardStorySearchPlaceholder')" />
               <small>{{ $t('settings.friendCardStoryHint') }}</small>
             </label>
 
@@ -101,6 +91,19 @@
       </div>
     </div>
   </div>
+
+  <div v-if="isFilePickerOpen" class="modal-overlay file-picker-overlay" @click.self="handleFilePickerCancel">
+    <div class="file-picker-modal">
+      <div class="file-picker-modal__header">
+        <h3>{{ $t('settings.chooseImage') }}</h3>
+        <button type="button" class="close-btn" @click="handleFilePickerCancel">
+          <span class="icon-svg" v-html="Icons.close"></span>
+        </button>
+      </div>
+      <FilePicker selectionMode="single" :restrictedTypes="['image']" :allowUpload="true"
+        @select="handleFilePickerSelect" @cancel="handleFilePickerCancel" />
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -111,6 +114,7 @@ import { Icons } from '../utils/icons'
 import CheckRow from '../components/ui/CheckRow.vue'
 import PostIdPicker from '../components/PostIdPicker.vue'
 import CardListEditor from '../components/ui/CardListEditor.vue'
+import FilePicker from '../components/FilePicker.vue'
 import useToast from '../composables/useToast'
 import '../stylePicker.css'
 
@@ -135,9 +139,12 @@ const enabled = ref(true)
 const saving = ref(false)
 const cards = ref<FriendCard[]>([])
 const isModalOpen = ref(false)
+const isFilePickerOpen = ref(false)
+const pickerTarget = ref<'avatar' | null>(null)
 const editingIndex = ref<number | null>(null)
 const draftCard = ref<FriendCard | null>(null)
 const friendsGlobalStyle = ref<FriendCardStyle | null>(null)
+
 
 const styleOptions = computed<Array<{ value: FriendCardStyle; label: string; description: string }>>(() => ([
   { value: 'left-sm', label: t('settings.friendCardStyleLeftSm'), description: t('settings.friendCardStyleLeftSmDesc') },
@@ -221,8 +228,28 @@ function openEditCard(index: number) {
 
 function closeModal() {
   isModalOpen.value = false
-  editingIndex.value = null
   draftCard.value = null
+}
+
+function openAvatarPicker() {
+  pickerTarget.value = 'avatar'
+  isFilePickerOpen.value = true
+}
+
+function handleFilePickerSelect(entry: any) {
+  if (!entry) return
+  const picked = Array.isArray(entry) ? entry[0] : entry
+  const url = picked.uploadedUrl || picked.url
+  if (url && pickerTarget.value === 'avatar' && draftCard.value) {
+    draftCard.value.avatar = url
+  }
+  isFilePickerOpen.value = false
+  pickerTarget.value = null
+}
+
+function handleFilePickerCancel() {
+  isFilePickerOpen.value = false
+  pickerTarget.value = null
 }
 
 function saveDraftCard() {
@@ -342,13 +369,8 @@ onMounted(async () => {
 }
 
 .friend-modal-overlay {
-  position: fixed;
-  inset: 0;
   z-index: 10040;
-  display: grid;
   place-items: center;
-  background: rgba(0, 0, 0, .45);
-  padding: 1rem;
 }
 
 .friend-modal {
@@ -399,6 +421,7 @@ onMounted(async () => {
   width: 24px;
   height: 24px;
 }
+
 .close-btn:hover {
   color: var(--component-text-primary);
 }
@@ -409,7 +432,6 @@ onMounted(async () => {
   gap: 1rem;
   min-height: 0;
   overflow: auto;
-  padding-right: 3rem;
 }
 
 .friend-modal__hero {
@@ -472,10 +494,11 @@ onMounted(async () => {
 }
 
 .friend-modal__fields {
+  width: 100%;
   display: grid;
   gap: .9rem;
   align-content: start;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .field {
@@ -494,7 +517,7 @@ onMounted(async () => {
 
 .field input,
 .field textarea {
-  width: 100%;
+  width: calc(100% - 1.8rem);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   background: var(--component-bg);
@@ -520,7 +543,8 @@ onMounted(async () => {
   background: linear-gradient(135deg, color-mix(in srgb, var(--accent-color) 18%, transparent), color-mix(in srgb, var(--component-text-secondary) 10%, transparent));
   position: relative;
   overflow: hidden;
-  pointer-events: none; /* ensure clicks/hover hit the button, not the decorative thumb */
+  pointer-events: none;
+  /* ensure clicks/hover hit the button, not the decorative thumb */
 }
 
 .style-option__thumb::before,
@@ -536,7 +560,7 @@ onMounted(async () => {
   top: 12px;
   width: 28px;
   height: 28px;
-  background: rgba(255,255,255,.9);
+  background: rgba(255, 255, 255, .9);
 }
 
 .style-option__thumb.style-left-sm::after {
@@ -544,8 +568,8 @@ onMounted(async () => {
   top: 16px;
   right: 12px;
   height: 10px;
-  background: rgba(255,255,255,.65);
-  box-shadow: 0 18px 0 rgba(255,255,255,.35);
+  background: rgba(255, 255, 255, .65);
+  box-shadow: 0 18px 0 rgba(255, 255, 255, .35);
 }
 
 .style-option__thumb.style-left-lg::before {
@@ -553,7 +577,7 @@ onMounted(async () => {
   top: 10px;
   width: 36px;
   height: 36px;
-  background: rgba(255,255,255,.92);
+  background: rgba(255, 255, 255, .92);
 }
 
 .style-option__thumb.style-left-lg::after {
@@ -561,8 +585,8 @@ onMounted(async () => {
   top: 18px;
   right: 12px;
   height: 12px;
-  background: rgba(255,255,255,.68);
-  box-shadow: 0 20px 0 rgba(255,255,255,.36);
+  background: rgba(255, 255, 255, .68);
+  box-shadow: 0 20px 0 rgba(255, 255, 255, .36);
 }
 
 .style-option__thumb.style-top-lg::before {
@@ -570,7 +594,7 @@ onMounted(async () => {
   top: 10px;
   right: 12px;
   height: 34px;
-  background: rgba(255,255,255,.9);
+  background: rgba(255, 255, 255, .9);
 }
 
 .style-option__thumb.style-top-lg::after {
@@ -578,8 +602,8 @@ onMounted(async () => {
   bottom: 12px;
   right: 14px;
   height: 12px;
-  background: rgba(255,255,255,.65);
-  box-shadow: 0 18px 0 rgba(255,255,255,.34);
+  background: rgba(255, 255, 255, .65);
+  box-shadow: 0 18px 0 rgba(255, 255, 255, .34);
 }
 
 .friend-modal__actions {
@@ -587,6 +611,42 @@ onMounted(async () => {
   justify-content: flex-end;
   gap: .5rem;
   flex-wrap: wrap;
+}
+
+.file-picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10060;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, .45);
+  padding: 1rem;
+}
+
+.file-picker-modal {
+    width: min(800px, 90vw);
+    display: grid;
+    grid-template-rows: auto 1fr;
+    gap: 1rem;
+    padding-top: 1rem;
+    border-radius: 18px;
+    background: var(--component-bg);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-elev-2);
+    overflow: hidden;
+}
+
+.file-picker-modal__header {
+    padding: 0 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.file-picker-modal__header h3 {
+    margin: 0;
+    font-size: 1.25rem;
 }
 
 @media (max-width: 980px) {

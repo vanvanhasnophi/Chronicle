@@ -960,16 +960,20 @@ html.is-mobile .toc-float {
   --frontend-bg-image: none;
   --backend-bg-image: none;
   /* Background editor vars */
+  --frontend-bg-mode: cover;
   --frontend-bg-pos: center center;
   --frontend-bg-size: cover;
+  --frontend-bg-repeat: no-repeat;
   --frontend-bg-blur: 0px;
   --frontend-bg-opacity: 0;
   --frontend-bg-compression: 1;
   --frontend-bg-overlay-dark: transparent;
   --frontend-bg-overlay-light: transparent;
   --frontend-bg-overlay: var(--frontend-bg-overlay-dark);
+  --backend-bg-mode: cover;
   --backend-bg-pos: center center;
   --backend-bg-size: cover;
+  --backend-bg-repeat: no-repeat;
   --backend-bg-blur: 0px;
   --backend-bg-opacity: 0;
   --backend-bg-compression: 1;
@@ -1014,13 +1018,20 @@ body.editor-no-bg-layer #chronicle-bg-layer {
 #chronicle-bg-layer .bg-image {
   position: absolute;
   inset: 0;
-  background-repeat: no-repeat;
-  background-position: center center;
-  background-size: cover;
-  filter: none;
+  background-repeat: var(--frontend-bg-repeat, no-repeat);
+  background-position: var(--frontend-bg-pos, center center);
+  background-size: var(--frontend-bg-size, cover);
+  filter: var(--frontend-bg-blur, none);
   opacity: 0;
   z-index: -2;
   transition: opacity 0.32s ease, background-image 0.25s ease, filter 0.25s ease, background-position 0.25s ease, background-size 0.25s ease;
+}
+
+body.backend #chronicle-bg-layer .bg-image {
+  background-repeat: var(--backend-bg-repeat, no-repeat);
+  background-position: var(--backend-bg-pos, center center);
+  background-size: var(--backend-bg-size, cover);
+  filter: var(--backend-bg-blur, none);
 }
 
 #chronicle-bg-layer.is-ready .bg-image {
@@ -1222,6 +1233,22 @@ html {
 
 .icon-label-btn.narrow{
     padding: 0.6rem;
+}
+
+
+/* Modal Styles */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #000a;
+    backdrop-filter: blur(4px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
 }
 
 @media (max-width: 768px) {

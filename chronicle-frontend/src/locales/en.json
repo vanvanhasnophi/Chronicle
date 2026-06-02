@@ -325,7 +325,10 @@
     },
     "copy_to_light": "Copy to Light",
     "copy_to_dark": "Copy to Dark",
-    "savedNeedRebuild": "Saved. Rebuild to ensure changes take effect."
+    "savedNeedRebuild": "Saved. Rebuild to ensure changes take effect.",
+
+    "collectionCoverPick": "Select...",
+    "chooseImage": "Choose Image"
   },
   "postPicker": {
     "inputPlaceholder": "Search and select a published post",
@@ -612,5 +615,27 @@
     "type": "Type",
     "size": "Size",
     "created": "Created"
+  },
+  "backgroundEditor": {
+    "title": "Edit Background",
+    "positionX": "Position X",
+    "positionY": "Position Y",
+    "size%": "Size (%)",
+    "blur": "Blur (px)",
+    "overlayLight": "Overlay (Light)",
+    "overlayDark": "Overlay (Dark)",
+    "opacity": "Opacity",
+    "preview": "Preview",
+    "stretch": "Stretch",
+    "cover": "Cover",
+    "tile": "Tile",
+    "custom": "Custom",
+    "contain": "Contain"
+  },
+  "theme":{
+      "lightFull": "Light Mode",
+      "darkFull": "Dark Mode",
+      "light": "Light",
+      "dark": "Dark"
   }
 }

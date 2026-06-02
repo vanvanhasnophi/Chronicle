@@ -18,7 +18,7 @@
             <button class="secondary" :disabled="saving" @click="resetAll">{{ $t('settings.reset') }}</button>
         </div>
 
-        <div v-if="isCollectionModalOpen && activeCollection" class="collection-modal-overlay"
+        <div v-if="isCollectionModalOpen && activeCollection" class="modal-overlay collection-modal-overlay"
             @click.self="closeCollectionModal">
             <div class="collection-modal">
                 <div class="collection-modal__header">
@@ -32,26 +32,43 @@
 
                 <div class="collection-modal__body">
                     <div class="collection-modal__fields">
-                        <label class="field field-wide">
-                            <span>{{ $t('settings.collectionName') }}</span>
-                            <input v-model.trim="activeCollection.name" :placeholder="$t('settings.collectionNamePlaceholder')" style="width: calc(100% - 30px)"/>
-                        </label>
+                        <div class="collection-modal__fields-layout">
+                            <div class="collection-modal__preview">
+                                <div v-if="activeCollection.cover" class="cover-preview">
+                                    <img :src="activeCollection.cover" alt="cover" />
+                                </div>
+                                <div v-else class="cover-placeholder">
+                                    <span class="icon-svg" v-html="Icons.image"></span>
+                                    <span>{{ $t('settings.collectionCoverPlaceholder') }}</span>
+                                </div>
+                            </div>
 
-                        <label class="field field-wide">
-                            <span>{{ $t('settings.collectionDescription') }}</span>
-                            <textarea v-model.trim="activeCollection.description" rows="2" :placeholder="$t('settings.collectionDescriptionPlaceholder')"style="width: calc(100% - 30px)"></textarea>
-                        </label>
-                        
-                        <label class="field field-wide">
-                            <span>{{ $t('settings.collectionCover') }}</span>
-                            <div style="display:flex;gap:.5rem;align-items:center;">
-                                <input v-model.trim="activeCollection.cover" :placeholder="$t('settings.collectionCoverPlaceholder')" style="width: calc(100% - 140px)" />
-                                <button type="button" class="secondary" @click="activeCollection.cover = ''">{{ $t('settings.clear') || 'Clear' }}</button>
+                            <div class="collection-modal__inputs">
+                                <label class="field">
+                                    <span>{{ $t('settings.collectionName') }}</span>
+                                    <input v-model.trim="activeCollection.name"
+                                        :placeholder="$t('settings.collectionNamePlaceholder')" />
+                                </label>
+
+                                <label class="field">
+                                    <span>{{ $t('settings.collectionDescription') }}</span>
+                                    <textarea v-model.trim="activeCollection.description" rows="2"
+                                        :placeholder="$t('settings.collectionDescriptionPlaceholder')"></textarea>
+                                </label>
+
+                                <label class="field">
+                                    <span>{{ $t('settings.collectionCover') }}</span>
+                                    <div style="display:flex;gap:.5rem;align-items:center;">
+                                        <input v-model.trim="activeCollection.cover"
+                                            :placeholder="$t('settings.collectionCoverPlaceholder')" style="flex:1" />
+                                        <button type="button" class="primary" @click="openFilePicker()">{{
+                                            $t('settings.collectionCoverPick') }}</button>
+                                        <button type="button" class="secondary" @click="activeCollection.cover = ''">{{
+                                            $t('settings.clear') || 'Clear' }}</button>
+                                    </div>
+                                </label>
                             </div>
-                            <div v-if="activeCollection.cover" style="margin-top:.5rem;">
-                                <img :src="activeCollection.cover" alt="cover" style="max-width:100%;height:120px;object-fit:cover;border-radius:8px;border:1px solid var(--border-color)" />
-                            </div>
-                        </label>
+                        </div>
                     </div>
 
                     <div class="collection-modal__toolbar">
@@ -60,12 +77,21 @@
                         </button>
                     </div>
 
-                    <CollectionNodeEditor
-                        v-if="Array.isArray(activeCollection.nodes)"
-                        :nodes="activeCollection.nodes"
-                        :onPostPicked="handlePostPicked"
-                        class="collection-modal__tree" />
+                    <CollectionNodeEditor v-if="Array.isArray(activeCollection.nodes)" :nodes="activeCollection.nodes"
+                        :onPostPicked="handlePostPicked" class="collection-modal__tree" />
                 </div>
+            </div>
+        </div>
+        <div v-if="isFilePickerOpen" class="file-picker-overlay" @click.self="handleFilePickerCancel">
+            <div class="file-picker-modal">
+                <div class="file-picker-modal__header">
+                    <h3>{{ $t('settings.collectionCoverPick') }}</h3>
+                    <button type="button" class="close-btn" @click="handleFilePickerCancel">
+                        <span class="icon-svg" v-html="Icons.close"></span>
+                    </button>
+                </div>
+                <FilePicker :selectionMode="'single'" :restrictedTypes="['image']" :allowLocalPick="false" :allowUpload="true"
+                    @select="handleFilePickerSelect" @cancel="handleFilePickerCancel" />
             </div>
         </div>
     </div>
@@ -79,6 +105,7 @@ import { Icons } from '../utils/icons'
 import CheckRow from '../components/ui/CheckRow.vue'
 import CardListEditor from '../components/ui/CardListEditor.vue'
 import CollectionNodeEditor from '../components/CollectionNodeEditor.vue'
+import FilePicker from '../components/FilePicker.vue'
 import useToast from '../composables/useToast'
 
 const { t } = useI18n()
@@ -90,6 +117,8 @@ const saving = ref(false)
 const nodes = ref<any[]>([])
 const isCollectionModalOpen = ref(false)
 const activeCollectionIndex = ref<number | null>(null)
+
+const isFilePickerOpen = ref(false)
 
 const collectionCards = computed(() => nodes.value.map((col: any) => ({
     ...col,
@@ -143,6 +172,25 @@ function openCollectionModal(index: number) {
 function closeCollectionModal() {
     isCollectionModalOpen.value = false
     activeCollectionIndex.value = null
+}
+
+function openFilePicker() {
+    isFilePickerOpen.value = true
+}
+
+function handleFilePickerSelect(entry: any) {
+    if (!entry) return
+    const picked = Array.isArray(entry) ? entry[0] : entry
+    if (picked.uploadedUrl) {
+        activeCollection.value.cover = picked.uploadedUrl
+    } else if (picked.url) {
+        activeCollection.value.cover = picked.url
+    }
+    isFilePickerOpen.value = false
+}
+
+function handleFilePickerCancel() {
+    isFilePickerOpen.value = false
 }
 
 function moveCollection(from: number, to: number) {
@@ -307,13 +355,10 @@ onMounted(async () => {
 }
 
 .collection-modal-overlay {
-    position: fixed;
     inset: 0;
     z-index: 10040;
     display: grid;
     place-items: center;
-    background: rgba(0, 0, 0, .45);
-    padding: 1rem;
 }
 
 .collection-modal {
@@ -359,18 +404,68 @@ onMounted(async () => {
     margin-bottom: 1rem;
 }
 
+.collection-modal__fields-layout {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 1.5rem;
+    align-items: start;
+}
+
+.collection-modal__preview {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    min-width: 200px;
+}
+
+.cover-preview {
+    width: 200px;
+    height: 200px;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    background: var(--component-bg);
+}
+
+.cover-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.cover-placeholder {
+    width: 200px;
+    height: 200px;
+    border-radius: 12px;
+    border: 1px dashed var(--border-color);
+    background: var(--component-bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    color: var(--component-text-secondary);
+}
+
+.cover-placeholder .icon-svg {
+    width: 48px;
+    height: 48px;
+    opacity: 0.5;
+}
+
+.cover-placeholder span:last-child {
+    font-size: .85rem;
+}
+
+.collection-modal__inputs {
+    display: grid;
+    gap: .9rem;
+    min-width: 0;
+}
+
 .field {
     display: grid;
     gap: .45rem;
-}
-
-.field-wide {
-    grid-column: 1 / -1;
-}
-
-.field span {
-    color: var(--component-text-secondary);
-    font-size: .9rem;
 }
 
 .field input,
@@ -381,11 +476,12 @@ onMounted(async () => {
     background: var(--component-bg);
     color: var(--component-text-primary);
     padding: .75rem .85rem;
+    box-sizing: border-box;
 }
 
 .field textarea {
     resize: vertical;
-    min-height: 100px;
+    min-height: 80px;
 }
 
 .collection-modal__toolbar {
@@ -413,5 +509,41 @@ onMounted(async () => {
 .close-btn svg {
     width: 24px;
     height: 24px;
+}
+
+.file-picker-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10050;
+    display: grid;
+    place-items: center;
+    background: rgba(0, 0, 0, .45);
+    padding: 1rem;
+}
+
+.file-picker-modal {
+    width: min(800px, 90vw);
+    display: grid;
+    grid-template-rows: auto 1fr;
+    gap: 1rem;
+    padding-top: 1rem;
+    border-radius: 18px;
+    background: var(--component-bg);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-elev-2);
+    overflow: hidden;
+}
+
+.file-picker-modal__header {
+    padding: 0 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.file-picker-modal__header h3 {
+    margin: 0;
+    font-size: 1.25rem;
 }
 </style>

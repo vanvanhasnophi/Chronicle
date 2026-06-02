@@ -5,7 +5,7 @@ import { loadSiteSettings } from '../utils/siteSettings';
 import { getTranslation, getLocale } from '../utils/i18n';
 import SearchBox from './SearchBox.astro';
 
-const { locale } = Astro.props || { locale: 'zh-CN' };
+const { locale, featureFlags } = Astro.props || { locale: 'zh-CN', featureFlags: {} };
 const t = (key: string) => getTranslation(locale, key);
 const routeLang = locale;
 const blogsPath = buildLocalizedPath(locale, '/blogs');
@@ -19,8 +19,8 @@ const siteTitle = settings?.siteName || 'Chronicle';
 const authorName = settings?.authorName || (t('home.defaultAuthorName') as string);
 const cardSubtitle = t('home.cardSubtitle') as string;
 const cardAuthorLine = t('home.cardAuthorLine') as string;
-const isFriendsEnabled = settings?.featureFlags?.friendsPage !== false;
-const isCollectionEnabled = settings?.featureFlags?.collectionPage !== false;
+const isFriendsEnabled = featureFlags?.friendsPage !== false;
+const isCollectionEnabled = featureFlags?.collectionPage !== false;
 
 function interpolate(template: string, values: Record<string, string | number>) {
   return template.replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? ''));
@@ -341,7 +341,7 @@ const yearLabel = new Date().getFullYear();
           />
         </div>
 
-        <div class="taxonomy-block">
+        <div v-if={isCollectionEnabled} class="taxonomy-block">
           <h3>{t('home.collectionList')}</h3>
           <div class="taxonomy-list">
             {collectionSummaries.length ? collectionSummaries.map((collection) => (

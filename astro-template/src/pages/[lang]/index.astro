@@ -13,6 +13,7 @@ import { loadSiteSettings } from "../../utils/siteSettings";
 import CardStyleHomeDeck from "../../components/CardStyleHomeDeck.astro";
 import HomeCoverDeck from "../../components/HomeCoverDeck.astro";
 import BackToTop from "../../components/BackToTop.vue";
+import { resolveFeatureFlags } from "../../utils/featureFlags.ts";
 
 // Get locale from Astro.locals (set by middleware)
 const locale = getLocale(Astro.locals);
@@ -25,6 +26,7 @@ const metaDescription = t("home.metaDescription");
 
 const settings = await loadSiteSettings();
 const homepageMode = settings?.homepageMode || "cover";
+const featureFlags = resolveFeatureFlags(settings?.featureFlags || {});
 ---
 
 <Layout
@@ -49,7 +51,7 @@ const homepageMode = settings?.homepageMode || "cover";
           <HomeCoverDeck locale={locale} themePostPath={themePostPath} mode="split" />
         </div>
         <div class="split-cards-stage">
-          <CardStyleHomeDeck locale={locale} />
+          <CardStyleHomeDeck locale={locale} featureFlags={featureFlags} />
         </div>
       </div>
     )
@@ -58,7 +60,7 @@ const homepageMode = settings?.homepageMode || "cover";
   {
     homepageMode === "cards" && (
       <div class="home-container home-container--cards">
-        <CardStyleHomeDeck locale={locale} />
+        <CardStyleHomeDeck locale={locale} featureFlags={featureFlags} />
       </div>
     )
   }

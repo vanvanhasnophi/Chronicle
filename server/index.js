@@ -1304,7 +1304,6 @@ app.post('/api/background/compress', async (req, res) => {
                 path: generatedPath,
                 sourcePath,
                 sourceName: path.basename(sourcePath),
-                originalName: path.basename(sourcePath),
                 generatedPath,
                 generatedName,
             },
@@ -2651,14 +2650,17 @@ function parseStandardFilename(filename) {
     }
     return null;
 }
-
 app.get('/api/files', (req, res) => {
-    const queryPath = req.query.path || '';
-    const sortBy = req.query.sort || 'created'; // 'created' or 'name'
+    try {
+        const queryPath = req.query.path || '';
+        const queryCategories = req.query.categories ? String(req.query.categories).split(',').filter(Boolean) : [];
+        const sortBy = req.query.sort || 'created'; // 'created' or 'name'
 
-    if (queryPath === 'all') {
+        if (queryPath === 'all') {
             let allFiles = [];
-            CATEGORIES.forEach(cat => {
+            const categoriesToScan = queryCategories.length > 0 ? queryCategories : CATEGORIES;
+            
+            categoriesToScan.forEach(cat => {
                 const catDir = path.join(UPLOAD_DIR, cat);
                 if (fs.existsSync(catDir)) {
                     try {
@@ -2688,7 +2690,9 @@ app.get('/api/files', (req, res) => {
                             };
                         });
                         allFiles = allFiles.concat(files);
-                    } catch(e) {}
+                    } catch(e) {
+                        console.error(`[Files API] Error reading category ${cat}:`, e);
+                    }
                 }
             });
 
@@ -2710,17 +2714,16 @@ app.get('/api/files', (req, res) => {
             }
 
             return res.json(allFiles);
-    }
+        }
 
-    const targetDir = path.resolve(UPLOAD_DIR, queryPath.replace(/^\/+/, ''));
-    if (!targetDir.startsWith(UPLOAD_DIR)) {
-        return res.status(403).send('Forbidden');
-    }
-    if (!fs.existsSync(targetDir)) {
-        return res.json([]);
-    }
+        const targetDir = path.resolve(UPLOAD_DIR, queryPath.replace(/^\/+/, ''));
+        if (!targetDir.startsWith(UPLOAD_DIR)) {
+            return res.status(403).send('Forbidden');
+        }
+        if (!fs.existsSync(targetDir)) {
+            return res.json([]);
+        }
 
-    try {
         const items = fs.readdirSync(targetDir, { withFileTypes: true }).map(dirent => {
             const rel = path.relative(UPLOAD_DIR, path.join(targetDir, dirent.name)).replace(/\\/g, '/');
             const isDir = dirent.isDirectory();
@@ -2768,6 +2771,7 @@ app.get('/api/files', (req, res) => {
 
         res.json(items);
     } catch (e) {
+        console.error('[Files API] Error:', e);
         res.status(500).send('Error listing files');
     }
 });
@@ -2796,6 +2800,31 @@ app.post('/api/settings', async (req, res) => {
 
         const frontendBackgroundMeta = parseBackgroundLikeValue(saved.frontendBackgroundMeta);
         const backendBackgroundMeta = parseBackgroundLikeValue(saved.backendBackgroundMeta);
+
+        // Ensure background objects have all required fields
+        if (saved.frontendBackground && typeof saved.frontendBackground === 'object') {
+            if (!saved.frontendBackground.path && saved.frontendBackground.url) {
+                saved.frontendBackground.path = saved.frontendBackground.url.replace(/^\/+/, '').replace(/^server\/data\/(background|upload)\//, '');
+            }
+            if (!saved.frontendBackground.generatedPath && saved.frontendBackground.path) {
+                saved.frontendBackground.generatedPath = saved.frontendBackground.path;
+            }
+            if (!saved.frontendBackground.generatedName && saved.frontendBackground.generatedPath) {
+                saved.frontendBackground.generatedName = saved.frontendBackground.generatedPath.split('/').pop() || '';
+            }
+        }
+
+        if (saved.backendBackground && typeof saved.backendBackground === 'object') {
+            if (!saved.backendBackground.path && saved.backendBackground.url) {
+                saved.backendBackground.path = saved.backendBackground.url.replace(/^\/+/, '').replace(/^server\/data\/(background|upload)\//, '');
+            }
+            if (!saved.backendBackground.generatedPath && saved.backendBackground.path) {
+                saved.backendBackground.generatedPath = saved.backendBackground.path;
+            }
+            if (!saved.backendBackground.generatedName && saved.backendBackground.generatedPath) {
+                saved.backendBackground.generatedName = saved.backendBackground.generatedPath.split('/').pop() || '';
+            }
+        }
 
         if (frontendBackgroundMeta && typeof frontendBackgroundMeta === 'object') {
             const compression = await computeBackgroundCompression(frontendBackgroundMeta, saved.frontendBackground);

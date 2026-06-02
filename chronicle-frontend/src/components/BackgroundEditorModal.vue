@@ -1,8 +1,8 @@
 <template>
-  <div class="bg-editor-overlay" @click.self="close">
+  <div class="modal-overlay bg-editor-overlay" @click.self="close">
     <div class="bg-editor-modal">
       <div class="bg-editor-header">
-        <h5>Background Editor</h5>
+        <h5>{{ t('backgroundEditor.title') }}</h5>
         <button class="close-btn" v-html="Icons.close" @click="close"></button>
       </div>
       <div class="bg-editor-body">
@@ -11,61 +11,92 @@
             <div class="preview-inner" :style="previewInnerStyle"></div>
             <div class="overlay" :style="overlayStyle"></div>
             <div class="preview-theme-toggle">
-              <button :class="{ 'active': previewTheme === 'light' }" @click.prevent="previewTheme = 'light'" style="color: #FFF">Light</button>
-              <button :class="{ 'active': previewTheme === 'dark' }" @click.prevent="previewTheme = 'dark'" style="color: #000">Dark</button>
+              <button :class="{ 'active': previewTheme === 'light' }" @click.prevent="previewTheme = 'light'"
+                style="color: #FFF">{{ t('theme.light') }}</button>
+              <button :class="{ 'active': previewTheme === 'dark' }" @click.prevent="previewTheme = 'dark'"
+                style="color: #000">{{ t('theme.dark') }}</button>
             </div>
           </div>
         </div>
         <div class="controls-container">
-        <div class="controls">
-          <div class="control-row">
-            <label>Position X</label>
-            <input type="range" min="0" max="100" v-model.number="meta.posX" />
-            <span>{{ meta.posX }}%</span>
-          </div>
-          <div class="control-row">
-            <label>Position Y</label>
-            <input type="range" min="0" max="100" v-model.number="meta.posY" />
-            <span>{{ meta.posY }}%</span>
-          </div>
-          <div class="control-row">
-            <label>Size (%)</label>
-            <input type="range" min="10" max="300" v-model.number="meta.size" />
-            <span>{{ meta.size }}%</span>
-          </div>
-          <div class="control-row">
-            <label>Blur (px)</label>
-            <input type="range" min="0" max="60" v-model.number="meta.blur" />
-            <span>{{ meta.blur }}px</span>
-          </div>
-          <div class="overlay-controls">
-            <div class="overlay-control control-row">
-              <label>Overlay (Light)</label>
-              <input type="color" v-model="meta.overlayLightColor" />
-              <label class="small" >Opacity</label>
-              <input type="range" min="0" max="100" v-model.number="meta.overlayLightOpacity" />
-              <span>{{ meta.overlayLightOpacity }}%</span>
+          <div class="controls">
+            <div class="control-row" >
+              <label>Mode</label>
+              <select v-model="meta.mode" class="modern-select" style="width: 100%;">
+                <option value="cover">{{t('backgroundEditor.cover')}}</option>
+                <option value="contain">{{t('backgroundEditor.contain')}}</option>
+                <option value="fill">{{t('backgroundEditor.stretch')}}</option>
+                <option value="tile">{{t('backgroundEditor.tile')}}</option>
+                <option value="custom">{{t('backgroundEditor.custom')}}</option>
+              </select>
             </div>
-            <div class="clone-buttons" role="group" aria-label="Clone overlay settings">
-                <button class="clone-button" :title="t('settings.copy_to_light')" @click.prevent="copyDarkToLight" v-html="Icons.arrowUp"></button>
-                <button class="clone-button rotated" :title="t('settings.copy_to_dark')" @click.prevent="copyLightToDark" v-html="Icons.arrowUp"></button>
+
+            <div class="control-row" :class="{ disabled: !canEditPosition }">
+              <label>Position X</label>
+              <input type="range" min="0" max="100" v-model.number="meta.posX" :disabled="!canEditPosition" />
+              <span>{{ meta.posX }}%</span>
             </div>
-            <div class="overlay-control control-row">
-              <label>Overlay (Dark)</label>
-              <input type="color" v-model="meta.overlayDarkColor" />
-              <label class="small" >Opacity</label>
-              <input type="range" min="0" max="100" v-model.number="meta.overlayDarkOpacity" />
-              <span>{{ meta.overlayDarkOpacity }}%</span>
+
+            <div class="control-row" :class="{ disabled: !canEditPosition }">
+              <label>Position Y</label>
+              <input type="range" min="0" max="100" v-model.number="meta.posY" :disabled="!canEditPosition" />
+              <span>{{ meta.posY }}%</span>
+            </div>
+
+            <div class="control-row" :class="{ disabled: !canEditSize }">
+              <label>Size (%)</label>
+              <input type="range" min="10" max="300" v-model.number="meta.size" :disabled="!canEditSize" />
+              <span>{{ meta.size }}%</span>
+            </div>
+
+            <div class="control-row">
+              <label>Blur (px)</label>
+              <input type="range" min="0" max="60" v-model.number="meta.blur" />
+              <span>{{ meta.blur }}px</span>
+            </div>
+            <div class="overlay-controls">
+              <div class="overlay-control control-row">
+                <label>{{ t('backgroundEditor.overlayLight') }}</label>
+                <input type="color" v-model="meta.overlayLightColor" />
+                <label class="small">{{ t('backgroundEditor.opacity') }}</label>
+                <input type="range" min="0" max="100" v-model.number="meta.overlayLightOpacity" />
+                <span>{{ meta.overlayLightOpacity }}%</span>
+              </div>
+              <div class="clone-buttons" role="group" aria-label="Clone overlay settings">
+                <button class="clone-button" :title="t('settings.copy_to_light')" @click.prevent="copyDarkToLight"
+                  v-html="Icons.arrowUp"></button>
+                <button class="clone-button rotated" :title="t('settings.copy_to_dark')"
+                  @click.prevent="copyLightToDark" v-html="Icons.arrowUp"></button>
+              </div>
+              <div class="overlay-control control-row">
+                <label>{{ t('backgroundEditor.overlayDark') }}</label>
+                <input type="color" v-model="meta.overlayDarkColor" />
+                <label class="small">{{ t('backgroundEditor.opacity') }}</label>
+                <input type="range" min="0" max="100" v-model.number="meta.overlayDarkOpacity" />
+                <span>{{ meta.overlayDarkOpacity }}%</span>
+              </div>
             </div>
           </div>
-        </div>
         </div>
       </div>
       <div class="bg-editor-actions">
-        <button class="secondary" @click="close">Cancel</button>
-        <button class="secondary" @click.prevent="openPicker">Choose Image</button>
-        <button class="primary" @click="save">Save</button>
+        <button class="secondary" @click="close">{{ t('settings.cancel') }}</button>
+        <button class="secondary" @click.prevent="openPicker">{{ t('settings.chooseImage') }}</button>
+        <button class="primary" @click="save">{{ t('settings.save') }}</button>
       </div>
+    </div>
+  </div>
+
+  <div v-if="isFilePickerOpen" class="modal-overlay file-picker-overlay" @click.self="handleFilePickerCancel">
+    <div class="file-picker-modal">
+      <div class="file-picker-modal__header">
+        <h3>{{ t('settings.chooseImage') }}</h3>
+        <button type="button" class="close-btn" @click="handleFilePickerCancel">
+          <span class="icon-svg" v-html="Icons.close"></span>
+        </button>
+      </div>
+      <FilePicker selectionMode="single" :restrictedTypes="['image']" :allowUpload="true"
+        @select="handleFilePickerSelect" @cancel="handleFilePickerCancel" />
     </div>
   </div>
 </template>
@@ -75,16 +106,25 @@ import { reactive, toRefs, watch, computed, ref } from 'vue'
 import { Icons } from '../utils/icons';
 import { hexToRgbString } from '../utils/colorUtils'
 import { useI18n } from 'vue-i18n'
+import FilePicker from './FilePicker.vue'
 const { t } = useI18n()
-const props = defineProps<{ url: string; initial?: any }>()
+const props = defineProps<{ 
+  url: string; 
+  initial?: any;
+  sourcePath?: string;
+  sourceName?: string;
+ }>()
 const emit = defineEmits<{
   (e: 'save', meta: any): void
   (e: 'close'): void
-  (e: 'open-picker'): void
 }>()
-
+const isFilePickerOpen = ref(false)
+const currentUrl = ref(props.url)
+const currentSourcePath = ref(props.sourcePath || props.initial?.sourcePath || '')
+const currentSourceName = ref(props.sourceName || props.initial?.sourceName || '')
 
 const defaultMeta = {
+  mode: 'cover' as 'cover' | 'contain' | 'fill' | 'tile' | 'custom',
   posX: 50,
   posY: 50,
   size: 100,
@@ -105,10 +145,18 @@ watch(() => props.initial, (v) => {
   if (v) Object.assign(meta, v)
 })
 
+watch(() => props.url, (v) => {
+  currentUrl.value = v
+})
+
 function close() { emit('close') }
 
 function save() {
   const out = {
+    url: currentUrl.value,
+    sourcePath: currentSourcePath.value,
+    sourceName: currentSourceName.value,
+    mode: meta.mode,
     posX: Number(meta.posX),
     posY: Number(meta.posY),
     size: Number(meta.size),
@@ -121,21 +169,79 @@ function save() {
     overlayColor: meta.overlayDarkColor || meta.overlayLightColor || undefined,
     overlayOpacity: Number(meta.overlayDarkOpacity || meta.overlayLightOpacity || 0)
   }
+  
+  // Only include source fields if they were set (i.e., user selected a new image)
+  // Otherwise, preserve the existing source fields from props.initial
+  if (currentSourcePath.value) {
+    out.sourcePath = currentSourcePath.value
+    out.sourceName = currentSourceName.value
+  } else if (props.initial?.sourcePath) {
+    out.sourcePath = props.initial.sourcePath
+    out.sourceName = props.initial.sourceName || ''
+  }
+  
   emit('save', out)
 }
 
-function openPicker() { emit('open-picker') }
+function openPicker() {
+  isFilePickerOpen.value = true
+}
+
+function handleFilePickerSelect(entry: any) {
+  if (!entry) return
+  const picked = Array.isArray(entry) ? entry[0] : entry
+  const url = picked.uploadedUrl || picked.url
+  if (url) {
+    currentUrl.value = url
+    currentSourcePath.value = picked.sourcePath || ''
+    currentSourceName.value = picked.sourceName || ''
+  }
+  isFilePickerOpen.value = false
+}
+
+function handleFilePickerCancel() {
+  isFilePickerOpen.value = false
+}
 
 const previewInnerStyle = computed(() => {
-  const url = props.url ? `url(${props.url})` : 'none'
+  const url = currentUrl.value ? `url(${currentUrl.value})` : 'none'
   const pos = `${meta.posX}% ${meta.posY}%`
   const size = `${meta.size}%`
   const blur = `${meta.blur}px`
+
+  let backgroundPosition = pos
+  let backgroundSize = size
+  let backgroundRepeat = 'no-repeat'
+
+  switch (meta.mode) {
+    case 'cover':
+      backgroundPosition = 'center'
+      backgroundSize = 'cover'
+      break
+    case 'contain':
+      backgroundPosition = 'center'
+      backgroundSize = 'contain'
+      break
+    case 'fill':
+      backgroundPosition = 'center'
+      backgroundSize = '100% 100%'
+      break
+    case 'tile':
+      backgroundPosition = '0 0'
+      backgroundSize = 'auto'
+      backgroundRepeat = 'repeat'
+      break
+    case 'custom':
+      backgroundPosition = pos
+      backgroundSize = size
+      break
+  }
+
   return {
     backgroundImage: url,
-    backgroundPosition: pos,
-    backgroundSize: size,
-    backgroundRepeat: 'no-repeat',
+    backgroundPosition,
+    backgroundSize,
+    backgroundRepeat,
     filter: `blur(${blur})`
   }
 })
@@ -158,6 +264,9 @@ function copyDarkToLight() {
   meta.overlayLightOpacity = meta.overlayDarkOpacity
 }
 
+const canEditPosition = computed(() => meta.mode === 'custom')
+const canEditSize = computed(() => meta.mode === 'custom' || meta.mode === 'tile')
+
 // use shared helper
 </script>
 
@@ -168,7 +277,6 @@ function copyDarkToLight() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.45);
   z-index: 10050
 }
 
@@ -256,17 +364,20 @@ function copyDarkToLight() {
   background: var(--accent-color);
   color: var(--text-on-accent)
 }
+
 .overlay-controls {
   display: flex;
   flex-direction: column;
   gap: 8px;
   align-items: stretch;
 }
+
 .overlay-control {
   display: flex;
   align-items: center;
   gap: 8px;
 }
+
 .clone-buttons {
   display: flex;
   flex-direction: column;
@@ -274,6 +385,7 @@ function copyDarkToLight() {
   align-items: center;
   justify-content: center;
 }
+
 .clone-button {
   background: transparent;
   border: 1px solid var(--border-color);
@@ -287,13 +399,16 @@ function copyDarkToLight() {
   align-items: center;
   justify-content: center;
 }
+
 .clone-button:hover {
   opacity: 0.9;
 }
+
 .clone-button svg {
   width: 18px;
   height: 18px;
 }
+
 .clone-button.rotated {
   transform: rotate(180deg);
 }
@@ -355,7 +470,7 @@ function copyDarkToLight() {
   background: transparent;
   border: none;
   padding: 0 2px;
-  
+
   cursor: pointer;
   color: var(--text-primary)
 }
@@ -399,9 +514,51 @@ function copyDarkToLight() {
   justify-content: center;
   border-radius: 4px;
 }
+
 label.small {
   max-width: fit-content;
-  margin-left:30px;
+  margin-left: 30px;
+}
+
+.file-picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10060;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, .45);
+  padding: 1rem;
+}
+
+.file-picker-modal {
+  width: min(800px, 90vw);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 1rem;
+  padding-top: 1rem;
+  border-radius: 18px;
+  background: var(--component-bg);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-elev-2);
+  overflow: hidden;
+}
+
+.file-picker-modal__header {
+  padding: 0 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.file-picker-modal__header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.control-row.disabled {
+  opacity: 0.5;
+  pointer-events: none;
 }
 
 
@@ -414,6 +571,7 @@ h5 {
   .bg-editor-body {
     flex-direction: column;
   }
+
   .preview-area {
     width: 100%;
   }

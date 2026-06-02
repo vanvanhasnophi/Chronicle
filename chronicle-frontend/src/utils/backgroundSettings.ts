@@ -5,7 +5,6 @@ export interface NormalizedBackgroundSetting {
   path: string
   sourcePath: string
   sourceName: string
-  originalName: string
   generatedPath: string
   generatedName: string
   compression: number
@@ -91,7 +90,6 @@ export function normalizeBackgroundRecord(raw: any, scope: BackgroundScope): Nor
       path: rel,
       sourcePath: source,
       sourceName: rel.split('/').pop() || '',
-      originalName: rel.split('/').pop() || '',
       generatedPath: generated,
       generatedName: generated.split('/').pop() || '',
       compression: 1,
@@ -102,7 +100,7 @@ export function normalizeBackgroundRecord(raw: any, scope: BackgroundScope): Nor
   const pathValue = normalizeUploadRelPath(raw.path || raw.url || raw.generatedPath || '')
   const sourcePath = normalizeUploadRelPath(raw.sourcePath || raw.originalPath || raw.sourceUrl || raw.source || raw.path || raw.url || '')
   const generatedPath = normalizeUploadRelPath(raw.generatedPath || raw.outputPath || raw.path || raw.url || '')
-  const sourceName = raw.sourceName || raw.originalName || raw.name || (sourcePath ? sourcePath.split('/').pop() : (generatedPath ? generatedPath.split('/').pop() : ''))
+  const sourceName = raw.sourceName || raw.name || (sourcePath ? sourcePath.split('/').pop() : (generatedPath ? generatedPath.split('/').pop() : ''))
   const compression = getCompressionFromMeta(raw)
 
   return {
@@ -111,7 +109,6 @@ export function normalizeBackgroundRecord(raw: any, scope: BackgroundScope): Nor
     path: pathValue || generatedPath || sourcePath || '',
     sourcePath: sourcePath || generatedPath || pathValue || '',
     sourceName,
-    originalName: sourceName,
     generatedPath: generatedPath || '',
     generatedName: raw.generatedName || (generatedPath ? generatedPath.split('/').pop() || '' : ''),
     compression,

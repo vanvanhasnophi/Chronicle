@@ -26,6 +26,7 @@
           </div>
         </div>
 
+
         <div class="group-card">
           <h3>Typography</h3>
           <div class="form-row">
@@ -72,22 +73,28 @@
               <span class="color-text">{{ uiAccentColor }}</span>
             </div>
           </div>
-          
+
           <div class="form-row">
             <label>Frontend background</label>
             <div style="display:flex; gap:8px; align-items:center;">
-              <div v-if="uiFrontendBackground" class="bg-preview" :style="{ backgroundImage: `url(${getBackgroundPreviewUrl('frontend')})` }"></div>
-              <button class="secondary" @click.prevent="handleEditBackground('frontend')">{{ uiFrontendBackground ? 'Edit' : 'Add' }}</button>
-              <button v-if="uiFrontendBackground" class="secondary" @click.prevent="clearBackground('frontend')">Clear</button>
+              <div v-if="uiFrontendBackground" class="bg-preview"
+                :style="{ backgroundImage: `url(${getBackgroundPreviewUrl('frontend')})` }"></div>
+              <button class="secondary" @click.prevent="handleEditBackground('frontend')">{{ uiFrontendBackground ?
+                'Edit' : 'Add' }}</button>
+              <button v-if="uiFrontendBackground" class="secondary"
+                @click.prevent="clearBackground('frontend')">Clear</button>
             </div>
           </div>
 
           <div class="form-row">
             <label>Backend background</label>
             <div style="display:flex; gap:8px; align-items:center;">
-              <div v-if="uiBackendBackground" class="bg-preview" :style="{ backgroundImage: `url(${getBackgroundPreviewUrl('backend')})` }"></div>
-              <button class="secondary" @click.prevent="handleEditBackground('backend')">{{ uiBackendBackground ? 'Edit' : 'Add' }}</button>
-              <button v-if="uiBackendBackground" class="secondary" @click.prevent="clearBackground('backend')">Clear</button>
+              <div v-if="uiBackendBackground" class="bg-preview"
+                :style="{ backgroundImage: `url(${getBackgroundPreviewUrl('backend')})` }"></div>
+              <button class="secondary" @click.prevent="handleEditBackground('backend')">{{ uiBackendBackground ? 'Edit'
+                : 'Add' }}</button>
+              <button v-if="uiBackendBackground" class="secondary"
+                @click.prevent="clearBackground('backend')">Clear</button>
             </div>
           </div>
         </div>
@@ -124,37 +131,34 @@
       </aside>
     </div>
   </div>
-  <!-- Background picker modal -->
-  <div v-if="bgPickerOpen" class="modal-overlay" @click.self="bgPickerOpen = false">
-    <div class="modal-content large-modal">
-      <div class="modal-header">
-        <h3>Choose background image</h3>
-        <button class="close-btn"  @click="bgPickerOpen = false"><span class="icon-svg" v-html="Icons.close"></span></button>
-      </div>
-      <div class="modal-body">
-        <div class="library-section">
-          <div v-if="uploadedImagesLocal.length > 0" class="image-grid">
-            <div v-for="(img, idx) in uploadedImagesLocal" :key="idx" class="library-item" @click="chooseBackgroundImage(img)">
-              <div class="img-thumb" v-if="img.url || img.path" :style="{ backgroundImage: `url(${img.url || img.path})` }"></div>
-              <span class="img-name">{{ img.name }}</span>
-            </div>
-          </div>
-          <div v-else class="empty-library">
-            <p>No images found.</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-    <!-- Background editor modal -->
-    <BackgroundEditorModal
-      v-if="bgEditorOpen"
-      :url="(bgEditorTarget === 'frontend' ? uiFrontendBackground : uiBackendBackground)"
-      :initial="(bgEditorTarget === 'frontend' ? uiFrontendBackgroundMeta : uiBackendBackgroundMeta)"
-      @save="(m) => { if (bgEditorTarget === 'frontend') uiFrontendBackgroundMeta = m; else uiBackendBackgroundMeta = m; bgEditorOpen = false }"
-      @close="bgEditorOpen = false"
-      @open-picker="handleOpenPickerFromEditor"
-    />
+  <!-- Background editor modal -->
+  <BackgroundEditorModal v-if="bgEditorOpen"
+    :url="(bgEditorTarget === 'frontend' ? uiFrontendBackground : uiBackendBackground)"
+        :initial="(bgEditorTarget === 'frontend' ? uiFrontendBackgroundMeta : uiBackendBackgroundMeta)"
+        :sourcePath="(bgEditorTarget === 'frontend' ? uiFrontendBackgroundSourcePath : uiBackendBackgroundSourcePath)"
+        :sourceName="(bgEditorTarget === 'frontend' ? uiFrontendBackgroundSourceName : uiBackendBackgroundSourceName)"
+        @save="(m) => {
+      if (bgEditorTarget === 'frontend') {
+        uiFrontendBackground = m.url
+        uiFrontendBackgroundMeta = m
+        // Only update source fields if they were provided (i.e., user selected a new image)
+        // Otherwise, preserve the existing source fields
+        if (m.sourcePath !== undefined) {
+          uiFrontendBackgroundSourcePath = m.sourcePath
+          uiFrontendBackgroundSourceName = m.sourceName || ''
+        }
+      } else {
+        uiBackendBackground = m.url
+        uiBackendBackgroundMeta = m
+        // Only update source fields if they were provided (i.e., user selected a new image)
+        // Otherwise, preserve the existing source fields
+        if (m.sourcePath !== undefined) {
+          uiBackendBackgroundSourcePath = m.sourcePath
+          uiBackendBackgroundSourceName = m.sourceName || ''
+        }
+      }
+      bgEditorOpen = false
+    }" @close="bgEditorOpen = false" />
 </template>
 
 <script setup lang="ts">
@@ -186,13 +190,8 @@ const uiBackendBackgroundMeta = ref<any>(null)
 const initialFrontendBackgroundKey = ref('')
 const initialBackendBackgroundKey = ref('')
 
-// Media picker state for background selection
-const bgPickerOpen = ref(false)
-const bgPickerTarget = ref<'frontend'|'backend'>('frontend')
 const bgEditorOpen = ref(false)
-const bgEditorTarget = ref<'frontend'|'backend'>('frontend')
-const uploadedImagesLocal = ref<Array<any>>([])
-const bgSelectedCategory = ref('pic')
+const bgEditorTarget = ref<'frontend' | 'backend'>('frontend')
 
 const { show } = useToast()
 const { t } = useI18n()
@@ -230,8 +229,8 @@ onMounted(() => {
         if (s.frontendLocale) uiFrontendLocale.value = s.frontendLocale
         if (s.frontendFont) uiFrontendFont.value = s.frontendFont
         if (s.backendFont) uiBackendFont.value = s.backendFont
-          if (s.frontendTheme) uiThemeMode.value = s.frontendTheme
-          if (s.backendTheme) uiBackendTheme.value = s.backendTheme
+        if (s.frontendTheme) uiThemeMode.value = s.frontendTheme
+        if (s.backendTheme) uiBackendTheme.value = s.backendTheme
         if (s.frontendAccent) uiAccentColor.value = s.frontendAccent
         if (s.frontendBackground) {
           const normalized = normalizeBackgroundRecord(s.frontendBackground, 'frontend')
@@ -251,19 +250,18 @@ onMounted(() => {
           uiFrontendBackgroundMeta.value = typeof s.frontendBackgroundMeta === 'string'
             ? JSON.parse(s.frontendBackgroundMeta)
             : (s.frontendBackgroundMeta || uiFrontendBackgroundMeta.value)
-        } catch(e) {}
+        } catch (e) { }
         try {
           uiBackendBackgroundMeta.value = typeof s.backendBackgroundMeta === 'string'
             ? JSON.parse(s.backendBackgroundMeta)
             : (s.backendBackgroundMeta || uiBackendBackgroundMeta.value)
-        } catch(e) {}
+        } catch (e) { }
         initialFrontendBackgroundKey.value = normalizeBackgroundChangeKey(
           uiFrontendBackground.value ? {
             url: uiFrontendBackground.value,
             path: uiFrontendBackground.value,
             sourcePath: uiFrontendBackgroundSourcePath.value,
             sourceName: uiFrontendBackgroundSourceName.value,
-            originalName: uiFrontendBackgroundSourceName.value,
           } : '',
           uiFrontendBackgroundMeta.value
         )
@@ -273,88 +271,79 @@ onMounted(() => {
             path: uiBackendBackground.value,
             sourcePath: uiBackendBackgroundSourcePath.value,
             sourceName: uiBackendBackgroundSourceName.value,
-            originalName: uiBackendBackgroundSourceName.value,
           } : '',
           uiBackendBackgroundMeta.value
         )
       })
-      .catch(() => {})
-  } catch(e) {}
+      .catch(() => { })
+  } catch (e) { }
 })
 // All appearance updates are deferred until Save is clicked.
+try {
+  if (uiFrontendBackground.value) document.documentElement.style.setProperty('--frontend-bg-image', `url(${uiFrontendBackground.value})`)
+  else document.documentElement.style.setProperty('--frontend-bg-image', 'none')
+  if (uiBackendBackground.value) document.documentElement.style.setProperty('--backend-bg-image', `url(${uiBackendBackground.value})`)
+  else document.documentElement.style.setProperty('--backend-bg-image', 'none')
+  // apply meta if present
   try {
-    if (uiFrontendBackground.value) document.documentElement.style.setProperty('--frontend-bg-image', `url(${uiFrontendBackground.value})`)
-    else document.documentElement.style.setProperty('--frontend-bg-image', 'none')
-    if (uiBackendBackground.value) document.documentElement.style.setProperty('--backend-bg-image', `url(${uiBackendBackground.value})`)
-    else document.documentElement.style.setProperty('--backend-bg-image', 'none')
-    // apply meta if present
-    try {
-      if (uiFrontendBackgroundMeta.value) {
-        const m = uiFrontendBackgroundMeta.value
-        document.documentElement.style.setProperty('--frontend-bg-pos', `${m.posX || 50}% ${m.posY || 50}%`)
-        document.documentElement.style.setProperty('--frontend-bg-size', `${m.size || 100}%`)
-        document.documentElement.style.setProperty('--frontend-bg-blur', `${m.blur || 0}px`)
-        const overlay = m.overlayColor || 'transparent'
-        const opa = (m.overlayOpacity || 0) / 100
-        if (overlay === 'transparent') {
-          document.documentElement.style.setProperty('--frontend-bg-overlay-dark', 'transparent')
-          document.documentElement.style.setProperty('--frontend-bg-overlay-light', 'transparent')
-        } else {
-            const rgb = hexToRgbString(overlay)
-            document.documentElement.style.setProperty('--frontend-bg-overlay-dark', `rgba(${rgb}, ${opa})`)
-            document.documentElement.style.setProperty('--frontend-bg-overlay-light', `rgba(${rgb}, ${opa})`)
-        }
+    if (uiFrontendBackgroundMeta.value) {
+      const m = uiFrontendBackgroundMeta.value
+      document.documentElement.style.setProperty('--frontend-bg-pos', `${m.posX || 50}% ${m.posY || 50}%`)
+      document.documentElement.style.setProperty('--frontend-bg-size', `${m.size || 100}%`)
+      document.documentElement.style.setProperty('--frontend-bg-blur', `${m.blur || 0}px`)
+      const overlay = m.overlayColor || 'transparent'
+      const opa = (m.overlayOpacity || 0) / 100
+      if (overlay === 'transparent') {
+        document.documentElement.style.setProperty('--frontend-bg-overlay-dark', 'transparent')
+        document.documentElement.style.setProperty('--frontend-bg-overlay-light', 'transparent')
+      } else {
+        const rgb = hexToRgbString(overlay)
+        document.documentElement.style.setProperty('--frontend-bg-overlay-dark', `rgba(${rgb}, ${opa})`)
+        document.documentElement.style.setProperty('--frontend-bg-overlay-light', `rgba(${rgb}, ${opa})`)
       }
-    } catch(e) {}
-    try {
-      if (uiBackendBackgroundMeta.value) {
-        const m = uiBackendBackgroundMeta.value
-        document.documentElement.style.setProperty('--backend-bg-pos', `${m.posX || 50}% ${m.posY || 50}%`)
-        document.documentElement.style.setProperty('--backend-bg-size', `${m.size || 100}%`)
-        document.documentElement.style.setProperty('--backend-bg-blur', `${m.blur || 0}px`)
-        const overlay = m.overlayColor || 'transparent'
-        const opa = (m.overlayOpacity || 0) / 100
-        if (overlay === 'transparent') {
-          document.documentElement.style.setProperty('--backend-bg-overlay-dark', 'transparent')
-          document.documentElement.style.setProperty('--backend-bg-overlay-light', 'transparent')
-        } else {
-          const rgb = hexToRgbString(overlay)
-          document.documentElement.style.setProperty('--backend-bg-overlay-dark', `rgba(${rgb}, ${opa})`)
-          document.documentElement.style.setProperty('--backend-bg-overlay-light', `rgba(${rgb}, ${opa})`)
-        }
-        try {
-          const layer = document.getElementById('chronicle-bg-layer')
-            if (layer) {
-            const imgEl = layer.querySelector('.bg-image') as HTMLElement | null
-            const overlayEl = layer.querySelector('.bg-overlay') as HTMLElement | null
-            if (imgEl) imgEl.style.backgroundImage = uiBackendBackground.value ? `url(${uiBackendBackground.value})` : 'none'
-              if (overlayEl) overlayEl.style.background = (overlay === 'transparent') ? 'transparent' : `rgba(${hexToRgbString(overlay)}, ${opa})`
-          }
-        } catch(e) {}
+    }
+  } catch (e) { }
+  try {
+    if (uiBackendBackgroundMeta.value) {
+      const m = uiBackendBackgroundMeta.value
+      document.documentElement.style.setProperty('--backend-bg-pos', `${m.posX || 50}% ${m.posY || 50}%`)
+      document.documentElement.style.setProperty('--backend-bg-size', `${m.size || 100}%`)
+      document.documentElement.style.setProperty('--backend-bg-blur', `${m.blur || 0}px`)
+      const overlay = m.overlayColor || 'transparent'
+      const opa = (m.overlayOpacity || 0) / 100
+      if (overlay === 'transparent') {
+        document.documentElement.style.setProperty('--backend-bg-overlay-dark', 'transparent')
+        document.documentElement.style.setProperty('--backend-bg-overlay-light', 'transparent')
+      } else {
+        const rgb = hexToRgbString(overlay)
+        document.documentElement.style.setProperty('--backend-bg-overlay-dark', `rgba(${rgb}, ${opa})`)
+        document.documentElement.style.setProperty('--backend-bg-overlay-light', `rgba(${rgb}, ${opa})`)
       }
-    } catch(e) {}
-  } catch(e) {}
+      try {
+        const layer = document.getElementById('chronicle-bg-layer')
+        if (layer) {
+          const imgEl = layer.querySelector('.bg-image') as HTMLElement | null
+          const overlayEl = layer.querySelector('.bg-overlay') as HTMLElement | null
+          if (imgEl) imgEl.style.backgroundImage = uiBackendBackground.value ? `url(${uiBackendBackground.value})` : 'none'
+          if (overlayEl) overlayEl.style.background = (overlay === 'transparent') ? 'transparent' : `rgba(${hexToRgbString(overlay)}, ${opa})`
+        }
+      } catch (e) { }
+    }
+  } catch (e) { }
+} catch (e) { }
 
-async function fetchServerImages() {
-  try {
-    const res = await fetchWithAuth(`/api/files?path=pic&t=${Date.now()}`)
-    if (!res.ok) return
-    const items = await res.json()
-    uploadedImagesLocal.value = items
-      .filter((i:any) => i.type === 'file')
-      .map((i:any) => ({
-        name: i.name,
-        url: i.url || (i.path ? `/server/data/upload/${i.path}` : ''),
-        path: i.path || (i.url ? String(i.url).replace(/^https?:\/\/[^/]+\/server\/data\/upload\//, '').replace(/^\/server\/data\/upload\//, '') : ''),
-        thumb: i.thumb || (i.url || (i.path ? `/server/data/upload/${i.path}` : '')).replace('/server/data/upload/', '/server/data/upload/.thumbs/')
-      }))
-  } catch(e) { uploadedImagesLocal.value = [] }
-}
 
 function getBackgroundPreviewUrl(target: 'frontend' | 'backend') {
   const displayUrl = target === 'frontend' ? uiFrontendBackground.value : uiBackendBackground.value
   const sourcePath = target === 'frontend' ? uiFrontendBackgroundSourcePath.value : uiBackendBackgroundSourcePath.value
-  const candidate = normalizeUploadRelPath(sourcePath)
+  
+  let candidate = ''
+  if (sourcePath) {
+    candidate = normalizeUploadRelPath(sourcePath)
+  } else {
+    candidate = normalizeUploadRelPath(displayUrl)
+  }
+  
   if (candidate) {
     const origin = typeof window !== 'undefined' && window.location ? window.location.origin : ''
     const thumbUrl = `${origin}/server/data/upload/.thumbs/${candidate}`
@@ -363,55 +352,15 @@ function getBackgroundPreviewUrl(target: 'frontend' | 'backend') {
   return displayUrl
 }
 
-function chooseBackgroundImage(img: any) {
-  const sourcePath = img.path || img.url || ''
-  const sourceName = img.name || (String(sourcePath).split('/').pop() || '')
-  if (bgPickerTarget.value === 'frontend') {
-    uiFrontendBackground.value = img.url || img.path || ''
-    uiFrontendBackgroundSourcePath.value = sourcePath
-    uiFrontendBackgroundSourceName.value = sourceName
-  } else {
-    uiBackendBackground.value = img.url || img.path || ''
-    uiBackendBackgroundSourcePath.value = sourcePath
-    uiBackendBackgroundSourceName.value = sourceName
-  }
-  ensureMetaForTarget(bgPickerTarget.value)
-  // close picker then open editor so selection is merged into edit flow
-  bgPickerOpen.value = false
-  try { openBackgroundEditor(bgPickerTarget.value) } catch(e) {}
-}
-
 // When user clicks unified Edit button: if image exists open editor, otherwise open picker
-function handleEditBackground(target:'frontend'|'backend') {
-  if (target === 'frontend') {
-    if (uiFrontendBackground.value) openBackgroundEditor('frontend')
-    else {
-      bgPickerTarget.value = 'frontend'
-      bgPickerOpen.value = true
-      fetchServerImages()
-    }
-  } else {
-    if (uiBackendBackground.value) openBackgroundEditor('backend')
-    else {
-      bgPickerTarget.value = 'backend'
-      bgPickerOpen.value = true
-      fetchServerImages()
-    }
-  }
-}
-
-function handleOpenPickerFromEditor() {
-  try {
-    // close editor then open picker
-    bgEditorOpen.value = false
-    bgPickerTarget.value = bgEditorTarget.value
-    bgPickerOpen.value = true
-    fetchServerImages()
-  } catch(e) {}
+function handleEditBackground(target: 'frontend' | 'backend') {
+  ensureMetaForTarget(target)
+  bgEditorTarget.value = target
+  bgEditorOpen.value = true
 }
 
 // Ensure meta exists when choosing a new image
-function ensureMetaForTarget(target:'frontend'|'backend') {
+function ensureMetaForTarget(target: 'frontend' | 'backend') {
   if (target === 'frontend') {
     if (!uiFrontendBackgroundMeta.value) uiFrontendBackgroundMeta.value = { posX: 50, posY: 50, size: 100, blur: 0, overlayColor: '#000000', overlayOpacity: 0 }
   } else {
@@ -419,7 +368,7 @@ function ensureMetaForTarget(target:'frontend'|'backend') {
   }
 }
 
-function clearBackground(target:'frontend'|'backend') {
+function clearBackground(target: 'frontend' | 'backend') {
   if (target === 'frontend') {
     uiFrontendBackground.value = ''
     uiFrontendBackgroundSourcePath.value = ''
@@ -431,25 +380,28 @@ function clearBackground(target:'frontend'|'backend') {
   }
 }
 
-function buildBackgroundPayload(target:'frontend'|'backend') {
+function buildBackgroundPayload(target: 'frontend' | 'backend') {
   const displayUrl = target === 'frontend' ? uiFrontendBackground.value : uiBackendBackground.value
   const sourcePath = target === 'frontend' ? uiFrontendBackgroundSourcePath.value : uiBackendBackgroundSourcePath.value
   const sourceName = target === 'frontend' ? uiFrontendBackgroundSourceName.value : uiBackendBackgroundSourceName.value
   if (!displayUrl && !sourcePath) return ''
 
+  const pathValue = displayUrl.replace(/^\/+/, '').replace(/^server\/data\/(background|upload)\//, '')
+  
   return {
     url: displayUrl,
-    path: displayUrl,
-    sourcePath: sourcePath || displayUrl,
-    sourceName: sourceName || (sourcePath || displayUrl).split('/').pop() || '',
-    originalName: sourceName || (sourcePath || displayUrl).split('/').pop() || '',
+    path: pathValue,
+    sourcePath: sourcePath || pathValue,
+    sourceName: sourceName || (sourcePath || pathValue).split('/').pop() || '',
+    generatedPath: pathValue,
+    generatedName: pathValue.split('/').pop() || '',
   }
 }
 
 function normalizeBackgroundKey(payload: any) {
   if (!payload) return ''
   if (typeof payload === 'string') return payload.trim()
-  const fields = [payload.url, payload.path, payload.sourcePath, payload.sourceName, payload.originalName, payload.generatedPath, payload.generatedName]
+  const fields = [payload.url, payload.path, payload.sourcePath, payload.sourceName, payload.generatedPath, payload.generatedName]
   return JSON.stringify(fields.map((field) => String(field || '').trim()))
 }
 
@@ -505,7 +457,7 @@ async function compressBackgroundIfNeeded(target: 'frontend' | 'backend', backgr
   }
 }
 
-function openBackgroundEditor(target:'frontend'|'backend') {
+function openBackgroundEditor(target: 'frontend' | 'backend') {
   bgEditorTarget.value = target
   bgEditorOpen.value = true
 }
@@ -523,13 +475,13 @@ async function save() {
     const result = await compressBackgroundIfNeeded('frontend', frontendBackgroundPayload, frontendBackgroundMeta)
     frontendBackgroundMeta = result.meta
     frontendBackgroundToSave = result.background || frontendBackgroundPayload
-  } catch (e) {}
+  } catch (e) { }
 
   try {
     const result = await compressBackgroundIfNeeded('backend', backendBackgroundPayload, backendBackgroundMeta)
     backendBackgroundMeta = result.meta
     backendBackgroundToSave = result.background || backendBackgroundPayload
-  } catch (e) {}
+  } catch (e) { }
 
   if (frontendBackgroundToSave && typeof frontendBackgroundToSave === 'object') {
     uiFrontendBackground.value = frontendBackgroundToSave.url || uiFrontendBackground.value
@@ -614,9 +566,9 @@ async function save() {
         overlayEl.style.background = activeOverlay
       }
       if (surfaceEl) {
-        try { surfaceEl.style.background = getComputedStyle(document.documentElement).getPropertyValue('--app-bg-primary') || 'transparent' } catch(e) {}
+        try { surfaceEl.style.background = getComputedStyle(document.documentElement).getPropertyValue('--app-bg-primary') || 'transparent' } catch (e) { }
       }
-    } catch(e) {}
+    } catch (e) { }
   }
 
   // Apply background layer immediately when Save is clicked.
@@ -630,7 +582,7 @@ async function save() {
     if (backendBackgroundMeta) uiBackendBackgroundMeta.value = backendBackgroundMeta
     initialFrontendBackgroundKey.value = normalizeBackgroundChangeKey(frontendBackgroundToSave, frontendBackgroundMeta)
     initialBackendBackgroundKey.value = normalizeBackgroundChangeKey(backendBackgroundToSave, backendBackgroundMeta)
-  } catch(e) {}
+  } catch (e) { }
 
   // Apply frontend font immediately after Save
   try {
@@ -638,14 +590,14 @@ async function save() {
       document.documentElement.style.setProperty('--app-font-stack', 'var(--app-font-stack-inter)')
     } else if (uiFrontendFont.value === 'serif') {
       // load serif font on demand
-      try { (await import('../../utils/fontLoader')).ensureNotoLoaded() } catch(e) {}
+      try { (await import('../../utils/fontLoader')).ensureNotoLoaded() } catch (e) { }
       document.documentElement.style.setProperty('--app-font-stack', "'Noto Serif SC', serif")
     }
     // Also persist backend font into CSS var so backend UI (editor) can reflect immediately
     if (uiBackendFont.value === 'sans') {
       document.documentElement.style.setProperty('--backend-font-stack', 'var(--app-font-stack-inter)')
     } else if (uiBackendFont.value === 'serif') {
-      try { (await import('../../utils/fontLoader')).ensureNotoLoaded() } catch(e) {}
+      try { (await import('../../utils/fontLoader')).ensureNotoLoaded() } catch (e) { }
       document.documentElement.style.setProperty('--backend-font-stack', "'Noto Serif SC', serif")
     }
     // Apply theme immediately
@@ -657,26 +609,26 @@ async function save() {
       } else if (uiThemeMode.value === 'dark') {
         document.documentElement.setAttribute('data-theme', 'dark')
       }
-    } catch(e) {}
-      // Apply backend theme immediately
-      try {
-        if (uiBackendTheme.value === 'follow') {
-          document.body.removeAttribute('data-backend-theme')
-        } else if (uiBackendTheme.value === 'light') {
-          document.body.setAttribute('data-backend-theme', 'light')
-        } else if (uiBackendTheme.value === 'dark') {
-          document.body.setAttribute('data-backend-theme', 'dark')
-        }
-      } catch(e) {}
+    } catch (e) { }
+    // Apply backend theme immediately
+    try {
+      if (uiBackendTheme.value === 'follow') {
+        document.body.removeAttribute('data-backend-theme')
+      } else if (uiBackendTheme.value === 'light') {
+        document.body.setAttribute('data-backend-theme', 'light')
+      } else if (uiBackendTheme.value === 'dark') {
+        document.body.setAttribute('data-backend-theme', 'dark')
+      }
+    } catch (e) { }
 
     // Apply accent color immediately
     try {
       const accent = uiAccentColor.value || '#2ea35f'
       document.documentElement.style.setProperty('--accent-color', accent)
       document.documentElement.style.setProperty('--accent-color-dark', buildDarkerColor(accent))
-    } catch(e) {}
+    } catch (e) { }
     // Background already applied above on Save click.
-  } catch(e) {}
+  } catch (e) { }
 
   // Apply language settings immediately for current session (Settings is backend):
   try {
@@ -690,9 +642,9 @@ async function save() {
     // ensure frontend clients pick up the frontend locale choice on reload/first visit
     // Do NOT forcefully overwrite localStorage for existing clients who might have a preference.
     // The frontend logic in App.vue should respect this setting for new/default visitors.
-  } catch(e) {}
+  } catch (e) { }
 
-  try { show(t('settings.savedNeedRebuild') as string , {status: 'success'})} catch(e) {}
+  try { show(t('settings.savedNeedRebuild') as string, { status: 'success' }) } catch (e) { }
 }
 
 function reset() {
@@ -713,8 +665,17 @@ function reset() {
 </script>
 
 <style scoped>
-.appearance-page { max-width: 800px; margin:auto; padding: 2rem; }
-.hint { color: var(--text-secondary); margin-top: -4px; margin-bottom: 12px; }
+.appearance-page {
+  max-width: 800px;
+  margin: auto;
+  padding: 2rem;
+}
+
+.hint {
+  color: var(--text-secondary);
+  margin-top: -4px;
+  margin-bottom: 12px;
+}
 
 .appearance-layout {
   display: grid;
@@ -749,9 +710,15 @@ function reset() {
   gap: 6px;
 }
 
-.form-row:last-child { margin-bottom: 0; }
+.form-row:last-child {
+  margin-bottom: 0;
+}
 
-.actions { margin-top: 4px; display: flex; gap: 8px; }
+.actions {
+  margin-top: 4px;
+  display: flex;
+  gap: 8px;
+}
 
 .appearance-preview {
   --preview-accent: var(--accent-color);
@@ -783,7 +750,10 @@ function reset() {
   margin-bottom: 10px;
 }
 
-.preview-title { font-weight: 600; color: var(--text-primary); }
+.preview-title {
+  font-weight: 600;
+  color: var(--text-primary);
+}
 
 .preview-chip {
   background: color-mix(in srgb, var(--preview-accent) 16%, transparent);
@@ -794,7 +764,11 @@ function reset() {
   font-size: 0.85rem;
 }
 
-.preview-tags { display: flex; gap: 8px; margin-bottom: 10px; }
+.preview-tags {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
 
 .preview-tag {
   background: var(--component-bg-alt);
@@ -818,8 +792,16 @@ function reset() {
   padding: 12px;
 }
 
-.preview-card h4 { margin: 0 0 8px; font-size: 1rem; }
-.preview-card p { margin: 0; color: var(--text-secondary); line-height: 1.55; }
+.preview-card h4 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.preview-card p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
 
 .preview-actions {
   display: flex;
@@ -833,7 +815,9 @@ function reset() {
   color: var(--text-on-accent);
 }
 
-.preview-actions .primary:hover { background: var(--preview-accent-dark); }
+.preview-actions .primary:hover {
+  background: var(--preview-accent-dark);
+}
 
 .preview-actions .secondary {
   border-color: var(--preview-accent);
@@ -859,46 +843,112 @@ function reset() {
   font-size: 0.9rem;
 }
 
-.bg-preview { width: 72px; height: 44px; background-size: cover; background-position: center; border-radius: 6px; border: 1px solid var(--border-color); }
+.bg-preview {
+  width: 72px;
+  height: 44px;
+  background-size: cover;
+  background-position: center;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+}
 
-.modal-overlay { position: fixed; inset: 0; display:flex; align-items:center; justify-content:center; background: rgba(0,0,0,0.4); z-index:10050 }
-.modal-content { z-index:1199; background: var(--component-bg); border: 1px solid var(--border-color); border-radius: 10px; width: 90%; max-width: 900px; max-height: 80vh; overflow:auto }
-.modal-header { 
+.appr-modal-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10050
+}
+
+.modal-content {
+  z-index: 1199;
+  background: var(--component-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  width: 90%;
+  max-width: 900px;
+  max-height: 80vh;
+  overflow: auto
+}
+
+.modal-header {
   padding: 0px 16px;
-    border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
-    background: var(--component-bg-primary);
+  background: var(--component-bg-primary);
   flex-shrink: 0;
   height: 48px;
 }
-.modal-body { padding:12px }
-.image-grid { display:grid; grid-template-columns: repeat(auto-fill,minmax(120px,1fr)); gap:12px }
-.library-item { cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:8px; padding:8px; border-radius:8px; transition:all .12s }
-.library-item:hover { background: var(--component-bg-hover) }
-.img-thumb { width:100%; padding-top:66%; background-size:cover; background-position:center; border-radius:6px }
-.img-name { font-size:0.85rem; color:var(--text-secondary); text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; width:100% }
-.modal-header h3{
+
+.modal-body {
+  padding: 12px
+}
+
+.image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px
+}
+
+.library-item {
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  transition: all .12s
+}
+
+.library-item:hover {
+  background: var(--component-bg-hover)
+}
+
+.img-thumb {
+  width: 100%;
+  padding-top: 66%;
+  background-size: cover;
+  background-position: center;
+  border-radius: 6px
+}
+
+.img-name {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%
+}
+
+.modal-header h3 {
   margin: 0;
   font-size: 16px;
-    color: var(--component-text-primary);
+  color: var(--component-text-primary);
 }
+
 .close-btn {
   background: none;
   border: none;
-    color: var(--component-text-secondary);
+  color: var(--component-text-secondary);
   cursor: pointer;
   padding: 4px;
-  display: flex; 
+  display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 4px;
 }
+
 .close-btn:hover {
   background: transparent;
   color: var(--text-primary);
 }
+
 @media (max-width: 980px) {
   .appearance-layout {
     grid-template-columns: 1fr;
@@ -908,5 +958,4 @@ function reset() {
     position: static;
   }
 }
-
 </style>

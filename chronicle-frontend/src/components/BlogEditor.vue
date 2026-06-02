@@ -312,7 +312,7 @@
 
                 <!-- Media Body -->
                 <div v-if="activeModal === 'media'" class="modal-body media-manager-layout">
-                    <FilePicker selectionMode="multiple" :allowUpload="isCloudAuthenticated()"
+                    <FilePicker selectionMode="multiple" :allowLocalPick="true" :allowUpload="isCloudAuthenticated()"
                         :initialFiles="displayedFiles.map(f => ({ name: f.name, uploadedUrl: f.url, preview: f.thumb || f.url }))"
                         @select="handleMediaPicked" @cancel="activeModal = 'none'" />
                 </div>
@@ -550,7 +550,7 @@ import { convertToHtml, injectHeadingIds, getStats } from '../utils/markdownPars
 import { sortTags } from '../utils/tagUtils'
 import { useI18n } from 'vue-i18n'
 import CheckRow from './ui/CheckRow.vue';
-import FilePicker from './ui/FilePicker.vue'
+import FilePicker from './FilePicker.vue'
 import { formatDate as formatDateUtil, formatDateTime } from '../utils/dateUtils'
 import QuarterCircleSpinner from './ui/QuarterCircleSpinner.vue'
 import useToast from '../composables/useToast'
@@ -3370,20 +3370,6 @@ button:disabled {
     cursor: not-allowed;
 }
 
-/* Modal Styles */
-.modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: #000a;
-    backdrop-filter: blur(4px);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-}
 
 .modal-content {
     background: var(--bg-secondary);
