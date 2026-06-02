@@ -905,6 +905,8 @@ function normalizeFrontendUrl(frontendUrl: string) {
   return `https://${frontendUrl.replace(/^\/+/, '')}`
 }
 
+
+
 async function openFrontend() {
   try {
     const settings = await getSettings()
@@ -958,7 +960,7 @@ async function rebuildFrontend() {
       <button class="menu-toggle backend-menu-toggle" @click="isMenuOpen = !isMenuOpen" 
         v-html="isMenuOpen ? null : ShellIcons.menu" aria-label="Toggle backend navigation"></button>
 
-      <aside class="backend-sidebar" :class="{ 'mobile-open': isMenuOpen }">
+      <aside class="sidebar backend-sidebar" :class="{ 'mobile-open': isMenuOpen }">
         <div class="backend-sidebar-header">
           <div class="backend-brand" @click="router.push('/dashboard'); isMenuOpen = false" style="cursor: pointer;">
             <h1 class="app-title">{{ $t('app.title') }}</h1>
@@ -970,38 +972,38 @@ async function rebuildFrontend() {
         </div>
 
           <div class="sidebar-nav">
-          <RouterLink to="/dashboard" class="nav-link backend-nav-link" @click="isMenuOpen = false">{{ $t('nav.dashboard') }}</RouterLink>
-          <RouterLink to="/files" class="nav-link backend-nav-link" @click="isMenuOpen = false">{{ $t('nav.files') }}</RouterLink>
-          <RouterLink to="/traffic" class="nav-link backend-nav-link" @click="isMenuOpen = false">{{ $t('nav.traffic') }}</RouterLink>
+          <RouterLink to="/dashboard" class="sidebar-items nav-link backend-nav-link" @click="isMenuOpen = false">{{ $t('nav.dashboard') }}</RouterLink>
+          <RouterLink to="/files" class="sidebar-items nav-link backend-nav-link" @click="isMenuOpen = false">{{ $t('nav.files') }}</RouterLink>
+          <RouterLink to="/traffic" class="sidebar-items nav-link backend-nav-link" @click="isMenuOpen = false">{{ $t('nav.traffic') }}</RouterLink>
           <div class="backend-tree-group" :class="{ expanded: backendContentOpen, active: isContentRoute }">
-            <button type="button" class="nav-link backend-nav-link backend-tree-toggle"
+            <button type="button" class="sidebar-items nav-link backend-nav-link backend-tree-toggle"
               @click="toggleBackendContent">
               <span>{{ $t('nav.content') }}</span>
               <span class="backend-tree-caret" :class="{ open: backendContentOpen }" v-html="ShellIcons.chevron"></span>
             </button>
             <div v-show="backendContentOpen" class="backend-tree-children">
-              <RouterLink to="/manage" class="nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('nav.posts') }}</RouterLink>
-              <RouterLink to="/settings/collection" class="nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.shortCollection') }}</RouterLink>
-              <RouterLink to="/settings/homepage" class="nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.shortHome') }}</RouterLink>
-              <RouterLink to="/settings/friends" class="nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.friends') }}</RouterLink>
-              <RouterLink to="/settings/about" class="nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.shortAbout') }}</RouterLink>
+              <RouterLink to="/manage" class="sidebar-items nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('nav.posts') }}</RouterLink>
+              <RouterLink to="/settings/collection" class="sidebar-items nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.shortCollection') }}</RouterLink>
+              <RouterLink to="/settings/homepage" class="sidebar-items nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.shortHome') }}</RouterLink>
+              <RouterLink to="/settings/friends" class="sidebar-items nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.friends') }}</RouterLink>
+              <RouterLink to="/settings/about" class="sidebar-items nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.shortAbout') }}</RouterLink>
             </div>
           </div>
           <div class="backend-tree-group" :class="{ expanded: backendSettingsOpen, active: isSettingsRoute }">
-            <button type="button" class="nav-link backend-nav-link backend-tree-toggle"
+            <button type="button" class="sidebar-items nav-link backend-nav-link backend-tree-toggle"
               @click="toggleBackendSettings">
               <span>{{ $t('nav.settings') }}</span>
               <span class="backend-tree-caret" :class="{ open: backendSettingsOpen }" v-html="ShellIcons.chevron"></span>
             </button>
             <div v-show="backendSettingsOpen" class="backend-tree-children">
-              <RouterLink to="/settings/appearance" class="nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.appearance') }}</RouterLink>
-              <RouterLink to="/settings/features" class="nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.shortFeatures') }}</RouterLink>
-              <RouterLink to="/settings/security" class="nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.security') }}</RouterLink>
+              <RouterLink to="/settings/appearance" class="sidebar-items nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.appearance') }}</RouterLink>
+              <RouterLink to="/settings/features" class="sidebar-items nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.shortFeatures') }}</RouterLink>
+              <RouterLink to="/settings/security" class="sidebar-items nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">{{ $t('settings.security') }}</RouterLink>
             </div>
           </div>
         </div>
         <div class="backend-sidebar-footer">
-          <RouterLink to="/settings/build" :class="['nav-link backend-nav-link sidebar-footer-item sidebar-footer-link', { 'router-link-active': isBuildActive }]" @click="isMenuOpen = false" :aria-current="isBuildActive ? 'page' : null">
+          <RouterLink to="/settings/build" :class="['sidebar-items nav-link backend-nav-link sidebar-footer-item sidebar-footer-link', { 'router-link-active': isBuildActive }]" @click="isMenuOpen = false" :aria-current="isBuildActive ? 'page' : null">
             <span class="icon-svg footer-icon" v-html="ShellIcons.columns"></span>
             <span class="footer-label">{{ $t('nav.build') }}</span>
           </RouterLink>
@@ -1087,23 +1089,13 @@ async function rebuildFrontend() {
 }
 
 .nav-link {
-  color: var(--text-inactive);
-  text-decoration: none;
   padding: 0.5rem 1rem;
-  border-radius: 4px;
-  transition: all 0.3s ease;
 }
 
 .backend-nav-link.router-link-active {
   background: var(--component-bg-hover);
   color: var(--component-text-primary-hover);
 }
-
-.nav-link:hover {
-  background: var(--component-bg-hover);
-  color: var(--component-text-primary-hover);
-}
-
 
 .main-content {
   flex: 1;
@@ -1151,18 +1143,10 @@ async function rebuildFrontend() {
   left: 8px;
   bottom: 8px;
   width: 240px;
-  padding: 0.6rem 0.5rem;
-  box-sizing: border-box;
-  background: var(--component-bg-blur-alt);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--border-color-blur);
-  display: flex;
-  flex-direction: column;
   gap: 1rem;
   z-index: 1090;
-  border-radius: 12px;
-  box-shadow: 4px 0 10px 0 rgba(0, 0, 0, 0.05);
 }
 
 .backend-sidebar-header {
@@ -1220,34 +1204,6 @@ async function rebuildFrontend() {
   color: var(--component-text-secondary);
 }
 
-.sidebar-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-  flex: 1;
-  padding: 0.2rem 0.2rem 0;
-  overflow-y:auto;
-}
-
-.sidebar-nav::-webkit-scrollbar {
-  width: 4px;
-}
-
-.sidebar-nav::-webkit-scrollbar-thumb {
-  background-color: color-mix(in srgb, var(--component-text-secondary) 50%, transparent);
-  border-radius: 4px;
-}
-
-.sidebar-nav::-webkit-scrollbar-thumb:hover {
-  background-color: color-mix(in srgb, var(--component-text-primary) 50%, transparent);
-
-}
-
-
-.sidebar-nav::-webkit-scrollbar-track {
-  background: transparent;
-}
-
 
 
 .backend-tree-group {
@@ -1270,16 +1226,14 @@ async function rebuildFrontend() {
 
 .backend-tree-toggle {
   display: flex;
-  background: transparent;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
   width: 100%;
-  border: none;
   cursor: pointer;
-  text-align: left;
   line-height: 24px;
 }
+
 
 .backend-tree-caret {
   display: inline-flex;

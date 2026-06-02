@@ -6,15 +6,18 @@
                 <div class="meta-left">
                     <h4 class="post-title-display">{{ postTitle }}</h4>
                     <span :class="['status-chip', postStatus]">{{ $t('status.' + (postStatus || 'published')) }}</span>
-                    <span v-if="isBuilding" class="build-hint"><QuarterCircleSpinner :size="18"/>{{ t('editor.building') }}</span>
+                    <span v-if="isBuilding" class="build-hint">
+                        <QuarterCircleSpinner :size="18" />{{ t('editor.building') }}
+                    </span>
                     <div class="meta-dates">
                         <span class="date-item" v-if="postUpdated" title="Last Edited">
                             <span class="icon-svg tiny" v-html="Icons.edit"></span>
-                            {{ formatDateTime(postUpdated, locale, true, false, true, t) }}
+                            {{ formatDateTime(postUpdated, locale, 'relative', 'show-weekday', 'hide-seconds', '24h', t)
+                            }}
                         </span>
                         <span class="date-item faded" v-if="postDate" title="Created On">
                             <span class="icon-svg tiny" v-html="Icons.clock"></span>
-                            {{ formatDateTime(postDate, locale, true, false, true, t) }}
+                            {{ formatDateTime(postDate, locale, 'relative', 'show-weekday', 'hide-seconds', '24h', t) }}
                         </span>
                     </div>
                 </div>
@@ -62,7 +65,7 @@
                         <span class="icon-svg" v-html="Icons.redo"></span>
                     </button>
                     <span class="divider"></span>
-                    <button class="toolbar-btn" @click="openImageModal" :title="t('editor.media')">
+                    <button class="toolbar-btn" @click="openMediaModal" :title="t('editor.media')">
                         <span class="icon-svg" v-html="Icons.media"></span>
                         <span>{{ t('editor.media') }}</span>
                     </button>
@@ -188,7 +191,7 @@
         <!-- Group 1: File Menu Modal -->
         <div v-if="activeModal === 'file'" class="modal-overlay">
             <div class="modal-content file-menu-modal">
-                <div class="sidebar">
+                <div class="sidebar file-menu-sidebar">
                     <button v-for="tab in fileTabs" :key="tab.id" class="sidebar-btn"
                         :class="{ active: fileTab === tab.id }" @click="handleFileTabChange(tab.id)">
                         <span class="icon-svg sidebar-icon" v-html="tab.icon"></span>
@@ -218,7 +221,7 @@
                             </div>
                             <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
                                 <button class="primary-btn" @click="createLocalNewPost">{{ t('editor.createNewPost')
-                                    }}</button>
+                                }}</button>
                                 <button class="secondary-btn" @click="createOnlinePost">{{
                                     t('editor.file.createOnlinePost') }}</button>
                             </div>
@@ -273,14 +276,12 @@
                         <!-- Import -->
                         <div v-if="fileTab === 'import'" class="tab-pane">
                             <p>{{ t('editor.file.importInstruction') }}</p>
-                            <div class="file-drop-area" @click="triggerImportInput">
-                                <span v-if="!selectedImportFile">{{ t('editor.file.clickToSelect') }}</span>
-                                <span v-else>{{ selectedImportFile.name }}</span>
+                            <FilePicker @select="onFilePickerSelect" selectionMode="single"
+                                :allowUpload="isCloudAuthenticated()" />
+                            <div style="margin-top:.75rem;">
+                                <button class="primary-btn" :disabled="!selectedImportFile && !selectedImportUrl"
+                                    @click="executeFileAction">{{ t('editor.file.import') }}</button>
                             </div>
-                            <input type="file" ref="fileInput" @change="handleImportSelect" accept=".md,.txt"
-                                style="display:none" />
-                            <button class="primary-btn" :disabled="!selectedImportFile" @click="executeFileAction">{{
-                                t('editor.file.import') }}</button>
                         </div>
 
                         <!-- Export -->
@@ -288,9 +289,9 @@
                             <p>{{ t('editor.file.exportIntro') }}</p>
                             <div style="display:flex;gap:8px;flex-wrap:wrap;">
                                 <button class="primary-btn" @click="saveFile">{{ t('editor.file.saveAsMarkdown')
-                                    }}</button>
+                                }}</button>
                                 <button class="secondary-btn" @click="exportAsHTML">{{ t('editor.file.exportAsHtml')
-                                    }}</button>
+                                }}</button>
                             </div>
                         </div>
                     </div>
@@ -311,45 +312,9 @@
 
                 <!-- Media Body -->
                 <div v-if="activeModal === 'media'" class="modal-body media-manager-layout">
-                    <div v-if="!isCloudAuthenticated()" class="login-placeholder media-login-placeholder">
-                        <p>{{ t('editor.file.loginRequired') }}</p>
-                        <button class="primary-btn" @click="goToLogin('open-media')">{{ t('editor.file.login')
-                            }}</button>
-                    </div>
-                    <template v-else>
-                        <div class="modal-sidebar">
-                            <div v-for="cat in mediaCategories" :key="cat.id" class="modal-sidebar-item"
-                                :class="{ active: selectedCategory === cat.id }" @click="selectedCategory = cat.id">
-                                <span class="media-cat-icon" v-html="cat.icon"></span>
-                                {{ cat.label }}
-                            </div>
-                        </div>
-                        <div class="media-content-area">
-                            <div class="media-toolbar">
-                                <button class="primary-btn" @click="triggerFileUpload">
-                                    <span>{{ t('editor.file.uploadNewFile') }}</span>
-                                </button>
-                                <input type="file" ref="fileInputRef" class="hidden-input" multiple
-                                    @change="handleFileSelect" />
-                            </div>
-                            <div class="library-section">
-                                <div v-if="uploadedImages.length > 0" class="image-grid">
-                                    <div v-for="(img, idx) in uploadedImages" :key="idx" class="library-item"
-                                        @click="insertMediaMarkdown(img.name, img.path)" :title="img.name">
-                                        <div class="img-thumb" v-if="['pic'].includes(selectedCategory)"
-                                            :style="{ backgroundImage: `url(${img.thumb || img.url})` }"></div>
-                                        <div class="img-thumb icon-thumb" v-else>
-                                            <span class="scalable-icon" v-html="getIconForFile(img.name)"></span>
-                                        </div>
-                                        <span class="img-name">{{ img.name }}</span>
-                                    </div>
-                                </div>
-                                <div v-else class="empty-library">
-                                    <p>No files found.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </template>
+                    <FilePicker selectionMode="multiple" :allowUpload="isCloudAuthenticated()"
+                        :initialFiles="displayedFiles.map(f => ({ name: f.name, uploadedUrl: f.url, preview: f.thumb || f.url }))"
+                        @select="handleMediaPicked" @cancel="activeModal = 'none'" />
                 </div>
 
                 <!-- Link Body -->
@@ -439,7 +404,7 @@
                             <input v-model="tagInput" class="modal-input small-input"
                                 :placeholder="t('editor.addTagPlaceholder')" @keyup.enter="addTag" />
                             <button class="secondary-btn small-btn" @click="addTag">{{ t('editor.addTag')
-                            }}</button>
+                                }}</button>
                             <button class="secondary-btn small-btn" :class="{ active: postTags.includes('featured') }"
                                 @click="toggleFeatured" :title="$t('tag.featured')">
                                 {{ $t('tag.featured') }}
@@ -463,8 +428,8 @@
                         :disabled="isSaving || isBuilding || !tempTitle.trim()">
                         {{ isSaving ? t('editor.saving') : isBuilding ? t('editor.building') : t('editor.saveDraft') }}
                     </button>
-                    <button v-else-if="activeModal === 'publish' && isCloudEditing" class="primary-btn" @click="doSave('publish')"
-                        :disabled="isSaving || isBuilding || !tempTitle.trim()">
+                    <button v-else-if="activeModal === 'publish' && isCloudEditing" class="primary-btn"
+                        @click="doSave('publish')" :disabled="isSaving || isBuilding || !tempTitle.trim()">
                         {{ isSaving ? t('editor.saving') : isBuilding ? t('editor.building') : t('editor.publishNow') }}
                     </button>
                     <button v-else class="primary-btn" @click="doSave('upload')"
@@ -498,7 +463,7 @@
                 <div class="modal-actions">
                     <button class="secondary-btn" @click="activeModal = 'none'">{{ t('editor.cancel') }}</button>
                     <button class="primary-btn danger-action" @click="doRestore">{{ t('editor.confirmRestoreAction')
-                    }}</button>
+                        }}</button>
                 </div>
             </div>
 
@@ -512,7 +477,7 @@
                     <button class="secondary-btn danger-outline" @click="handleUnsavedOption('discard')">{{
                         t('editor.discard') }}</button>
                     <button class="primary-btn" @click="handleUnsavedOption('save')">{{ t('editor.saveContinue')
-                    }}</button>
+                        }}</button>
                 </div>
             </div>
 
@@ -585,6 +550,7 @@ import { convertToHtml, injectHeadingIds, getStats } from '../utils/markdownPars
 import { sortTags } from '../utils/tagUtils'
 import { useI18n } from 'vue-i18n'
 import CheckRow from './ui/CheckRow.vue';
+import FilePicker from './ui/FilePicker.vue'
 import { formatDate as formatDateUtil, formatDateTime } from '../utils/dateUtils'
 import QuarterCircleSpinner from './ui/QuarterCircleSpinner.vue'
 import useToast from '../composables/useToast'
@@ -693,6 +659,7 @@ const filePosts = ref<any[]>([])
 const fileLoading = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 const selectedImportFile = ref<File | null>(null)
+const selectedImportUrl = ref<string | null>(null)
 
 // Local file handle / path for desktop/browser FS API
 const currentFileHandle = ref<any>(null)
@@ -843,6 +810,20 @@ function handleImportSelect(e: Event) {
     }
 }
 
+function onFilePickerSelect(entry: any) {
+    const picked = Array.isArray(entry) ? entry[0] : entry
+    if (!picked) return
+    if (picked.uploadedUrl) {
+        selectedImportUrl.value = picked.uploadedUrl
+        selectedImportFile.value = null
+        // If FilePicker returned a usable URL (local blob/data URL or server URL), close modal and return
+        activeModal.value = 'none'
+    } else if (picked.file) {
+        selectedImportFile.value = picked.file
+        selectedImportUrl.value = null
+    }
+}
+
 function clearCurrentLocalDocument() {
     currentFileHandle.value = null
     currentFilePath.value = null
@@ -863,7 +844,7 @@ function clearCurrentLocalDocument() {
     historyIndex.value = 0
 }
 
-function executeFileAction() {
+async function executeFileAction() {
     if (fileTab.value === 'new') {
         const doNew = () => {
             clearCurrentLocalDocument()
@@ -874,7 +855,45 @@ function executeFileAction() {
         else doNew()
         return
     }
-    // Export/import actions are handled by dedicated UI buttons now
+    // handle import selected file/url
+    if (fileTab.value === 'import') {
+        try {
+            if (selectedImportFile.value) {
+                const f = selectedImportFile.value
+                const reader = new FileReader()
+                reader.onload = (ev) => {
+                    const txt = ev.target?.result as string || ''
+                    localValue.value = txt
+                    postTitle.value = f.name.replace(/\.[^/.]+$/, '')
+                    currentFilePath.value = f.name
+                    postId.value = null
+                    postStatus.value = 'local'
+                    savedContent.value = txt
+                    savedTitle.value = postTitle.value
+                    history.value = [txt]
+                    historyIndex.value = 0
+                    pushRecentProject({ title: postTitle.value, path: f.name, cloud: false })
+                    activeModal.value = 'none'
+                }
+                reader.readAsText(f as File)
+            } else if (selectedImportUrl.value) {
+                const res = await fetch(selectedImportUrl.value)
+                const txt = await res.text()
+                localValue.value = txt
+                postTitle.value = (selectedImportUrl.value.split('/').pop() || 'imported').replace(/\.[^/.]+$/, '')
+                currentFilePath.value = selectedImportUrl.value
+                postId.value = null
+                postStatus.value = 'local'
+                savedContent.value = txt
+                savedTitle.value = postTitle.value
+                history.value = [txt]
+                historyIndex.value = 0
+                pushRecentProject({ title: postTitle.value, path: selectedImportUrl.value, cloud: false })
+                activeModal.value = 'none'
+            }
+        } catch (e) { console.error('import action failed', e) }
+        return
+    }
 }
 
 // File system helpers (browser FS API with fallback)
@@ -1436,7 +1455,7 @@ async function triggerAstroBuild(postId: string) {
 async function doSave(action?: 'local' | 'draft' | 'publish' | 'upload' | 'unsaved') {
     // Determine intent based on action
     const intent = action || (activeModal.value || 'draft')
-    if (intent === 'local' || !intent&&(!isCloudEditing.value && activeModal.value !== 'publish')) {
+    if (intent === 'local' || !intent && (!isCloudEditing.value && activeModal.value !== 'publish')) {
         const titleToKeep = (tempTitle.value && tempTitle.value.trim())
             ? tempTitle.value
             : (isDefaultTitle.value ? t('editor.untitled') : postTitle.value)
@@ -1454,7 +1473,7 @@ async function doSave(action?: 'local' | 'draft' | 'publish' | 'upload' | 'unsav
         return
     }
 
-    if (intent === 'upload' || !intent&&(!isCloudEditing.value && activeModal.value === 'publish')) {
+    if (intent === 'upload' || !intent && (!isCloudEditing.value && activeModal.value === 'publish')) {
         if (!requireCloudAuth('create-cloud-post')) return
 
         const titleToSeed = (tempTitle.value && tempTitle.value.trim())
@@ -1480,6 +1499,10 @@ async function doSave(action?: 'local' | 'draft' | 'publish' | 'upload' | 'unsav
                         stack: history.value,
                         index: historyIndex.value,
                     }))
+
+                    // 自动保存
+                    savedContent.value = localValue.value 
+                    savedTitle.value = postTitle.value
                     router.replace({ path: '/editor', query: { id: `new-${newId}` } })
                     postId.value = newId
                     activeModal.value = 'none'
@@ -1535,7 +1558,15 @@ async function doSave(action?: 'local' | 'draft' | 'publish' | 'upload' | 'unsav
             ? tempTitle.value
             : (isDefaultTitle.value ? t('editor.untitled') : postTitle.value)
 
-        const contentToSend = localValue.value
+        // 处理 blob URL：上传本地文件并替换为云端 URL
+        let contentToSend = localValue.value
+        const blobMappings = await uploadBlobFiles(contentToSend)
+        if (blobMappings.length > 0) {
+            contentToSend = replaceBlobUrls(contentToSend, blobMappings)
+            // 更新编辑器内容，替换 blob URL 为云端 URL
+            localValue.value = contentToSend
+        }
+
         const toc: Array<{ id: string; text: string; level: number }> = []
         let compiledHtml = ''
         if (status === 'published') {
@@ -2560,15 +2591,9 @@ async function fetchServerImages() {
     } catch (e) { console.error(e) }
 }
 
-async function openImageModal() {
+async function openMediaModal() {
     refreshCloudAuthState()
-    if (!isCloudEditing.value || postStatus.value === 'local') {
-        fileInputRef.value?.click()
-        return
-    }
     activeModal.value = 'media'
-    selectedCategory.value = 'pic' // Default start
-    fetchServerImages()
 }
 
 // ... inside handleFileSelect ...
@@ -2696,6 +2721,101 @@ async function handleFileSelect(event: Event) {
         }
         input.value = ''
     }
+}
+
+async function uploadMediaFile(file: File) {
+    try {
+        const encodedName = encodeURIComponent(file.name)
+        const uploadUrl = API_BASE_URL ? `${API_BASE_URL.replace(/\/$/, '')}/api/upload` : '/api/upload'
+        const res = await fetchWithAuth(`${uploadUrl}?t=${Date.now()}`, {
+            method: 'POST',
+            headers: { 'x-filename': encodedName },
+            body: file
+        })
+        if (!res.ok) throw new Error('upload failed')
+        const j = await res.json()
+        return j && j.url ? j.url : null
+    } catch (e) {
+        console.error('uploadMediaFile failed', e)
+        return null
+    }
+}
+
+// 提取 markdown 中的所有 blob URL
+function extractBlobUrls(markdown: string): string[] {
+    const blobUrlPattern = /blob:[^)\s\]]+/g
+    const matches = markdown.match(blobUrlPattern)
+    return matches ? [...new Set(matches)] : []
+}
+
+// 从 blob URL 获取文件对象
+async function getFileFromBlobUrl(blobUrl: string): Promise<File | null> {
+    try {
+        const response = await fetch(blobUrl)
+        if (!response.ok) return null
+        const blob = await response.blob()
+        const filename = `blob_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+        const mimeType = blob.type || 'application/octet-stream'
+        return new File([blob], filename, { type: mimeType })
+    } catch (e) {
+        console.error('getFileFromBlobUrl failed', e)
+        return null
+    }
+}
+
+// 上传所有 blob 文件并返回映射关系
+async function uploadBlobFiles(markdown: string): Promise<{ blobUrl: string; cloudUrl: string }[]> {
+    const blobUrls = extractBlobUrls(markdown)
+    if (blobUrls.length === 0) return []
+
+    const mappings: { blobUrl: string; cloudUrl: string }[] = []
+
+    for (const blobUrl of blobUrls) {
+        const file = await getFileFromBlobUrl(blobUrl)
+        if (file) {
+            const cloudUrl = await uploadMediaFile(file)
+            if (cloudUrl) {
+                mappings.push({ blobUrl, cloudUrl })
+            }
+        }
+    }
+
+    return mappings
+}
+
+// 替换 markdown 中的 blob URL 为云端 URL
+function replaceBlobUrls(markdown: string, mappings: { blobUrl: string; cloudUrl: string }[]): string {
+    let result = markdown
+    for (const { blobUrl, cloudUrl } of mappings) {
+        result = result.split(blobUrl).join(cloudUrl)
+    }
+    return result
+}
+
+async function handleMediaPicked(entry: any) {
+    if (!entry) return
+    try {
+        const entries = Array.isArray(entry) ? entry : [entry]
+        for (const ent of entries) {
+            if (ent.uploadedUrl) {
+                insertMediaMarkdown(ent.name || ent.file?.name || 'file', ent.uploadedUrl)
+                continue
+            }
+            if (ent.file) {
+                if (isCloudAuthenticated()) {
+                    showToast('Uploading...')
+                    const url = await uploadMediaFile(ent.file)
+                    if (url) insertMediaMarkdown(ent.name || ent.file.name, url)
+                    else showToast('Upload failed', { status: 'error' })
+                    continue
+                }
+                if (ent.preview) {
+                    insertMediaMarkdown(ent.name || ent.file.name, ent.preview)
+                    continue
+                }
+            }
+        }
+    } catch (e) { console.error('handleMediaPicked error', e) }
 }
 
 function insertImageMarkdown(name: string, path: string) {
@@ -3275,7 +3395,6 @@ button:disabled {
     min-width: 350px;
     max-width: 90vw;
     height: auto;
-    max-height: 85vh;
 
     display: flex;
     flex-direction: column;
@@ -3292,10 +3411,9 @@ button:disabled {
 .large-modal {
     width: 800px;
     height: auto;
-    min-height: 450px;
+    min-height: 0;
     /* Ensure space for sidebar */
     max-width: 95vw;
-    max-height: 90vh;
 }
 
 .small-modal {
@@ -3618,7 +3736,6 @@ button:disabled {
     max-width: 900px;
     display: flex;
     flex-direction: column;
-    max-height: 85vh;
 }
 
 .form-group {
@@ -3827,10 +3944,12 @@ button:disabled {
     height: 600px;
 }
 
-.sidebar {
+.file-menu-sidebar {
     width: 200px;
     background: var(--bg-secondary);
-    border-right: 1px solid var(--border-color);
+    margin: .2rem;
+    box-shadow: none;
+    border: none;
     padding: 14px;
     display: flex;
     flex-direction: column;

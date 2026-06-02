@@ -2639,8 +2639,22 @@ app.post('/api/auth/change', (req, res) => {
 
 
 // 4. Files API
+// Helper function to parse standard filename and extract displayname
+// Standard format: <timestamp>_<4-char-random>_<displayname>
+function parseStandardFilename(filename) {
+    const match = filename.match(/^(\d+)_[a-zA-Z0-9]{4}_(.+)$/);
+    if (match) {
+        return {
+            timestamp: parseInt(match[1], 10),
+            displayname: match[2]
+        };
+    }
+    return null;
+}
+
 app.get('/api/files', (req, res) => {
     const queryPath = req.query.path || '';
+    const sortBy = req.query.sort || 'created'; // 'created' or 'name'
 
     if (queryPath === 'all') {
             let allFiles = [];
@@ -2659,19 +2673,41 @@ app.get('/api/files', (req, res) => {
                                     ? `${MEDIA_DOMAIN}/server/data/upload/.thumbs/${relPath}`
                                 : undefined;
                                 
+                            // Parse standard filename to extract displayname
+                            const parsed = parseStandardFilename(dirent.name);
+                            
                             return {
                                 name: dirent.name,
                                 type: 'file',
                                 category: cat,
                                 path: relPath,
                                 url: fullUrl,
-                                thumb: thumbUrl
+                                thumb: thumbUrl,
+                                displayname: parsed ? parsed.displayname : null,
+                                created: parsed ? parsed.timestamp : null
                             };
                         });
                         allFiles = allFiles.concat(files);
                     } catch(e) {}
                 }
             });
+
+            // Sort files
+            if (sortBy === 'created') {
+                // Sort by timestamp (descending, newest first)
+                allFiles.sort((a, b) => {
+                    const timeA = a.created || 0;
+                    const timeB = b.created || 0;
+                    return timeB - timeA;
+                });
+            } else if (sortBy === 'name') {
+                // Sort by displayname (ascending)
+                allFiles.sort((a, b) => {
+                    const nameA = a.displayname || a.name;
+                    const nameB = b.displayname || b.name;
+                    return nameA.localeCompare(nameB);
+                });
+            }
 
             return res.json(allFiles);
     }
@@ -2701,14 +2737,35 @@ app.get('/api/files', (req, res) => {
                 }
             }
 
+            // Parse standard filename to extract displayname
+            const parsed = parseStandardFilename(dirent.name);
+
             return {
                 name: dirent.name,
                 type: isDir ? 'directory' : 'file',
                 path: rel,
                 url: fullUrl,
-                thumb: thumbUrl
+                thumb: thumbUrl,
+                displayname: parsed ? parsed.displayname : null,
+                created: parsed ? parsed.timestamp : null
             };
         });
+
+        // Sort items
+        if (sortBy === 'created') {
+            items.sort((a, b) => {
+                const timeA = a.created || 0;
+                const timeB = b.created || 0;
+                return timeB - timeA;
+            });
+        } else if (sortBy === 'name') {
+            items.sort((a, b) => {
+                const nameA = a.displayname || a.name;
+                const nameB = b.displayname || b.name;
+                return nameA.localeCompare(nameB);
+            });
+        }
+
         res.json(items);
     } catch (e) {
         res.status(500).send('Error listing files');

@@ -6,7 +6,7 @@
             :hint="$t('settings.featureCollectionHint')" />
 
 
-        <CardListEditor :cards="collectionCards" :showImage="false" :title="$t('settings.collectionCardListTitle')"
+        <CardListEditor :cards="collectionCards" :showImage="true" :title="$t('settings.collectionCardListTitle')"
             :hint="$t('settings.collectionCardListHint')" :addLabel="$t('settings.collectionCardAdd')"
             :emptyText="$t('settings.collectionCardEmpty')" :dragTitle="$t('settings.collectionCardDragHint')"
             :editTitle="$t('settings.collectionCardEdit')" :removeTitle="$t('settings.collectionCardRemove')"
@@ -40,6 +40,17 @@
                         <label class="field field-wide">
                             <span>{{ $t('settings.collectionDescription') }}</span>
                             <textarea v-model.trim="activeCollection.description" rows="2" :placeholder="$t('settings.collectionDescriptionPlaceholder')"style="width: calc(100% - 30px)"></textarea>
+                        </label>
+                        
+                        <label class="field field-wide">
+                            <span>{{ $t('settings.collectionCover') }}</span>
+                            <div style="display:flex;gap:.5rem;align-items:center;">
+                                <input v-model.trim="activeCollection.cover" :placeholder="$t('settings.collectionCoverPlaceholder')" style="width: calc(100% - 140px)" />
+                                <button type="button" class="secondary" @click="activeCollection.cover = ''">{{ $t('settings.clear') || 'Clear' }}</button>
+                            </div>
+                            <div v-if="activeCollection.cover" style="margin-top:.5rem;">
+                                <img :src="activeCollection.cover" alt="cover" style="max-width:100%;height:120px;object-fit:cover;border-radius:8px;border:1px solid var(--border-color)" />
+                            </div>
                         </label>
                     </div>
 
@@ -83,9 +94,9 @@ const activeCollectionIndex = ref<number | null>(null)
 const collectionCards = computed(() => nodes.value.map((col: any) => ({
     ...col,
     intro: String(col?.description || '').trim() || t('settings.collectionNoDescription'),
-    avatar: '',
-    homeUrl: '',
-    storyPostId: '',
+    avatar: String(col?.cover || col?.avatar || '') || '',
+    homeUrl: String(col?.homeUrl || '') || '',
+    storyPostId: String(col?.storyPostId || '') || '',
 })))
 
 const activeCollection = computed(() => {

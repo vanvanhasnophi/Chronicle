@@ -29,6 +29,8 @@ function resolveMessage(key: string) {
 }
 // 前台内容页面已弃用（主页、帖子列表、帖子详情、搜索、朋友页）
 // 为避免打包和路由暴露，这些路由在路由表中重定向到后台登录。
+
+
 const Login = () => import(/* webpackChunkName: "login" */ '../pages/Login.vue')
 // Security backend page lazy-loaded
 const Security = () => import(/* webpackChunkName: "security" */ '../pages/Security.vue')

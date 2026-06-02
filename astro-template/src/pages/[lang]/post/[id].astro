@@ -80,8 +80,6 @@ try {
     });
     if (settingsRes.ok) {
       settings = await settingsRes.json();
-      console.log('[Post Detail] Settings loaded from main API:', settings);
-      console.log('[Post Detail] Frontend background:', settings.frontendBackground);
     }
   } catch (e) {
     console.error('[Post Detail] Failed to fetch settings from main API:', e);
@@ -95,8 +93,6 @@ try {
       });
       if (settingsRes.ok) {
         settings = await settingsRes.json();
-        console.log('[Post Detail] Settings loaded from public API:', settings);
-        console.log('[Post Detail] Frontend background:', settings.frontendBackground);
       }
     } catch (e) {
       console.error('[Post Detail] Failed to fetch settings from public API:', e);

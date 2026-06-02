@@ -1,7 +1,7 @@
 {
   "frontendLocale": "follow",
   "backendLocale": "en",
-  "frontendFont": "serif",
+  "frontendFont": "sans",
   "backendFont": "sans",
   "frontendTheme": "follow",
   "frontendAccent": "#2ea35f",

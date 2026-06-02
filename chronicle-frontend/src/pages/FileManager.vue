@@ -70,8 +70,25 @@ const categories = [
 ]
 
 const currentCategory = ref('all')
-const items = ref<any[]>([])
+const allItems = ref<any[]>([])
 const loading = ref(false)
+
+const getCategoryFromFile = (file: any) => {
+    const name = file.name || ''
+    if (/\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)$/i.test(name)) return 'pic'
+    if (/\.(mp4|avi|mov|mkv|webm)$/i.test(name)) return 'video'
+    if (/\.(mp3|wav|ogg|flac|m4a|aac)$/i.test(name)) return 'sound'
+    if (/\.(pdf|doc|docx|ppt|pptx|xls|xlsx)$/i.test(name)) return 'doc'
+    if (/\.(txt|md|js|ts|json|c|cpp|h|java|py|sh|bat|ini|log|csv|xml|yaml|yml|vue|css|html|rs|go|php)$/i.test(name)) return 'txt'
+    return 'other'
+}
+
+const items = computed(() => {
+    if (currentCategory.value === 'all') {
+        return allItems.value
+    }
+    return allItems.value.filter(file => getCategoryFromFile(file) === currentCategory.value)
+})
 
 // Preview state
 // No local preview state needed anymore
@@ -83,14 +100,14 @@ const currentCategoryLabel = computed(() => {
 
 const loadItems = async () => {
   loading.value = true
-  items.value = []
+  allItems.value = []
   try {
-    const res = await fetchWithAuth(`/api/files?path=${currentCategory.value}&t=${Date.now()}`)
+    const res = await fetchWithAuth(`/api/files?path=all&t=${Date.now()}`)
     if (res.ok) {
        // Filter out subdirectories if any, we just want files 
        // (Backend ensures flat list structure for categories basically since we don't support sub-sub-folders in this UI view)
        const all = await res.json()
-       items.value = all.filter((i: any) => i.type === 'file')
+       allItems.value = all.filter((i: any) => i.type === 'file')
     }
   } catch(e) {
     console.error(e)
@@ -101,9 +118,7 @@ const loadItems = async () => {
 
 const navigate = (catId: string) => {
     currentCategory.value = catId
-    loadItems()
 }
-
 // "Delete" logic now refers to file path
 const deleteItem = async (path: string) => {
     if (!confirm(`Permanently delete this file?`)) return
@@ -275,19 +290,7 @@ button:hover, .upload-btn:hover {
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
     gap: 15px;
 }
-.grid-item {
-    background: var(--component-bg-blur-alt);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 10px;
-    text-align: center;
-    position: relative;
-    cursor: pointer;
-    transition: background 0.2s;
-}
-.grid-item:hover {
-    background: var(--component-bg-hover);
-}
+
 .preview {
     height: 100px;
     display: flex;
@@ -316,14 +319,7 @@ button:hover, .upload-btn:hover {
     height: 100%;
     stroke-width: 1;
 }
-.name {
-    font-size: 12px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin-bottom: 6px;
-    color: var(--component-text-primary);
-}
+
 .delete-btn {
     position: absolute;
     top: 5px;
