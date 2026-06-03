@@ -52,7 +52,7 @@ BACKEND_DOMAIN_DEFAULT="${BACKEND_DOMAIN:-blogmanager.eightyfor.top}"
 WEB_ROOT_DEFAULT="${WEB_ROOT:-/var/www/${FRONTEND_DOMAIN_DEFAULT}}"
 BACKEND_ROOT_DEFAULT="${BACKEND_ROOT:-/var/www/${BACKEND_DOMAIN_DEFAULT}}"
 SERVER_ROOT_DEFAULT="${SERVER_ROOT:-/opt/Chronicle/server}"
-ASTRO_ROOT_DEFAULT="${ASTRO_ROOT:-/opt/Chronicle/astro-template}"
+ASTRO_ROOT_DEFAULT="${ASTRO_ROOT:-/opt/Chronicle/packages/template-astro}"
 MEDIA_DOMAIN_DEFAULT="${MEDIA_DOMAIN:-https://file.eightyfor.top}"
 FRONTEND_API_BASE_URL_DEFAULT="${FRONTEND_API_BASE_URL:-https://${FRONTEND_DOMAIN_DEFAULT}}"
 ASTRO_API_BASE_URL_DEFAULT="${ASTRO_API_BASE_URL:-http://127.0.0.1:3000}"
@@ -101,8 +101,8 @@ if [ -f "$CONFIG_FILE" ]; then
             fi
         done
 
-        REPO_FRONTEND_SRC_NAME="chronicle-frontend"
-        REPO_ASTRO_SRC_NAME="astro-template"
+        REPO_FRONTEND_SRC_NAME="packages/admin"
+        REPO_ASTRO_SRC_NAME="packages/template-astro"
 
         if [ "${#CANDIDATES[@]}" -gt 0 ]; then
             echo "检测到以下候选源码目录："
@@ -114,8 +114,8 @@ if [ -f "$CONFIG_FILE" ]; then
 
             for c in "${CANDIDATES[@]}"; do
                 case "$c" in
-                    astro-template) REPO_ASTRO_SRC_NAME="$c" ;;
-                    chronicle-frontend) REPO_FRONTEND_SRC_NAME="$c" ;;
+                    astro-template|packages/template-astro) REPO_ASTRO_SRC_NAME="$c" ;;
+                    chronicle-frontend|packages/admin) REPO_FRONTEND_SRC_NAME="$c" ;;
                 esac
             done
 
@@ -127,10 +127,10 @@ if [ -f "$CONFIG_FILE" ]; then
             prompt_default REPO_ASTRO_SRC_NAME "请选择 Astro 源码目录名" "$REPO_ASTRO_SRC_NAME"
         else
             log "未检测到候选源码目录。请手动输入源码目录名。"
-            read -r -p "管理前端源码目录名 (例如 chronicle-frontend): " REPO_FRONTEND_SRC_NAME || true
-            REPO_FRONTEND_SRC_NAME=${REPO_FRONTEND_SRC_NAME:-chronicle-frontend}
-            read -r -p "Astro 源码目录名 (例如 astro-template): " REPO_ASTRO_SRC_NAME || true
-            REPO_ASTRO_SRC_NAME=${REPO_ASTRO_SRC_NAME:-astro-template}
+            read -r -p "管理前端源码目录名 (例如 packages/admin): " REPO_FRONTEND_SRC_NAME || true
+            REPO_FRONTEND_SRC_NAME=${REPO_FRONTEND_SRC_NAME:-packages/admin}
+            read -r -p "Astro 源码目录名 (例如 packages/template-astro): " REPO_ASTRO_SRC_NAME || true
+            REPO_ASTRO_SRC_NAME=${REPO_ASTRO_SRC_NAME:-packages/template-astro}
         fi
     else
     log "未找到已保存部署配置，转为扫描仓库以检测源码目录并初始化配置。"
@@ -144,8 +144,8 @@ if [ -f "$CONFIG_FILE" ]; then
         fi
     done
 
-    REPO_FRONTEND_SRC_NAME="chronicle-frontend"
-    REPO_ASTRO_SRC_NAME="astro-template"
+    REPO_FRONTEND_SRC_NAME="packages/admin"
+    REPO_ASTRO_SRC_NAME="packages/template-astro"
 
     if [ "${#CANDIDATES[@]}" -gt 0 ]; then
         echo "检测到以下候选源码目录："
@@ -170,10 +170,10 @@ if [ -f "$CONFIG_FILE" ]; then
         prompt_default REPO_ASTRO_SRC_NAME "请选择 Astro 源码目录名" "$REPO_ASTRO_SRC_NAME"
     else
         log "未检测到候选源码目录。请手动输入源码目录名。"
-        read -r -p "管理前端源码目录名 (例如 chronicle-frontend): " REPO_FRONTEND_SRC_NAME || true
-        REPO_FRONTEND_SRC_NAME=${REPO_FRONTEND_SRC_NAME:-chronicle-frontend}
-        read -r -p "Astro 源码目录名 (例如 astro-template): " REPO_ASTRO_SRC_NAME || true
-        REPO_ASTRO_SRC_NAME=${REPO_ASTRO_SRC_NAME:-astro-template}
+        read -r -p "管理前端源码目录名 (例如 packages/admin): " REPO_FRONTEND_SRC_NAME || true
+        REPO_FRONTEND_SRC_NAME=${REPO_FRONTEND_SRC_NAME:-packages/admin}
+        read -r -p "Astro 源码目录名 (例如 packages/template-astro): " REPO_ASTRO_SRC_NAME || true
+        REPO_ASTRO_SRC_NAME=${REPO_ASTRO_SRC_NAME:-packages/template-astro}
     fi
 fi
 
@@ -213,7 +213,7 @@ if [ "$ADOPTED_CONFIG" -eq 0 ]; then
     prompt_default BACKEND_ROOT "请输入后台部署目录" "$BACKEND_ROOT"
     prompt_default SERVER_ROOT "请输入后端目录" "$SERVER_ROOT"
     prompt_default ASTRO_ROOT "请输入 Astro 源码目录" "$ASTRO_ROOT"
-    prompt_default FRONTEND_API_BASE_URL "请输入 chronicle-frontend 的 API 基址" "$FRONTEND_API_BASE_URL"
+    prompt_default FRONTEND_API_BASE_URL "请输入 packages/admin 的 API 基址" "$FRONTEND_API_BASE_URL"
     prompt_default ASTRO_API_BASE_URL "请输入 Astro 构建时 API 基址" "$ASTRO_API_BASE_URL"
     prompt_default MEDIA_DOMAIN "请输入媒体域名" "$MEDIA_DOMAIN"
 
@@ -258,7 +258,7 @@ else
     warn "pm2 not found. Cannot restart backend automatically."
 fi
 
-log "构建 chronicle-frontend..."
+log "构建 packages/admin..."
 mkdir -p "$BACKEND_ROOT"
 cd "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME"
 
@@ -291,18 +291,18 @@ else
     log "跳过构建，使用现成 dist。"
 fi
 
-log "恢复 chronicle-frontend 源码中的 upload symlink..."
-ensure_symlink "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME/public/server/data/upload" "$REPO_ROOT/server/data/upload"
-ensure_symlink "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME/public/server/data/background" "$REPO_ROOT/server/data/background"
+log "恢复 packages/admin 源码中的 upload symlink..."
+ensure_symlink "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME/public/server/data/upload" "$REPO_ROOT/data/upload"
+ensure_symlink "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME/public/server/data/background" "$REPO_ROOT/data/background"
 
-log "部署 chronicle-frontend 到后台站点目录 ($BACKEND_ROOT)..."
+log "部署 packages/admin 到后台站点目录 ($BACKEND_ROOT)..."
 rsync -a --delete "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME/dist/" "$BACKEND_ROOT/"
 
-log "构建 astro-template..."
+log "构建 packages/template-astro..."
 mkdir -p "$WEB_ROOT"
 cd "$REPO_ROOT/$REPO_ASTRO_SRC_NAME"
 # 在构建前把后端 settings.json 复制到 Astro 项目，以便在构建时/运行时读取 feature flags
-SETTINGS_SRC="$REPO_ROOT/server/data/settings.json"
+SETTINGS_SRC="$REPO_ROOT/data/settings.json"
 ASTRO_PUBLIC_DIR="$REPO_ROOT/$REPO_ASTRO_SRC_NAME/public/server/data"
 ASTRO_SRC_DATA_DIR="$REPO_ROOT/$REPO_ASTRO_SRC_NAME/src/data"
 if [ -f "$SETTINGS_SRC" ]; then
@@ -325,20 +325,20 @@ fi
 
 MEDIA_DOMAIN="$MEDIA_DOMAIN" API_BASE_URL="$ASTRO_API_BASE_URL" npm run build
 
-log "恢复 astro-template 源码中的 upload symlink..."
-ensure_symlink "$REPO_ROOT/$REPO_ASTRO_SRC_NAME/public/server/data/upload" "$REPO_ROOT/server/data/upload"
-ensure_symlink "$REPO_ROOT/$REPO_ASTRO_SRC_NAME/public/server/data/background" "$REPO_ROOT/server/data/background"
+log "恢复 packages/template-astro 源码中的 upload symlink..."
+ensure_symlink "$REPO_ROOT/$REPO_ASTRO_SRC_NAME/public/server/data/upload" "$REPO_ROOT/data/upload"
+ensure_symlink "$REPO_ROOT/$REPO_ASTRO_SRC_NAME/public/server/data/background" "$REPO_ROOT/data/background"
 
-log "部署 astro-template 到前台站点目录 ($WEB_ROOT)..."
+log "部署 packages/template-astro 到前台站点目录 ($WEB_ROOT)..."
 rsync -a --delete "$REPO_ROOT/$REPO_ASTRO_SRC_NAME/dist/" "$WEB_ROOT/"
 
 log "配置前台上传目录符号链接..."
-ensure_symlink "$WEB_ROOT/server/data/upload" "$SERVER_ROOT/data/upload"
-ensure_symlink "$WEB_ROOT/server/data/background" "$SERVER_ROOT/data/background"
+ensure_symlink "$WEB_ROOT/server/data/upload" "$REPO_ROOT/data/upload"
+ensure_symlink "$WEB_ROOT/server/data/background" "$REPO_ROOT/data/background"
 
 log "配置后台上传目录符号链接..."
-ensure_symlink "$BACKEND_ROOT/server/data/upload" "$SERVER_ROOT/data/upload"
-ensure_symlink "$BACKEND_ROOT/server/data/background" "$SERVER_ROOT/data/background"
+ensure_symlink "$BACKEND_ROOT/server/data/upload" "$REPO_ROOT/data/upload"
+ensure_symlink "$BACKEND_ROOT/server/data/background" "$REPO_ROOT/data/background"
 
 log "重载 Web 服务..."
 if systemctl is-active --quiet nginx; then

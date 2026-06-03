@@ -1,0 +1,152 @@
+# Chronicle CI/CD — 多规格发行版自动构建
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: '构建规格 (full / static / lite)'
+        required: true
+        default: 'full'
+        type: choice
+        options: ['full', 'self-hosted', 'static', 'lite']
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ── Lint & Type Check ─────────────────────────────────
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}' }
+
+      - name: Install dependencies
+        run: |
+          cd packages/admin && npm ci
+          cd ../template-astro && npm ci
+          cd ../../server && npm ci
+
+      - name: Type check (admin)
+        run: cd packages/admin && npx vue-tsc --noEmit
+
+      - name: Lint (if configured)
+        run: echo "Lint step — add eslint later"
+
+  # ── Build: Full (全自托管版) ──────────────────────────
+  build-full:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}' }
+
+      - name: Build full release
+        run: |
+          # Start mock server for Astro SSG data fetch
+          cd server && node index.js &
+          sleep 3
+          cd ..
+          bash scripts/build.sh full
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chronicle-full
+          path: release/chronicle-full-*/
+
+  # ── Build: Static (完整静态版 / GitHub Pages) ─────────
+  build-static:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}' }
+
+      - name: Build static release
+        run: |
+          cd server && node index.js &
+          sleep 3
+          cd ..
+          API_BASE_URL=http://127.0.0.1:3000 bash scripts/build.sh static
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chronicle-static
+          path: release/chronicle-pages-*/
+
+  # ── Build: Lite (精简版) ──────────────────────────────
+  build-lite:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}' }
+
+      - name: Build lite release
+        run: bash scripts/build.sh lite
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chronicle-lite
+          path: release/chronicle-lite-*/
+
+  # ── GitHub Release (tag push) ─────────────────────────
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-full, build-static, build-lite]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: chronicle-full, path: release/chronicle-full }
+      - uses: actions/download-artifact@v4
+        with: { name: chronicle-static, path: release/chronicle-static }
+      - uses: actions/download-artifact@v4
+        with: { name: chronicle-lite, path: release/chronicle-lite }
+
+      - name: Package releases
+        run: |
+          cd release
+          tar -czf chronicle-full.tar.gz chronicle-full/
+          tar -czf chronicle-static.tar.gz chronicle-static/
+          tar -czf chronicle-lite.tar.gz chronicle-lite/
+          ls -lh *.tar.gz
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/chronicle-full.tar.gz
+            release/chronicle-static.tar.gz
+            release/chronicle-lite.tar.gz
+          body: |
+            ## Chronicle ${{ github.ref_name }}
+
+            ### 发行版规格
+
+            | 文件 | 说明 | 部署方式 |
+            |---|---|---|
+            | `chronicle-full.tar.gz` | 全自托管版 | VPS + install.sh |
+            | `chronicle-static.tar.gz` | 完整静态版 | GitHub Pages / Vercel |
+            | `chronicle-lite.tar.gz` | 精简版 | 任意静态托管 |
+
+            🤖 Generated with [Claude Code](https://claude.com/claude-code)
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}

@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const POSTS_DIR = path.join(__dirname, '..', 'server', 'data', 'posts');
+const POSTS_DIR = path.join(__dirname, '..', 'data', 'posts');
 
 function decodeHtmlEntities(text) {
   return String(text || '')

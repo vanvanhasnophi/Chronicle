@@ -25,15 +25,15 @@ echo "[System] Starting CMS (Vite)..."
 
 # Create symlink for faster image serving (bypassing Node proxy)
 echo "[System] Optimizing static assets..."
-mkdir -p /opt/Chronicle/chronicle-frontend/public/server/data
-if [ ! -L "/opt/Chronicle/chronicle-frontend/public/server/data/upload" ]; then
-    ln -s /opt/Chronicle/server/data/upload /opt/Chronicle/chronicle-frontend/public/server/data/upload
+mkdir -p /opt/Chronicle/packages/admin/public/server/data
+if [ ! -L "/opt/Chronicle/packages/admin/public/server/data/upload" ]; then
+    ln -s /opt/Chronicle/data/upload /opt/Chronicle/packages/admin/public/server/data/upload
 fi
-if [ ! -L "/opt/Chronicle/chronicle-frontend/public/server/data/background" ]; then
-    ln -s /opt/Chronicle/server/data/background /opt/Chronicle/chronicle-frontend/public/server/data/background
+if [ ! -L "/opt/Chronicle/packages/admin/public/server/data/background" ]; then
+    ln -s /opt/Chronicle/data/background /opt/Chronicle/packages/admin/public/server/data/background
 fi
 
-cd /opt/Chronicle/chronicle-frontend
+cd /opt/Chronicle/packages/admin
 if [ ! -d "node_modules" ]; then
     echo "Installing CMS dependencies..."
     npm install
@@ -44,15 +44,15 @@ npm run dev -- --host 0.0.0.0 --port 5173 &
 echo "[System] Starting Frontend (Astro)..."
 
 # Create symlink for Astro public as well
-mkdir -p /opt/Chronicle/astro-template/public/server/data
-if [ ! -L "/opt/Chronicle/astro-template/public/server/data/upload" ]; then
-    ln -s /opt/Chronicle/server/data/upload /opt/Chronicle/astro-template/public/server/data/upload
+mkdir -p /opt/Chronicle/packages/template-astro/public/server/data
+if [ ! -L "/opt/Chronicle/packages/template-astro/public/server/data/upload" ]; then
+    ln -s /opt/Chronicle/data/upload /opt/Chronicle/packages/template-astro/public/server/data/upload
 fi
-if [ ! -L "/opt/Chronicle/astro-template/public/server/data/background" ]; then
-    ln -s /opt/Chronicle/server/data/background /opt/Chronicle/astro-template/public/server/data/background
+if [ ! -L "/opt/Chronicle/packages/template-astro/public/server/data/background" ]; then
+    ln -s /opt/Chronicle/data/background /opt/Chronicle/packages/template-astro/public/server/data/background
 fi
 
-cd /opt/Chronicle/astro-template
+cd /opt/Chronicle/packages/template-astro
 if [ ! -d "node_modules" ]; then
     echo "Installing Astro dependencies..."
     npm install

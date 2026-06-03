@@ -2,7 +2,7 @@ const fs = require('fs')
 const path = require('path')
 
 const BASE = path.join(__dirname, '..')
-const POSTS_DIR = path.join(BASE, 'server', 'data', 'posts')
+const POSTS_DIR = path.join(BASE, 'data', 'posts')
 const INDEX_FILE = path.join(POSTS_DIR, 'index.json')
 
 function safeReadJSON(p) {

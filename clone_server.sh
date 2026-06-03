@@ -48,8 +48,8 @@ EOF
 }
 
 # 默认值
-DEST_DIR="./server"
-REMOTE_SERVER_PATH="/opt/Chronicle/server"
+DEST_DIR="./packages/gen"
+REMOTE_SERVER_PATH="/opt/Chronicle/packages/host"
 SSH_PORT="22"
 DRY_RUN=0
 AUTO_YES=0

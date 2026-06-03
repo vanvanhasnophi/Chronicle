@@ -239,21 +239,21 @@ install_node_deps() {
   (cd "$repo_root/server" && npm install --omit=dev >/dev/null 2>&1) || die "[ERROR] 后端依赖安装失败"
 
   log INFO "安装 CMS 依赖..."
-  (cd "$repo_root/chronicle-frontend" && npm install >/dev/null 2>&1) || die "[ERROR] CMS 依赖安装失败"
+  (cd "$repo_root/packages/admin" && npm install >/dev/null 2>&1) || die "[ERROR] CMS 依赖安装失败"
 
   log INFO "安装 Astro 依赖..."
-  (cd "$repo_root/astro-template" && npm install >/dev/null 2>&1) || die "[ERROR] Astro 依赖安装失败"
+  (cd "$repo_root/packages/template-astro" && npm install >/dev/null 2>&1) || die "[ERROR] Astro 依赖安装失败"
 }
 
 prepare_runtime_dirs() {
   local repo_root="$1"
-  root_exec mkdir -p "$repo_root/server/data/upload"
+  root_exec mkdir -p "$repo_root/data/upload"
   root_exec mkdir -p "$repo_root/server/log"
-  root_exec mkdir -p "$repo_root/chronicle-frontend/public/server/data"
-  root_exec mkdir -p "$repo_root/astro-template/public/server/data"
+  root_exec mkdir -p "$repo_root/packages/admin/public/server/data"
+  root_exec mkdir -p "$repo_root/packages/template-astro/public/server/data"
 
-  ensure_symlink "$repo_root/chronicle-frontend/public/server/data/upload" "$repo_root/server/data/upload"
-  ensure_symlink "$repo_root/astro-template/public/server/data/upload" "$repo_root/server/data/upload"
+  ensure_symlink "$repo_root/packages/admin/public/server/data/upload" "$repo_root/data/upload"
+  ensure_symlink "$repo_root/packages/template-astro/public/server/data/upload" "$repo_root/data/upload"
 }
 
 generate_nginx_config() {
@@ -324,7 +324,7 @@ server {
   }
 
   location /server/data/upload/ {
-    alias $repo_root/server/data/upload/;
+    alias $repo_root/data/upload/;
     expires 365d;
     add_header Cache-Control "public, immutable";
   }
@@ -364,7 +364,7 @@ server {
   }
 
   location /server/data/upload/ {
-    alias $repo_root/server/data/upload/;
+    alias $repo_root/data/upload/;
     expires 365d;
     add_header Cache-Control "public, immutable";
   }
@@ -397,7 +397,7 @@ server {
   }
 
   location /server/data/upload/ {
-    alias $repo_root/server/data/upload/;
+    alias $repo_root/data/upload/;
     expires 365d;
     add_header Cache-Control "public, immutable";
   }
@@ -428,7 +428,7 @@ server {
   }
 
   location /server/data/upload/ {
-    alias $repo_root/server/data/upload/;
+    alias $repo_root/data/upload/;
     expires 365d;
     add_header Cache-Control "public, immutable";
   }
@@ -497,11 +497,11 @@ deploy_from_repo() {
   
   log INFO "部署前端静态文件到 $frontend_root ..."
   root_exec mkdir -p "$frontend_root"
-  root_exec rsync -a --delete "$repo_root/astro-template/dist/" "$frontend_root/" >/dev/null 2>&1 || die "[ERROR] 前台静态文件部署失败"
+  root_exec rsync -a --delete "$repo_root/packages/template-astro/dist/" "$frontend_root/" >/dev/null 2>&1 || die "[ERROR] 前台静态文件部署失败"
 
   log INFO "部署后台静态文件到 $backend_root ..."
   root_exec mkdir -p "$backend_root"
-  root_exec rsync -a --delete "$repo_root/chronicle-frontend/dist/" "$backend_root/" >/dev/null 2>&1 || die "[ERROR] 后台静态文件部署失败"
+  root_exec rsync -a --delete "$repo_root/packages/admin/dist/" "$backend_root/" >/dev/null 2>&1 || die "[ERROR] 后台静态文件部署失败"
 
   log INFO "部署后端代码..."
   root_exec mkdir -p "$server_root"
@@ -514,14 +514,14 @@ rebuild_frontends() {
   
   log INFO "重建前端（CMS + Astro）..."
   
-  if [[ -d "$repo_root/chronicle-frontend" ]]; then
+  if [[ -d "$repo_root/packages/admin" ]]; then
     log INFO "构建 CMS..."
-    (cd "$repo_root/chronicle-frontend" && npm run build >/dev/null 2>&1) || die "[ERROR] CMS 构建失败"
+    (cd "$repo_root/packages/admin" && npm run build >/dev/null 2>&1) || die "[ERROR] CMS 构建失败"
   fi
   
-  if [[ -d "$repo_root/astro-template" ]]; then
+  if [[ -d "$repo_root/packages/template-astro" ]]; then
     log INFO "构建 Astro..."
-    (cd "$repo_root/astro-template" && npm run build >/dev/null 2>&1) || die "[ERROR] Astro 构建失败"
+    (cd "$repo_root/packages/template-astro" && npm run build >/dev/null 2>&1) || die "[ERROR] Astro 构建失败"
   fi
 }
 

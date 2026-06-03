@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const repoRoot = path.resolve(__dirname, '..');
-const securityFile = path.join(repoRoot, 'server', 'data', 'security.json');
+const securityFile = path.join(repoRoot, 'data', 'security.json');
 
 function backup(originalPath) {
   try {

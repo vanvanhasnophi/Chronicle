@@ -2,7 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const POSTS_DIR = path.join(__dirname, '..', 'server', 'data', 'posts');
+const POSTS_DIR = path.join(__dirname, '..', 'data', 'posts');
 const crypto = require('crypto');
 const ALGORITHM = 'aes-256-cbc';
 const SECRET_KEY = crypto.scryptSync('chronicle-secret-key-123', 'salt', 32);
