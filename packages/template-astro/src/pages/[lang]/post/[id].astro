@@ -1,6 +1,8 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
-import { getApiUrl } from '../../../config/api';
+import { getApiUrl, DATA_SOURCE } from '../../../config/api';
+import { isLocalMode } from '../../../core/site';
+import { getPublishedPosts, getPostById, getPublicSettings } from '../../../data/localDataSource';
 import { getTranslation, getLocale } from '../../../utils/i18n';
 import { buildLocalizedPath, toContentLocale } from '../../../utils/routeLocale';
 import { buildTocItems } from '../../../utils/toc';
@@ -20,6 +22,14 @@ export const prerender = true;
 
 
 export async function getStaticPaths() {
+  if (isLocalMode) {
+    const posts = getPublishedPosts();
+    return posts.flatMap((post) => ([
+      { params: { lang: 'zh', id: String(post.id) } },
+      { params: { lang: 'en', id: String(post.id) } },
+    ]));
+  }
+
   try {
     const res = await fetch(getApiUrl('/api/posts', true), { cache: 'no-store' });
     if (res.ok) {
@@ -70,9 +80,34 @@ let post: any = null;
 let error = null;
 let settings: Record<string, any> = {};
 
+// ── Local data source ──────────────────────────────────
+if (isLocalMode) {
+  const localPost = getPostById(id);
+  if (localPost) {
+    post = {
+      id: localPost.id,
+      title: localPost.title,
+      date: localPost.date,
+      updatedAt: localPost.updatedAt,
+      tags: localPost.tags || [],
+      summary: localPost.summary || '',
+      content: localPost.content,
+      html: localPost.compiledHtml,
+      toc: localPost.toc || [],
+      collection: localPost.collection,
+      collectionPath: localPost.collectionPath,
+      font: localPost.font,
+      status: localPost.status,
+    };
+  }
+  settings = getPublicSettings() as Record<string, any>;
+}
+
+// ── Remote API ─────────────────────────────────────────
+if (!isLocalMode) {
 try {
   const postApiUrl = getApiUrl(`/api/post?id=${id}`, true);
-  
+
   // 首先尝试主API获取settings
   try {
     const settingsRes = await fetch(getApiUrl('/api/settings?t=' + Date.now(), true), {
@@ -84,7 +119,7 @@ try {
   } catch (e) {
     console.error('[Post Detail] Failed to fetch settings from main API:', e);
   }
-  
+
   // 如果主API失败或没有数据，尝试public API作为后备
   if (!settings || Object.keys(settings).length === 0) {
     try {
@@ -98,7 +133,7 @@ try {
       console.error('[Post Detail] Failed to fetch settings from public API:', e);
     }
   }
-  
+
   // 获取帖子内容
   const postRes = await fetch(postApiUrl, { cache: 'no-store' });
 
@@ -147,6 +182,7 @@ try {
 } catch (err) {
   error = 'Failed to load post detail';
 }
+} // end if (!isLocalMode)
 
 if (!post && !error) {
   error = 'Post not found';

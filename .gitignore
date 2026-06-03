@@ -6,11 +6,11 @@ _MACOSX/*
 localhost_5173-20250825T191532.json
 node_modules/
 data/*
-server/logs/*
-server/log/*
-packages/admin/.env.production
-packages/admin/dist/server
-packages/admin/dist/server/*
+packages/host/logs/*
+packages/host/log/*
+packages/manager/.env.production
+packages/manager/dist/server
+packages/manager/dist/server/*
 packages/template-astro/dist/*
 scripts/media_speed_test.sh
 .env

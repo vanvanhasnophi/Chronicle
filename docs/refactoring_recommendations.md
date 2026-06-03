@@ -395,7 +395,7 @@ chronicle/
 │   │   │       └── rss.ts
 │   │   └── tests/
 │   │
-│   ├── admin/                        # 现有 chronicle-frontend/ → 此处
+│   ├── manager/                      # 现有 CMS → 此处（原名 chronicle-frontend）
 │   │   ├── package.json
 │   │   ├── vite.config.ts
 │   │   ├── index.html
@@ -1108,7 +1108,7 @@ Chronicle Host（托管服务器）                    Chronicle Gen（内容生
 |---|---|---|
 | 1.1 建立 pnpm workspace 结构 | 0.5d | P0 |
 | 1.2 创建 `@chronicle/shared` 包（类型定义） | 1d | P0 |
-| 1.3 移动 `chronicle-frontend/`、`astro-template/` 到 `packages/` | 0.5d | P0 |
+| 1.3 移动 `chronicle-frontend/`、`astro-template/` 到 `packages/manager/`、`packages/template-astro/` | 0.5d | P0 |
 | 1.4 将 `server/index.js` 拆分为 `packages/host/` + `packages/gen/` 目录 | 1d | P0 |
 | 1.5 按职责将现有代码分配到 Host（API/认证/文件管理）和 Gen（构建/图片处理/内容编译） | 2d | P0 |
 | 1.6 抽取共享中间件（auth, logger, errorHandler）到 Host | 1d | P0 |

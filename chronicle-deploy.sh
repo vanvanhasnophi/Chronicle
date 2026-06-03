@@ -51,7 +51,7 @@ FRONTEND_DOMAIN_DEFAULT="${FRONTEND_DOMAIN:-blog.eightyfor.top}"
 BACKEND_DOMAIN_DEFAULT="${BACKEND_DOMAIN:-blogmanager.eightyfor.top}"
 WEB_ROOT_DEFAULT="${WEB_ROOT:-/var/www/${FRONTEND_DOMAIN_DEFAULT}}"
 BACKEND_ROOT_DEFAULT="${BACKEND_ROOT:-/var/www/${BACKEND_DOMAIN_DEFAULT}}"
-SERVER_ROOT_DEFAULT="${SERVER_ROOT:-/opt/Chronicle/server}"
+SERVER_ROOT_DEFAULT="${SERVER_ROOT:-/opt/Chronicle/packages/host}"
 ASTRO_ROOT_DEFAULT="${ASTRO_ROOT:-/opt/Chronicle/packages/template-astro}"
 MEDIA_DOMAIN_DEFAULT="${MEDIA_DOMAIN:-https://file.eightyfor.top}"
 FRONTEND_API_BASE_URL_DEFAULT="${FRONTEND_API_BASE_URL:-https://${FRONTEND_DOMAIN_DEFAULT}}"
@@ -101,7 +101,7 @@ if [ -f "$CONFIG_FILE" ]; then
             fi
         done
 
-        REPO_FRONTEND_SRC_NAME="packages/admin"
+        REPO_FRONTEND_SRC_NAME="packages/manager"
         REPO_ASTRO_SRC_NAME="packages/template-astro"
 
         if [ "${#CANDIDATES[@]}" -gt 0 ]; then
@@ -115,7 +115,7 @@ if [ -f "$CONFIG_FILE" ]; then
             for c in "${CANDIDATES[@]}"; do
                 case "$c" in
                     astro-template|packages/template-astro) REPO_ASTRO_SRC_NAME="$c" ;;
-                    chronicle-frontend|packages/admin) REPO_FRONTEND_SRC_NAME="$c" ;;
+                    chronicle-frontend|packages/manager) REPO_FRONTEND_SRC_NAME="$c" ;;
                 esac
             done
 
@@ -127,8 +127,8 @@ if [ -f "$CONFIG_FILE" ]; then
             prompt_default REPO_ASTRO_SRC_NAME "请选择 Astro 源码目录名" "$REPO_ASTRO_SRC_NAME"
         else
             log "未检测到候选源码目录。请手动输入源码目录名。"
-            read -r -p "管理前端源码目录名 (例如 packages/admin): " REPO_FRONTEND_SRC_NAME || true
-            REPO_FRONTEND_SRC_NAME=${REPO_FRONTEND_SRC_NAME:-packages/admin}
+            read -r -p "管理前端源码目录名 (例如 packages/manager): " REPO_FRONTEND_SRC_NAME || true
+            REPO_FRONTEND_SRC_NAME=${REPO_FRONTEND_SRC_NAME:-packages/manager}
             read -r -p "Astro 源码目录名 (例如 packages/template-astro): " REPO_ASTRO_SRC_NAME || true
             REPO_ASTRO_SRC_NAME=${REPO_ASTRO_SRC_NAME:-packages/template-astro}
         fi
@@ -144,7 +144,7 @@ if [ -f "$CONFIG_FILE" ]; then
         fi
     done
 
-    REPO_FRONTEND_SRC_NAME="packages/admin"
+    REPO_FRONTEND_SRC_NAME="packages/manager"
     REPO_ASTRO_SRC_NAME="packages/template-astro"
 
     if [ "${#CANDIDATES[@]}" -gt 0 ]; then
@@ -158,7 +158,7 @@ if [ -f "$CONFIG_FILE" ]; then
         for c in "${CANDIDATES[@]}"; do
             case "$c" in
                 astro-template) REPO_ASTRO_SRC_NAME="$c" ;;
-                chronicle-frontend) REPO_FRONTEND_SRC_NAME="$c" ;;
+                chronicle-frontend|packages/manager) REPO_FRONTEND_SRC_NAME="$c" ;;
             esac
         done
 
@@ -170,8 +170,8 @@ if [ -f "$CONFIG_FILE" ]; then
         prompt_default REPO_ASTRO_SRC_NAME "请选择 Astro 源码目录名" "$REPO_ASTRO_SRC_NAME"
     else
         log "未检测到候选源码目录。请手动输入源码目录名。"
-        read -r -p "管理前端源码目录名 (例如 packages/admin): " REPO_FRONTEND_SRC_NAME || true
-        REPO_FRONTEND_SRC_NAME=${REPO_FRONTEND_SRC_NAME:-packages/admin}
+        read -r -p "管理前端源码目录名 (例如 packages/manager): " REPO_FRONTEND_SRC_NAME || true
+        REPO_FRONTEND_SRC_NAME=${REPO_FRONTEND_SRC_NAME:-packages/manager}
         read -r -p "Astro 源码目录名 (例如 packages/template-astro): " REPO_ASTRO_SRC_NAME || true
         REPO_ASTRO_SRC_NAME=${REPO_ASTRO_SRC_NAME:-packages/template-astro}
     fi
@@ -213,7 +213,7 @@ if [ "$ADOPTED_CONFIG" -eq 0 ]; then
     prompt_default BACKEND_ROOT "请输入后台部署目录" "$BACKEND_ROOT"
     prompt_default SERVER_ROOT "请输入后端目录" "$SERVER_ROOT"
     prompt_default ASTRO_ROOT "请输入 Astro 源码目录" "$ASTRO_ROOT"
-    prompt_default FRONTEND_API_BASE_URL "请输入 packages/admin 的 API 基址" "$FRONTEND_API_BASE_URL"
+    prompt_default FRONTEND_API_BASE_URL "请输入 packages/manager 的 API 基址" "$FRONTEND_API_BASE_URL"
     prompt_default ASTRO_API_BASE_URL "请输入 Astro 构建时 API 基址" "$ASTRO_API_BASE_URL"
     prompt_default MEDIA_DOMAIN "请输入媒体域名" "$MEDIA_DOMAIN"
 
@@ -232,7 +232,7 @@ fi
 
 log "同步后端源码到部署目录..."
 mkdir -p "$SERVER_ROOT"
-rsync -av --delete --exclude='data' --exclude='log' --exclude='node_modules' "$REPO_ROOT/server/" "$SERVER_ROOT/"
+rsync -av --delete --exclude='data' --exclude='log' --exclude='node_modules' "$REPO_ROOT/packages/host/" "$SERVER_ROOT/"
 
 cd "$SERVER_ROOT"
 if [ -f package.json ]; then
@@ -258,7 +258,7 @@ else
     warn "pm2 not found. Cannot restart backend automatically."
 fi
 
-log "构建 packages/admin..."
+log "构建 packages/manager..."
 mkdir -p "$BACKEND_ROOT"
 cd "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME"
 
@@ -291,11 +291,11 @@ else
     log "跳过构建，使用现成 dist。"
 fi
 
-log "恢复 packages/admin 源码中的 upload symlink..."
+log "恢复 packages/manager 源码中的 upload symlink..."
 ensure_symlink "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME/public/server/data/upload" "$REPO_ROOT/data/upload"
 ensure_symlink "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME/public/server/data/background" "$REPO_ROOT/data/background"
 
-log "部署 packages/admin 到后台站点目录 ($BACKEND_ROOT)..."
+log "部署 packages/manager 到后台站点目录 ($BACKEND_ROOT)..."
 rsync -a --delete "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME/dist/" "$BACKEND_ROOT/"
 
 log "构建 packages/template-astro..."

@@ -1,9 +1,59 @@
 # 产品需求文档（PRD）
-## 项目名称：Notion 驱动的个人博客系统（待定）
-### 版本：v1.0
+## 项目名称：Chronicle
+### 版本：v2.0-beta
 
 ---
 
+## 〇、项目核心原则
+
+Chronicle 是一个支持双模式（静态/API）的个人博客系统，由三个独立组件构成：
+
+```
+┌──────────────────┐   ┌──────────────────┐   ┌──────────────────────┐
+│   template-astro │   │     manager       │   │  host (+ gen)         │
+│   Astro 前台模板  │   │   Vue CMS 管理 GUI │   │  Express API 运行时    │
+│                  │   │                  │   │                      │
+│  • 博客前台渲染   │   │  • 文章编辑器     │   │  host: 动态 CRUD API   │
+│  • SEO / RSS     │   │  • 文件管理       │   │  gen:  SSG 构建/图片处理 │
+│  • 接口标准化     │   │  • 站点配置       │   │  shared: 类型/常量/工具  │
+│  • 迁移友好       │   │  • 构建触发       │   │                      │
+└──────────────────┘   └──────────────────┘   └──────────────────────┘
+```
+
+以下原则不可违背：
+
+| 原则 | 说明 |
+|------|------|
+| **双模式切换不得侵入业务逻辑** | 静态/API 切换通过环境变量控制（`API_BASE_URL` / `VITE_API_BASE_URL`），数据获取层抽象为 `getApiUrl()` 统一接口 |
+| **迁移友好** | 内容使用 Markdown + YAML Frontmatter，目录结构与主流 SSG 兼容 |
+| **API 响应格式统一** | 所有接口返回 `{ code: number, data: T, message: string }` |
+| **各版本差异通过配置或条件构建实现** | 五个发行版通过 build.sh 的条件组装打包，不复制业务代码 |
+| **零数据库依赖** | 全部数据存储在文件系统中（JSON + Markdown），Git 友好 |
+
+### 双模式切换
+
+| 模式 | 模板数据获取 | CMS 数据获取 | 运行时依赖 |
+|------|------------|------------|-----------|
+| **API 模式** | SSG 构建时 `fetch(API_BASE_URL + '/api/posts')` | `fetchWithAuth('/api/admin/...')` 经 Vite proxy 转发 | host (Express) |
+| **静态模式** | `DATA_SOURCE=local` — 本地 Content Collections（规划中） | 纯本地操作，无远端 | 不需要 |
+
+### Monorepo 结构
+
+```
+chronicle/
+├── packages/
+│   ├── shared/          # @chronicle/shared — 共享类型、常量、工具
+│   ├── host/            # @chronicle/host   — API 服务器（Express）
+│   ├── gen/             # @chronicle/gen    — 内容生成引擎（CLI）
+│   ├── manager/         # @chronicle/manager — Vue CMS 管理后台
+│   └── template-astro/  # @chronicle/template-astro — Astro 博客模板
+├── data/                # 共享数据目录（posts/, upload/, settings.json）
+├── scripts/build.sh     # 多规格构建脚本
+├── start.sh             # 开发环境一键启动
+└── install.sh           # VPS 一键部署
+```
+
+---
 ## 一、产品定位
 
 **一句话定位**：
@@ -32,44 +82,51 @@
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐                  │
 │  │  Notion  │  │  本地    │  │ 其他CMS  │                  │
 │  │  同步器  │  │ Markdown │  │  （扩展） │                  │
+│  │  (gen)   │  │ (data/)  │  │          │                  │
 │  └────┬─────┘  └────┬─────┘  └────┬─────┘                  │
 │       └─────────────┼─────────────┘                         │
 │                     ↓                                       │
-│              标准 Markdown                                  │
-│           （+ Frontmatter）                                 │
+│              标准 Markdown + YAML Frontmatter               │
+│              (data/posts/<uuid>/<uuid>-content.md)          │
 └─────────────────────────────────────────────────────────────┘
                           ↓
 ┌─────────────────────────────────────────────────────────────┐
-│                        管理层                                │
+│                  管理层 (Manager GUI)                        │
 │  ┌──────────────────────────────────────────────────────┐  │
-│  │           Vue CMS（控制面板）                         │  │
+│  │     @chronicle/manager — Vue 3 SPA                    │  │
 │  │  ┌────────────────┐  ┌────────────────────────┐     │  │
-│  │  │  通用核心       │  │  模板插件（默认模板）    │     │  │
-│  │  │  - 文章管理     │  │  - 主题配置             │     │  │
-│  │  │  - 构建触发     │  │  - 实时预览             │     │  │
-│  │  │  - 部署配置     │  │  - 专属设置             │     │  │
-│  │  │  - API 控制     │  └────────────────────────┘     │  │
+│  │  │  核心功能       │  │  可选组件（插件式）      │     │  │
+│  │  │  - 文章 CRUD   │  │  🔌 API 上传组件        │     │  │
+│  │  │  - 文件管理     │  │  🔌 静态构建组件        │     │  │
+│  │  │  - 站点配置     │  └────────────────────────┘     │  │
 │  │  └────────────────┘                                   │  │
 │  └──────────────────────────────────────────────────────┘  │
-│                          ↓                                  │
-│              构建服务（Express API）                         │
+│                          ↓ (HTTP)                           │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │     @chronicle/host (动态 API)                        │  │
+│  │     Admin API  │  Public API  │  Auth  │  File Serve  │  │
+│  └──────────────────────────────────────────────────────┘  │
+│                          ↓ (触发)                           │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │     @chronicle/gen (内容生成引擎)                      │  │
+│  │     Astro Build  │  Image Process  │  Notion Sync    │  │
+│  └──────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
                           ↓
 ┌─────────────────────────────────────────────────────────────┐
-│                        渲染层                                │
+│                   渲染层 (Template)                          │
 │  ┌──────────────────────────────────────────────────────┐  │
-│  │      Astro 默认模板（设计语言）                        │  │
-│  │  - 桌面端/移动端完美适配                                │  │
-│  │  - 暗色模式                                            │  │
-│  │  - 高性能静态站点                                       │  │
+│  │  @chronicle/template-astro — Astro SSG                │  │
+│  │  - 桌面端/移动端完美适配  - SEO (sitemap/rss/og)      │  │
+│  │  - 暗色模式              - Lighthouse ~100           │  │
 │  └──────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
                           ↓
 ┌─────────────────────────────────────────────────────────────┐
 │                        分发层                                │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
-│  │ GitHub   │  │  VPS     │  │ Electron │  │  本地    │   │
-│  │  Pages   │  │  托管    │  │  应用    │  │  预览    │   │
+│  │ GitHub   │  │  VPS     │  │ Electron │  │  npm     │   │
+│  │  Pages   │  │  Nginx   │  │  桌面应用  │  │  CLI     │   │
 │  └──────────┘  └──────────┘  └──────────┘  └──────────┘   │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -143,17 +200,24 @@ npx notion-sync watch --on-change "npm run build"
 
 ### 3.4 Express 服务（后端 API）
 
-**定位**：Web 模式下的后端服务
+**定位**：Web 模式下的后端服务，拆分为两个独立可组合的包
+
+| 包 | 定位 | 职责 |
+|---|------|------|
+| `@chronicle/host` | 托管服务器（常驻进程） | Admin API、Public API、认证、文件管理、静态文件 serve |
+| `@chronicle/gen` | 内容生成引擎（按需执行） | Astro SSG 构建、图片处理（sharp）、Notion 同步、搜索索引、文件监听 |
 
 **功能**：
-| 功能点 | 优先级 | 说明 |
-|---|---|---|
-| 文章 API | P0 | 分页、详情、按标签筛选 |
-| 构建 API | P0 | 触发构建，返回构建状态 |
-| CMS API | P0 | 供 Vue CMS 调用的增删改查接口 |
-| 认证 | P1 | 简单 Token 认证（防滥用） |
-| Webhook | P1 | 接收 Notion 更新信号 |
-| 静态文件托管 | P0 | 托管构建产物（可选，也可用 Nginx） |
+| 功能点 | 优先级 | 所属包 | 说明 |
+|---|---|---|---|
+| 文章 API | P0 | host | 分页、详情、按标签筛选（Public API） |
+| CMS API | P0 | host | 供 Vue CMS 调用的增删改查接口（Admin API） |
+| 构建 API | P0 | host → gen | host 接收触发，调用 gen 执行构建 |
+| 认证 | P1 | host | `x-chronicle-auth` header + WebAuthn Passkey |
+| 静态文件托管 | P0 | host | 托管构建产物（可选，也可用 Nginx） |
+| 图片处理 | P0 | gen | sharp 压缩、缩略图、背景图 |
+| Webhook | P1 | host | 接收外部更新信号，触发 gen |
+| Notion 同步 | P2 | gen | 拉取 Notion 数据 → 转 Markdown → 本地化 |
 
 ### 3.5 Electron 桌面应用
 
@@ -174,61 +238,76 @@ npx notion-sync watch --on-change "npm run build"
 
 ## 四、版本矩阵
 
-| 版本名称 | 用户群体 | 发布方式 | 获取入口 |
-|---|---|---|---|
-| **全自托管版** | 开发者 | 主仓库 + `deploy.sh` | `git clone` |
-| **静态自托管版** | 有服务器的普通用户 | GitHub Release | 下载桌面应用 + 自配服务器 |
-| **完整静态版** | 不想管服务器的普通用户 | GitHub Release | 下载桌面应用 + 一键部署到 GitHub Pages |
-| **精简版** | 纯前端开发者 | `lite` 分支 | 复刻分支 |
-| **CLI 同步器** | 所有需要同步的用户 | npm 包 | `npm install -g @yourname/notion-sync` |
+详见 [versions.md](./versions.md) 完整规格文档。
+
+| # | 版本名称 | CMS 模式 | server | 部署方式 | 用户群体 |
+|---|---------|---------|--------|---------|---------|
+| 1 | **full**（全自托管版） | Cloud（捆绑） | ✅ VPS 常驻 | VPS + install.sh | 有 VPS 的开发者 |
+| 2 | **self-hosted**（静态自托管版） | Local·API 上传 | ✅ VPS 常驻 | manager + VPS server | 有 VPS，CMS 只在本机 |
+| 3 | **static**（完整静态版） | Local·静态上传 | ❌ | manager → push GitHub Pages | 无 VPS，用免费托管 |
+| 4 | **lite**（精简版） | ❌ 无 | ❌ | fork → 改 md → 自动部署 | 纯前端开发者 |
+| 5 | **manager**（独立 CMS） | 纯本地客户端 | ❌ | 本地运行，可选 API/静态组件 | 已有博客前台，只需 CMS |
 
 **发布流程**：
-- `main` 分支：全自托管版源码
-- 打 tag（如 `v1.0.0`）：触发 GitHub Actions 构建桌面应用并发布到 Release
-- `lite` 分支：定期同步 `pages/` 目录，纯静态源码
+- `main` 分支：全量源码（monorepo）
+- `scripts/build.sh`：构建所有 5 种规格的发行版
+- 打 tag（如 `v2.0.0`）：触发 GitHub Actions 构建并发布到 Release
+- `lite` 分支：仅含 `packages/template-astro/` + 示例内容，fork 即用
 
 ---
 
 ## 五、技术栈
 
-| 模块 | 技术选型 | 说明 |
-|---|---|---|
-| 博客前端 | Astro | 静态站点生成器，性能优秀 |
-| 管理后台 | Vue 3 + Vite | 轻量、响应式 |
-| 后端 API | Express | 简单、灵活 |
-| 桌面应用 | Electron | 跨平台桌面应用 |
-| 同步器 | Node.js + Notion API | CLI 工具 |
-| 部署 | GitHub Actions | 自动化构建和发布 |
-| 数据库 | 无（文件系统 + Git） | 零数据库，纯文本 |
+| 模块 | 技术选型 | 包名 | 说明 |
+|---|---|---|---|
+| 博客前台 | Astro 6 + Vue 3 Islands | `@chronicle/template-astro` | 静态站点生成，性能优秀 |
+| 管理后台 | Vue 3 + Vite 7 | `@chronicle/manager` | SPA，轻量响应式 |
+| 后端 API | Express 4 (Node.js) | `@chronicle/host` | REST API，WebAuthn |
+| 内容生成 | Node.js + sharp | `@chronicle/gen` | SSG 构建、图片处理、同步 |
+| 共享层 | TypeScript | `@chronicle/shared` | 类型定义、常量、工具函数 |
+| 桌面应用 | Electron | `packages/electron/`（规划中） | 跨平台桌面应用 |
+| 部署 | GitHub Actions | `.github/workflows/` | 多规格自动构建发布 |
+| 存储 | 文件系统 + Git | `data/` | 零数据库，Markdown + JSON |
+| 包管理 | pnpm workspaces | `pnpm-workspace.yaml` | Monorepo 管理 |
 
 ---
 
 ## 六、里程碑
 
-### Phase 1：基础完善（1-2 周）
+### Phase 1：基础重构 ✅ 已完成
+- [x] Monorepo 化（`packages/shared` / `host` / `gen` / `manager` / `template-astro`）
+- [x] `server/` → `packages/host/` 迁移（git mv，历史保留）
+- [x] `@chronicle/shared` 共享类型/常量/工具包
+- [x] `@chronicle/gen` 内容生成引擎骨架
+- [x] 构建脚本适配新结构（5 个发行版路径全部更新）
+- [x] 启动/部署/CI 脚本全部更新
+- [x] 默认模板移动端适配（已完成）
+- [ ] Vitest 测试框架配置
+- [ ] 核心 service 单元测试
+
+### Phase 2：API 分层 + 静态部署就绪（进行中，2-3 周）
+- [ ] Public API / Admin API 路由分离
+- [ ] API 响应格式统一为 `{ code, data, message }`
+- [ ] 搜索静态化（构建时生成 search-index.json）
+- [ ] 缩略图静态化（构建时预生成）
+- [ ] 纯静态部署验证（dist/ 零 Express 依赖）
 - [ ] Notion 同步器 CLI（基础导入功能）
-- [ ] 默认模板移动端适配（已完成）
-- [ ] 双模式 API 适配（静态模式 + 完整模式）
+- [ ] 双模式 API 适配（静态模式 `DATA_SOURCE=local`）
 
-### Phase 2：桌面应用（2-3 周）
+### Phase 3：桌面应用 + 同步增强（2-3 周）
 - [ ] Electron 打包 Vue CMS
-- [ ] 内置默认模板
-- [ ] 一键部署到 GitHub Pages
+- [ ] 内置默认模板 + 一键部署到 GitHub Pages
 - [ ] GitHub Actions 自动构建 Release
-
-### Phase 3：同步增强（1-2 周）
-- [ ] Notion 增量同步
-- [ ] 监听模式（`--watch`）
-- [ ] 图片本地化
+- [ ] Notion 增量同步 + 监听模式（`--watch`）
 
 ### Phase 4：插件化改造（可选，1 周）
-- [ ] Vue CMS 配置面板动态化
+- [ ] Manager API 上传组件（用于 self-hosted）
+- [ ] Manager 静态构建组件（用于 static）
 - [ ] 构建/预览命令可配置
-- [ ] 支持多模板切换
 
 ### Phase 5：生态建设（长期）
-- [ ] 文档完善
-- [ ] 视频教程
+- [ ] 文档完善 + 视频教程
+- [ ] Docker 镜像
 - [ ] 社区模板适配贡献
 
 ---

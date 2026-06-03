@@ -30,12 +30,12 @@ jobs:
 
       - name: Install dependencies
         run: |
-          cd packages/admin && npm ci
+          cd packages/manager && npm ci
           cd ../template-astro && npm ci
-          cd ../../server && npm ci
+          cd ../../packages/host && npm ci
 
-      - name: Type check (admin)
-        run: cd packages/admin && npx vue-tsc --noEmit
+      - name: Type check (manager)
+        run: cd packages/manager && npx vue-tsc --noEmit
 
       - name: Lint (if configured)
         run: echo "Lint step — add eslint later"
@@ -53,7 +53,7 @@ jobs:
       - name: Build full release
         run: |
           # Start mock server for Astro SSG data fetch
-          cd server && node index.js &
+          cd packages/host && node index.js &
           sleep 3
           cd ..
           bash scripts/build.sh full
@@ -76,7 +76,7 @@ jobs:
 
       - name: Build static release
         run: |
-          cd server && node index.js &
+          cd packages/host && node index.js &
           sleep 3
           cd ..
           API_BASE_URL=http://127.0.0.1:3000 bash scripts/build.sh static

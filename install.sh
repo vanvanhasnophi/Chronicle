@@ -236,10 +236,10 @@ ensure_symlink() {
 install_node_deps() {
   local repo_root="$1"
   log INFO "安装后端依赖..."
-  (cd "$repo_root/server" && npm install --omit=dev >/dev/null 2>&1) || die "[ERROR] 后端依赖安装失败"
+  (cd "$repo_root/packages/host" && npm install --omit=dev >/dev/null 2>&1) || die "[ERROR] 后端依赖安装失败"
 
   log INFO "安装 CMS 依赖..."
-  (cd "$repo_root/packages/admin" && npm install >/dev/null 2>&1) || die "[ERROR] CMS 依赖安装失败"
+  (cd "$repo_root/packages/manager" && npm install >/dev/null 2>&1) || die "[ERROR] CMS 依赖安装失败"
 
   log INFO "安装 Astro 依赖..."
   (cd "$repo_root/packages/template-astro" && npm install >/dev/null 2>&1) || die "[ERROR] Astro 依赖安装失败"
@@ -248,11 +248,11 @@ install_node_deps() {
 prepare_runtime_dirs() {
   local repo_root="$1"
   root_exec mkdir -p "$repo_root/data/upload"
-  root_exec mkdir -p "$repo_root/server/log"
-  root_exec mkdir -p "$repo_root/packages/admin/public/server/data"
+  root_exec mkdir -p "$repo_root/packages/host/log"
+  root_exec mkdir -p "$repo_root/packages/manager/public/server/data"
   root_exec mkdir -p "$repo_root/packages/template-astro/public/server/data"
 
-  ensure_symlink "$repo_root/packages/admin/public/server/data/upload" "$repo_root/data/upload"
+  ensure_symlink "$repo_root/packages/manager/public/server/data/upload" "$repo_root/data/upload"
   ensure_symlink "$repo_root/packages/template-astro/public/server/data/upload" "$repo_root/data/upload"
 }
 
@@ -493,7 +493,7 @@ deploy_from_repo() {
   local repo_root="$1"
   local frontend_root="$2"
   local backend_root="$3"
-  local server_root="$repo_root/server"
+  local server_root="$repo_root/packages/host"
   
   log INFO "部署前端静态文件到 $frontend_root ..."
   root_exec mkdir -p "$frontend_root"
@@ -501,7 +501,7 @@ deploy_from_repo() {
 
   log INFO "部署后台静态文件到 $backend_root ..."
   root_exec mkdir -p "$backend_root"
-  root_exec rsync -a --delete "$repo_root/packages/admin/dist/" "$backend_root/" >/dev/null 2>&1 || die "[ERROR] 后台静态文件部署失败"
+  root_exec rsync -a --delete "$repo_root/packages/manager/dist/" "$backend_root/" >/dev/null 2>&1 || die "[ERROR] 后台静态文件部署失败"
 
   log INFO "部署后端代码..."
   root_exec mkdir -p "$server_root"
@@ -514,9 +514,9 @@ rebuild_frontends() {
   
   log INFO "重建前端（CMS + Astro）..."
   
-  if [[ -d "$repo_root/packages/admin" ]]; then
+  if [[ -d "$repo_root/packages/manager" ]]; then
     log INFO "构建 CMS..."
-    (cd "$repo_root/packages/admin" && npm run build >/dev/null 2>&1) || die "[ERROR] CMS 构建失败"
+    (cd "$repo_root/packages/manager" && npm run build >/dev/null 2>&1) || die "[ERROR] CMS 构建失败"
   fi
   
   if [[ -d "$repo_root/packages/template-astro" ]]; then
@@ -548,7 +548,7 @@ restart_services() {
   
   # 只启动后端
   log INFO "启动后端 API (3000)..."
-  (cd "$repo_root/server" && npm start > "$repo_root/server.log" 2>&1 &)
+  (cd "$repo_root/packages/host" && npm start > "$repo_root/packages/host.log" 2>&1 &)
   
   sleep 2
   log INFO "后端服务已启动"
@@ -642,7 +642,7 @@ ${GREEN}╚═══════════════════════
 🔐 HTTPS: ${enable_https}
 
 📋 日志文件:
-  - 后端: $repo_root/server.log
+  - 后端: $repo_root/packages/host.log
 📂 前台目录: $frontend_root
 📂 后台目录: $backend_root
 
@@ -650,7 +650,7 @@ ${GREEN}╚═══════════════════════
 
 🚀 快速命令:
   # 查看日志
-  tail -f $repo_root/server.log
+  tail -f $repo_root/packages/host.log
 
   # 手动重启服务
   bash $repo_root/install.sh update

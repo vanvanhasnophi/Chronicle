@@ -31,7 +31,9 @@ export default defineConfig({
   vite: {
     define: {
       __VERSION__: JSON.stringify(pkg.version),
-      __YEAR__: new Date().getFullYear()
+      __YEAR__: new Date().getFullYear(),
+      'process.env.DATA_SOURCE': JSON.stringify(process.env.DATA_SOURCE || 'remote'),
+      'process.env.CHRONICLE_DATA_DIR': JSON.stringify(process.env.CHRONICLE_DATA_DIR || ''),
     },
     server: {
       proxy: {

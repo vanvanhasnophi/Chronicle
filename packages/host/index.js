@@ -1,6 +1,8 @@
 const express = require('express');
 const morgan = require('morgan');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -15,10 +17,53 @@ const {
 } = require('@simplewebauthn/server');
 const os = require('os');
 
+// ── Extracted modules ─────────────────────────────────
+const {
+  BASE_DIR, DATA_DIR, UPLOAD_DIR, BACKGROUND_DIR, POSTS_DIR,
+  SECURITY_FILE, SETTINGS_FILE, COLLECTION_FILE, INDEX_FILE, ACCESS_LOG,
+  PORT, DEFAULT_BUILD_SETTINGS, DEFAULT_MANAGER_DOMAIN,
+  VALID_BUILD_GRANULARITIES, CATEGORIES,
+  TRAFFIC_LOG_FILE, TRAFFIC_RANGE_ALIASES, VALID_TRAFFIC_RANGES
+} = require('./src/config');
+
+const { encrypt, decrypt, hashPassword, normalizeAdminToken, requireAdminToken } = require('./src/middleware/auth');
+const { requestLogger } = require('./src/middleware/logger');
+const { errorHandler } = require('./src/middleware/errorHandler');
+
+// ── Response helpers ───────────────────────────────────
+const { success, fail } = require('./src/services/response');
+
+// ── Route modules ─────────────────────────────────────
+const publicRoutes = require('./src/routes/public');
+const legacyCompat = require('./src/routes/legacy/compat');
+
 const app = express();
-const PORT = 3000;
 
 console.log("Backend Version: 2026-02-11-FIX-RPID (blog.eightyfor.top)");
+
+// Security headers (CSP permissive for Vue SPA + Astro output)
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https:"],
+            imgSrc: ["'self'", "data:", "blob:", "https:"],
+            connectSrc: ["'self'", "https:"],
+            fontSrc: ["'self'", "https:", "data:"],
+        },
+    },
+    crossOriginEmbedderPolicy: false,
+}));
+
+// Rate limit auth endpoints to prevent brute-force
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 min
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { code: 429, data: null, message: 'Too many attempts, try again later' },
+});
 
 // Enable CORS with a whitelist and preflight handling
 const allowedOrigins = [
@@ -51,109 +96,30 @@ app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Verbose per-request result logger
-app.use((req, res, next) => {
-    const start = Date.now();
+// Request/response logger (extracted to src/middleware/logger.js)
+app.use(requestLogger);
 
-    // wrap res.json and res.send to log outcome when they are called
-    const _json = res.json.bind(res);
-    const _send = res.send.bind(res);
+// Global error handler (extracted to src/middleware/errorHandler.js)
+app.use(errorHandler);
 
-    function logOutcome(statusCode, responseBody) {
-        const duration = Date.now() - start;
-        const brief = `${req.method} ${req.originalUrl} ${statusCode} ${duration}ms`;
-
-        if (statusCode >= 400) {
-            // Always print detailed info for failures
-            try {
-                console.error('[API ERROR]', brief);
-                console.error('  Query   :', JSON.stringify(req.query || {}));
-                console.error('  Body    :', JSON.stringify(req.body || {}));
-                console.error('  Response:', typeof responseBody === 'object' ? JSON.stringify(responseBody) : String(responseBody));
-                if (process.env.VERBOSE_ERRORS === '1') {
-                    console.error('  Headers :', JSON.stringify(req.headers || {}));
-                }
-            } catch (e) {
-                console.error('[API ERROR] failed to serialize debug info', e);
-            }
-
-            // persist to error log when available
-            try {
-                const out = [`[${new Date().toISOString()}] ${brief}`,
-                    `  Query: ${JSON.stringify(req.query || {})}`,
-                    `  Body: ${JSON.stringify(req.body || {})}`,
-                    `  Response: ${typeof responseBody === 'object' ? JSON.stringify(responseBody) : String(responseBody)}`,
-                    '\n'].join('\n');
-                fs.appendFile(path.join(__dirname, 'log', 'error.log'), out, () => {});
-            } catch (e) {}
-
-            return;
-        }
-
-        // success - short log
-        console.log('[API]', brief);
-    }
-
-    res.json = function (body) {
-        try {
-            logOutcome(res.statusCode || 200, body);
-        } catch (e) {}
-        return _json(body);
-    };
-
-    res.send = function (body) {
-        try {
-            logOutcome(res.statusCode || 200, body);
-        } catch (e) {}
-        return _send(body);
-    };
-
-    next();
-});
-// Global error handler to ensure uncaught errors are logged with stack
-app.use((err, req, res, next) => {
-    console.error('[Unhandled API Error]', err && (err.stack || err.message || String(err)));
-    try {
-        console.error('  Request:', req.method, req.originalUrl);
-        console.error('  Query  :', req.query);
-        console.error('  Body   :', req.body);
-    } catch (e) {}
-    if (!res.headersSent) {
-        res.status(500).json({ success: false, message: err.message || 'Internal Server Error' });
-    } else {
-        next(err);
-    }
-});
-
-// Logger
-const LOG_DIR = path.join(__dirname, 'log');
-const ACCESS_LOG = path.join(LOG_DIR, 'access.log');
-if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
+// Morgan access log (paths from config)
+if (!fs.existsSync(require('path').join(BASE_DIR, 'log'))) {
+    fs.mkdirSync(require('path').join(BASE_DIR, 'log'), { recursive: true });
+}
 const accessLogStream = fs.createWriteStream(ACCESS_LOG, { flags: 'a' });
 app.use(morgan('combined', { stream: accessLogStream }));
 
-// Data Directories
-const BASE_DIR = __dirname;
-const DATA_DIR = path.join(BASE_DIR, 'data');
-const UPLOAD_DIR = path.join(DATA_DIR, 'upload');
-const BACKGROUND_DIR = path.join(DATA_DIR, 'background');
-const POSTS_DIR = path.join(DATA_DIR, 'posts');
-const SECURITY_FILE = path.join(DATA_DIR, 'security.json');
-const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
-const COLLECTION_FILE = path.join(DATA_DIR, 'collection.json');
-const INDEX_FILE = path.join(POSTS_DIR, 'index.json');
+// BACKEND_APP_DIR — kept locally (uses relative path from host/)
+const BACKEND_APP_DIR = path.resolve(BASE_DIR, '..', 'manager');
 
-const DEFAULT_BUILD_SETTINGS = {
-    frontendUrl: 'blog.eightyfor.top',
-    frontendCodeDir: '/opt/Chronicle/astro-template',
-    frontendBuildTargetDir: '/var/www/blog.eightyfor.top'
-};
-
-const DEFAULT_MANAGER_DOMAIN = 'blogmanager.eightyfor.top';
-
-const BACKEND_APP_DIR = path.resolve(BASE_DIR, '..', 'chronicle-frontend');
-
-const VALID_BUILD_GRANULARITIES = new Set(['full', 'posts', 'index']);
+// ── Mount new route structure ──────────────────────────
+// Legacy compat: logs deprecation warnings for old paths (does not block)
+app.use(legacyCompat);
+// New API layers
+app.use('/api/public', publicRoutes);
+// Admin routes: most admin operations still handled by inline routes below.
+// New admin routes will be added incrementally in follow-up work.
+// app.use('/api/admin', adminRoutes);
 
 function safeDirectorySize(dirPath) {
     try {
@@ -262,25 +228,15 @@ function resolveApiSourcePath(baseDir) {
 
     const looksLikeChronicleRepo = parentName === 'chronicle' || (
         fs.existsSync(path.join(parentDir, 'package.json')) &&
-        fs.existsSync(path.join(parentDir, 'server')) &&
-        fs.existsSync(path.join(parentDir, 'chronicle-frontend'))
+        fs.existsSync(path.join(parentDir, 'packages', 'host')) &&
+        fs.existsSync(path.join(parentDir, 'packages', 'manager'))
     );
 
     return looksLikeChronicleRepo ? parentDir : baseDir;
 }
 
-const CATEGORIES = ['pic', 'sound', 'txt', 'video', 'doc', 'other'];
 const trafficGaCache = new Map();
 let trafficGaClient = null;
-const TRAFFIC_RANGE_ALIASES = {
-    '1': '1d',
-    '7': '7d',
-    '12': '12h',
-    '30': '30d',
-    '90': '30d',
-    all: '30d',
-};
-const VALID_TRAFFIC_RANGES = new Set(['30min', '12h', '1d', '7d', '30d']);
 
 function sortTags(tags) {
     if (!tags || !Array.isArray(tags)) return [];
@@ -899,7 +855,6 @@ async function computeBackgroundCompression(meta, rawBackgroundValue) {
     return Math.min(30, factor);
 }
 
-const TRAFFIC_LOG_FILE = ACCESS_LOG;
 let trafficLogCache = { signature: '', records: [] };
 
 function pad2(value) {
@@ -1188,6 +1143,7 @@ function buildTrafficPayload(days) {
 }
 
 app.post('/api/background/compress', async (req, res) => {
+    if (!requireAdminToken(req, res)) return;
     try {
         const body = req.body || {};
         const scope = body.scope === 'backend' ? 'backend' : 'frontend';
@@ -1417,49 +1373,7 @@ function syncBuildOutputByGranularity(distDir, targetDir, granularity) {
     };
 }
 
-function normalizeAdminToken(input) {
-    if (!input) return { token: '' };
-
-    if (typeof input === 'object') {
-        return {
-            token: typeof input.token === 'string' ? input.token : '',
-            expiry: Number(input.expiry || 0) || 0,
-        };
-    }
-
-    const raw = String(input).trim();
-    if (!raw) return { token: '' };
-
-    if (raw.startsWith('{') && raw.endsWith('}')) {
-        try {
-            const parsed = JSON.parse(raw);
-            return normalizeAdminToken(parsed);
-        } catch (e) {
-            // fall through to legacy string token handling
-        }
-    }
-
-    return { token: raw };
-}
-
-function requireAdminToken(req, res) {
-    const headerToken = normalizeAdminToken(req.headers['x-chronicle-auth']);
-    const bodyToken = normalizeAdminToken(req.body?.token);
-    const tokenPayload = headerToken.token ? headerToken : bodyToken;
-    const token = tokenPayload.token || '';
-    const expiry = tokenPayload.expiry || 0;
-
-    if (expiry && Number.isFinite(expiry) && Date.now() > expiry) {
-        res.status(401).json({ success: false, message: 'Unauthorized' });
-        return false;
-    }
-
-    if (!token || (token !== 'session-valid' && token !== 'active')) {
-        res.status(401).json({ success: false, message: 'Unauthorized' });
-        return false;
-    }
-    return true;
-}
+// normalizeAdminToken, requireAdminToken — now in src/middleware/auth.js
 
 function buildAstroFrontendAsync(settings, options = {}) {
     return new Promise((resolve, reject) => {
@@ -1638,8 +1552,8 @@ function buildAstroFrontend(settings, options = {}) {
 function ensureDevSymlink() {
     try {
         // Detect if we are in the monorepo structure
-        // ../chronicle-frontend/public
-        const frontendPublic = path.resolve(__dirname, '../chronicle-frontend/public');
+        // ../manager/public
+        const frontendPublic = path.resolve(__dirname, '../manager/public');
         if (fs.existsSync(frontendPublic)) {
             const targetParent = path.join(frontendPublic, 'server/data');
             const targetLink = path.join(targetParent, 'upload');
@@ -1687,9 +1601,7 @@ if (!fs.existsSync(INDEX_FILE)) fs.writeFileSync(INDEX_FILE, '[]');
 
 ensureDevSymlink();
 
-// Encryption Setup
-const ALGORITHM = 'aes-256-cbc';
-const SECRET_KEY = crypto.scryptSync('chronicle-secret-key-123', 'salt', 32);
+// ALGORITHM + SECRET_KEY now in src/middleware/auth.js
 
 // CDN purge config from env (for Alibaba Cloud)
 const ALIYUN_ACCESS_KEY_ID = process.env.ALIYUN_ACCESS_KEY_ID || '';
@@ -2203,27 +2115,7 @@ function syncIndexWithFiles() {
 }
 syncIndexWithFiles();
 
-function encrypt(text) {
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv(ALGORITHM, SECRET_KEY, iv);
-  let encrypted = cipher.update(text, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-  return iv.toString('hex') + ':' + encrypted;
-}
-
-function decrypt(text) {
-  const [ivHex, encryptedText] = text.split(':');
-  if (!ivHex || !encryptedText) return '';
-  const iv = Buffer.from(ivHex, 'hex');
-  const decipher = crypto.createDecipheriv(ALGORITHM, SECRET_KEY, iv);
-  let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
-  decrypted += decipher.final('utf8');
-  return decrypted;
-}
-
-function hashPassword(pwd) {
-    return crypto.scryptSync(pwd, 'chronicle-salt', 64).toString('hex');
-}
+// encrypt, decrypt, hashPassword — now in src/middleware/auth.js
 
 // Passkey Globals
 const isDev = process.argv.includes('--dev');
@@ -2351,6 +2243,7 @@ app.get('/thumb/*', async (req, res) => {
 
 // 2. Auth - Passkey
 // Code Verification Routes
+app.use('/api/auth/code/generate', authLimiter);
 app.get('/api/auth/code/generate', (req, res) => {
     // Simple mock auth check - in prod check session
     const code = Math.floor(100000 + Math.random() * 900000).toString();
@@ -2362,6 +2255,7 @@ app.get('/api/auth/code/generate', (req, res) => {
     res.json({ code, expiresIn: 300 });
 });
 
+app.use('/api/auth/code/verify', authLimiter);
 app.post('/api/auth/code/verify', (req, res) => {
     const { code } = req.body;
     const stored = verificationCodes.get('admin');
@@ -2577,6 +2471,7 @@ app.patch('/api/auth/passkeys/:id', (req, res) => {
 
 
 // 3. Auth - Normal
+app.use('/api/auth/login', authLimiter);
 app.post('/api/auth/login', (req, res) => {
     try {
         const { password } = req.body;
@@ -2603,7 +2498,9 @@ app.post('/api/auth/login', (req, res) => {
     }
 });
 
+app.use('/api/auth/change', authLimiter);
 app.post('/api/auth/change', (req, res) => {
+    if (!requireAdminToken(req, res)) return;
     try {
         const { oldPassword, newPassword, token } = req.body;
         
@@ -2651,6 +2548,7 @@ function parseStandardFilename(filename) {
     return null;
 }
 app.get('/api/files', (req, res) => {
+    if (!requireAdminToken(req, res)) return;
     try {
         const queryPath = req.query.path || '';
         const queryCategories = req.query.categories ? String(req.query.categories).split(',').filter(Boolean) : [];
@@ -2788,6 +2686,7 @@ app.get('/api/settings', (req, res) => {
 });
 
 app.post('/api/settings', async (req, res) => {
+    if (!requireAdminToken(req, res)) return;
     try {
         const body = req.body || {};
         let saved = {};
@@ -2853,6 +2752,7 @@ app.post('/api/settings', async (req, res) => {
 });
 
 app.get('/api/traffic', async (req, res) => {
+    if (!requireAdminToken(req, res)) return;
     try {
         const range = typeof req.query.range === 'string' && req.query.range.trim()
             ? req.query.range.trim()
@@ -2880,6 +2780,7 @@ app.get('/api/collections', (req, res) => {
 });
 
 app.post('/api/collections', (req, res) => {
+    if (!requireAdminToken(req, res)) return;
     try {
         const body = req.body || {};
         let oldSaved = {};
@@ -3049,6 +2950,7 @@ app.post('/api/collections', (req, res) => {
 });
 
 app.get('/api/system/storage', (req, res) => {
+    if (!requireAdminToken(req, res)) return;
     try {
         const settings = getBuildSettings();
         const contentPagePath = path.resolve(settings.frontendBuildTargetDir || `/var/www/${settings.frontendUrl || DEFAULT_BUILD_SETTINGS.frontendUrl}`);
@@ -3298,6 +3200,7 @@ app.post('/api/admin/clean/build-target', async (req, res) => {
 });
 
 app.post('/api/folder', (req, res) => {
+    if (!requireAdminToken(req, res)) return;
     try {
         const { folderPath } = req.body;
         if (!folderPath) throw new Error('Missing folderPath');
@@ -3315,6 +3218,7 @@ app.post('/api/folder', (req, res) => {
 });
 
 app.delete('/api/files', (req, res) => {
+    if (!requireAdminToken(req, res)) return;
     const queryPath = req.query.path || '';
     const targetPath = path.resolve(UPLOAD_DIR, queryPath.replace(/^\/+/, ''));
     if (!targetPath.startsWith(UPLOAD_DIR)) return res.status(403).send('Forbidden');
@@ -3364,6 +3268,7 @@ app.delete('/api/files', (req, res) => {
 });
 
 app.post('/api/upload', (req, res) => {
+    if (!requireAdminToken(req, res)) return;
     // Ensure access capability
     ensureDevSymlink();
 
@@ -3624,6 +3529,7 @@ app.get('/api/post', (req, res) => {
 });
 
 app.post('/api/restore', (req, res) => {
+    if (!requireAdminToken(req, res)) return;
     const { id } = req.query;
     if (!id) return res.status(400).send('Missing ID');
     try {
@@ -3647,6 +3553,7 @@ app.post('/api/restore', (req, res) => {
 });
 
 app.post('/api/post', (req, res) => {
+    if (!requireAdminToken(req, res)) return;
     try {
         const data = req.body;
 
@@ -3812,8 +3719,9 @@ app.post('/api/post', (req, res) => {
 });
 
 app.delete('/api/post', (req, res) => {
+    if (!requireAdminToken(req, res)) return;
     const { id } = req.query;
-    if (!id) return res.status(400).send('ID required');
+    if (!id) return fail(res, 'ID required', 400);
 
     try {
         let posts = JSON.parse(fs.readFileSync(INDEX_FILE, 'utf-8') || '[]');
@@ -3838,6 +3746,7 @@ app.delete('/api/post', (req, res) => {
 
 // 分配唯一 post id
 app.post('/api/post/allocate-id', (req, res) => {
+    if (!requireAdminToken(req, res)) return;
     try {
         let posts = [];
         try { posts = JSON.parse(fs.readFileSync(INDEX_FILE, 'utf-8') || '[]'); } catch(e){}
@@ -3877,6 +3786,7 @@ app.post('/api/post/validate-id', (req, res) => {
 });
 
 app.post('/api/scan', (req, res) => {
+    if (!requireAdminToken(req, res)) return;
     try {
         let posts = [];
         try { posts = JSON.parse(fs.readFileSync(INDEX_FILE, 'utf-8') || '[]'); } catch(e){}

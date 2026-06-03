@@ -3,19 +3,19 @@
 # 用法: ./scripts/build.sh <variant> [options]
 #
 # Variants:
-#   full         全自托管版 — server + admin + template-astro（默认）
-#   self-hosted  静态自托管版 — admin + template-astro 静态产物
-#   static       完整静态版 — template-astro 纯静态站点
-#   admin        仅管理后台 — admin SPA
-#   lite         精简版 — template-astro + 示例内容（无 server/admin）
+#   full         全自托管版 — server + Cloud CMS + template-astro（默认）
+#   self-hosted  静态自托管版 — manager (API 上传) + template-astro 静态产物
+#   static       完整静态版 — manager (静态上传) + lite 产物
+#   manager      独立 CMS 客户端 — manager SPA + 可选组件
+#   lite         精简版 — template-astro + 示例内容（无 server/manager）
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="${REPO_ROOT}/release"
-ADMIN_DIR="${REPO_ROOT}/packages/admin"
+MANAGER_DIR="${REPO_ROOT}/packages/manager"
 ASTRO_DIR="${REPO_ROOT}/packages/template-astro"
-SERVER_DIR="${REPO_ROOT}/server"
+HOST_DIR="${REPO_ROOT}/packages/host"
 DATA_DIR="${REPO_ROOT}/data"
 
 # ── 默认值 ──────────────────────────────────────────────
@@ -42,13 +42,13 @@ check_node() {
   info "Node.js $v"
 }
 
-# ── 构建管理后台 (admin) ────────────────────────────────
-build_admin() {
-  info "Building @chronicle/admin ..."
-  cd "$ADMIN_DIR"
+# ── 构建管理客户端 (manager) ─────────────────────────────
+build_manager() {
+  info "Building @chronicle/manager ..."
+  cd "$MANAGER_DIR"
 
   if [ ! -d "node_modules" ]; then
-    info "Installing admin dependencies..."
+    info "Installing manager dependencies..."
     npm install
   fi
 
@@ -57,7 +57,7 @@ build_admin() {
   export VITE_CDN_BASE_URL="${VITE_CDN_BASE_URL:-}"
 
   npm run build
-  info "Admin built → $ADMIN_DIR/dist/"
+  info "Manager built → $MANAGER_DIR/dist/"
 }
 
 # ── 构建前台模板 (template-astro) ────────────────────────
@@ -97,13 +97,13 @@ build_template() {
 # ── 准备 Server 依赖 ────────────────────────────────────
 prepare_server() {
   info "Preparing chronicle-server ..."
-  cd "$SERVER_DIR"
+  cd "$HOST_DIR"
 
   if [ ! -d "node_modules" ]; then
     info "Installing server dependencies..."
     npm install --omit=dev
   fi
-  info "Server ready at $SERVER_DIR/"
+  info "Server ready at $HOST_DIR/"
 }
 
 # ── 组装发布包 ──────────────────────────────────────────
@@ -143,11 +143,11 @@ Chronicle Build System — 多规格发行版构建
 用法: ./scripts/build.sh <variant> [选项]
 
 发行版规格 (Variants):
-  full          全自托管版 — server + admin + template-astro
+  full          全自托管版 — server + Cloud CMS + template-astro
                 输出: release/chronicle-full-*/
                 部署: VPS, 通过 install.sh 一键安装
 
-  self-hosted   静态自托管版 — admin SPA + template-astro 静态站点
+  self-hosted   静态自托管版 — manager (API 上传) + template-astro 静态站点
                 输出: release/chronicle-static-*/ (+ Nginx 配置模板)
                 部署: VPS + Nginx 纯静态 serve
 
@@ -155,9 +155,9 @@ Chronicle Build System — 多规格发行版构建
                 输出: release/chronicle-pages-*/
                 部署: GitHub Pages / Vercel / Netlify / OSS
 
-  admin         仅管理后台 — admin CMS SPA
-                输出: release/chronicle-admin-*/
-                部署: 独立管理域名
+  manager       独立 CMS 客户端 — manager SPA + 可选组件
+                输出: release/chronicle-manager-*/
+                部署: 本地运行或部署到独立域名
 
   lite          精简版 — template-astro 纯静态（fork & deploy）
                 输出: release/chronicle-lite-*/
@@ -166,8 +166,8 @@ Chronicle Build System — 多规格发行版构建
 环境变量:
   API_BASE_URL       Astro SSG 构建时使用的后端地址 (默认 http://127.0.0.1:3000)
   MEDIA_DOMAIN       媒体文件 CDN 域名
-  VITE_API_BASE_URL  Admin 的 API 基址 (默认 /api)
-  VITE_CDN_BASE_URL  Admin 的 CDN 基址
+  VITE_API_BASE_URL  Manager 的 API 基址 (默认 /api)
+  VITE_CDN_BASE_URL  Manager 的 CDN 基址
 
 示例:
   # 构建全自托管版
@@ -197,12 +197,12 @@ case "$VARIANT" in
   full)
     info "=== Building: 全自托管版 (Full Self-Hosted) ==="
     prepare_server
-    build_admin
+    build_manager
     build_template static
 
     assemble_release "chronicle-full-$(date +%Y%m%d)" \
-      "$SERVER_DIR" \
-      "$ADMIN_DIR/dist" \
+      "$HOST_DIR" \
+      "$MANAGER_DIR/dist" \
       "$ASTRO_DIR/dist" \
       "$REPO_ROOT/install.sh" \
       "$REPO_ROOT/start.sh" \
@@ -218,11 +218,11 @@ case "$VARIANT" in
   # ── self-hosted: 静态自托管版 ──────────────────────────
   self-hosted)
     info "=== Building: 静态自托管版 (Static Self-Hosted) ==="
-    build_admin
+    build_manager
     build_template static
 
     assemble_release "chronicle-static-$(date +%Y%m%d)" \
-      "$ADMIN_DIR/dist" \
+      "$MANAGER_DIR/dist" \
       "$ASTRO_DIR/dist"
 
     # 生成 Nginx 配置模板
@@ -297,16 +297,16 @@ NGINX
     info "  Vercel / Netlify: 直接导入 release/chronicle-pages-*/ 目录"
     ;;
 
-  # ── admin: 仅管理后台 ──────────────────────────────────
-  admin)
-    info "=== Building: 管理后台 (Admin Only) ==="
-    build_admin
+  # ── manager: 独立 CMS 客户端 ────────────────────────────
+  manager)
+    info "=== Building: 独立 CMS 客户端 (manager) ==="
+    build_manager
 
-    assemble_release "chronicle-admin-$(date +%Y%m%d)" \
-      "$ADMIN_DIR/dist"
+    assemble_release "chronicle-manager-$(date +%Y%m%d)" \
+      "$MANAGER_DIR/dist"
 
     info ""
-    info "管理后台构建完成 → release/chronicle-admin-*/"
+    info "Manager 构建完成 → release/chronicle-manager-*/"
     ;;
 
   # ── lite: 精简版 ──────────────────────────────────────
@@ -314,7 +314,7 @@ NGINX
     info "=== Building: 精简版 (Lite) ==="
 
     # 精简版：只需要 template-astro，使用本地示例数据
-    # 不依赖 server、admin 或任何运行时后端
+    # 不依赖 server、manager 或任何运行时后端
     build_template static
 
     assemble_release "chronicle-lite-$(date +%Y%m%d)" \

@@ -7,7 +7,7 @@ echo "Starting Chronicle System..."
 
 # 1. Start Backend
 echo "[System] Starting Backend (Port 3000)..."
-cd /opt/Chronicle/server
+cd /opt/Chronicle/packages/host
 if [ ! -d "node_modules" ]; then
     echo "Installing backend dependencies..."
     npm install
@@ -25,15 +25,15 @@ echo "[System] Starting CMS (Vite)..."
 
 # Create symlink for faster image serving (bypassing Node proxy)
 echo "[System] Optimizing static assets..."
-mkdir -p /opt/Chronicle/packages/admin/public/server/data
-if [ ! -L "/opt/Chronicle/packages/admin/public/server/data/upload" ]; then
-    ln -s /opt/Chronicle/data/upload /opt/Chronicle/packages/admin/public/server/data/upload
+mkdir -p /opt/Chronicle/packages/manager/public/server/data
+if [ ! -L "/opt/Chronicle/packages/manager/public/server/data/upload" ]; then
+    ln -s /opt/Chronicle/data/upload /opt/Chronicle/packages/manager/public/server/data/upload
 fi
-if [ ! -L "/opt/Chronicle/packages/admin/public/server/data/background" ]; then
-    ln -s /opt/Chronicle/data/background /opt/Chronicle/packages/admin/public/server/data/background
+if [ ! -L "/opt/Chronicle/packages/manager/public/server/data/background" ]; then
+    ln -s /opt/Chronicle/data/background /opt/Chronicle/packages/manager/public/server/data/background
 fi
 
-cd /opt/Chronicle/packages/admin
+cd /opt/Chronicle/packages/manager
 if [ ! -d "node_modules" ]; then
     echo "Installing CMS dependencies..."
     npm install

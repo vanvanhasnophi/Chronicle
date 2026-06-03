@@ -1,16 +1,21 @@
 {
   "name": "chronicle",
   "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "bash start.sh",
     "build": "bash scripts/build.sh full",
     "build:full": "bash scripts/build.sh full",
     "build:self-hosted": "bash scripts/build.sh self-hosted",
     "build:static": "bash scripts/build.sh static",
-    "build:admin": "bash scripts/build.sh admin",
+    "build:manager": "bash scripts/build.sh manager",
     "build:lite": "bash scripts/build.sh lite",
+    "build:lite-local": "cd packages/template-astro && DATA_SOURCE=local npm run build",
     "migrate:posts": "node scripts/migrate_posts_dir.js",
-    "release:check": "cd packages/admin && npx vue-tsc --noEmit"
+    "release:check": "cd packages/manager && npx vue-tsc --noEmit",
+    "typecheck": "tsc -b packages/shared packages/gen 2>/dev/null || true"
   },
   "engines": {
     "node": ">=18.0.0"
