@@ -1,6 +1,18 @@
-import { getApiUrl } from '../config/api';
+import { getApiUrl, DATA_SOURCE } from '../config/api';
+import { isLocalMode } from '../core/site';
 
 export async function loadSiteSettings(): Promise<Record<string, any>> {
+  // ── Local data source ──────────────────────────────────
+  if (isLocalMode) {
+    try {
+      const { getPublicSettings } = await import('../data/localDataSource');
+      return getPublicSettings() as Record<string, any>;
+    } catch {
+      return {};
+    }
+  }
+
+  // ── Remote API ─────────────────────────────────────────
   const queryStamp = Date.now();
   const endpoints = [
     `/api/settings?t=${queryStamp}`,

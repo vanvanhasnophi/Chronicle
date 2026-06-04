@@ -1,26 +1,32 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { getApiUrl } from '../config/api';
+import { isLocalMode } from '../core/site';
 import { resolveFeatureFlags } from '../utils/featureFlags';
+import { loadSiteSettings } from '../utils/siteSettings';
 
 // 直接暴露 /collection，客户端根据 pathname 推断本地化前缀
 export const prerender = true;
 
-// Fetch settings so Layout has proper background/theme
-let settings: Record<string, any> = {};
-try {
-  const res = await fetch(getApiUrl('/api/settings?t=' + Date.now(), true), { cache: 'no-store' });
-  if (res.ok) settings = await res.json();
-} catch (e) {}
-
-if (!settings || Object.keys(settings).length === 0) {
-  try {
-    const res = await fetch(getApiUrl('/api/public/settings?t=' + Date.now(), true), { cache: 'no-store' });
-    if (res.ok) settings = await res.json();
-  } catch (e) {}
-}
-
+const settings = await loadSiteSettings();
 const featureFlags = resolveFeatureFlags((settings as any)?.featureFlags);
+
+// ── Local data: embed collections + posts for client-side use ──
+let embeddedCollections: any[] = [];
+let embeddedPostTitles: Record<string, string> = {};
+if (isLocalMode) {
+  try {
+    const { getCollections, getPublishedPosts } = await import('../data/localDataSource');
+    const collectionsData = getCollections();
+    embeddedCollections = (collectionsData as any)?.collections || [];
+    const posts = getPublishedPosts();
+    for (const p of posts) {
+      embeddedPostTitles[String(p.id)] = String(p.title || '').trim();
+    }
+  } catch (e) {
+    console.error('[collection] Failed to load local data:', e);
+  }
+}
 
 ---
 
@@ -124,12 +130,34 @@ const featureFlags = resolveFeatureFlags((settings as any)?.featureFlags);
     }
   </style>
 
+  <!-- Embedded data for local/static mode -->
+  {isLocalMode && (
+    <script id="chronicle-embedded-data" type="application/json">
+      {JSON.stringify({ collections: embeddedCollections, postTitles: embeddedPostTitles })}
+    </script>
+  )}
+
   <script>
     // @ts-nocheck
     (function () {
+      // Check for embedded build-time data (local/static mode)
+      const embeddedEl = document.getElementById('chronicle-embedded-data');
+      const embeddedData = embeddedEl ? JSON.parse(embeddedEl.textContent || '{}') : null;
+      const hasEmbedded = embeddedData && Array.isArray(embeddedData.collections) && embeddedData.collections.length > 0;
+
       let initialized = false;
       let collections = [];
       let postTitleById = new Map();
+
+      // Pre-populate from embedded data
+      if (hasEmbedded) {
+        collections = embeddedData.collections;
+        if (embeddedData.postTitles) {
+          Object.entries(embeddedData.postTitles).forEach(([id, title]) => {
+            postTitleById.set(id, (title as string) || id);
+          });
+        }
+      }
 
       function formatCollectionName(name) {
         return String(name || '').replace(/[-_]+/g, ' ').trim() || defaultTitle;
@@ -297,6 +325,13 @@ const featureFlags = resolveFeatureFlags((settings as any)?.featureFlags);
         }
 
         async function load() {
+          // Use embedded build-time data if available (local/static mode)
+          if (hasEmbedded) {
+            renderCollectionCards();
+            handleHash();
+            return;
+          }
+
           try {
             const [collectionRes, postsRes] = await Promise.all([
               fetch('/api/collections?t=' + Date.now(), { cache: 'no-store' }),

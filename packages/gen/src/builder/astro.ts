@@ -16,9 +16,9 @@ import { isAbsolute, join, parse } from 'node:path'
 export interface BuildOptions {
   /** Path to the Astro project directory */
   codeDir: string
-  /** Where to place the built files */
+  /** Where to place the built files (TODO: implement copy-to-target logic) */
   targetDir?: string
-  /** Build granularity: full | posts | index */
+  /** Build granularity: full | posts | index (TODO: implement incremental builds) */
   granularity?: 'full' | 'posts' | 'index'
 }
 
@@ -35,8 +35,11 @@ export interface BuildResult {
  * This is the primary build entry point — the host calls this
  * when a user triggers a build from the CMS, and the CLI calls
  * it directly.
+ *
+ * NOTE: This function is synchronous because it wraps `execSync`.
+ * Callers that need a Promise can use `Promise.resolve(runBuild(opts))`.
  */
-export async function runBuild(opts: BuildOptions): Promise<BuildResult> {
+export function runBuild(opts: BuildOptions): BuildResult {
   const { codeDir, targetDir } = opts
   const startTime = Date.now()
 

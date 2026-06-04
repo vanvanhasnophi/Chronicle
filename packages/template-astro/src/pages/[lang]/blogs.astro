@@ -4,7 +4,8 @@ import BackToTop from '../../components/BackToTop.vue';
 import BlogPostCard from '../../components/BlogPostCard.astro';
 import { getTranslation } from '../../utils/i18n';
 import { buildLocalizedPath, toContentLocale } from '../../utils/routeLocale';
-import { getApiUrl } from '../../config/api';
+import { getApiUrl, DATA_SOURCE } from '../../config/api';
+import { isLocalMode } from '../../core/site';
 import { loadSiteSettings } from '../../utils/siteSettings';
 
 export const prerender = true;
@@ -19,37 +20,58 @@ const t = (key: string) => getTranslation(locale, key);
 const postRoutePrefix = `/${routeLang}`;
 
 const SSR_PAGE_SIZE = 20;
-const initialPostsRequestUrl = getApiUrl(
-  `/api/posts?page=1&perPage=${SSR_PAGE_SIZE}&timeline=desc&t=${Date.now()}`,
-  true,
-);
 
-let initialPosts: any[] = [];
-try {
-  const res = await fetch(initialPostsRequestUrl, { cache: 'no-store' });
-  if (res.ok) {
-    const data = await res.json();
-    initialPosts = Array.isArray(data) ? data : data.posts || [];
-  }
-} catch (e) {
-  console.error('[blogs] Failed to fetch initial posts:', e);
+// ── Fetch posts (local or remote) ──────────────────────
+async function fetchPosts(url: string): Promise<any[]> {
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return Array.isArray(data) ? data : data.posts || [];
 }
 
+let initialPosts: any[] = [];
 let initialFeaturedPosts: any[] = [];
 let initialFeaturedTotal = 0;
-try {
-  const featuredUrl = getApiUrl(
-    `/api/posts?featured=true&timeline=desc&t=${Date.now()}`,
+// Always define for the client script (used in define:vars)
+let initialPostsRequestUrl = '/api/posts?page=1&perPage=20&timeline=desc';
+
+if (isLocalMode) {
+  // ── Local data source ──────────────────────────────
+  const { getPublishedPosts } = await import('../../data/localDataSource');
+  const allPublished = getPublishedPosts();
+  const sorted = [...allPublished].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  initialPosts = sorted;
+  // Featured = posts with 'featured' or '精选' tag
+  const featured = sorted.filter(p => (p.tags || []).some((t: string) => {
+    const nt = String(t).trim().toLowerCase();
+    return nt === 'featured' || nt === '精选';
+  }));
+  initialFeaturedPosts = featured;
+  initialFeaturedTotal = featured.length;
+} else {
+  // ── Remote API ─────────────────────────────────────
+  initialPostsRequestUrl = getApiUrl(
+    `/api/posts?page=1&perPage=${SSR_PAGE_SIZE}&timeline=desc&t=${Date.now()}`,
     true,
   );
-  const res = await fetch(featuredUrl, { cache: 'no-store' });
-  if (res.ok) {
-    const data = await res.json();
-    initialFeaturedPosts = Array.isArray(data) ? data : data.posts || [];
-    initialFeaturedTotal = data.total || initialFeaturedPosts.length;
+
+  try {
+    initialPosts = await fetchPosts(initialPostsRequestUrl);
+  } catch (e) {
+    console.error('[blogs] Failed to fetch initial posts:', e);
   }
-} catch (e) {
-  console.error('[blogs] Failed to fetch featured posts:', e);
+
+  try {
+    const featuredUrl = getApiUrl(
+      `/api/posts?featured=true&timeline=desc&t=${Date.now()}`,
+      true,
+    );
+    initialFeaturedPosts = await fetchPosts(featuredUrl);
+    initialFeaturedTotal = initialFeaturedPosts.length;
+  } catch (e) {
+    console.error('[blogs] Failed to fetch featured posts:', e);
+  }
 }
 
 const settings = await loadSiteSettings();

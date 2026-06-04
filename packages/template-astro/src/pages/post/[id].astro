@@ -1,8 +1,18 @@
 ---
 import { getLocale } from "../../utils/i18n";
 import { getApiUrl } from "../../config/api";
+import { isLocalMode } from "../../core/site";
 
 export async function getStaticPaths() {
+  // ── Local data source ──────────────────────────────────
+  if (isLocalMode) {
+    const { getPublishedPosts } = await import("../../data/localDataSource");
+    return getPublishedPosts().map((post: any) => ({
+      params: { id: String(post.id) }
+    }));
+  }
+
+  // ── Remote API ─────────────────────────────────────────
   try {
     const res = await fetch(getApiUrl('/api/posts', true), { cache: 'no-store' });
     if (res.ok) {

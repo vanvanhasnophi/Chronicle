@@ -1,4 +1,5 @@
-import { getApiUrl } from '../config/api';
+import { getApiUrl, DATA_SOURCE } from '../config/api';
+import { isLocalMode } from '../core/site';
 import { loadSiteSettings } from '../utils/siteSettings';
 import { buildLocalizedPath } from '../utils/routeLocale';
 
@@ -72,6 +73,17 @@ function buildPostUrl(baseUrl: string, postId: string) {
 }
 
 async function loadPosts(): Promise<Post[]> {
+  // ── Local data source ──────────────────────────────────
+  if (isLocalMode) {
+    try {
+      const { getPublishedPosts } = await import('../data/localDataSource');
+      return getPublishedPosts() as Post[];
+    } catch {
+      return [];
+    }
+  }
+
+  // ── Remote API ─────────────────────────────────────────
   try {
     const res = await fetch(getApiUrl('/api/posts?t=' + Date.now(), true), {
       cache: 'no-store',

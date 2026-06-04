@@ -33,15 +33,15 @@
   "scheduledBuildCron": "",
   "autoBuildOnPublish": true,
   "buildGranularity": "full",
-  "frontendUrl": "blog.eightyfor.top",
-  "frontendCodeDir": "/opt/Chronicle/astro-template",
+  "frontendUrl": "localhost:4321",
+  "frontendCodeDir": "/opt/Chronicle/packages/template-astro",
   "frontendBuildTargetDir": "/var/www/blog.eightyfor.top",
   "frontendBackgroundCompression": 16.2,
   "backendBackgroundCompression": 14.256,
   "featureFlags": {
     "searchSuggestions": true,
     "relatedPosts": true,
-    "collectionPage": false,
+    "collectionPage": true,
     "aboutPage": true,
     "friendsPage": true,
     "traffic": true

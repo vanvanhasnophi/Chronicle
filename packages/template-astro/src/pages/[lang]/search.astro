@@ -10,7 +10,8 @@ import SearchBox from "../../components/SearchBox.astro";
 import { getTranslation, getLocale } from "../../utils/i18n.ts";
 import { buildLocalizedPath } from "../../utils/routeLocale.ts";
 import { sortTags } from "../../utils/tagUtils.ts";
-import { getApiUrl } from "../../config/api.ts";
+import { getApiUrl, DATA_SOURCE } from "../../config/api.ts";
+import { isLocalMode } from "../../core/site";
 import { resolveFeatureFlags } from "../../utils/featureFlags.ts";
 import { loadSiteSettings } from "../../utils/siteSettings";
 
@@ -33,12 +34,24 @@ interface Post {
 }
 
 let posts: Post[] = [];
-try {
-  const res = await fetch(getApiUrl(`/api/posts?t=${Date.now()}`, true), {
-    cache: "no-store",
-  });
-  if (res.ok) posts = await res.json();
-} catch (e) {}
+
+if (isLocalMode) {
+  // ── Local data source ──────────────────────────────
+  try {
+    const { getPublishedPosts } = await import("../../data/localDataSource");
+    posts = getPublishedPosts() as Post[];
+  } catch (e) {
+    console.error('[search] Failed to load local posts:', e);
+  }
+} else {
+  // ── Remote API ─────────────────────────────────────
+  try {
+    const res = await fetch(getApiUrl(`/api/posts?t=${Date.now()}`, true), {
+      cache: "no-store",
+    });
+    if (res.ok) posts = await res.json();
+  } catch (e) {}
+}
 
 // Extract all tags with counts
 const tagCounts = new Map<string, number>();
@@ -55,6 +68,15 @@ const allTagData = Array.from(tagCounts.entries())
     if (b.name === "featured" || b.name === "精选") return 1;
     return a.name.localeCompare(b.name);
   });
+
+// ── Build search index for local/static mode ──────────
+const searchIndex = posts.map(p => ({
+  id: p.id,
+  title: p.title,
+  date: p.date,
+  summary: p.summary || '',
+  tags: p.tags || [],
+}));
 
 // Get URL params for initial state
 const url = new URL(Astro.request.url);
@@ -596,10 +618,18 @@ const metaDescription = locale === "zh-CN"
   }
 </style>
 
+{isLocalMode && (
+  <script id="chronicle-search-index" type="application/json">
+    {JSON.stringify(searchIndex)}
+  </script>
+)}
+
 <script
   define:vars={{
     initialTitle,
     initialTagsJSON: JSON.stringify(initialTags),
+    searchIndexJSON: JSON.stringify(searchIndex),
+    isLocalMode,
     locale,
     routePrefix,
     featuredLabel: t("tag.featured"),
@@ -892,7 +922,36 @@ const metaDescription = locale === "zh-CN"
       return `/api/search?${searchParams.toString()}`;
     }
 
+    // Local search index — populated from embedded data when isLocalMode
+    const localSearchIndex = isLocalMode ? JSON.parse(searchIndexJSON) : [];
+
+    function localSearch(keyword, tags = []) {
+      let results = localSearchIndex;
+      const kw = String(keyword || '').trim().toLowerCase();
+
+      if (kw) {
+        results = results.filter((p) => {
+          if ((p.title || '').toLowerCase().includes(kw)) return true;
+          if ((p.summary || '').toLowerCase().includes(kw)) return true;
+          if ((p.tags || []).some((t) => String(t).toLowerCase().includes(kw))) return true;
+          return false;
+        });
+      }
+
+      if (tags && tags.length > 0) {
+        results = results.filter((p) =>
+          tags.every((t) => (p.tags || []).map((x) => String(x).trim()).includes(t))
+        );
+      }
+
+      results.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      return results;
+    }
+
     async function fetchSearchResults(keyword, tags = []) {
+      if (isLocalMode) {
+        return localSearch(keyword, tags);
+      }
       const searchUrl = buildSearchUrl(keyword, tags);
       const res = await fetch(searchUrl, { cache: "no-store" });
       if (!res.ok) {

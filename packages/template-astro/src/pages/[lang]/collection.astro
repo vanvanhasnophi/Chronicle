@@ -3,6 +3,7 @@ import Layout from "../../layouts/Layout.astro";
 import { getTranslation, getLocale } from "../../utils/i18n";
 import { resolveFeatureFlags } from "../../utils/featureFlags";
 import { loadSiteSettings } from "../../utils/siteSettings";
+import { isLocalMode } from "../../core/site";
 
 export const prerender = true;
 
@@ -21,6 +22,23 @@ const metaDescription =
   locale === "zh-CN"
     ? "浏览 Chronicle 的合集页面，查看分组内容与关联文章。"
     : "Browse Chronicle collections, grouped content, and related posts.";
+
+// ── Local data: embed collections + posts for client-side use ──
+let embeddedCollections: any[] = [];
+let embeddedPostTitles: Record<string, string> = {};
+if (isLocalMode) {
+  try {
+    const { getCollections, getPublishedPosts } = await import("../../data/localDataSource");
+    const collectionsData = getCollections();
+    embeddedCollections = (collectionsData as any)?.collections || [];
+    const posts = getPublishedPosts();
+    for (const p of posts) {
+      embeddedPostTitles[String(p.id)] = String(p.title || '').trim();
+    }
+  } catch (e) {
+    console.error('[collection] Failed to load local data:', e);
+  }
+}
 ---
 
 <Layout
@@ -352,12 +370,34 @@ const metaDescription =
     }
   </style>
 
+  <!-- Embedded data for local/static mode -->
+  {isLocalMode && (
+    <script id="chronicle-embedded-data" type="application/json">
+      {JSON.stringify({ collections: embeddedCollections, postTitles: embeddedPostTitles })}
+    </script>
+  )}
+
   <script>
     // @ts-nocheck
     (function () {
+      // Check for embedded build-time data (local/static mode)
+      const embeddedEl = document.getElementById('chronicle-embedded-data');
+      const embeddedData = embeddedEl ? JSON.parse(embeddedEl.textContent || '{}') : null;
+      const hasEmbedded = embeddedData && Array.isArray(embeddedData.collections) && embeddedData.collections.length > 0;
+
       let initialized = false;
       let collections = [];
       let postTitleById = new Map();
+
+      // Pre-populate from embedded data
+      if (hasEmbedded) {
+        collections = embeddedData.collections;
+        if (embeddedData.postTitles) {
+          Object.entries(embeddedData.postTitles).forEach(([id, title]) => {
+            postTitleById.set(id, (title as string) || id);
+          });
+        }
+      }
 
       function formatCollectionName(name) {
         return (
@@ -586,6 +626,13 @@ const metaDescription =
         }
 
         async function load() {
+          // Use embedded build-time data if available (local/static mode)
+          if (hasEmbedded) {
+            renderCollectionCards();
+            handleHash();
+            return;
+          }
+
           try {
             const [collectionRes, postsRes] = await Promise.all([
               fetch("/api/collections?t=" + Date.now(), { cache: "no-store" }),
