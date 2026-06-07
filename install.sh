@@ -257,9 +257,8 @@ prepare_runtime_dirs() {
   ensure_symlink "$repo_root/packages/manager/public/server/data/upload" "$repo_root/data/upload"
   ensure_symlink "$repo_root/packages/manager/public/server/data/branding" "$repo_root/data/branding"
   ensure_symlink "$repo_root/packages/manager/public/server/data/manager-background" "$repo_root/data/manager-background"
-  ensure_symlink "$repo_root/packages/template-astro/public/server/data/upload" "$repo_root/data/upload"
-  ensure_symlink "$repo_root/packages/template-astro/public/server/data/branding" "$repo_root/data/branding"
-  ensure_symlink "$repo_root/packages/template-astro/public/server/data/manager-background" "$repo_root/data/manager-background"
+  # Astro public/ needs only settings.json for build-time reads — media files
+  # are served by Nginx/host, NOT copied into the build output
 }
 
 generate_nginx_config() {
@@ -335,6 +334,18 @@ server {
     add_header Cache-Control "public, immutable";
   }
 
+  location /server/data/branding/ {
+    alias $repo_root/data/branding/;
+    expires 365d;
+    add_header Cache-Control "public, immutable";
+  }
+
+  location /server/data/manager-background/ {
+    alias $repo_root/data/manager-background/;
+    expires 365d;
+    add_header Cache-Control "public, immutable";
+  }
+
   location /api/ {
     proxy_pass http://chronicle_backend;
     proxy_http_version 1.1;
@@ -375,6 +386,18 @@ server {
     add_header Cache-Control "public, immutable";
   }
 
+  location /server/data/branding/ {
+    alias $repo_root/data/branding/;
+    expires 365d;
+    add_header Cache-Control "public, immutable";
+  }
+
+  location /server/data/manager-background/ {
+    alias $repo_root/data/manager-background/;
+    expires 365d;
+    add_header Cache-Control "public, immutable";
+  }
+
   location /api/ {
     proxy_pass http://chronicle_backend;
     proxy_http_version 1.1;
@@ -408,6 +431,18 @@ server {
     add_header Cache-Control "public, immutable";
   }
 
+  location /server/data/branding/ {
+    alias $repo_root/data/branding/;
+    expires 365d;
+    add_header Cache-Control "public, immutable";
+  }
+
+  location /server/data/manager-background/ {
+    alias $repo_root/data/manager-background/;
+    expires 365d;
+    add_header Cache-Control "public, immutable";
+  }
+
   location /api/ {
     proxy_pass http://chronicle_backend;
     proxy_http_version 1.1;
@@ -435,6 +470,18 @@ server {
 
   location /server/data/upload/ {
     alias $repo_root/data/upload/;
+    expires 365d;
+    add_header Cache-Control "public, immutable";
+  }
+
+  location /server/data/branding/ {
+    alias $repo_root/data/branding/;
+    expires 365d;
+    add_header Cache-Control "public, immutable";
+  }
+
+  location /server/data/manager-background/ {
+    alias $repo_root/data/manager-background/;
     expires 365d;
     add_header Cache-Control "public, immutable";
   }

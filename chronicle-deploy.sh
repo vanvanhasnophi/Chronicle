@@ -92,12 +92,12 @@ if [ -f "$CONFIG_FILE" ]; then
     fi
     # fall-through to scan repository
         CANDIDATES=()
-        log "扫描仓库根目录以检测源码目录..."
-        for d in "$REPO_ROOT"/*; do
+        log "扫描 packages/ 检测源码目录..."
+        for d in "$REPO_ROOT/packages"/*; do
             [ -d "$d" ] || continue
             name="$(basename "$d")"
             if [ -f "$d/package.json" ] || [ -f "$d/astro.config.mjs" ] || [ -f "$d/index.html" ] || [ -f "$d/index.js" ]; then
-                CANDIDATES+=("$name")
+                CANDIDATES+=("packages/$name")
             fi
         done
 
@@ -114,8 +114,8 @@ if [ -f "$CONFIG_FILE" ]; then
 
             for c in "${CANDIDATES[@]}"; do
                 case "$c" in
-                    astro-template|packages/template-astro) REPO_ASTRO_SRC_NAME="$c" ;;
-                    chronicle-frontend|packages/manager) REPO_FRONTEND_SRC_NAME="$c" ;;
+                    packages/manager) REPO_FRONTEND_SRC_NAME="$c" ;;
+                    packages/template-astro) REPO_ASTRO_SRC_NAME="$c" ;;
                 esac
             done
 
@@ -135,12 +135,12 @@ if [ -f "$CONFIG_FILE" ]; then
     else
     log "未找到已保存部署配置，转为扫描仓库以检测源码目录并初始化配置。"
     CANDIDATES=()
-    log "扫描仓库根目录以检测源码目录..."
-    for d in "$REPO_ROOT"/*; do
+    log "扫描 packages/ 检测源码目录..."
+    for d in "$REPO_ROOT/packages"/*; do
         [ -d "$d" ] || continue
         name="$(basename "$d")"
         if [ -f "$d/package.json" ] || [ -f "$d/astro.config.mjs" ] || [ -f "$d/index.html" ] || [ -f "$d/index.js" ]; then
-            CANDIDATES+=("$name")
+            CANDIDATES+=("packages/$name")
         fi
     done
 
@@ -157,8 +157,8 @@ if [ -f "$CONFIG_FILE" ]; then
 
         for c in "${CANDIDATES[@]}"; do
             case "$c" in
-                astro-template) REPO_ASTRO_SRC_NAME="$c" ;;
-                chronicle-frontend|packages/manager) REPO_FRONTEND_SRC_NAME="$c" ;;
+                packages/manager) REPO_FRONTEND_SRC_NAME="$c" ;;
+                packages/template-astro) REPO_ASTRO_SRC_NAME="$c" ;;
             esac
         done
 
@@ -322,10 +322,9 @@ fi
 
 MEDIA_DOMAIN="$MEDIA_DOMAIN" API_BASE_URL="$ASTRO_API_BASE_URL" npm run build
 
-log "恢复 packages/template-astro 源码中的 upload/branding/manager-background symlink..."
-ensure_symlink "$REPO_ROOT/$REPO_ASTRO_SRC_NAME/public/server/data/upload" "$REPO_ROOT/data/upload"
-ensure_symlink "$REPO_ROOT/$REPO_ASTRO_SRC_NAME/public/server/data/branding" "$REPO_ROOT/data/branding"
-ensure_symlink "$REPO_ROOT/$REPO_ASTRO_SRC_NAME/public/server/data/manager-background" "$REPO_ROOT/data/manager-background"
+# Astro public/ symlinks intentionally NOT created here — media files
+# (upload, branding, manager-background) are served directly by Nginx,
+# not copied into the build output.
 
 log "部署 packages/template-astro 到前台站点目录 ($WEB_ROOT)..."
 rsync -a --delete "$REPO_ROOT/$REPO_ASTRO_SRC_NAME/dist/" "$WEB_ROOT/"

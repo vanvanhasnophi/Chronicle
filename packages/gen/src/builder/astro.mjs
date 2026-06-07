@@ -71,24 +71,20 @@ function syncBuildSettings(dataDir, codeDir) {
     writeFileSync(join(target, 'settings.json'), settingsContent);
   }
 
-  // Sync branding and upload dirs into Astro public/ so they're
-  // included in the static build and served at /server/data/...
+  // Settings → Astro public/ for /server/data/settings.json at runtime.
   const publicDataDir = join(codeDir, 'public', 'server', 'data');
   mkdirSync(publicDataDir, { recursive: true });
-  // Clean up legacy background symlink (now using branding/)
-  const legacyBg = join(publicDataDir, 'background');
-  if (existsSync(legacyBg)) {
-    try { rmSync(legacyBg, { recursive: true, force: true }); } catch (e) {}
+
+  // Clean up any legacy symlinks/copies from previous builds
+  for (const dir of ['background', 'branding', 'upload', 'manager-background']) {
+    const stale = join(publicDataDir, dir);
+    try { rmSync(stale, { recursive: true, force: true }); } catch (e) {}
   }
 
-  for (const dir of ['branding', 'upload']) {
-    const src = resolve(dataDir, dir);
-    const dst = join(publicDataDir, dir);
-    if (existsSync(src)) {
-      try { rmSync(dst, { recursive: true, force: true }); } catch (e) {}
-      symlinkSync(src, dst, 'dir');
-    }
-  }
+  // Media files (upload, branding, manager-background) are NOT copied
+  // into the Astro build output — HTML references them via absolute paths
+  // like /server/data/upload/..., served by Nginx or host Express.
+  // Only settings.json goes into public/ for build-time feature flags.
 }
 
 // ── Output sync ───────────────────────────────────────────
