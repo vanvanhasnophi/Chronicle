@@ -61,15 +61,18 @@ const authLimiter = rateLimit({
   message: { code: 429, data: null, message: 'Too many attempts, try again later' },
 });
 
+// ── Gen CLI path (local monorepo, not published to npm) ──────
+const GEN_CLI = path.resolve(__dirname, '..', '..', '..', '..', 'gen', 'bin', 'cli.mjs');
+
 // ── CDN Helpers (fire-and-forget via gen CLI) ────────────────
-// These spawn chronicle-gen as a child process so CDN operations
+// These spawn gen as a child process so CDN operations
 // never block the request. Failures are logged but never surface
 // to the client — CDN cache is best-effort.
 
 function spawnCdnPurge(urls = []) {
   const valid = Array.isArray(urls) ? urls.filter(Boolean) : [];
   if (valid.length === 0 || process.env.CDN_ENABLED !== 'true') return;
-  const child = spawn('npx', ['chronicle-gen', 'cdn', 'purge', ...valid], {
+  const child = spawn('node', [GEN_CLI, 'cdn', 'purge', ...valid], {
     stdio: 'ignore',
     detached: true,
   });
@@ -79,7 +82,7 @@ function spawnCdnPurge(urls = []) {
 function spawnCdnWarm(urls = []) {
   const valid = Array.isArray(urls) ? urls.filter(Boolean) : [];
   if (valid.length === 0) return;
-  const child = spawn('npx', ['chronicle-gen', 'cdn', 'warm', ...valid], {
+  const child = spawn('node', [GEN_CLI, 'cdn', 'warm', ...valid], {
     stdio: 'ignore',
     detached: true,
   });
@@ -200,16 +203,16 @@ function spawnGenBuild(settings, options = {}) {
     const repoRoot = path.resolve(__dirname, '..', '..', '..');
 
     const args = [
-      'chronicle-gen', 'build',
+      GEN_CLI, 'build',
       '--dataDir', dataDir,
       '--codeDir', codeDir,
       '--targetDir', targetDir,
       '--granularity', granularity,
     ];
 
-    console.log(`[Build ${buildId}] Spawning: npx ${args.join(' ')}`);
+    console.log(`[Build ${buildId}] Spawning: node ${args.join(' ')}`);
 
-    const child = spawn('npx', args, {
+    const child = spawn('node', args, {
       cwd: repoRoot,
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: true,

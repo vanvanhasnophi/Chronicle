@@ -334,7 +334,8 @@ log "STEP6" "构建 CMS (manager)..."
 log "STEP6" "构建 Astro 前端..."
 # 通过 gen CLI 做完整构建（含 settings 同步 + Astro build + 输出部署）
 DATA_DIR="$DATA_DIR" \
-  npx chronicle-gen build \
+  GEN_CLI="$REPO_ROOT/packages/gen/bin/cli.mjs"
+  node "$GEN_CLI" build \
     --dataDir "$DATA_DIR" \
     --codeDir "$REPO_ROOT/packages/template-astro" \
     --targetDir "$REPO_ROOT/packages/template-astro/dist" \

@@ -87,14 +87,14 @@ BASE_NAME="$(basename "$V1_DATA")"
 
 tar czf "$SAFE_FILE" "$BASE_NAME" 2>&1 || die "打包失败"
 
-PACK_SIZE=$(du -h "$SAFE_FILE" | cut -f1)
+PACK_SIZE=$(du -h "$SAFE_FILE" 2>/dev/null | cut -f1 || echo '?')
 log "STEP2" "打包完成 ($PACK_SIZE): $SAFE_FILE"
 
 # ═══════════════════════════════════════════════════════════════
 # Step 3: 确认数据包完整性
 # ═══════════════════════════════════════════════════════════════
 log "STEP3" "验证数据包..."
-tar tzf "$SAFE_FILE" | head -5
+tar tzf "$SAFE_FILE" 2>/dev/null | head -5 || true
 
 # ═══════════════════════════════════════════════════════════════
 # Step 4: 询问是否清理旧目录
