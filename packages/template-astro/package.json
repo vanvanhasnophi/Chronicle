@@ -1,6 +1,6 @@
 {
   "name": "@chronicle/template-astro",
-  "version": "2.0 beta 1",
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
     "dev": "astro dev",
@@ -19,6 +19,7 @@
     "highlight.js": "^11.11.1",
     "katex": "^0.16.45",
     "markdown-it": "^14.1.1",
+    "mermaid": "^11.15.0",
     "vue": "^3.5.33"
   },
   "devDependencies": {

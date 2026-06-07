@@ -2,6 +2,8 @@
  * Chronicle Host — Logging Middleware
  *
  * Request/response logging with error persistence.
+ * Only intercepts res.send — Express routes res.json through res.send internally,
+ * so a single hook avoids double-logging.
  */
 
 const fs = require('fs');
@@ -15,14 +17,16 @@ if (!fs.existsSync(LOG_DIR)) {
 
 /**
  * Per-request outcome logger middleware.
- * Wraps res.json and res.send to log status, duration, and errors.
+ * Wraps res.send (the terminal method both res.json and res.send flow through).
  */
 function requestLogger(req, res, next) {
     const start = Date.now();
-    const _json = res.json.bind(res);
     const _send = res.send.bind(res);
+    let _logged = false;
 
     function logOutcome(statusCode, responseBody) {
+        if (_logged) return;
+        _logged = true;
         const duration = Date.now() - start;
         const brief = `${req.method} ${req.originalUrl} ${statusCode} ${duration}ms`;
 
@@ -56,11 +60,6 @@ function requestLogger(req, res, next) {
 
         console.log('[API]', brief);
     }
-
-    res.json = function (body) {
-        try { logOutcome(res.statusCode || 200, body); } catch (e) { /* ignore */ }
-        return _json(body);
-    };
 
     res.send = function (body) {
         try { logOutcome(res.statusCode || 200, body); } catch (e) { /* ignore */ }

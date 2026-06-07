@@ -1,6 +1,37 @@
 // Defer importing KaTeX to runtime to avoid blocking initial bundle parsing.
 let _katex: any = null
 import { Icons } from './icons'
+import MarkdownIt from 'markdown-it'
+
+// ── markdown-it instance for block-level parsing only ─────
+// Inline rendering (file cards, images, katex) still handled by processEmphasis/convertToHtml.
+const blockMd = new MarkdownIt({ html: true, linkify: false, typographer: false, breaks: false });
+
+// ── Math protection (mirrors chronicleMarkdown.ts) ────────
+function mathPh(type: 'I' | 'B', idx: number): string { return `<!--cm ${type}${idx}-->`; }
+
+function protectMath(content: string): { text: string; blocks: string[] } {
+  const blocks: string[] = [];
+  let idx = 0;
+  let result = content;
+  result = result.replace(/\$\$([\s\S]+?)\$\$/g, (_m: string, tex: string) => {
+    const clean = tex.trim(); if (!clean) return _m;
+    blocks.push(clean); return mathPh('B', idx++);
+  });
+  result = result.replace(/\\\[([\s\S]+?)\\\]/g, (_m: string, tex: string) => {
+    const clean = tex.trim(); if (!clean) return _m;
+    blocks.push(clean); return mathPh('B', idx++);
+  });
+  result = result.replace(/\\\(([\s\S]+?)\\\)/g, (_m: string, tex: string) => {
+    const clean = tex.trim(); if (!clean) return _m;
+    blocks.push(clean); return mathPh('I', idx++);
+  });
+  result = result.replace(/\$([^$\n]+?)\$/g, (_m: string, tex: string) => {
+    const clean = tex.trim(); if (!clean) return _m;
+    blocks.push(clean); return mathPh('I', idx++);
+  });
+  return { text: result, blocks };
+}
 
 function escapeAttr(s: string) {
   return s.replace(/&/g, '&amp;')
@@ -71,7 +102,7 @@ function renderImagePlaceholder(alt: string, url: string) {
 }
 
 export interface ContentBlock {
-  type: 'text' | 'code' | 'table' | 'heading' | 'list' | 'quote' | 'hr' | 'paraWithBackslash' | 'para-backslash' | 'softBreakPara' | 'math';
+  type: 'text' | 'code' | 'table' | 'heading' | 'list' | 'quote' | 'hr' | 'html' | 'paraWithBackslash' | 'para-backslash' | 'softBreakPara' | 'math';
   content: string;
   language?: string;
   header?: string[];
@@ -79,6 +110,8 @@ export interface ContentBlock {
   start?: number;
   end?: number;
   raw?: string;
+  /** For math blocks: 'inline' ($, \() or 'block' ($$, \[) */
+  mathType?: 'inline' | 'block';
 }
 
 // 处理粗体、斜体、粗斜体，isHeading为true时只处理斜体
@@ -573,217 +606,275 @@ function highlightCode(code: string, language: string): string {
 }
 
 export function parseMarkdown(content: string, cacheKey?: number): Array<ContentBlock> {
-  // 先用convertToHtml的分段逻辑拆分
-  const lines = content.split(/\n/)
-  const blocks: ContentBlock[] = []
-  let inCode = false
-  let codeLang = ''
-  let i = 0
-  while (i < lines.length) {
-    const line = lines[i]
-    // 代码块
-    if (/^\s*```(\w*)/.test(line)) {
-      const langMatch = line.match(/^\s*```(\w*)/)
-      if (inCode) {
-        // 结束代码块
-        inCode = false
-        codeLang = ''
-        i++
-        continue
-      } else {
-        // 开始代码块
-        inCode = true
-        codeLang = langMatch && langMatch[1] ? langMatch[1] : ''
-        let codeLines = []
-        i++
-        while (i < lines.length && !/^\s*```/.test(lines[i])) {
-          codeLines.push(lines[i])
-          i++
-        }
-        // 跳过结尾 ```
-        if (i < lines.length && /^\s*```/.test(lines[i])) {
-          inCode = false
-          i++
-        }
-        blocks.push({ type: 'code', content: codeLines.join('\n'), language: codeLang })
-        codeLang = ''
-        continue
-      }
-    }
+  if (!content) return [];
 
-    // 公式块: \[ ... \] 或 $$ ... $$
-    // 提高优先级：检测到开头后，持续读取直到检测到结尾，无视中间的空行或换行
-    if (/^\s*(\\\[|\$\$)/.test(line)) {
-      const isDoub = /^\s*\$\$/.test(line)
-      const startRegex = isDoub ? /^\s*\$\$/ : /^\s*\\\[/
-      const endStrict = isDoub ? /\$\$\s*$/ : /\\\]\s*$/
-      const endRegex = isDoub ? /\$\$/ : /\\\]/
+  // 1. Protect math — extract formulas before markdown-it sees them
+  const { text, blocks: mathBlocks } = protectMath(content);
 
-      let mathLines = []
-      // 去掉开头的 \[ 或 $$
-      let firstLineContent = line.replace(startRegex, '')
-      if (firstLineContent.trim()) {
-        mathLines.push(firstLineContent)
-      }
-      
-      // 单行情况: \[ content \] 或 $$ content $$
-      if (endStrict.test(firstLineContent)) {
-         let content = firstLineContent.replace(endStrict, '')
-         blocks.push({ type: 'math', content: content })
-         i++
-         continue
-      }
-      
-      i++
-      // 循环一直读到发现结束符所在的行
-      while (i < lines.length) {
-         const currentLine = lines[i]
-         // 如果该行包含结束符
-         if (endRegex.test(currentLine)) {
-            break // 跳出循环，交给后面处理结束行
-         }
-         mathLines.push(currentLine)
-         i++
-      }
+  // 2. Tokenize with markdown-it
+  const tokens = blockMd.parse(text, {});
+  const blocks: ContentBlock[] = [];
+  let i = 0;
 
-      // 处理结束行
-      if (i < lines.length && endRegex.test(lines[i])) {
-        let lastLine = lines[i]
-        // 尝试移除末尾的结束符
-        let contentBefore = lastLine.replace(endStrict, '')
-        // 如果 replace 没起作用（说明结束符不在末尾？），强制截断
-        if (contentBefore === lastLine) {
-           const idx = lastLine.indexOf(isDoub ? '$$' : '\\]')
-           if (idx !== -1) {
-             contentBefore = lastLine.substring(0, idx)
-           }
-        }
-        
-        if (contentBefore.trim()) {
-           mathLines.push(contentBefore)
-        }
-        i++
-      }
-      blocks.push({ type: 'math', content: mathLines.join('\n') })
-      continue
-    }
-
-    // NOTE: 忽略对行尾反斜杠的特殊含义。
-    // 正向解析（Markdown -> blocks）不再根据行尾的 `\` 做特殊合并处理，
-    // 统一由下面“合并连续非空行”的逻辑产生 softBreakPara（使用 `<br>` 分隔）。
-    // 支持标准markdown表格
-    if (/^\s*\|.*\|\s*$/.test(line) && i+1 < lines.length && /^\s*\|?\s*[-:]+.*\|\s*$/.test(lines[i+1])) {
-      // 收集表格所有行
-      let tableLines = [line]
-      let j = i+1
-      while (j < lines.length && /^\s*\|.*\|\s*$/.test(lines[j])) {
-        tableLines.push(lines[j])
-        j++
-      }
-      // 解析表格
-      const tableText = tableLines.join('\n') + '\n'
-      const tables = parseTableMarkdown(tableText)
-      if (tables.length > 0) {
-        const { header, body } = tables[0]
-        blocks.push({ type: 'table', content: tableText, header, body })
-        i = j
-        continue
+  // Helper: walk inline children, reconstruct raw markdown-like text.
+  // processEmphasis() still handles actual inline rendering (file cards etc.).
+  function inlineRaw(t: Token): string {
+    if (!t.children || t.children.length === 0) return t.content;
+    let out = '';
+    let pendingHref = '';
+    for (const c of t.children) {
+      switch (c.type) {
+        case 'text':        out += c.content; break;
+        case 'code_inline': out += '`' + c.content + '`'; break;
+        case 'strong_open': out += '**'; break;
+        case 'strong_close':out += '**'; break;
+        case 'em_open':     out += '*'; break;
+        case 'em_close':    out += '*'; break;
+        case 'link_open':   out += '['; pendingHref = c.attrGet('href') || ''; break;
+        case 'link_close':  out += '](' + pendingHref + ')'; pendingHref = ''; break;
+        case 'image':       out += '![' + c.content + '](' + (c.attrGet('src') || '') + ')'; break;
+        case 'hardbreak':   out += '<br>'; break;
+        case 'softbreak':   out += ' '; break;
+        default: out += c.content || ''; break;
       }
     }
-    // 兼容[[MARKDOWN_TABLE:...]]
-    if (/^\[\[MARKDOWN_TABLE:/.test(line)) {
-      try {
-        const { header, body } = JSON.parse(line.match(/^\[\[MARKDOWN_TABLE:(.*)\]\]$/)?.[1] || '{}')
-        blocks.push({ type: 'table', content: line, header, body })
-      } catch {
-        blocks.push({ type: 'table', content: line })
-      }
-      i++
-      continue
-    }
-    // 标题
-    if (/^\s*#{1,6} /.test(line)) {
-      blocks.push({ type: 'heading', content: line })
-      i++
-      continue
-    }
-    // 分割线：只匹配独立一行的 --- / *** / ___，避免和表格分隔线混淆
-    if (/^\s{0,3}(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
-      blocks.push({ type: 'hr', content: line })
-      i++
-      continue
-    }
-    // 引用块递归解析（不解析代码块、表格、嵌套引用），不再处理软换行
-    if (/^\s*> /.test(line)) {
-      let quoteLines: string[] = [];
-      let j = i;
-      while (j < lines.length && /^\s*> /.test(lines[j])) {
-        let curr = lines[j].replace(/^\s*>\s?/, '');
-        quoteLines.push(curr);
-        j++;
-      }
-      // 递归解析
-      const quoteContent = quoteLines.join('\n');
-      // @ts-ignore
-      const innerBlocks = parseMarkdown(quoteContent, cacheKey)
-        .filter(b => b.type !== 'code' && b.type !== 'table' && b.type !== 'quote');
-      // @ts-ignore
-      blocks.push({ type: 'quote', content: innerBlocks });
-      i = j;
-      continue;
-    }
-    // 列表（支持制表符、空格缩进多级，以及引用内列表）
-    if (/^([ \t]*)([-*]|\d+\.) /.test(line) || /^\s*>\s*([-*]|\d+\.) /.test(line)) {
-      let listLines = [line]
-      let j = i+1
-      while (j < lines.length && (/^([ \t]*)([-*]|\d+\.) /.test(lines[j]) || /^\s*>\s*([-*]|\d+\.) /.test(lines[j]))) {
-        listLines.push(lines[j])
-        j++
-      }
-      blocks.push({ type: 'list', content: listLines.join('\n') })
-      i = j
-      continue
-    }
-    // Forward parsing: ignore trailing backslashes. Treat these lines as normal
-    // text so they will be merged by the following "merge consecutive non-empty
-    // lines" logic into softBreakPara. (Removed paraWithBackslash handling.)
-    // 普通无反斜杠文本行：合并连续的非空行为一个段落（使用 <br> 分隔），直到遇到空行或特殊块
-    if (line.trim() !== '') {
-      let paraLines = [line]
-      let j = i + 1
-      while (j < lines.length) {
-        const nextLine = lines[j]
-        if (nextLine.trim() === '') break
-        // 遇到特殊块不合并
-        if (
-          /^\s*> /.test(nextLine) || // 引用
-          /^\s*\|.*\|\s*$/.test(nextLine) || // 表格
-          /^\s*```/.test(nextLine) || // 代码块
-          /^\s*\\\[/.test(nextLine) || // 公式块 \[...\]
-          /^([ \t]*)([-*]|\d+\.) /.test(nextLine) || // 列表
-          /^\s*#{1,6} /.test(nextLine) || // 标题
-          /^\[\[MARKDOWN_TABLE:/.test(nextLine)
-        ) {
-          break
-        }
-        paraLines.push(nextLine)
-        j++
-      }
-      if (paraLines.length === 1) {
-        blocks.push({ type: 'text', content: line })
-        i++
-      } else {
-        blocks.push({ type: 'softBreakPara', content: paraLines.join('<br>') })
-        i = j
-      }
-      continue
-    }
-    i++
+    return out;
   }
-  if (typeof cacheKey === 'number') {
-    return blocks.map(b => ({ ...b }))
+
+  // Helper: convert <!--cm Xn--> to katex placeholder HTML (used in list items etc.)
+  function restoreMathInText(text: string): string {
+    return text.replace(/<!--cm ([IB])(\d+)-->/g, (_m: string, type: string, num: string) => {
+      const i = Number(num);
+      if (i >= 0 && i < mathBlocks.length) {
+        const tex = mathBlocks[i];
+        const uid = `chr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+        const tag = type === 'B' ? 'div' : 'span';
+        return `<${tag} class="katex-placeholder katex-interactive" data-tex="${escapeAttr(tex)}" data-type="${type === 'B' ? 'block' : 'inline'}" data-unique-id="${uid}">${escapeAttr(tex)}</${tag}>`;
+      }
+      return _m;
+    });
   }
-  return blocks
+
+  // Helper: split text by <!--cm Xn--> placeholders, interleave math blocks.
+  // Block math ($$, \[) becomes a standalone math block. Inline math ($, \()
+  // stays embedded as katex HTML — no content-block wrapper.
+  function splitMathFromText(raw: string, blockType: ContentBlock['type']): ContentBlock[] {
+    const parts: ContentBlock[] = [];
+    const re = /<!--cm ([IB])(\d+)-->/g;
+    let last = 0;
+    let buf = '';
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(raw)) !== null) {
+      buf += raw.slice(last, match.index);
+      const mathType = match[1] === 'B' ? 'block' : 'inline';
+      const idx = Number(match[2]);
+      if (idx >= 0 && idx < mathBlocks.length) {
+        const tex = mathBlocks[idx];
+        if (mathType === 'inline') {
+          // Embed inline math directly in text — stays inside parent content-block
+          const uid = `chr-${idx}-${Date.now().toString(36)}`;
+          buf += `<span class="katex-placeholder katex-interactive" data-tex="${escapeAttr(tex)}" data-type="inline" data-unique-id="${uid}">${escapeAttr(tex)}</span>`;
+        } else {
+          // Flush text buffer, then push block math
+          if (buf.trim()) parts.push({ type: blockType, content: buf });
+          buf = '';
+          parts.push({ type: 'math', content: tex, mathType: 'block' });
+        }
+      }
+      last = match.index + match[0].length;
+    }
+    buf += raw.slice(last);
+    if (buf.trim()) parts.push({ type: blockType, content: buf });
+    return parts.length > 0 ? parts : [{ type: blockType, content: raw }];
+  }
+
+  // 3. Walk tokens sequentially
+  while (i < tokens.length) {
+    const t = tokens[i];
+    try {
+      // ── Fence ──
+      if (t.type === 'fence') {
+        blocks.push({ type: 'code', content: t.content, language: t.info.trim() || 'plain' });
+        i++; continue;
+      }
+      // ── HR ──
+      if (t.type === 'hr') {
+        blocks.push({ type: 'hr', content: '---' });
+        i++; continue;
+      }
+      // ── Heading ──
+      if (t.type === 'heading_open') {
+        const level = Number(t.tag!.slice(1));
+        const raw = inlineRaw(tokens[i + 1]);
+        const headingText = '#'.repeat(level) + ' ' + raw;
+        for (const b of splitMathFromText(headingText, 'heading')) blocks.push(b);
+        i += 3; continue;
+      }
+      // ── Paragraph ──
+      if (t.type === 'paragraph_open') {
+        const raw = inlineRaw(tokens[i + 1]);
+        const isSoftBreak = raw.includes('<br>');
+        for (const b of splitMathFromText(raw, isSoftBreak ? 'softBreakPara' : 'text')) blocks.push(b);
+        i += 3; continue;
+      }
+      // ── Blockquote (markdown-it native rendering) ──
+      if (t.type === 'blockquote_open') {
+        let depth = 1, j = i + 1;
+        while (j < tokens.length && depth > 0) {
+          if (tokens[j].type === 'blockquote_open') depth++;
+          if (tokens[j].type === 'blockquote_close') depth--;
+          j++;
+        }
+        const html = renderTokenRange(tokens, i, j);
+        blocks.push({ type: 'html', content: html });
+        i = j; continue;
+      }
+      // ── List (markdown-it native rendering) ──
+      if (t.type === 'bullet_list_open' || t.type === 'ordered_list_open') {
+        const closeType = t.type.replace('_open', '_close');
+        let depth = 1, j = i + 1;
+        while (j < tokens.length && depth > 0) {
+          if (tokens[j].type === t.type) depth++;
+          if (tokens[j].type === closeType) depth--;
+          j++;
+        }
+        const html = renderTokenRange(tokens, i, j);
+        blocks.push({ type: 'html', content: html });
+        i = j; continue;
+      }
+      // ── Table ──
+      if (t.type === 'table_open') {
+        let j = i + 1;
+        const header: string[] = [];
+        const body: string[][] = [];
+        let inThead = false;
+        while (j < tokens.length) {
+          const ct = tokens[j];
+          if (ct.type === 'table_close') { j++; break; }
+          if (ct.type === 'thead_open') { inThead = true; j++; continue; }
+          if (ct.type === 'thead_close' || ct.type === 'tbody_open') { inThead = false; j++; continue; }
+          if (ct.type === 'tbody_close') { j++; continue; }
+          if (ct.type === 'tr_open') {
+            const row: string[] = [];
+            let k = j + 1;
+            while (k < tokens.length && tokens[k].type !== 'tr_close') {
+              if (tokens[k].type === 'th_open' || tokens[k].type === 'td_open') {
+                row.push(inlineRaw(tokens[k + 1]));
+                k += 3;
+              } else { k++; }
+            }
+            if (inThead) header.push(...row);
+            else body.push(row);
+            j = k + 1; continue;
+          }
+          j++;
+        }
+        const rawLines: string[] = [];
+        if (header.length) rawLines.push('| ' + header.join(' | ') + ' |');
+        if (body.length) rawLines.push('| ' + body[0].map(() => '---').join(' | ') + ' |');
+        for (const row of body) rawLines.push('| ' + row.join(' | ') + ' |');
+        blocks.push({ type: 'table', content: rawLines.join('\n'), header, body });
+        i = j; continue;
+      }
+      // ── Standalone math placeholder (inline or html_block token) ──
+      // <!--cm --> on its own line → html_block (content includes trailing \n)
+      if (t.type === 'inline' || t.type === 'html_block') {
+        const trimmed = (t.content || '').trim();
+        const m = trimmed.match(/^<!--cm ([IB])(\d+)-->$/);
+        if (m) {
+          const idx = Number(m[2]);
+          if (m[1] === 'B') {
+            // Block math: standalone content-block
+            if (idx >= 0 && idx < mathBlocks.length) {
+              blocks.push({ type: 'math', content: mathBlocks[idx], mathType: 'block' });
+            }
+          } else {
+            // Inline math: embed in a text block — no separate content-block
+            if (idx >= 0 && idx < mathBlocks.length) {
+              const tex = mathBlocks[idx];
+              const uid = `chr-${idx}-${Date.now().toString(36)}`;
+              blocks.push({ type: 'text', content: `<span class="katex-placeholder katex-interactive" data-tex="${escapeAttr(tex)}" data-type="inline" data-unique-id="${uid}">${escapeAttr(tex)}</span>` });
+            }
+          }
+          i++; continue;
+        }
+      }
+      i++;
+    } catch (_e) { i++; }
+  }
+
+  if (typeof cacheKey === 'number') return blocks.map(b => ({ ...b }));
+  return blocks;
+}
+
+function escRe(s: string): string { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+function inlineHelper(t: Token): string {
+  if (!t.children || t.children.length === 0) return t.content;
+  let out = '';
+  let pendingHref = '';
+  for (const c of t.children) {
+    switch (c.type) {
+      case 'text': out += c.content; break;
+      case 'code_inline': out += '`' + c.content + '`'; break;
+      case 'strong_open': out += '**'; break;
+      case 'strong_close': out += '**'; break;
+      case 'em_open': out += '*'; break;
+      case 'em_close': out += '*'; break;
+      case 'link_open': out += '['; pendingHref = c.attrGet('href') || ''; break;
+      case 'link_close': out += '](' + pendingHref + ')'; pendingHref = ''; break;
+      case 'image': out += '![' + c.content + '](' + (c.attrGet('src') || '') + ')'; break;
+      case 'hardbreak': out += '<br>'; break;
+      case 'softbreak': out += ' '; break;
+      default: out += c.content || ''; break;
+    }
+  }
+  return out;
+}
+
+// Recursive list processor for walkBlocks (file-level — no access to parseMarkdown closures)
+function renderTokenRange(toks: Token[], start: number, end: number): string {
+  return blockMd.renderer.render(toks.slice(start, end) as any, blockMd.options, {});
+}
+
+function walkBlocks(tokens: Token[], mathBlocks: string[]): ContentBlock[] {
+  const blocks: ContentBlock[] = [];
+  let i = 0;
+  while (i < tokens.length) {
+    const t = tokens[i];
+    try {
+      if (t.type === 'fence') { blocks.push({ type: 'code', content: t.content, language: t.info.trim() || 'plain' }); i++; continue; }
+      if (t.type === 'hr') { blocks.push({ type: 'hr', content: '---' }); i++; continue; }
+      if (t.type === 'heading_open') { const lv = Number(t.tag!.slice(1)); blocks.push({ type: 'heading', content: '#'.repeat(lv) + ' ' + inlineHelper(tokens[i + 1]) }); i += 3; continue; }
+      if (t.type === 'paragraph_open') { const raw = inlineHelper(tokens[i + 1]); blocks.push({ type: raw.includes('<br>') ? 'softBreakPara' : 'text', content: raw }); i += 3; continue; }
+      if (t.type === 'bullet_list_open' || t.type === 'ordered_list_open') {
+        const closeType = t.type.replace('_open', '_close');
+        let depth = 1, j = i + 1;
+        while (j < tokens.length && depth > 0) {
+          if (tokens[j].type === t.type) depth++;
+          if (tokens[j].type === closeType) depth--;
+          j++;
+        }
+        blocks.push({ type: 'html', content: renderTokenRange(tokens, i, j) }); i = j; continue;
+      }
+      if (t.type === 'blockquote_open') {
+        let depth = 1, j = i + 1;
+        while (j < tokens.length && depth > 0) {
+          if (tokens[j].type === 'blockquote_open') depth++;
+          if (tokens[j].type === 'blockquote_close') depth--;
+          j++;
+        }
+        blocks.push({ type: 'html', content: renderTokenRange(tokens, i, j) }); i = j; continue;
+      }
+      i++;
+    } catch (_e) { i++; }
+  }
+  return blocks;
+}
+
+interface Token {
+  type: string; tag?: string; content: string; info: string;
+  children?: Token[] | null; attrGet(name: string): string | null;
 }
 
 // 用自定义控件占位符替换表格，后续由TextEditor渲染MarkdownTable组件
@@ -845,12 +936,15 @@ export function convertToHtml(text: any, options?: { wrapBlocks?: boolean, local
   }
   // 支持list/quote类型的block渲染
   function renderBlock(block: any): string {
+    // Pre-rendered HTML (lists, blockquotes from markdown-it native renderer)
+    if (block && block.type === 'html') { return block.content || ''; }
     // Math Block
     if (block && block.type === 'math') {
-      // Return a lightweight placeholder. Actual KaTeX rendering will be
-      // performed later via `hydrateKatex` to avoid blocking initial loads.
       const uniqueId = `math-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-      return `<div class="katex-placeholder katex-interactive" data-tex="${escapeAttr(block.content)}" data-type="block" data-unique-id="${uniqueId}"></div>`
+      const isBlock = block.mathType === 'block';
+      const tag = isBlock ? 'div' : 'span';
+      const dataType = isBlock ? 'block' : 'inline';
+      return `<${tag} class="katex-placeholder katex-interactive" data-tex="${escapeAttr(block.content)}" data-type="${dataType}" data-unique-id="${uniqueId}"></${tag}>`
     }
     // 递归渲染quote类型
     if (block && block.type === 'quote' && Array.isArray(block.content)) {
@@ -1068,7 +1162,8 @@ export function blocksToMarkdown(blocks: ContentBlock[]): string {
         md += `\`\`\`${block.language || 'plain'}\n${block.content}\n\`\`\`\n\n`;
         break;
       case 'math':
-        md += `\\[\n${block.content}\n\\]\n\n`;
+        md += block.mathType === 'inline' ? `$${block.content}$` : `\\[\n${block.content}\n\\]`;
+        md += '\n\n';
         break;
       case 'table': {
         // 优先用header/body还原标准表格

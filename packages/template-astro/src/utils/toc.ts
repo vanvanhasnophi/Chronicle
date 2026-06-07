@@ -168,7 +168,23 @@ export function buildTocItems(content: string, isHtml = false, toc?: unknown) {
   return isHtml ? buildTocFromHtml(content) : buildTocFromMarkdown(content);
 }
 
-export function injectHeadingIds(html: string, toc: TocItem[]) {
-  // No-op: server provides authoritative ids inside compiled HTML.
-  return html;
+export function injectHeadingIds(html: string, toc: TocItem[]): string {
+  if (!toc.length) return html;
+  // Build a map from heading text → id, in TOC order (first occurrence wins)
+  const idMap = new Map<string, string>();
+  for (const item of toc) {
+    const key = item.text.toLowerCase();
+    if (!idMap.has(key)) idMap.set(key, item.id);
+  }
+
+  // Inject id attributes into heading tags that don't already have one
+  let idx = 0;
+  return html.replace(/<h([1-6])\b([^>]*)>([\s\S]*?)<\/h\1>/gi, (match, level, attrs, inner) => {
+    // Skip if already has an id
+    if (/\sid\s*=/.test(attrs)) return match;
+    const text = inner.replace(/<[^>]+>/g, '').trim();
+    if (!text) return match;
+    const id = idMap.get(text.toLowerCase()) || idMap.get(text) || `heading-${idx++}`;
+    return `<h${level} id="${id}"${attrs}>${inner}</h${level}>`;
+  });
 }

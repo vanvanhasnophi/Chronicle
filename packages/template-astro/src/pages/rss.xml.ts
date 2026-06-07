@@ -1,5 +1,4 @@
-import { getApiUrl, DATA_SOURCE } from '../config/api';
-import { isLocalMode } from '../core/site';
+import { getPublishedPosts } from '../data/localDataSource';
 import { loadSiteSettings } from '../utils/siteSettings';
 import { buildLocalizedPath } from '../utils/routeLocale';
 
@@ -73,39 +72,8 @@ function buildPostUrl(baseUrl: string, postId: string) {
 }
 
 async function loadPosts(): Promise<Post[]> {
-  // ── Local data source ──────────────────────────────────
-  if (isLocalMode) {
-    try {
-      const { getPublishedPosts } = await import('../data/localDataSource');
-      return getPublishedPosts() as Post[];
-    } catch {
-      return [];
-    }
-  }
-
-  // ── Remote API ─────────────────────────────────────────
   try {
-    const res = await fetch(getApiUrl('/api/posts?t=' + Date.now(), true), {
-      cache: 'no-store',
-    });
-    if (!res.ok) return [];
-
-    const responseText = await res.text();
-    try {
-      const data = JSON.parse(responseText);
-      if (Array.isArray(data)) return data;
-      if (Array.isArray(data?.posts)) return data.posts;
-      return [];
-    } catch {
-      const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-      if (!jsonMatch) return [];
-      try {
-        const parsed = JSON.parse(jsonMatch[0]);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch {
-        return [];
-      }
-    }
+    return getPublishedPosts() as Post[];
   } catch {
     return [];
   }

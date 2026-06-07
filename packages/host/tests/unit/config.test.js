@@ -8,7 +8,8 @@ describe('config', () => {
     expect(config.BASE_DIR).toBeDefined();
     expect(config.DATA_DIR).toBeDefined();
     expect(config.UPLOAD_DIR).toBeDefined();
-    expect(config.BACKGROUND_DIR).toBeDefined();
+    expect(config.BRANDING_DIR).toBeDefined();
+    expect(config.MANAGER_BACKGROUND_DIR).toBeDefined();
     expect(config.POSTS_DIR).toBeDefined();
   });
 

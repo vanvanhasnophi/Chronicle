@@ -2,6 +2,7 @@
 import { ClientRouter } from 'astro:transitions';
 import NavHeader from '../components/NavHeader.astro';
 import { API_BASE_URL } from '../core/site';
+import { isLocalMode } from '../data/localDataSource';
 import { getLocale } from '../utils/i18n';
 import { resolveFeatureFlags } from '../utils/featureFlags';
 import '../styles/global.css';
@@ -700,6 +701,11 @@ try {
           document.documentElement.setAttribute('data-theme', 'dark');
         }
       });
+    </script>
+    <!-- Data source debug info -->
+    <script define:vars={{ isLocalMode }}>
+      console.info(`%c📦 Chronicle %c数据源: ${isLocalMode ? '%c本地文件系统 (localDataSource)' : '%c远程 API (host)'}%c | 构建模式: ${isLocalMode ? 'lite/static' : 'API'}`,
+        'font-weight:bold', '', isLocalMode ? 'color:#2ea35f;font-weight:bold' : 'color:#e06c75;font-weight:bold', '');
     </script>
   </body>
 </html>

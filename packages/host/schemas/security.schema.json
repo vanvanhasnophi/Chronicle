@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "chronicle:security",
+  "title": {
+    "en": "Security",
+    "zh": "安全设置"
+  },
+  "x-lang": "en",
+  "x-version": "1.0.0",
+  "x-migrations": [],
+  "type": "object",
+  "x-nav": {
+    "group": "system",
+    "tabs": {
+      "": {
+        "label": {
+          "en": "Security",
+          "zh": "安全设置"
+        },
+        "icon": "shield",
+        "order": 3
+      }
+    }
+  },
+  "properties": {
+    "setupComplete": {
+      "type": "boolean",
+      "default": false,
+      "x-widget": "hidden",
+      "title": {
+        "en": "Setup Complete",
+        "zh": "初始化完成"
+      },
+      "description": {
+        "en": "Whether the initial setup wizard has been completed.",
+        "zh-CN": "指示初始化向导是否已完成。"
+      }
+    },
+    "hashVersion": {
+      "type": "integer",
+      "default": 0,
+      "x-widget": "hidden",
+      "title": {
+        "en": "Hash Version",
+        "zh": "哈希版本"
+      }
+    },
+    "hashSalt": {
+      "type": "string",
+      "x-widget": "hidden",
+      "x-write-only": true,
+      "title": {
+        "en": "Hash Salt",
+        "zh": "哈希盐值"
+      }
+    },
+    "setupToken": {
+      "type": "string",
+      "x-widget": "hidden",
+      "x-write-only": true,
+      "title": {
+        "en": "Setup Token",
+        "zh": "初始化令牌"
+      }
+    },
+    "setupTokenExpiry": {
+      "type": "string",
+      "format": "date-time",
+      "x-widget": "hidden",
+      "title": {
+        "en": "Setup Token Expiry",
+        "zh": "初始化令牌过期"
+      }
+    },
+    "recoveryCodes": {
+      "type": "array",
+      "x-widget": "hidden",
+      "items": {
+        "type": "string"
+      },
+      "title": {
+        "en": "Recovery Codes",
+        "zh": "恢复码"
+      }
+    },
+    "recoveryLockUntil": {
+      "type": "string",
+      "format": "date-time",
+      "x-widget": "hidden",
+      "title": {
+        "en": "Recovery Lock Until",
+        "zh": "恢复锁定至"
+      }
+    },
+    "passkeys": {
+      "type": "array",
+      "x-widget": "passkey-list",
+      "x-chronicle-class": "passkey-list",
+      "x-order": 2,
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "x-widget": "hidden",
+            "title": {
+              "en": "Credential ID",
+              "zh-CN": "凭证 ID"
+            }
+          },
+          "label": {
+            "type": "string",
+            "x-widget": "input",
+            "title": {
+              "en": "Label",
+              "zh-CN": "标签"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "x-widget": "readonly",
+            "title": {
+              "en": "Created At",
+              "zh-CN": "创建时间"
+            }
+          },
+          "lastUsedAt": {
+            "type": "string",
+            "format": "date-time",
+            "x-widget": "readonly",
+            "title": {
+              "en": "Last Used At",
+              "zh-CN": "最近使用"
+            }
+          }
+        }
+      },
+      "title": {
+        "en": "Passkeys",
+        "zh": "通行密钥"
+      }
+    }
+  }
+}

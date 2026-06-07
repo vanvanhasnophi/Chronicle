@@ -59,7 +59,7 @@ function onChange(event: Event) {
 	gap: 1rem;
 	padding: 0.9rem 1rem;
 	border-radius: 10px;
-	background: var(--component-bg);
+	background: var(--component-bg-blur);
 	border: 1px solid var(--border-color-blur);
 }
 

@@ -51,7 +51,7 @@ function buildBackgroundCandidates(url: string) {
   const normalized = String(url || '').trim();
   if (!normalized) return [];
 
-  if (/^https?:\/\//i.test(normalized) && !/\/server\/data\/(background|upload)\//i.test(normalized)) {
+  if (/^https?:\/\//i.test(normalized) && !/\/server\/data\/(background|branding|manager-background|upload)\//i.test(normalized)) {
     return [normalized];
   }
 

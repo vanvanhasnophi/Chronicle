@@ -1,0 +1,20 @@
+# ============================================================
+# 背景图配置（可选，全部有默认值）
+# 直接把背景图放进这个目录即可，系统自动取第一个图片文件
+# ============================================================
+
+# 显示模式: cover | contain | tile
+mode: cover
+posX: 50
+posY: 50
+size: 100
+blur: 20
+
+# 遮罩
+overlayLightColor: "#ffffff"
+overlayLightOpacity: 80
+overlayDarkColor: "#000000"
+overlayDarkOpacity: 85
+
+# 压缩系数 (1-30)，选填，留空则自动决定压缩程度
+compression: 

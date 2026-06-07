@@ -45,12 +45,28 @@ Chronicle 是一个支持双模式（静态/API）的个人博客系统。以下
 所有文章内容存储为：
 ```
 data/posts/<uuid>/
-├── <uuid>-content.md     # Markdown + YAML Frontmatter
-├── <uuid>-compiled.html  # 预编译的 HTML（构建时生成）
-└── <uuid>-toc.json       # 目录（构建时生成）
+└── <uuid>-content.md     # Markdown + YAML Frontmatter
 ```
 
+> **v2 变更**: `*-compiled.html` 和 `*-toc.json` 已移除——Markdown 渲染是前端专属职责（template-astro 构建时 + manager CMS 预览时）。
+
 `data/posts/index.json` 记录全部文章的元数据索引，结构为 `PostMeta[]`（定义见 `packages/shared/src/types/post.ts`）。
+
+完整 `data/` 目录：
+```
+data/
+├── posts/
+│   ├── index.json
+│   └── <uuid>/<uuid>-content.md
+├── collections.json       # 合集树形结构（v2：直接数组，不再包裹 {collections:[]}）
+├── friends.json           # 友链（v2：从 settings.json 抽取）
+├── profile.json           # 作者信息
+├── settings.json
+├── security.json
+├── branding/              # 品牌资源 + 已压缩背景图（v2：替代 background/）
+├── background/            # [废弃] 旧背景图目录
+└── upload/                # 媒体文件
+```
 
 ---
 ## 核心概念：CMS 的三种运行模式
@@ -139,7 +155,7 @@ CMS 模式：Cloud — manager 与 server 同域部署，直接调用 /api/*
 
 | 组件 | 运行时 | 作用 |
 |------|--------|------|
-| `server/` (Express) | ✅ VPS 常驻 | CRUD API、WebAuthn 认证、文件上传、构建触发、静态文件 serve |
+| `packages/host/` (Express) | ✅ VPS 常驻 | CRUD API、WebAuthn 认证、文件上传、构建触发、静态文件 serve |
 | `packages/manager/` | ✅ VPS 构建 → Cloud SPA | CMS：Markdown 编辑、设置管理、文章管理 |
 | `packages/template-astro/` | ✅ VPS 构建 → 静态 | Astro 博客前台 |
 | `data/` | — | 共享数据：posts/、upload/、settings.json、security.json |
@@ -168,11 +184,13 @@ sudo bash install.sh install
 
 | 项 | 状态 |
 |----|------|
-| server Express API | ✅ 完成（已迁移至 `packages/host/`） |
+| server Express API | ✅ 完成（v2: `packages/host/`，PM2 `chronicle-host`） |
 | manager Vue CMS | ✅ 完成 |
 | template-astro | ✅ 完成 |
 | monorepo 路径更新（install.sh / deploy.sh / build.sh / start.sh） | ✅ 已完成 |
-| README | ❌ 过时 |
+| data/branding 迁移（background/ → branding/） | ✅ 已完成 |
+| v1→v2 数据迁移脚本 | ✅ 完成 (`scripts/migrate-v1-to-v2.sh`) |
+| README + 文档 | ✅ 已更新 |
 
 ---
 
@@ -224,7 +242,7 @@ CMS 模式：Local · API 上传 — manager 在本地，内容通过 API 推送
 
 | 组件 | 在哪运行 | 作用 |
 |------|---------|------|
-| `server/` (Express) | ✅ VPS 常驻 | 接收 API 上传、管理数据、serve 前端 |
+| `packages/host/` (Express) | ✅ VPS 常驻 | 接收 API 上传、管理数据、serve 前端 |
 | `packages/manager/` | **用户本地**（manager 客户端） | CMS：写文章、管理内容 |
 | `packages/template-astro/` | VPS 构建 → 静态 | 博客前台 |
 | ❌ Cloud CMS | **不含** | CMS 不在 VPS 上，在本地 |
@@ -580,13 +598,13 @@ npm install && npm run dev
 ## 附录 B：当前整体进度
 
 ```
-full         ████████░░  85%  README 过时，其余完成
+full         ██████████  95%  文档、v1 迁移脚本已完善
 self-hosted  ███░░░░░░░  30%  需 manager API 上传组件
 static       ███░░░░░░░  30%  需 manager 静态构建组件
 lite         █░░░░░░░░░  10%  阻塞：模板需本地数据源
 manager      █████░░░░░  55%  核心完成，缺可选组件
 ─────────────────────────────────
-总体         ████░░░░░░  40%  Phase 1 重构完成
+总体         █████░░░░░  45%  v2 迁移完成，进入 Phase 2
 ```
 
 | 优先级 | 阻塞项 | 影响版本 |
@@ -595,7 +613,6 @@ manager      █████░░░░░  55%  核心完成，缺可选组件
 | 🔴 P0 | manager 独立本地数据存储（不依赖 server API） | manager, static |
 | 🟡 P1 | manager API 上传可选组件 | self-hosted |
 | 🟡 P1 | manager 静态构建可选组件 | static |
-| 🟡 P1 | README 更新 | full |
 | 🟢 P2 | lite 分支 + GitHub Actions 部署模板 | lite |
 | 🔵 P3 | Electron 桌面应用 | static, self-hosted |
 

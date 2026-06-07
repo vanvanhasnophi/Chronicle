@@ -11,7 +11,10 @@
               stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" />
           </svg>
         </span>
-        <span class="collection-title-text">{{ navTitle }}</span>
+        <select v-if="matchedCollections.length > 1" v-model="activeIndex" class="collection-switcher" @change="onSwitchCollection">
+          <option v-for="(c, i) in matchedCollections" :key="c.slug || c.name" :value="i">{{ c.name }}</option>
+        </select>
+        <span v-else class="collection-title-text">{{ navTitle }}</span>
       </div>
     </div>
 
@@ -38,6 +41,7 @@ type CollectionNode = {
 
 type CollectionItem = {
   name: string;
+  slug?: string;
   description?: string;
   nodes?: CollectionNode[];
 };
@@ -54,7 +58,7 @@ if (import.meta.env.DEV) {
   }
 }
 
-const props = withDefaults(defineProps<{ postId?: string; mountToBody?: boolean }>(), { mountToBody: true });
+const props = withDefaults(defineProps<{ postId?: string; mountToBody?: boolean; collections?: CollectionItem[]; postTitles?: Record<string, string> }>(), { mountToBody: true });
 
 const root = ref<HTMLElement | null>(null);
 const treeRoot = ref<HTMLElement | null>(null);
@@ -64,6 +68,8 @@ const routePrefix = ref('/zh');
 const locale = ref<Locale>('zh-CN');
 
 const currentCollectionName = ref('');
+const matchedCollections = ref<CollectionItem[]>([]);
+const activeIndex = ref(0);
 const postTitleById = ref<Map<string, string>>(new Map());
 
 const NAV_WIDTH = 260;
@@ -118,6 +124,16 @@ function nodeContainsPost(nodes: CollectionNode[] | undefined, postId: string): 
     }
   }
   return false;
+}
+
+function findAllCollectionsByPost(collections: CollectionItem[], postId: string): CollectionItem[] {
+  const result: CollectionItem[] = [];
+  for (const collection of collections) {
+    if (nodeContainsPost(collection.nodes || [], postId)) {
+      result.push(collection);
+    }
+  }
+  return result;
 }
 
 function findCollectionByPost(collections: CollectionItem[], postId: string): CollectionItem | null {
@@ -179,6 +195,14 @@ function buildTreeHtml(nodes: CollectionNode[] | undefined, activePostId = '') {
   treeHtml.value = renderTreeNodes(nodes, 'r', activePostId);
 }
 
+function onSwitchCollection() {
+  const c = matchedCollections.value[activeIndex.value];
+  if (c) {
+    currentCollectionName.value = c.name || '';
+    buildTreeHtml(c.nodes || [], props.postId);
+  }
+}
+
 function onTreeClick(event: MouseEvent) {
   const target = event.target as HTMLElement;
   if (!target) return;
@@ -226,6 +250,27 @@ function onTreeKeydown(event: KeyboardEvent) {
 
 async function loadCollections() {
   loading.value = true;
+
+  // Use build-time embedded data if provided (SSG), otherwise fetch from API
+  if (props.collections) {
+    const postMap = new Map<string, string>();
+    if (props.postTitles) {
+      Object.entries(props.postTitles).forEach(([id, title]) => postMap.set(id, title));
+    }
+    postTitleById.value = postMap;
+    // Find all collections containing this post (for multi-collection support)
+    const matches = props.postId ? findAllCollectionsByPost(props.collections, props.postId) : [];
+    matchedCollections.value = matches;
+    activeIndex.value = 0;
+    const active = matches.length > 0 ? matches[0] : (props.collections.length > 0 ? props.collections[0] : null);
+    currentCollectionName.value = active?.name || '';
+    if (active) { buildTreeHtml(active.nodes || [], props.postId); }
+    else { treeHtml.value = ''; }
+    loading.value = false;
+    return;
+  }
+
+  // Runtime fallback: fetch from API
   try {
     const [collectionRes, postsRes] = await Promise.all([
       fetch(`/api/collections?t=${Date.now()}`, { cache: 'no-store' }),
@@ -260,7 +305,10 @@ async function loadCollections() {
         : [];
 
     const postId = String(props.postId || '');
-    const found = postId ? findCollectionByPost(collections, postId) : null;
+    const matches = postId ? findAllCollectionsByPost(collections, postId) : [];
+    matchedCollections.value = matches;
+    activeIndex.value = 0;
+    const found = matches.length > 0 ? matches[0] : null;
     currentCollectionName.value = found?.name || '';
     buildTreeHtml(found?.nodes, postId);
   } catch (e) {
@@ -416,6 +464,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   color: var(--component-text-secondary);
   flex: 0 0 20px;
+  transform: translateY(-1px);
 }
 
 .collection-nav .collection-title-icon svg {
@@ -423,6 +472,37 @@ onBeforeUnmount(() => {
   height: 20px;
   display: block;
 }
+
+.collection-nav .collection-switcher {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: inherit;
+  font-family: inherit;
+  font-weight: inherit;
+  cursor: pointer;
+  min-width: 0;
+  width: 200px;
+  outline: none;
+  padding: 0 10px 0 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transform: translateY(1px);
+  transition: color 0.15s;
+  /* Chevron arrow */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right center;
+  background-size: 16px;
+}
+
+.collection-nav .collection-switcher:hover {
+  color: var(--accent-color);
+}
+
 
 .collection-nav .collection-title-text {
   min-width: 0;
@@ -594,3 +674,4 @@ onBeforeUnmount(() => {
   }
 }
 </style>
+

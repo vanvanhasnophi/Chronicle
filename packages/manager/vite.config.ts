@@ -22,10 +22,14 @@ export default defineConfig({
             target: 'http://localhost:3000',
             changeOrigin: true
       },
-      '/server/data/background': {
+      '/server/data/branding': {
         target: 'http://localhost:3000',
         changeOrigin: true
-        }
+      },
+      '/server/data/manager-background': {
+        target: 'http://localhost:3000',
+        changeOrigin: true
+      }
         // Image proxy removed to improve performance. 
         // Images are now served directly via symlink in public/server/data/upload
         // '/server/data/upload': {

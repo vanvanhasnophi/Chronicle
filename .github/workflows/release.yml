@@ -147,6 +147,5 @@ jobs:
             | `chronicle-static.tar.gz` | 完整静态版 | GitHub Pages / Vercel |
             | `chronicle-lite.tar.gz` | 精简版 | 任意静态托管 |
 
-            🤖 Generated with [Claude Code](https://claude.com/claude-code)
           draft: false
           prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}

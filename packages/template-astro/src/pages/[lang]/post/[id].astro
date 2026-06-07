@@ -1,11 +1,9 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
-import { getApiUrl, DATA_SOURCE } from '../../../config/api';
-import { isLocalMode } from '../../../core/site';
-import { getPublishedPosts, getPostById, getPublicSettings } from '../../../data/localDataSource';
+import { getPublishedPosts, getPostById, getPublicSettings, getCollections } from '../../../data/localDataSource';
 import { getTranslation, getLocale } from '../../../utils/i18n';
 import { buildLocalizedPath, toContentLocale } from '../../../utils/routeLocale';
-import { buildTocItems } from '../../../utils/toc';
+import { buildTocItems, injectHeadingIds } from '../../../utils/toc';
 import { renderCodeBlockStatsHtml, renderCodeBlockLangLabelsHtml } from '../../../utils/markdownParser';
 import { escapeHtmlText, decodeHtmlEntities, getFileExt, getMediaIcon, toMediaCard, rewriteMediaLinks, hydrateLegacyKatexPlaceholders, wrapRenderedKatex } from '../../../utils/contentUtils';
 import DesktopFloatingToc from '../../../components/FloatingToc.vue';
@@ -14,6 +12,7 @@ import CornerActions from '../../../components/CornerActions.vue';
 import CollectionNav from '../../../components/CollectionNav.vue';
 import 'katex/dist/katex.min.css';
 import '../../../styles/post.css';
+import '@chronicle/shared/src/styles/chronicle-markdown.css';
 
 export const prerender = true;
 
@@ -22,44 +21,11 @@ export const prerender = true;
 
 
 export async function getStaticPaths() {
-  if (isLocalMode) {
-    const posts = getPublishedPosts();
-    return posts.flatMap((post) => ([
-      { params: { lang: 'zh', id: String(post.id) } },
-      { params: { lang: 'en', id: String(post.id) } },
-    ]));
-  }
-
-  try {
-    const res = await fetch(getApiUrl('/api/posts', true), { cache: 'no-store' });
-    if (res.ok) {
-      const responseText = await res.text();
-      let posts: any[] = [];
-
-      try {
-        const data = JSON.parse(responseText);
-        posts = Array.isArray(data) ? data : (data.posts || []);
-      } catch (parseError) {
-        const jsonMatch = responseText.match(/\[.*\]/);
-        if (jsonMatch) {
-          try {
-            posts = JSON.parse(jsonMatch[0]);
-          } catch (e) {
-            console.error('[Build] Manual JSON parse error:', e);
-          }
-        }
-      }
-
-      return posts.flatMap((post: any) => ([
-        { params: { lang: 'zh', id: String(post.id) } },
-        { params: { lang: 'en', id: String(post.id) } },
-      ]));
-    }
-  } catch (err) {
-    console.error('[Build] Failed to fetch posts for static paths:', err);
-  }
-
-  return [];
+  const posts = getPublishedPosts();
+  return posts.flatMap((post) => ([
+    { params: { lang: 'zh', id: String(post.id) } },
+    { params: { lang: 'en', id: String(post.id) } },
+  ]));
 }
 
 const routeLang = Astro.params.lang === 'en' ? 'en' : 'zh';
@@ -81,108 +47,37 @@ let error = null;
 let settings: Record<string, any> = {};
 
 // ── Local data source ──────────────────────────────────
-if (isLocalMode) {
-  const localPost = getPostById(id);
-  if (localPost) {
-    post = {
-      id: localPost.id,
-      title: localPost.title,
-      date: localPost.date,
-      updatedAt: localPost.updatedAt,
-      tags: localPost.tags || [],
-      summary: localPost.summary || '',
-      content: localPost.content,
-      html: localPost.compiledHtml,
-      toc: localPost.toc || [],
-      collection: localPost.collection,
-      collectionPath: localPost.collectionPath,
-      font: localPost.font,
-      status: localPost.status,
-    };
-  }
-  settings = getPublicSettings() as Record<string, any>;
+const localPost = getPostById(id);
+if (localPost) {
+  post = {
+    id: localPost.id,
+    title: localPost.title,
+    date: localPost.date,
+    updatedAt: localPost.updatedAt,
+    tags: localPost.tags || [],
+    summary: localPost.summary || '',
+    content: localPost.content,
+    html: localPost.compiledHtml,
+    toc: localPost.toc || [],
+    collection: localPost.collection,
+    collectionPath: localPost.collectionPath,
+    font: localPost.font,
+    status: localPost.status,
+  };
 }
+settings = getPublicSettings() as Record<string, any>;
 
-// ── Remote API ─────────────────────────────────────────
-if (!isLocalMode) {
+// ── Collections + post titles for CollectionNav ──────────
+let embeddedCollections: any[] = [];
+let embeddedPostTitles: Record<string, string> = {};
 try {
-  const postApiUrl = getApiUrl(`/api/post?id=${id}`, true);
-
-  // 首先尝试主API获取settings
-  try {
-    const settingsRes = await fetch(getApiUrl('/api/settings?t=' + Date.now(), true), {
-      cache: 'no-store',
-    });
-    if (settingsRes.ok) {
-      settings = await settingsRes.json();
-    }
-  } catch (e) {
-    console.error('[Post Detail] Failed to fetch settings from main API:', e);
+  const collectionsData = getCollections();
+  embeddedCollections = (collectionsData as any)?.collections || [];
+  const allPosts = getPublishedPosts();
+  for (const p of allPosts) {
+    embeddedPostTitles[String(p.id)] = String(p.title || '').trim();
   }
-
-  // 如果主API失败或没有数据，尝试public API作为后备
-  if (!settings || Object.keys(settings).length === 0) {
-    try {
-      const settingsRes = await fetch(getApiUrl('/api/public/settings?t=' + Date.now(), true), {
-        cache: 'no-store',
-      });
-      if (settingsRes.ok) {
-        settings = await settingsRes.json();
-      }
-    } catch (e) {
-      console.error('[Post Detail] Failed to fetch settings from public API:', e);
-    }
-  }
-
-  // 获取帖子内容
-  const postRes = await fetch(postApiUrl, { cache: 'no-store' });
-
-  if (postRes.ok) {
-    const responseText = await postRes.text();
-    try {
-      post = JSON.parse(responseText);
-      if (post && post.id && !post.content && post.html) {
-        post.content = post.html;
-      }
-    } catch (parseError) {
-      let fixedJson = responseText.replace(/("[^"]+")(?="[^"]+")/g, '$1,');
-      try {
-        post = JSON.parse(fixedJson);
-        if (post && post.id && !post.content && post.html) {
-          post.content = post.html;
-        }
-      } catch (secondError) {
-        try {
-          const idMatch = responseText.match(/"id":"([^"]+)"/);
-          const titleMatch = responseText.match(/"title":"([^"]+)"/);
-          const dateMatch = responseText.match(/"date":"([^"]+)"/);
-          const tagsMatch = responseText.match(/"tags":\[([^\]]+)\]/);
-          const contentMatch = responseText.match(/"content":"([^"]*)"/);
-          const htmlMatch = responseText.match(/"html":"([^"]*)"/);
-
-          if (idMatch && titleMatch) {
-            post = {
-              id: idMatch[1],
-              title: titleMatch[1],
-              date: dateMatch ? dateMatch[1] : new Date().toISOString(),
-              tags: tagsMatch ? tagsMatch[1].replace(/"/g, '').split(',') : [],
-              content: contentMatch ? contentMatch[1] : (htmlMatch ? htmlMatch[1] : ''),
-            };
-          } else {
-            error = 'Post not found';
-          }
-        } catch (manualError) {
-          error = 'Post not found';
-        }
-      }
-    }
-  } else {
-    error = postRes.status === 404 ? 'Post not found' : `Failed to load post (${postRes.status})`;
-  }
-} catch (err) {
-  error = 'Failed to load post detail';
-}
-} // end if (!isLocalMode)
+} catch (_) {}
 
 if (!post && !error) {
   error = 'Post not found';
@@ -266,6 +161,9 @@ let renderedPostContent = rawPostHtml
   ? hydrateLegacyKatexPlaceholders(rawPostHtml, renderContextLabel)
   : (rawPostMarkdown ? `<pre class="md-fallback">${escapeHtmlText(rawPostMarkdown)}</pre>` : '');
 
+// Mermaid: rendered client-side on demand (requires browser DOM, not available at SSG build time)
+// Toolbar HTML and mermaid-container placeholder are generated by renderCodeChunkHtml
+
 let tocItems: any[] = [];
 
 if (renderedPostContent) {
@@ -283,18 +181,19 @@ if (renderedPostContent) {
       // ignore and keep placeholders
     }
 
-    // Use server-provided TOC only. Do NOT compute TOC during Astro build.
-    // This enforces server as the single source of truth and avoids
-    // mis-detecting headings inside code blocks or file-cards.
+    // Use server-provided TOC if available; fall back to local HTML heading extraction
     if (post && Array.isArray(post.toc) && post.toc.length > 0) {
-      // normalize and use the server-provided toc; content isn't needed
       tocItems = buildTocItems('', true, post.toc);
+    } else if (renderedPostContent) {
+      tocItems = buildTocItems(renderedPostContent, true);
     } else {
-      console.warn('[Post SSR] Server TOC missing for post, skipping local TOC generation', renderContextLabel);
       tocItems = [];
     }
 
-    // Server is authoritative for heading ids; do not modify them here.
+    // Inject heading ids into rendered HTML so TOC links work
+    if (tocItems.length > 0) {
+      renderedPostContent = injectHeadingIds(renderedPostContent, tocItems);
+    }
   } catch (renderErr) {
     // If rendering fails completely, fall back to escaped raw content
     console.error('[Post SSR] Rendering failed:', renderContextLabel, renderErr);
@@ -414,7 +313,7 @@ const metaDescription = buildMetaDescription(post, locale);
         )}
 
         <div class="post-body">
-          <div class="md-parser-rendered markdown-content" set:html={renderedPostContent} />
+          <div class="chronicle-markdown md-parser-rendered markdown-content" set:html={renderedPostContent} />
         </div>
       </article>
     ) : null}
@@ -434,7 +333,7 @@ const metaDescription = buildMetaDescription(post, locale);
   )}
 
   {post?.collection && (
-    <CollectionNav client:idle postId={post?.id || id} />
+    <CollectionNav client:idle postId={post?.id || id} collections={embeddedCollections} postTitles={embeddedPostTitles} />
   )}
 
   <CornerActions client:idle hasToc={tocItems.length > 0} />
@@ -641,7 +540,7 @@ const metaDescription = buildMetaDescription(post, locale);
 
     function initMermaidCodeBlocks() {
       const ui = getMermaidUiText();
-      const blocks = document.querySelectorAll('.content-block[data-language="mermaid"] .code-chunk-container, .code-chunk-container[data-language="mermaid"]');
+      const blocks = document.querySelectorAll('.code-chunk-container.mermaid');
       if (!blocks || blocks.length === 0) return;
 
       blocks.forEach((block: Element) => {
@@ -649,127 +548,76 @@ const metaDescription = buildMetaDescription(post, locale);
         if (block.dataset.mermaidEnhanced === '1') return;
 
         const editorWrapper = block.querySelector('.editor-wrapper') as HTMLElement | null;
-        const toolbar = block.querySelector('.toolbar') as HTMLElement | null;
         const editorFooter = block.querySelector('.editor-footer') as HTMLElement | null;
-        if (!(editorWrapper instanceof HTMLElement) || !(toolbar instanceof HTMLElement)) return;
-        const safeEditorWrapper: HTMLElement = editorWrapper;
+        if (!(editorWrapper instanceof HTMLElement)) return;
 
-        const copyBtn = block.querySelector('.copy-btn') as HTMLElement | null;
         const textarea = block.querySelector('.code-textarea') as HTMLTextAreaElement | null;
-        const codeText = (copyBtn && copyBtn.getAttribute('data-code')) || (textarea && textarea.value) || '';
+        const codeText = textarea?.value || '';
         if (!codeText.trim()) return;
 
         block.dataset.mermaidEnhanced = '1';
 
-        const preview = document.createElement('div');
-        preview.className = 'mermaid-preview';
-        preview.style.padding = '0.5rem 1rem';
-        preview.style.display = 'none';
+        // Query existing DOM — toolbar + preview panel generated by SSG renderCodeChunkHtml
+        const preview = block.querySelector('.mermaid-preview') as HTMLElement | null;
+        const container = preview?.querySelector('.mermaid-container') as HTMLElement | null;
+        let downloadBtn = block.querySelector('.mermaid-download-btn') as HTMLElement | null;
+        let splitBtn   = block.querySelector('.mermaid-split-btn') as HTMLElement | null;
+        let codeBtn    = block.querySelector('.mermaid-code-btn') as HTMLElement | null;
+        let previewBtn = block.querySelector('.mermaid-preview-btn') as HTMLElement | null;
 
-        const previewContainer = document.createElement('div');
-        previewContainer.className = 'mermaid-container';
-        preview.appendChild(previewContainer);
-        block.appendChild(preview);
+        // Pre-rendered SVG from SSG build
+        const preSvg = container?.querySelector('svg');
+        let lastRenderedSvg: string | null = preSvg ? preSvg.outerHTML : null;
+        if (lastRenderedSvg && downloadBtn) (downloadBtn as HTMLButtonElement).disabled = false;
 
-        let mode: 'split' | 'code' | 'preview' = 'split';
-        let lastRenderedSvg: string | null = null;
-
-        const downloadBtn = makeIconButton(
-          ui.downloadSvg,
-          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3v10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M7 10l5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M21 21H3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>',
-          'mermaid-download-btn'
-        );
-        downloadBtn.style.marginRight = '0.25rem';
-
-        const dividerLeft = document.createElement('div');
-        dividerLeft.className = 'toolbar-divider';
-
-        const group = document.createElement('div');
-        group.className = 'mermaid-group';
-
-        const splitBtn = makeIconButton(
-          ui.split,
-          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="8" rx="1" stroke="currentColor" stroke-width="1.5"></rect><rect x="3" y="13" width="18" height="8" rx="1" stroke="currentColor" stroke-width="1.5"></rect></svg>'
-        );
-        const codeBtn = makeIconButton(
-          ui.code,
-          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M16 18l6-6-6-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M8 6l-6 6 6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>'
-        );
-        const previewBtn = makeIconButton(
-          ui.preview,
-          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"></circle></svg>'
-        );
-
-        group.appendChild(splitBtn);
-        group.appendChild(codeBtn);
-        group.appendChild(previewBtn);
-
-        const dividerRight = document.createElement('div');
-        dividerRight.className = 'toolbar-divider';
-
-        const firstBtn = toolbar.querySelector('.icon-btn');
-        if (firstBtn && firstBtn.parentNode === toolbar) {
-          toolbar.insertBefore(downloadBtn, firstBtn);
-          toolbar.insertBefore(dividerLeft, firstBtn);
-          toolbar.insertBefore(group, firstBtn);
-          toolbar.insertBefore(dividerRight, firstBtn);
-        } else {
-          toolbar.appendChild(downloadBtn);
-          toolbar.appendChild(dividerLeft);
-          toolbar.appendChild(group);
-          toolbar.appendChild(dividerRight);
-        }
+        let mode: 'split' | 'code' | 'preview' = 'preview';
 
         function setActiveButton() {
-          splitBtn.classList.toggle('active', mode === 'split');
-          codeBtn.classList.toggle('active', mode === 'code');
-          previewBtn.classList.toggle('active', mode === 'preview');
+          splitBtn?.classList.toggle('active', mode === 'split');
+          codeBtn?.classList.toggle('active', mode === 'code');
+          previewBtn?.classList.toggle('active', mode === 'preview');
         }
 
-        function findPrerenderedSvgMarkup() {
-          const directSvg = block.querySelector('.mermaid-prerendered svg, .mermaid-preview svg, .mermaid-svg svg, svg.mermaid');
-          if (directSvg && directSvg.outerHTML) return directSvg.outerHTML;
-
-          const host = block.closest('.content-block[data-language="mermaid"]') || block.parentElement;
-          if (host) {
-            const hostSvg = host.querySelector('.mermaid-prerendered svg, .mermaid-svg svg, .mermaid-preview svg, svg.mermaid');
-            if (hostSvg && hostSvg.outerHTML) return hostSvg.outerHTML;
+        let mermaidRenderBusy = false;
+        async function renderMermaidSvg() {
+          if (mode === 'code' || !container) return;
+          if (lastRenderedSvg) { container.innerHTML = lastRenderedSvg; return; }
+          if (mermaidRenderBusy) return;
+          mermaidRenderBusy = true;
+          try {
+            container.innerHTML = '<div class="mermaid-loading">Rendering…</div>';
+            // @ts-ignore — dynamic import, resolved at runtime by Vite
+            const mm = await import('mermaid');
+            const mermaidLib = (mm as any).default || mm;
+            mermaidLib.initialize({ startOnLoad: false, theme: 'base' });
+            const id = 'mermaid_client_' + Math.random().toString(36).slice(2, 8);
+            const { svg } = await mermaidLib.render(id, codeText);
+            lastRenderedSvg = svg;
+            container.innerHTML = svg;
+            if (downloadBtn) (downloadBtn as HTMLButtonElement).disabled = false;
+          } catch (e: any) {
+            container.innerHTML = '<div class="mermaid-error">Mermaid render error</div>';
+          } finally {
+            mermaidRenderBusy = false;
           }
-
-          return '';
-        }
-
-        function renderMermaidSvg() {
-          if (mode === 'code') return;
-          const svgMarkup = findPrerenderedSvgMarkup();
-          if (svgMarkup) {
-            previewContainer.innerHTML = svgMarkup;
-            lastRenderedSvg = svgMarkup;
-            downloadBtn.disabled = false;
-            return;
-          }
-
-          previewContainer.innerHTML = '<div class="mermaid-placeholder">' + ui.notPrerendered + '</div>';
-          lastRenderedSvg = null;
-          downloadBtn.disabled = true;
         }
 
         function applyMode(nextMode: 'split' | 'code' | 'preview') {
           mode = nextMode;
           setActiveButton();
-          safeEditorWrapper.style.display = (mode === 'preview') ? 'none' : '';
+          if (editorWrapper) editorWrapper.style.display = (mode === 'preview') ? 'none' : '';
           if (editorFooter) editorFooter.style.display = (mode === 'preview') ? 'none' : '';
-          preview.style.display = (mode === 'code') ? 'none' : '';
+          if (preview) preview.style.display = (mode === 'code') ? 'none' : '';
           if (mode !== 'code') {
             renderMermaidSvg();
           }
         }
 
-        splitBtn.addEventListener('click', () => applyMode('split'));
-        codeBtn.addEventListener('click', () => applyMode('code'));
-        previewBtn.addEventListener('click', () => applyMode('preview'));
+        splitBtn?.addEventListener('click', () => applyMode('split'));
+        codeBtn?.addEventListener('click', () => applyMode('code'));
+        previewBtn?.addEventListener('click', () => applyMode('preview'));
 
-        downloadBtn.addEventListener('click', () => {
+        downloadBtn?.addEventListener('click', () => {
           if (!lastRenderedSvg) return;
           try {
             const raw = lastRenderedSvg;
@@ -844,7 +692,7 @@ const metaDescription = buildMetaDescription(post, locale);
         });
 
         // default mode: preview
-        downloadBtn.disabled = true;
+        if (!lastRenderedSvg && downloadBtn) (downloadBtn as HTMLButtonElement).disabled = true;
         applyMode('preview');
       });
     }

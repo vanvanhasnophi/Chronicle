@@ -7,6 +7,9 @@ import { ShellIcons } from './utils/shellIcons'
 import { ensureNotoLoaded } from './utils/fontLoader'
 import { hexToRgbString } from './utils/colorUtils'
 import { resolveBackgroundCompression, resolveBackgroundUrl } from './utils/backgroundSettings'
+import { useSchemaNav, type NavGroup } from './composables/useSchemaNav'
+import { syncSchemas } from './composables/schemaApi'
+import { syncSettings, settingsStore } from './composables/settingsApi'
 import FilePreviewModal from './components/FilePreviewModal.vue'
 import ImagePreviewModal from './components/ImagePreviewModal.vue'
 import Toast from './components/Toast.vue'
@@ -530,25 +533,28 @@ function updateResolvedOverlays() {
 }
 
 async function getSettings() {
+  // Don't request settings without an auth session — no token yet on login/setup.
   try {
-    try {
-      const resp = await fetchWithAuth(`/api/settings?t=${Date.now()}`)
-      if (resp.ok) {
-        const s = await resp.json()
-        return s || {}
-      }
-    } catch (e) { }
+    const auth = localStorage.getItem('chronicle_auth')
+    if (!auth) return {}
+    try { const session = JSON.parse(auth); if (!session.expiry || Date.now() > session.expiry) return {} } catch { return {} }
+  } catch { return {} }
 
-    return {}
-  } catch (e) {
-    return {}
-  }
+  // Fire-and-forget: sync schemas in background (don't block the page)
+  syncSchemas()
+
+  // syncSettings handles throttle, dedup, and localStorage persistence
+  return await syncSettings()
 }
 
 
 async function applySettings() {
-  try {
-    const s = await getSettings()
+  const s = await getSettings()
+  applySettingsFromStore(s)
+}
+
+/** Apply visual settings from a given settings object (does NOT fetch). */
+function applySettingsFromStore(s: Record<string, any>) {
     try {
       ; (window as any).__CHRONICLE_SETTINGS__ = {
         ...(window as any).__CHRONICLE_SETTINGS__,
@@ -563,24 +569,26 @@ async function applySettings() {
     if (isBackend.value) {
       if (s.backendLocale && s.backendLocale !== 'follow') {
         locale.value = s.backendLocale
+        localStorage.setItem('locale', s.backendLocale)
       } else {
         const nav = navigator.language || 'en'
-        locale.value = nav.startsWith('zh') ? 'zh-CN' : 'en'
+        const resolved = nav.startsWith('zh') ? 'zh-CN' : 'en'
+        locale.value = resolved
+        localStorage.setItem('locale', resolved)
       }
     } else {
-      // For frontend:
-      // 1. If user has NO preference (first visit), respect server default locale.
-      // 2. If user explicitly chose 'follow' (in localStorage), they mean "Follow Browser", so stick to navigator.
       const userPref = localStorage.getItem('locale')
       if (!userPref) {
         if (s.frontendLocale && s.frontendLocale !== 'follow') {
           locale.value = s.frontendLocale
+          localStorage.setItem('locale', s.frontendLocale)
         } else {
           const nav = navigator.language || 'en'
-          locale.value = nav.startsWith('zh') ? 'zh-CN' : 'en'
+          const resolved = nav.startsWith('zh') ? 'zh-CN' : 'en'
+          locale.value = resolved
+          localStorage.setItem('locale', resolved)
         }
       }
-      // If userPref exists (including 'follow' or 'zh-CN'), we respect it (already applied by applyFrontendLocaleFromSelection)
     }
 
     // Apply Fonts from server settings only
@@ -711,9 +719,8 @@ async function applySettings() {
         }
       } catch (e) { }
     } catch (e) { }
+  }
 
-  } catch (e) { }
-}
 
 function applyFrontendLocaleFromSelection() {
   const storedLocale = localStorage.getItem('locale') || 'follow'
@@ -731,7 +738,20 @@ function applyBackendLocaleIfNeeded() {
 }
 
 onMounted(async () => {
-  // Always apply settings global (fonts)
+  // Check auth phase — redirect to setup if first boot
+  if (route.path !== '/login' && route.path !== '/setup' && route.path !== '/recover') {
+    try {
+      const resp = await fetch(`/api/admin/status?t=${Date.now()}`)
+      const json = await resp.json()
+      const phase = (json.data && json.data.phase) || json.phase
+      if (phase === 'setup' || phase === 'token') {
+        router.replace('/setup')
+        return
+      }
+    } catch { /* fall through */ }
+  }
+
+  // applySettings() calls getSettings() which triggers schema fetch internally
   await applySettings()
   try { syncEditorBackgroundLayerUsage() } catch (e) { }
 
@@ -764,7 +784,7 @@ onMounted(async () => {
 
   // initial apply depending on area
   if (isBackend.value) {
-    applyBackendLocaleIfNeeded()
+    // Locale already applied by await applySettings() above — no need for a second fetch.
     try { document.body.classList.add('backend') } catch (e) { }
   } else {
     // load selected frontend locale from storage if available
@@ -926,32 +946,41 @@ watch(route, () => {
 })
 
 const isMenuOpen = ref(false)
-const isBuildActive = computed(() => route.path.startsWith('/settings/build'))
+const isBuildActive = computed(() => route.path.startsWith('/settings/system-build'))
 import { APP_VERSION, APP_YEAR } from './version'
 const docTitle = ref(typeof document !== 'undefined' ? document.title : '')
 let titleObserver: MutationObserver | null = null
 
-const showBackendShell = computed(() => route.path !== '/editor' && route.path !== '/login' && !isPrintPreviewRoute.value && isBackend.value)
-const isContentRoute = computed(() => route.path.startsWith('/manage') || route.path.startsWith('/settings/homepage') || route.path.startsWith('/settings/collection') || route.path.startsWith('/settings/friends') || route.path.startsWith('/settings/about'))
-const isSettingsRoute = computed(() => route.path.startsWith('/settings/appearance') || route.path.startsWith('/settings/features') || route.path.startsWith('/settings/security'))
-const backendContentOpen = ref(isContentRoute.value)
-const backendSettingsOpen = ref(isSettingsRoute.value)
+const { navTree } = useSchemaNav()
 
-watch(isContentRoute, (open) => {
-  if (open) backendContentOpen.value = true
-})
+const showBackendShell = computed(() => route.path !== '/editor' && route.path !== '/login' && route.path !== '/setup' && route.path !== '/recover' && !isPrintPreviewRoute.value && isBackend.value)
 
-watch(isSettingsRoute, (open) => {
-  if (open) backendSettingsOpen.value = true
-})
+// ── Schema-driven group open/close state ──
+const schemaGroupOpen = ref<Record<string, boolean>>({})
 
-function toggleBackendContent() {
-  backendContentOpen.value = !backendContentOpen.value
+// Auto-expand group when current route matches one of its items
+watch(() => route.path, (p) => {
+  for (const g of navTree.value) {
+    for (const item of g.items) {
+      if (p.startsWith(item.route)) {
+        schemaGroupOpen.value[g.group] = true
+        return
+      }
+    }
+  }
+}, { immediate: true })
+
+function toggleSchemaGroup(group: string) {
+  schemaGroupOpen.value[group] = !schemaGroupOpen.value[group]
 }
 
-function toggleBackendSettings() {
-  backendSettingsOpen.value = !backendSettingsOpen.value
+function isGroupActive(group: NavGroup): boolean {
+  return group.items.some(item => route.path.startsWith(item.route))
 }
+
+// When settings are saved (applyLocalSettings), re-apply visuals immediately
+// without waiting for the 500ms server reconciliation.
+watch(settingsStore, (s) => { applySettingsFromStore(s) })
 
 watch(route, () => {
   isMenuOpen.value = false
@@ -1041,46 +1070,36 @@ async function rebuildFrontend() {
             $t('nav.files') }}</RouterLink>
           <RouterLink to="/traffic" class="sidebar-items nav-link backend-nav-link" @click="isMenuOpen = false">{{
             $t('nav.traffic') }}</RouterLink>
-          <div class="backend-tree-group" :class="{ expanded: backendContentOpen, active: isContentRoute }">
+          <RouterLink to="/manage" class="sidebar-items nav-link backend-nav-link" @click="isMenuOpen = false">{{
+            $t('nav.posts') }}</RouterLink>
+
+          <!-- Schema-driven groups: each x-nav.group = one sidebar tree group -->
+          <div
+            v-for="group in navTree"
+            :key="group.group"
+            class="backend-tree-group"
+            :class="{ expanded: schemaGroupOpen[group.group], active: isGroupActive(group) }"
+          >
             <button type="button" class="sidebar-items nav-link backend-nav-link backend-tree-toggle"
-              @click="toggleBackendContent">
-              <span>{{ $t('nav.content') }}</span>
-              <span class="backend-tree-caret" :class="{ open: backendContentOpen }" v-html="ShellIcons.chevron"></span>
+              @click="toggleSchemaGroup(group.group)">
+              <span>{{ $t('nav.group.' + group.group, group.label) }}</span>
+              <span class="backend-tree-caret" :class="{ open: schemaGroupOpen[group.group] }" v-html="ShellIcons.chevron"></span>
             </button>
-            <div v-show="backendContentOpen" class="backend-tree-children">
-              <RouterLink to="/manage" class="sidebar-items nav-link backend-nav-link backend-tree-child"
-                @click="isMenuOpen = false">{{ $t('nav.posts') }}</RouterLink>
-              <RouterLink to="/settings/collection" class="sidebar-items nav-link backend-nav-link backend-tree-child"
-                @click="isMenuOpen = false">{{ $t('settings.shortCollection') }}</RouterLink>
-              <RouterLink to="/settings/homepage" class="sidebar-items nav-link backend-nav-link backend-tree-child"
-                @click="isMenuOpen = false">{{ $t('settings.shortHome') }}</RouterLink>
-              <RouterLink to="/settings/friends" class="sidebar-items nav-link backend-nav-link backend-tree-child"
-                @click="isMenuOpen = false">{{ $t('settings.friends') }}</RouterLink>
-              <RouterLink to="/settings/about" class="sidebar-items nav-link backend-nav-link backend-tree-child"
-                @click="isMenuOpen = false">{{ $t('settings.shortAbout') }}</RouterLink>
-            </div>
-          </div>
-          <div class="backend-tree-group" :class="{ expanded: backendSettingsOpen, active: isSettingsRoute }">
-            <button type="button" class="sidebar-items nav-link backend-nav-link backend-tree-toggle"
-              @click="toggleBackendSettings">
-              <span>{{ $t('nav.settings') }}</span>
-              <span class="backend-tree-caret" :class="{ open: backendSettingsOpen }"
-                v-html="ShellIcons.chevron"></span>
-            </button>
-            <div v-show="backendSettingsOpen" class="backend-tree-children">
-              <RouterLink to="/settings/appearance" class="sidebar-items nav-link backend-nav-link backend-tree-child"
-                @click="isMenuOpen = false">{{ $t('settings.appearance') }}</RouterLink>
-              <RouterLink to="/settings/features" class="sidebar-items nav-link backend-nav-link backend-tree-child"
-                @click="isMenuOpen = false">{{ $t('settings.shortFeatures') }}</RouterLink>
-              <RouterLink to="/settings/security" class="sidebar-items nav-link backend-nav-link backend-tree-child"
-                @click="isMenuOpen = false">{{ $t('settings.security') }}</RouterLink>
+            <div v-show="schemaGroupOpen[group.group]" class="backend-tree-children">
+              <RouterLink
+                v-for="item in group.items"
+                :key="item.route"
+                :to="item.route"
+                class="sidebar-items nav-link backend-nav-link backend-tree-child"
+                @click="isMenuOpen = false"
+              >{{ item.label }}</RouterLink>
             </div>
           </div>
         </div>
         <div class="backend-sidebar-footer">
-          <RouterLink to="/settings/build"
+          <RouterLink to="/settings/system-build"
             :class="['sidebar-items nav-link backend-nav-link sidebar-footer-item sidebar-footer-link', { 'router-link-active': isBuildActive }]"
-            @click="isMenuOpen = false" :aria-current="isBuildActive ? 'page' : null">
+            @click="isMenuOpen = false" :aria-current="isBuildActive ? 'page' : undefined">
             <span class="icon-svg footer-icon" v-html="ShellIcons.columns"></span>
             <span class="footer-label">{{ $t('nav.build') }}</span>
           </RouterLink>

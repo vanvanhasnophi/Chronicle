@@ -10,7 +10,8 @@
 const { Router } = require('express');
 const fs = require('fs');
 const { success, fail } = require('../../services/response');
-const { INDEX_FILE, SETTINGS_FILE, COLLECTION_FILE } = require('../../config');
+const { INDEX_FILE, SETTINGS_FILE, COLLECTION_FILE, FRIENDS_FILE, PROFILE_FILE } = require('../../config');
+const collectionService = require('../../services/collectionService');
 
 const router = Router();
 
@@ -157,18 +158,45 @@ router.get('/settings', (req, res) => {
         // Strip sensitive fields
         const {
             frontendTheme, frontendAccent, frontendBackground, frontendBackgroundMeta,
-            frontendFont, featureFlags, friendsCards, friendsGlobalStyle,
+            frontendFont, featureFlags,
             homepageMode, frontendLocale, frontendBackgroundCompression,
             gaMeasurementId
         } = settings;
+        // Read friends from dedicated file
+        let friends = { cards: [], globalStyle: null };
+        if (fs.existsSync(FRIENDS_FILE)) {
+            try { friends = JSON.parse(fs.readFileSync(FRIENDS_FILE, 'utf-8')); } catch (e) {}
+        } else if (settings.friendsCards || settings.friendsGlobalStyle) {
+            // Backward compat
+            friends = {
+                cards: settings.friendsCards || [],
+                globalStyle: settings.friendsGlobalStyle || null,
+            };
+        }
         success(res, {
             frontendTheme, frontendAccent, frontendBackground, frontendBackgroundMeta,
-            frontendFont, featureFlags, friendsCards, friendsGlobalStyle,
+            frontendFont, featureFlags,
             homepageMode, frontendLocale, frontendBackgroundCompression,
-            gaMeasurementId
+            gaMeasurementId,
+            friendsCards: friends.cards,
+            friendsGlobalStyle: friends.globalStyle,
         });
     } catch (e) {
         fail(res, 'Failed to load settings');
+    }
+});
+
+// ── GET /api/public/profile ─────────────────────────
+
+router.get('/profile', (req, res) => {
+    try {
+        if (!fs.existsSync(PROFILE_FILE)) {
+            return success(res, { name: '', avatar: '', bio: '', location: '', links: [] });
+        }
+        const profile = JSON.parse(fs.readFileSync(PROFILE_FILE, 'utf-8'));
+        success(res, profile);
+    } catch (e) {
+        fail(res, 'Failed to load profile');
     }
 });
 
@@ -176,10 +204,11 @@ router.get('/settings', (req, res) => {
 
 router.get('/collections', (req, res) => {
     try {
-        if (!fs.existsSync(COLLECTION_FILE)) {
-            return success(res, { collections: [] });
+        const data = collectionService.readAllCollections();
+        if (data.collections.length === 0 && collectionService.hasLegacyCollectionFile()) {
+            const legacy = JSON.parse(fs.readFileSync(COLLECTION_FILE, 'utf-8'));
+            return success(res, legacy);
         }
-        const data = JSON.parse(fs.readFileSync(COLLECTION_FILE, 'utf-8'));
         success(res, data);
     } catch (e) {
         fail(res, 'Failed to load collections');

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { fetchWithAuth } from '../utils/fetchWithAuth';
+import { fetchWithAuth } from '../utils/fetchWithAuth'
+import { syncSettings } from '../composables/settingsApi';
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -88,11 +89,10 @@ function parsePostsPayload(payload: any): PostRecord[] {
 onMounted(async () => {
   try {
     const stamp = Date.now()
-    const [postsRes, filesRes, storageRes, settingsRes] = await Promise.all([
+    const [postsRes, filesRes, storageRes] = await Promise.all([
       fetchWithAuth('/api/posts?includeDrafts=true&t=' + stamp, { cache: 'no-store' }),
       fetchWithAuth('/api/files?path=all&t=' + stamp, { cache: 'no-store' }),
       fetchWithAuth('/api/system/storage?t=' + stamp, { cache: 'no-store' }),
-      fetchWithAuth('/api/settings?t=' + stamp, { cache: 'no-store' }).catch(() => null),
     ])
 
     if (!postsRes.ok) throw new Error(`posts: HTTP ${postsRes.status}`)
@@ -106,7 +106,7 @@ onMounted(async () => {
 
     storage.value = await storageRes.json()
 
-    const settings = settingsRes && settingsRes.ok ? await settingsRes.json() : null
+    const settings = await syncSettings()  // deduplicates with App.vue's syncSettings
     trafficEnabled.value = settings?.featureFlags?.traffic === true
 
     // 处理流量数据

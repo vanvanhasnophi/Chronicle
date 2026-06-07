@@ -1,266 +1,290 @@
 # Chronicle
 
-一个现代化的博客内容管理系统，支持 Markdown 编辑、多语言、主题定制等功能。
+一个现代化的博客内容管理系统，支持 Markdown 编辑、多语言、主题定制，采用 **双模式（静态/API）架构**。
 
 ## 项目简介
 
-Chronicle 是一个功能完整的博客系统，采用前后端分离架构：
+Chronicle 是一个功能完整的博客系统，基于 monorepo 架构，包含五个包：
 
-- **后端**: Node.js + Express，提供文章管理、文件上传、用户认证等 API
-- **前端**: Vue 3 + Astro，提供响应式管理界面和静态站点生成
-- **特性**:
-  - Markdown 实时预览编辑
-  - 支持草稿、已发布、修改中等状态
-  - WebAuthn 双因素认证
-  - 多语言支持（中文/英文）
-  - 自定义主题和字体
-  - 文章合集管理
-  - 流量统计（支持 Google Analytics 4）
-  - 自动构建前端站点
+- **packages/host** — Express API 服务器（文章 CRUD、文件上传、WebAuthn 认证、流量统计）
+- **packages/manager** — Vue 3 SPA 管理后台（Markdown 编辑器、文件管理、站点设置）
+- **packages/template-astro** — Astro SSG 博客前端（文章渲染、SEO、RSS）
+- **packages/gen** — 内容生成引擎（CLI 构建、site→data 转换）
+- **packages/shared** — 共享 TypeScript 类型、CSS 样式、工具函数
+
+### 特性
+
+- **Markdown 实时预览编辑**（CodeMirror 6 + markdown-it 双重渲染管线）
+- **双模式架构**：CMS 动态模式 + 纯静态 Lite 模式（零后端依赖）
+- **WebAuthn 双因素认证**（Passkey 支持）
+- **多语言支持**（中文 / 英文，可扩展）
+- **自定义主题和字体**（亮色/暗色切换）
+- **文章合集管理**（树形层级结构）
+- **流量统计**（Google Analytics 4 + 本地日志回退）
+- **文件卡片**：自动识别音视频、文档链接并渲染为富媒体卡片
+- **一键部署**：`install.sh` 全自动安装（Nginx + Node.js + SSL）
 
 ## 项目结构
 
 ```
 Chronicle/
-chronicle-blog/
-├── backend/                    # 后端服务 (原 server/)
-│   ├── src/
-│   │   └── index.js           # Express 主入口
-│   ├── data/                  # 数据存储目录
-│   │   ├── posts/             # 文章数据
-│   │   ├── upload/            # 上传文件
-│   │   └── settings.json      # 配置文件
-│   └── logs/                  # 日志文件 (原 log/)
+├── packages/
+│   ├── host/                    # Express API 服务器
+│   │   ├── src/
+│   │   │   ├── routes/          # API 路由（admin / public）
+│   │   │   └── index.js         # Express 主入口
+│   │   └── package.json
+│   │
+│   ├── manager/                 # Vue 3 CMS 管理后台
+│   │   ├── src/
+│   │   │   ├── components/      # Vue 组件（编辑器、文件管理、仪表盘）
+│   │   │   ├── pages/           # 页面路由
+│   │   │   ├── utils/           # 工具函数、markdown 渲染
+│   │   │   └── locales/         # i18n 国际化
+│   │   ├── dist/                # 构建产物
+│   │   └── package.json
+│   │
+│   ├── template-astro/          # Astro 静态站点生成器
+│   │   ├── src/
+│   │   │   ├── pages/           # 页面路由（首页、文章、归档、RSS）
+│   │   │   ├── components/      # Astro 组件
+│   │   │   └── utils/           # markdown 渲染、数据获取
+│   │   ├── dist/                # 构建产物
+│   │   └── package.json
+│   │
+│   ├── gen/                     # CLI 内容生成引擎
+│   │   ├── src/
+│   │   └── bin/cli.mjs          # chronicle-gen CLI
+│   │
+│   └── shared/                  # 共享模块（零外部依赖）
+│       ├── src/
+│       │   ├── types/           # TypeScript 类型定义
+│       │   └── styles/          # 共享 CSS（chronicle-markdown.css）
+│       └── package.json
 │
-├── admin/                     # 管理后台 (原 chronicle-frontend/)
-│   ├── src/
-│   │   ├── components/        # Vue 组件
-│   │   ├── pages/             # 页面
-│   │   ├── utils/             # 工具函数
-│   │   └── locales/           # 国际化文件
-│   ├── dist/                  # 构建产物
-│   └── package.json
+├── data/                        # 数据存储（文件系统，零数据库）
+│   ├── posts/                   # 文章目录（每篇一个 UUID 目录）
+│   │   ├── index.json           # 文章元数据索引
+│   │   └── <uuid>/              # 单篇文章
+│   │       └── <uuid>-content.md # Markdown 正文 + YAML frontmatter
+│   ├── collections.json         # 合集树形结构
+│   ├── friends.json             # 友链卡片 + 全局样式
+│   ├── profile.json             # 作者信息（名称、简介、头像）
+│   ├── settings.json            # 站点配置
+│   ├── security.json            # 密码哈希 + Passkey 凭证
+│   ├── branding/                # 品牌资源（头像、图标、已压缩背景图）
+│   ├── background/              # [已废弃] 旧背景图目录，改用 branding/
+│   └── upload/                  # 上传的媒体文件
 │
-└── frontend/                  # 前台站点 (原 astro-template/)
-    ├── src/
-    │   ├── pages/             # 页面路由
-    │   ├── components/        # 组件
-    │   └── themes/            # 主题
-    ├── dist/                  # 构建产物
-    └── package.json
+├── scripts/                     # 构建与迁移脚本
+│   ├── build.sh                 # 多规格发行版构建
+│   └── migrate-*.js             # 数据迁移脚本
+│
+├── site/                        # Lite 模式示例内容（可选）
+├── install.sh                   # 一键部署安装脚本
+├── start.sh / stop.sh           # 开发模式启停
+└── package.json                 # Monorepo 根配置
 ```
 
-
-## 部署方法
+## 快速开始
 
 ### 前置要求
 
-- Node.js >= 18
-- npm 或 yarn
-- PM2
-- crontab（可选，用于定时构建）
-- 服务器及配置好的 **2个** 域名
+- Node.js >= 18（推荐 20+）
+- npm
 
-### 1. 克隆本仓库
-
-建议部署位置：`/opt`
+### 开发模式
 
 ```bash
-cd /opt
-git clone https://github.com/vanvanhasnophi/Chronicle.git
+# 启动所有服务（host :3000, manager :5173, template :4321）
+bash start.sh --dev
+
+# 停止所有服务
+bash stop.sh
 ```
 
-### 2. 配置nginx
-
-1. 安装nginx，步骤参考：https://nginx.org/en/docs/install.html
-
-2. 在site-available创建文件`chronicle`
-
-    最小配置：
-    ```nginx
-    server {
-        listen 80;
-        server_name front-domain.com;
-
-        location / {
-            proxy_pass http://localhost:3000;
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection 'upgrade';
-            proxy_set_header Host $host;
-            proxy_cache_bypass $http_upgrade;
-        }
-
-            
-        # HSTS
-        add_header Strict-Transport-Security "max-age=63072000" always;
-
-        root /var/www/front-domain.com/;
-        index index.html;
-
-        location / {
-            try_files $uri $uri/ /index.html;
-        }
-
-        location /api/ {
-            proxy_pass http://localhost:3000/api/;
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection 'upgrade';
-            proxy_set_header Host $host;
-            proxy_cache_bypass $http_upgrade;
-        }
-
-        location /server/ {
-            proxy_pass http://localhost:3000/server/;
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection 'upgrade';
-            proxy_set_header Host $host;
-            proxy_cache_bypass $http_upgrade;
-        }
-    }
-
-    server {
-        listen 80;
-        server_name back-domain.com;
-
-        location / {
-            proxy_pass http://localhost:3000;
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection 'upgrade';
-            proxy_set_header Host $host;
-            proxy_cache_bypass $http_upgrade;
-        }
-
-            
-        # HSTS
-        add_header Strict-Transport-Security "max-age=63072000" always;
-
-        root /var/www/back-domain.com/;
-        index index.html;
-
-        location / {
-            try_files $uri $uri/ /index.html;
-        }
-
-        location /api/ {
-            proxy_pass http://localhost:3000/api/;
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection 'upgrade';
-            proxy_set_header Host $host;
-            proxy_cache_bypass $http_upgrade;
-        }
-
-        location /server/ {
-            proxy_pass http://localhost:3000/server/;
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection 'upgrade';
-            proxy_set_header Host $host;
-            proxy_cache_bypass $http_upgrade;
-        }
-    }
-    ```
-
-    如果想要使用https，请参考：https://letsencrypt.org/zh-cn/getting-started/
-
-3. 建立软链接
-    ```bash
-    ln -s /etc/nginx/sites-available/chronicle /etc/nginx/sites-enabled/
-    ```
-
-
-### 3. 自动部署
+### 构建
 
 ```bash
-chmod +x ./chronicle-deploy.sh
-./chronicle-deploy.sh
+npm run build:full          # 全自托管版（VPS 部署）
+npm run build:self-hosted   # 静态自托管版（Nginx 纯静态 serve）
+npm run build:static        # 完整静态版（GitHub Pages / Vercel）
+npm run build:lite          # 精简版（纯静态，零后端）
 ```
 
-** 需要填入的配置 **
-|序号|键名|功能|示例
-|---|---|---|---|
-1|FRONTEND_DOMAIN|前台域名|`front-domain.com`
-2|BACKEND_DOMAIN|后台管理域名|`back-domain.com`
-3|WEB_ROOT|前台静态文件根目录|`/var/www/front-domain.com`
-4|BACKEND_ROOT|管理后台静态文件根目录|`/var/www/back-domain.com`
-5|SERVER_ROOT|API 服务端目录|`opt/Chronicle/server`
-6|ASTRO_ROOT|前台站点目录|`opt/Chronicle/astro-template`
-7|MEDIA_DOMAIN|CDN媒体域名（若不配置，则填入前台域名）|`file.domain.com`
-8|FRONTEND_API_BASE_URL|API 基准 URL（建议填入包含协议的前台域名）|`http://front-domain.com`
-9|ASTRO_API_BASE_URL|Astro 构建时使用的本地API URL|`http://127.0.0.1:3000`
-10|REPO_FRONTEND_SRC_NAME|管理后台源码目录名|`chronicle-frontend`
-11|REPO_ASTRO_SRC_NAME|Astro 前台源码目录名|`astro-template`
+### TypeScript 类型检查
 
+```bash
+npm run release:check       # vue-tsc 检查 manager
+npm run typecheck           # tsc 检查 shared + gen
+```
 
-### 4. 访问应用
+## 部署方法
 
-- 管理后台: `http://back-domain.com`
-- 前台站点: `http://front-domain.com`
+### 一键部署（推荐）
+
+```bash
+# 首次安装
+sudo bash install.sh install
+
+# 更新已有安装
+sudo bash install.sh update
+```
+
+支持环境变量预设：
+
+```bash
+FRONTEND_DOMAIN=myblog.com \
+BACKEND_DOMAIN=admin.myblog.com \
+ENABLE_HTTPS=true \
+sudo bash install.sh install
+```
+
+`install.sh` 会自动完成：
+1. 安装系统依赖（git, curl, Node.js, Nginx）
+2. 克隆仓库、安装 npm 依赖
+3. 构建前端（manager + template-astro）
+4. 生成 Nginx 配置（含 SSL 支持）
+5. 部署静态文件、启动后端服务
+
+### 手动部署
+
+也支持使用各发行版构建产物手动部署，详见 `bash scripts/build.sh help`。
+
+### Lite 构建（纯静态，零后端）
+
+直接从 `site/` 目录构建完整静态站点，无需 CMS，无需后端：
+
+```bash
+# 一条命令：site/ → data/ → 静态站点
+npx chronicle-gen build --site -d data -c packages/template-astro -t dist
+```
+
+| 阶段 | 说明 |
+|------|------|
+| `--site` | 先将 `site/` 转为 `data/` 格式（Markdown→JSON、资源上传、背景压缩） |
+| `-d data` | 数据目录 |
+| `-c` | Astro 模板目录 |
+| `-t dist` | 构建产物输出目录 |
+
+步骤拆解（如需分步执行）：
+
+```bash
+# 仅转换 site/ → data/
+npx chronicle-gen convert -s ./site -d ./data
+
+# 仅构建 data/ → 静态站点
+npx chronicle-gen build -d data -c packages/template-astro -t dist
+```
+
+构建产物在 `packages/template-astro/dist/`，可直接部署到任意静态托管平台。
+
+```bash
+# 本地预览构建结果
+cd packages/template-astro && npx astro preview --host 0.0.0.0 --port 4321
+```
+
+### 访问应用
+
+- 管理后台: `http://admin.your-domain.com`
+- 博客前台: `http://your-domain.com`
 
 首次访问需要设置管理员密码。
 
-## 开发模式
+## API 响应格式
 
-### 启动开发服务器
-```bash
-chmod +x ./start.sh && chmod +x ./stop.sh
-./start.sh --dev
+所有 API 统一返回：
+
+```json
+{
+  "code": 200,
+  "data": { ... },
+  "message": "ok"
+}
 ```
 
-### 停止开发服务器
-```bash
-./stop.sh
+管理后台通过 `fetchWithAuth` 自动解包，直接获取 `data` 内容。
+
+## Lite 模式
+
+无需 CMS 和后端，纯 Markdown 文件驱动：
+
 ```
+site/
+├── settings.yml              # 站点配置（YAML）
+├── posts/
+│   ├── hello-world/
+│   │   ├── index.md           # Markdown 正文
+│   │   └── photo.jpg          # 附件
+│   └── about/index.md
+├── collections.yml            # 合集（可选）
+└── background/                # 背景图源文件 → 构建后输出到 data/branding/（可选）
+```
+
+```bash
+# 转换 site/ → data/ 并构建
+npx chronicle-gen build --site
+
+# 仅转换，不构建
+npx chronicle-gen convert -s ./site -d ./data
+```
+
+Lite 模式产出的纯静态站点可直接部署到 GitHub Pages、Vercel、Netlify 等任意静态托管平台。
+
+## 数据备份
+
+所有数据以文件形式存储在 `data/` 目录，可直接用 git 管理或 tar 打包：
+
+```bash
+# 创建备份
+tar -czf chronicle-backup-$(date +%Y%m%d).tar.gz data/
+
+# 恢复备份
+tar -xzf chronicle-backup-20240130.tar.gz
+```
+
+## Markdown 渲染
+
+Chronicle 使用 **markdown-it** 作为统一 Markdown 解析器，manager 预览和 template-astro 发布共用同一渲染管线：
+
+- **代码块**：语法高亮 + Mermaid 图表支持
+- **图片**：`=WxH` 尺寸语法、标题自动转为图注、加载动画
+- **文件卡片**：自动识别 `.pdf` `.mp3` `.mp4` 等文件链接，渲染为富媒体卡片
+- **数学公式**：KaTeX 渲染（`$...$` 行内 + `$$...$$` 块级）
 
 ## 常用命令
 
 ```bash
-# 查看服务状态
-pm2 status
+# Gen CLI
+npx chronicle-gen build -d data -c packages/template-astro -t dist  # CMS 模式构建
+npx chronicle-gen build --site -c packages/template-astro -t dist   # Lite 模式构建
 
-# 查看日志
-pm2 logs chronicle-server
+# 数据迁移
+node scripts/migrate_posts_dir.js          # 旧目录结构迁移
+node scripts/migrate-posts-plaintext.js    # 加密→明文迁移
 
-# 重启服务
-pm2 restart chronicle-server
-
-# 停止服务
-pm2 stop chronicle-server
-```
-
-## 数据备份
-
-定期备份 `server/data/` 目录：
-
-```bash
-# 创建备份
-tar -czf chronicle-backup-$(date +%Y%m%d).tar.gz server/data/
-
-# 恢复备份
-tar -xzf chronicle-backup-20240130.tar.gz
+# 合集迁移
+node scripts/migrate-collections.js
 ```
 
 ## 故障排查
 
 ### 服务无法启动
 
-1. 检查端口是否被占用：`lsof -i :3000`
-2. 查看日志：`pm2 logs chronicle-server`
-3. 检查依赖是否完整：`cd server && npm install`
+1. 检查端口占用：`lsof -i :3000`
+2. 确保使用正确 Node 版本：`/usr/local/bin/node -v`（需要 v18+）
+3. 检查依赖：`cd packages/host && npm install`
 
 ### 文件上传失败
 
-1. 检查 `server/data/upload/` 目录权限
+1. 检查 `data/upload/` 目录权限
 2. 确保磁盘空间充足
 
 ### 构建失败
 
 1. 清理缓存：`rm -rf node_modules package-lock.json`
-2. 重新安装依赖：`npm install`
+2. 重新安装：`npm install`
+3. 确保 `data/settings.json` 存在
 
 ## 许可证
 
@@ -269,10 +293,10 @@ MIT License
 
 ## Traffic API
 
-`/api/traffic` 优先从 Google Analytics 4 Data API 读取统计。
+`/api/traffic` 优先从 Google Analytics 4 Data API 读取统计数据。
 
 需要配置：
-- `server/data/settings.json` 或设置页里的 `gaPropertyId`
-- `GA_SERVICE_ACCOUNT_JSON` 或 `GOOGLE_APPLICATION_CREDENTIALS`
+- `data/settings.json`（或设置页面）中的 `gaPropertyId`
+- 环境变量 `GA_SERVICE_ACCOUNT_JSON` 或 `GOOGLE_APPLICATION_CREDENTIALS`
 
-如果 GA 配置缺失或请求失败，会回退到本地访问日志统计。
+GA 配置缺失或请求失败时，自动回退到本地访问日志统计。

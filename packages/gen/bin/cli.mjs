@@ -24,16 +24,17 @@ const ROOT = resolve(__dirname, '..')
 const command = process.argv[2] || 'help'
 
 switch (command) {
+  case 'convert': {
+    import('../src/commands/convert.mjs').then(({ convertCommand }) => {
+      convertCommand(process.argv.slice(3));
+    });
+    break
+  }
   case 'build':
   case 'b': {
-    console.log('[chronicle-gen] Starting build...')
-    // Delegate to the builder module (imports build-worker logic)
-    import('../src/builder/astro.js').then(({ runBuild }) => {
-      runBuild(process.argv.slice(3)).catch((err) => {
-        console.error('[chronicle-gen] Build failed:', err.message)
-        process.exit(1)
-      })
-    })
+    import('../src/builder/astro.mjs').then(({ buildCommand }) => {
+      buildCommand(process.argv.slice(3));
+    });
     break
   }
   case 'sync':
@@ -46,6 +47,13 @@ switch (command) {
     console.log('[chronicle-gen] Watch not yet implemented')
     break
   }
+  case 'cdn':
+  case 'c': {
+    import('../src/commands/cdn.mjs').then(({ cdnCommand }) => {
+      cdnCommand(process.argv.slice(3));
+    });
+    break;
+  }
   case 'help':
   case '--help':
   case '-h':
@@ -56,13 +64,22 @@ Usage: npx chronicle-gen <command> [options]
 
 Commands:
   build, b     Run Astro SSG build
+    --site, -s   Convert site/ → data/ before building (lite mode)
+  convert      Convert site/ directory → data/ format
   sync, s      Sync content from external sources (Notion, etc.)
   watch, w     Watch for content changes and rebuild
+  cdn, c       CDN cache management (purge, warm)
 
 Build Options:
-  --posts      Posts-only build (skip full rebuild)
-  --index      Index-only build
-  --dir <path> Override build target directory
+  --dataDir, -d   <path>   Path to data directory
+  --codeDir, -c   <path>   Path to Astro project directory
+  --targetDir, -t <path>   Where to place final build output
+  --granularity, -g <full|posts|index>  Build granularity (default: full)
+  --siteDir, -s   <path>   Path to site/ directory (for convert step)
+
+Convert Options:
+  --siteDir, -s   <path>   Path to site/ directory (default: ./site)
+  --dataDir, -d   <path>   Path to data/ directory (default: ./data)
 `)
     break
   }

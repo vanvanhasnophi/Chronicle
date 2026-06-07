@@ -29,8 +29,11 @@ mkdir -p /opt/Chronicle/packages/manager/public/server/data
 if [ ! -L "/opt/Chronicle/packages/manager/public/server/data/upload" ]; then
     ln -s /opt/Chronicle/data/upload /opt/Chronicle/packages/manager/public/server/data/upload
 fi
-if [ ! -L "/opt/Chronicle/packages/manager/public/server/data/background" ]; then
-    ln -s /opt/Chronicle/data/background /opt/Chronicle/packages/manager/public/server/data/background
+if [ ! -L "/opt/Chronicle/packages/manager/public/server/data/branding" ]; then
+    ln -s /opt/Chronicle/data/branding /opt/Chronicle/packages/manager/public/server/data/branding
+fi
+if [ ! -L "/opt/Chronicle/packages/manager/public/server/data/manager-background" ]; then
+    ln -s /opt/Chronicle/data/manager-background /opt/Chronicle/packages/manager/public/server/data/manager-background
 fi
 
 cd /opt/Chronicle/packages/manager
@@ -48,8 +51,11 @@ mkdir -p /opt/Chronicle/packages/template-astro/public/server/data
 if [ ! -L "/opt/Chronicle/packages/template-astro/public/server/data/upload" ]; then
     ln -s /opt/Chronicle/data/upload /opt/Chronicle/packages/template-astro/public/server/data/upload
 fi
-if [ ! -L "/opt/Chronicle/packages/template-astro/public/server/data/background" ]; then
-    ln -s /opt/Chronicle/data/background /opt/Chronicle/packages/template-astro/public/server/data/background
+if [ ! -L "/opt/Chronicle/packages/template-astro/public/server/data/branding" ]; then
+    ln -s /opt/Chronicle/data/branding /opt/Chronicle/packages/template-astro/public/server/data/branding
+fi
+if [ ! -L "/opt/Chronicle/packages/template-astro/public/server/data/manager-background" ]; then
+    ln -s /opt/Chronicle/data/manager-background /opt/Chronicle/packages/template-astro/public/server/data/manager-background
 fi
 
 cd /opt/Chronicle/packages/template-astro

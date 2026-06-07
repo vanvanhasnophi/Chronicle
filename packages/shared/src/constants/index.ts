@@ -17,6 +17,15 @@ export const DATA_DIR_NAME = 'data'
 /** Subdirectories under data/ */
 export const POSTS_DIR_NAME = 'posts'
 export const UPLOAD_DIR_NAME = 'upload'
+
+/** Branding assets directory (avatars, favicons, compressed backgrounds) */
+export const BRANDING_DIR_NAME = 'branding'
+
+/**
+ * @deprecated Use BRANDING_DIR_NAME instead. Backgrounds are now managed
+ *   through the settings schema (frontendBackground / backendBackground),
+ *   stored in data/branding/ as compressed WebP files.
+ */
 export const BACKGROUND_DIR_NAME = 'background'
 
 /** Data file names */
@@ -50,5 +59,15 @@ export const LEGACY_API_PREFIX = '/api'
 
 /** Static file serve paths */
 export const UPLOAD_SERVE_PATH = '/server/data/upload'
+
+/** Branding assets serve path (avatars, favicons, compressed backgrounds) */
+export const BRANDING_SERVE_PATH = '/server/data/branding'
+
+/**
+ * @deprecated Use BRANDING_SERVE_PATH instead. Backgrounds are now served from
+ *   data/branding/ via settings.json. The /server/data/background path is
+ *   maintained by host for legacy backward compatibility.
+ */
 export const BACKGROUND_SERVE_PATH = '/server/data/background'
+
 export const THUMB_SERVE_PATH = '/thumb'

@@ -11,7 +11,13 @@ const { SECURITY_FILE, SETTINGS_FILE } = require('../config');
 
 // ── Crypto Constants ────────────────────────────────────
 const ALGORITHM = 'aes-256-cbc';
-const SECRET_KEY = crypto.scryptSync('chronicle-secret-key-123', 'salt', 32);
+
+// CHRONICLE_ENCRYPTION_KEY: set in production to rotate away from the
+// default hardcoded key. Changing this key makes existing encrypted posts
+// unreadable — only set it on first install or after re-encrypting all posts.
+const SECRET_KEY = process.env.CHRONICLE_ENCRYPTION_KEY
+  ? crypto.scryptSync(process.env.CHRONICLE_ENCRYPTION_KEY, 'chronicle-iv', 32)
+  : crypto.scryptSync('chronicle-secret-key-123', 'salt', 32);
 
 // ── Password Hashing ────────────────────────────────────
 
@@ -34,7 +40,17 @@ function decrypt(text) {
 }
 
 function hashPassword(pwd) {
-    return crypto.scryptSync(pwd, 'chronicle-salt', 64).toString('hex');
+    // Per-installation salt, generated on first boot.
+    // Legacy fallback: old installations use 'chronicle-salt' until
+    // the password is reset or upgraded on next successful login.
+    let salt = 'chronicle-salt';
+    try {
+        if (fs.existsSync(SECURITY_FILE)) {
+            const sec = JSON.parse(fs.readFileSync(SECURITY_FILE, 'utf-8'));
+            salt = sec.hashSalt || salt;
+        }
+    } catch {}
+    return crypto.scryptSync(pwd, salt, 64).toString('hex');
 }
 
 // ── Token Normalization ─────────────────────────────────

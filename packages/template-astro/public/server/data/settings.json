@@ -1,76 +1,50 @@
 {
+  "featureFlags": {
+    "friendsPage": true
+  },
   "frontendLocale": "follow",
   "backendLocale": "en",
   "frontendFont": "sans",
   "backendFont": "sans",
   "frontendTheme": "follow",
-  "frontendAccent": "#2ea35f",
+  "frontendAccent": "#4da32e",
   "backendTheme": "follow",
   "frontendBackground": {
-    "url": "/server/data/background/chr_f_bg-1777967122977_kws5_R-C-c9c1b43aaf.webp",
-    "path": "chr_f_bg-1777967122977_kws5_R-C-c9c1b43aaf.webp",
-    "sourcePath": "pic/1777967122977_kws5_R-C.jpg",
-    "sourceName": "1777967122977_kws5_R-C.jpg",
-    "generatedPath": "chr_f_bg-1777967122977_kws5_R-C-c9c1b43aaf.webp",
-    "generatedName": "chr_f_bg-1777967122977_kws5_R-C-c9c1b43aaf.webp"
+    "url": "/server/data/upload/pic/Kaltsit.jpg",
+    "path": "/server/data/upload/pic/Kaltsit.jpg",
+    "sourcePath": "pic/Kaltsit.jpg",
+    "sourceName": "Kaltsit.jpg",
+    "generatedPath": "/server/data/upload/pic/Kaltsit.jpg",
+    "generatedName": "Kaltsit.jpg"
   },
   "backendBackground": {
-    "url": "/server/data/background/chr_b_bg-1777967122977_kws5_R-C-48e62da1b6.webp",
-    "path": "chr_b_bg-1777967122977_kws5_R-C-48e62da1b6.webp",
-    "sourcePath": "pic/1777967122977_kws5_R-C.jpg",
-    "sourceName": "1777967122977_kws5_R-C.jpg",
-    "generatedPath": "chr_b_bg-1777967122977_kws5_R-C-48e62da1b6.webp",
-    "generatedName": "chr_b_bg-1777967122977_kws5_R-C-48e62da1b6.webp"
+    "url": "/server/data/manager-background/chr_b_bg-Kaltsit-1ee7858b34.webp",
+    "path": "chr_b_bg-Kaltsit-1ee7858b34.webp",
+    "sourcePath": "pic/Kaltsit.jpg",
+    "sourceName": "Kaltsit.jpg",
+    "generatedPath": "chr_b_bg-Kaltsit-1ee7858b34.webp",
+    "generatedName": "chr_b_bg-Kaltsit-1ee7858b34.webp"
   },
-  "frontendBackgroundMeta": "{\"url\":\"/server/data/background/chr_f_bg-1777967122977_kws5_R-C-c9c1b43aaf.webp\",\"sourcePath\":\"pic/1777967122977_kws5_R-C.jpg\",\"sourceName\":\"1777967122977_kws5_R-C.jpg\",\"mode\":\"cover\",\"posX\":50,\"posY\":50,\"size\":132,\"blur\":25,\"overlayLightColor\":\"#ffffff\",\"overlayLightOpacity\":83,\"overlayDarkColor\":\"#000000\",\"overlayDarkOpacity\":87,\"overlayColor\":\"#000000\",\"overlayOpacity\":87,\"compressionFactor\":16.2,\"compression\":16.2,\"bgCompression\":16.2}",
-  "backendBackgroundMeta": "{\"url\":\"/server/data/background/chr_b_bg-1777967122977_kws5_R-C-48e62da1b6.webp\",\"sourcePath\":\"pic/1777967122977_kws5_R-C.jpg\",\"sourceName\":\"1777967122977_kws5_R-C.jpg\",\"mode\":\"cover\",\"posX\":50,\"posY\":50,\"size\":100,\"blur\":22,\"overlayLightColor\":\"#ffffff\",\"overlayLightOpacity\":78,\"overlayDarkColor\":\"#000000\",\"overlayDarkOpacity\":84,\"overlayColor\":\"#000000\",\"overlayOpacity\":84,\"compressionFactor\":14.256,\"compression\":14.256,\"bgCompression\":14.256}",
-  "scheduledBuildEnabled": false,
-  "scheduledBuildMode": "daily",
-  "scheduledBuildInterval": "daily",
-  "scheduledBuildMinute": 0,
-  "scheduledBuildHour": 2,
-  "scheduledBuildWeekday": 1,
-  "scheduledBuildCron": "",
-  "autoBuildOnPublish": true,
-  "buildGranularity": "full",
-  "frontendUrl": "localhost:4321",
+  "backendBackgroundMeta": "{\"url\":\"/server/data/upload/pic/Kaltsit.jpg\",\"sourcePath\":\"pic/Kaltsit.jpg\",\"sourceName\":\"Kaltsit.jpg\",\"mode\":\"cover\",\"posX\":50,\"posY\":50,\"size\":100,\"blur\":30,\"overlayLightColor\":\"#ffffff\",\"overlayLightOpacity\":80,\"overlayDarkColor\":\"#000000\",\"overlayDarkOpacity\":80,\"overlayColor\":\"#000000\",\"overlayOpacity\":80,\"compressionFactor\":19.44,\"compression\":19.44,\"bgCompression\":19.44}",
+  "backendBackgroundCompression": 19.44,
   "frontendCodeDir": "/opt/Chronicle/packages/template-astro",
   "frontendBuildTargetDir": "/var/www/blog.eightyfor.top",
-  "frontendBackgroundCompression": 16.2,
-  "backendBackgroundCompression": 14.256,
-  "featureFlags": {
-    "searchSuggestions": true,
-    "relatedPosts": true,
-    "collectionPage": true,
-    "aboutPage": true,
-    "friendsPage": true,
-    "traffic": true
-  },
-  "gaMeasurementId": "G-VPZBFWJ7FJ",
-  "gaPropertyId": "",
-  "friendsCards": [
-    {
-      "name": "",
-      "avatar": "https://file.eightyfor.top/data/upload/pic/1770999133303_vne7_177099908700-992.webp",
-      "intro": "",
-      "homeUrl": "",
-      "storyPostId": ""
-    },
-    {
-      "name": "Waiwai",
-      "avatar": "https://file.eightyfor.top/server/data/upload/pic/1779124827417_iwou_87f6fdc5c3b8bef6be1910e52290cf42.jpg",
-      "intro": "非常乐意并享受被人挂网上的感觉",
-      "homeUrl": "https://example.com",
-      "storyPostId": "6c96284f-a6ec-44d8-a0ed-acce66641cde"
-    },
-    {
-      "name": "",
-      "avatar": "https://file.eightyfor.top/data/upload/pic/1770999133303_vne7_177099908700-992.webp",
-      "intro": "",
-      "homeUrl": "",
-      "storyPostId": ""
-    }
-  ],
-  "friendsGlobalStyle": "left-lg",
-  "homepageMode": "split"
+  "autoBuildOnPublish": true,
+  "buildGranularity": "full",
+  "scheduledBuildEnabled": false,
+  "scheduledBuildMode": "daily",
+  "scheduledBuildMinute": 0,
+  "scheduledBuildHour": 3,
+  "scheduledBuildWeekday": 0,
+  "scheduledBuildCron": "0 3 * * *",
+  "scheduledBuildInterval": "daily",
+  "frontendUrl": "blog.eightyfor.top",
+  "siteName": "Chronicle 2.0",
+  "homepageMode": "split",
+  "frontendBackgroundMeta": "{\"url\":\"/server/data/upload/pic/Kaltsit.jpg\",\"sourcePath\":\"pic/Kaltsit.jpg\",\"sourceName\":\"Kaltsit.jpg\",\"mode\":\"cover\",\"posX\":50,\"posY\":50,\"size\":100,\"blur\":24,\"overlayLightColor\":\"#ffffff\",\"overlayLightOpacity\":78,\"overlayDarkColor\":\"#000000\",\"overlayDarkOpacity\":81,\"overlayColor\":\"#000000\",\"overlayOpacity\":81,\"compressionFactor\":15.552,\"compression\":15.552,\"bgCompression\":15.552}",
+  "frontendBackgroundCompression": 15.552,
+  "rss": true,
+  "sitemap": false,
+  "friends": true,
+  "gaMeasurementId": ""
 }

@@ -10,8 +10,7 @@ import SearchBox from "../../components/SearchBox.astro";
 import { getTranslation, getLocale } from "../../utils/i18n.ts";
 import { buildLocalizedPath } from "../../utils/routeLocale.ts";
 import { sortTags } from "../../utils/tagUtils.ts";
-import { getApiUrl, DATA_SOURCE } from "../../config/api.ts";
-import { isLocalMode } from "../../core/site";
+import { getPublishedPosts, isLocalMode } from "../../data/localDataSource";
 import { resolveFeatureFlags } from "../../utils/featureFlags.ts";
 import { loadSiteSettings } from "../../utils/siteSettings";
 
@@ -35,22 +34,11 @@ interface Post {
 
 let posts: Post[] = [];
 
-if (isLocalMode) {
-  // ── Local data source ──────────────────────────────
-  try {
-    const { getPublishedPosts } = await import("../../data/localDataSource");
-    posts = getPublishedPosts() as Post[];
-  } catch (e) {
-    console.error('[search] Failed to load local posts:', e);
-  }
-} else {
-  // ── Remote API ─────────────────────────────────────
-  try {
-    const res = await fetch(getApiUrl(`/api/posts?t=${Date.now()}`, true), {
-      cache: "no-store",
-    });
-    if (res.ok) posts = await res.json();
-  } catch (e) {}
+// ── Local data source ──────────────────────────────
+try {
+  posts = getPublishedPosts() as Post[];
+} catch (e) {
+  console.error('[search] Failed to load local posts:', e);
 }
 
 // Extract all tags with counts
@@ -618,11 +606,9 @@ const metaDescription = locale === "zh-CN"
   }
 </style>
 
-{isLocalMode && (
-  <script id="chronicle-search-index" type="application/json">
-    {JSON.stringify(searchIndex)}
-  </script>
-)}
+<script id="chronicle-search-index" type="application/json">
+  {JSON.stringify(searchIndex)}
+</script>
 
 <script
   define:vars={{
@@ -957,7 +943,9 @@ const metaDescription = locale === "zh-CN"
       if (!res.ok) {
         throw new Error(`Search request failed: ${res.status}`);
       }
-      const data = await res.json();
+      const json = await res.json();
+      // Unwrap { code, data, message } API response format
+      const data = (json && json.data) ?? json;
       return Array.isArray(data) ? data : [];
     }
 

@@ -2,6 +2,7 @@
 import { fetchWithAuth } from '../utils/fetchWithAuth';
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { syncSettings } from '../composables/settingsApi'
 
 type TrafficResponse = {
   range: { value?: string; days: string | number; granularity?: string; start: string | null; end: string | null }
@@ -60,9 +61,7 @@ async function load() {
 
 async function initFeatureState() {
   try {
-    const response = await fetchWithAuth(`/api/settings?t=${Date.now()}`, { cache: 'no-store' })
-    if (!response.ok) throw new Error(`HTTP ${response.status}`)
-    const settings = await response.json()
+    const settings = await syncSettings()
     trafficEnabled.value = settings?.featureFlags?.traffic === true
     disabled.value = !trafficEnabled.value
   } catch (err) {

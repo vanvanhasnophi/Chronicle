@@ -169,17 +169,24 @@ function save() {
     overlayColor: meta.overlayDarkColor || meta.overlayLightColor || undefined,
     overlayOpacity: Number(meta.overlayDarkOpacity || meta.overlayLightOpacity || 0)
   }
-  
-  // Only include source fields if they were set (i.e., user selected a new image)
-  // Otherwise, preserve the existing source fields from props.initial
+
+  // Source fields: prefer picked values; if URL changed but no source, derive from new URL
   if (currentSourcePath.value) {
     out.sourcePath = currentSourcePath.value
     out.sourceName = currentSourceName.value
+  } else if (currentUrl.value !== props.url) {
+    // New image was picked — derive source from the new URL, NOT the old initial
+    const derived = currentUrl.value.replace(/^https?:\/\/[^/]+/, '').replace(/^\/+/, '')
+    out.sourcePath = derived
+    out.sourceName = derived.split('/').pop() || ''
   } else if (props.initial?.sourcePath) {
     out.sourcePath = props.initial.sourcePath
     out.sourceName = props.initial.sourceName || ''
   }
-  
+
+  console.log('[BgEditorModal] save() — currentUrl:', currentUrl.value, 'currentSourcePath:', currentSourcePath.value, 'currentSourceName:', currentSourceName.value);
+  console.log('[BgEditorModal] save() — props.url:', props.url, 'props.initial?.sourcePath:', props.initial?.sourcePath);
+  console.log('[BgEditorModal] save() — emitting out.url:', out.url, 'out.sourcePath:', out.sourcePath);
   emit('save', out)
 }
 
@@ -188,13 +195,18 @@ function openPicker() {
 }
 
 function handleFilePickerSelect(entry: any) {
+  console.log('[BgEditorModal] FilePicker @select raw entry:', JSON.stringify({ uploadedUrl: entry?.uploadedUrl, url: entry?.url, sourcePath: entry?.sourcePath, sourceName: entry?.sourceName, name: entry?.name }));
   if (!entry) return
   const picked = Array.isArray(entry) ? entry[0] : entry
   const url = picked.uploadedUrl || picked.url
+  console.log('[BgEditorModal] FilePicker resolved url:', url, 'sourcePath:', picked.sourcePath, 'sourceName:', picked.sourceName);
   if (url) {
-    currentUrl.value = url
-    currentSourcePath.value = picked.sourcePath || ''
-    currentSourceName.value = picked.sourceName || ''
+    // Normalize: strip origin to store as relative path (consistent with CMS)
+    const normalized = url.replace(/^https?:\/\/[^/]+/, '')
+    currentUrl.value = normalized
+    currentSourcePath.value = normalized.replace(/^\/+/, '').replace(/^server\/data\/(?:background|upload)\//, '')
+    currentSourceName.value = picked.sourceName || currentSourcePath.value.split('/').pop() || picked.name || ''
+    console.log('[BgEditorModal] FilePicker — set currentUrl:', currentUrl.value, 'currentSourcePath:', currentSourcePath.value);
   }
   isFilePickerOpen.value = false
 }

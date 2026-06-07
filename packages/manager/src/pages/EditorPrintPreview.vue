@@ -19,13 +19,11 @@
           <h1 class="print-title">{{ snapshot.title }}</h1>
         </header>
 
-        <MdParser
+        <!-- Pipeline B: matches template-astro published output exactly -->
+        <MarkdownItPreview
           v-if="snapshot"
-          :model-value="snapshot.content || ''"
-          :readOnly="true"
-          :assetMap="snapshot.assetMap || {}"
+          :markdown="snapshot.content || ''"
           class="print-content"
-          @rendered="handleRendered"
         />
       </div>
     </div>
@@ -36,7 +34,9 @@
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import MdParser from '../components/MdParser.vue'
+// Pipeline A disabled; using Pipeline B for print preview
+// import MdParser from '../components/MdParser.vue'
+import MarkdownItPreview from '../components/MarkdownItPreview.vue'
 
 type PrintSnapshot = {
   title?: string
@@ -132,9 +132,12 @@ function closePreview() {
   } catch (e) { }
 }
 
-onMounted(() => {
+onMounted(async () => {
   forceLightTheme()
   loadSnapshot()
+  // Pipeline B renders synchronously; mark as rendered after DOM flush
+  await nextTick()
+  rendered.value = true
   if (autoPrintEnabled.value) {
     void maybeAutoPrint()
   }
@@ -215,13 +218,13 @@ h1.print-title {
   color: #111;
 }
 
-.print-content {
+.print-body {
   color: #111;
 }
 
-:deep(.print-content .md-parser-rendered),
-:deep(.print-content .content-block),
-:deep(.print-content .parsed-html-content) {
+/* Pipeline B output uses .mdit-preview and native markdown-it HTML elements */
+:deep(.print-body),
+:deep(.print-body .mdit-preview) {
   color: #111;
 }
 
@@ -253,37 +256,37 @@ h1.print-title {
   }
 }
 
-.print-content :deep(.editor-footer){
+.print-body :deep(.editor-footer){
+  display: none 
+}
+
+.print-body :deep(.code-chunk-container .toolbar){
   display: none;
 }
 
-.print-content :deep(.code-chunk-container .toolbar){
-  display: none;
-}
-
-.print-content :deep(.code-chunk-container .editor-wrapper,.code-textarea,.syntax-highlight){
+.print-body :deep(.code-chunk-container .editor-wrapper,.code-textarea,.syntax-highlight){
   max-height: none !important;
 }
 
-.print-content :deep(.code-chunk-container){
+.print-body :deep(.code-chunk-container){
   max-height: none !important;
 }
 
-.print-content :deep(.code-textarea){
+.print-body :deep(.code-textarea){
   max-height: none !important;
   overflow: hidden !important;
 }
 
-.print-content :deep(.syntax-highlight){
+.print-body :deep(.syntax-highlight){
   max-height: none !important;
   overflow: hidden !important;
 }
 
-.print-content :deep(thead){
+.print-body :deep(thead){
   background: #ccc;
 }
 
-.print-content :deep(.code-chunk-container.mermaid .editor-wrapper){
+.print-body :deep(.code-chunk-container.mermaid .editor-wrapper){
   display: none;
 }
 

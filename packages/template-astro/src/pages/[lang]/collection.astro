@@ -3,7 +3,7 @@ import Layout from "../../layouts/Layout.astro";
 import { getTranslation, getLocale } from "../../utils/i18n";
 import { resolveFeatureFlags } from "../../utils/featureFlags";
 import { loadSiteSettings } from "../../utils/siteSettings";
-import { isLocalMode } from "../../core/site";
+import { getCollections, getPublishedPosts } from "../../data/localDataSource";
 
 export const prerender = true;
 
@@ -26,18 +26,15 @@ const metaDescription =
 // ── Local data: embed collections + posts for client-side use ──
 let embeddedCollections: any[] = [];
 let embeddedPostTitles: Record<string, string> = {};
-if (isLocalMode) {
-  try {
-    const { getCollections, getPublishedPosts } = await import("../../data/localDataSource");
-    const collectionsData = getCollections();
-    embeddedCollections = (collectionsData as any)?.collections || [];
-    const posts = getPublishedPosts();
-    for (const p of posts) {
-      embeddedPostTitles[String(p.id)] = String(p.title || '').trim();
-    }
-  } catch (e) {
-    console.error('[collection] Failed to load local data:', e);
+try {
+  const collectionsData = getCollections();
+  embeddedCollections = (collectionsData as any)?.collections || [];
+  const posts = getPublishedPosts();
+  for (const p of posts) {
+    embeddedPostTitles[String(p.id)] = String(p.title || '').trim();
   }
+} catch (e) {
+  console.error('[collection] Failed to load local data:', e);
 }
 ---
 
@@ -371,18 +368,14 @@ if (isLocalMode) {
   </style>
 
   <!-- Embedded data for local/static mode -->
-  {isLocalMode && (
-    <script id="chronicle-embedded-data" type="application/json">
-      {JSON.stringify({ collections: embeddedCollections, postTitles: embeddedPostTitles })}
-    </script>
-  )}
+  <div id="chronicle-embedded-data" style="display:none" data-json={JSON.stringify({ collections: embeddedCollections, postTitles: embeddedPostTitles })}></div>
 
   <script>
     // @ts-nocheck
     (function () {
       // Check for embedded build-time data (local/static mode)
       const embeddedEl = document.getElementById('chronicle-embedded-data');
-      const embeddedData = embeddedEl ? JSON.parse(embeddedEl.textContent || '{}') : null;
+      const embeddedData = embeddedEl ? JSON.parse(embeddedEl.getAttribute('data-json') || '{}') : null;
       const hasEmbedded = embeddedData && Array.isArray(embeddedData.collections) && embeddedData.collections.length > 0;
 
       let initialized = false;
@@ -640,17 +633,20 @@ if (isLocalMode) {
             ]);
             if (!collectionRes.ok) throw new Error("fetch collections failed");
             const data = await collectionRes.json();
-            collections = Array.isArray(data.collections)
-              ? data.collections
+            // Unwrap { code, data, message } API response format
+            const collData = (data && data.data) ?? data;
+            collections = Array.isArray(collData.collections)
+              ? collData.collections
               : [];
 
             postTitleById = new Map();
             if (postsRes.ok) {
               const postsData = await postsRes.json();
-              const posts = Array.isArray(postsData)
-                ? postsData
-                : Array.isArray(postsData?.posts)
-                  ? postsData.posts
+              const postsUnwrapped = (postsData && postsData.data) ?? postsData;
+              const posts = Array.isArray(postsUnwrapped)
+                ? postsUnwrapped
+                : Array.isArray(postsUnwrapped?.posts)
+                  ? postsUnwrapped.posts
                   : [];
               posts.forEach((post) => {
                 const id = String(post?.id || "");

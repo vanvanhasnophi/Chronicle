@@ -16,7 +16,10 @@ const searchHref = buildLocalizedPath(locale, '/search');
 let settings: Record<string, any> = {};
 try {
   const res = await fetch(getApiUrl('/api/settings?t=' + Date.now(), true), { cache: 'no-store' });
-  if (res.ok) settings = await res.json();
+  if (res.ok) {
+    const json = await res.json();
+    settings = (json && json.data) ?? json ?? {};
+  }
 } catch {
   settings = {};
 }
@@ -24,7 +27,10 @@ try {
 if (!settings || Object.keys(settings).length === 0) {
   try {
     const res = await fetch(getApiUrl('/api/public/settings?t=' + Date.now(), true), { cache: 'no-store' });
-    if (res.ok) settings = await res.json();
+    if (res.ok) {
+      const json = await res.json();
+      settings = (json && json.data) ?? json ?? {};
+    }
   } catch {
     settings = {};
   }

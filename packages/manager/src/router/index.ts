@@ -32,24 +32,22 @@ function resolveMessage(key: string) {
 
 
 const Login = () => import(/* webpackChunkName: "login" */ '../pages/Login.vue')
-// Security backend page lazy-loaded
-const Security = () => import(/* webpackChunkName: "security" */ '../pages/Security.vue')
+const Setup = () => import(/* webpackChunkName: "setup" */ '../pages/Setup.vue')
+const Recover = () => import(/* webpackChunkName: "recover" */ '../pages/Recover.vue')
 
-// Backend pages are lazy-loaded so frontend bundle doesn't include admin code
+// Backend pages are lazy-loaded
 const PostManager = () => import(/* webpackChunkName: "post-manager" */ '../pages/PostManager.vue')
 const FileManager = () => import(/* webpackChunkName: "file-manager" */ '../pages/FileManager.vue')
 const Dashboard = () => import(/* webpackChunkName: "dashboard" */ '../pages/Dashboard.vue')
 const Traffic = () => import(/* webpackChunkName: "traffic" */ '../pages/Traffic.vue')
 const Settings = () => import(/* webpackChunkName: "settings" */ '../pages/Settings.vue')
-const SettingsHome = () => import(/* webpackChunkName: "settings-home" */ '../pages/SettingsHome.vue')
-const SettingsCollection = () => import(/* webpackChunkName: "settings-collection" */ '../pages/SettingsCollection.vue')
-const SettingsFriends = () => import(/* webpackChunkName: "settings-friends" */ '../pages/SettingsFriends.vue')
-const SettingsAbout = () => import(/* webpackChunkName: "settings-about" */ '../pages/SettingsAbout.vue')
-const SettingsAppearance = () => import(/* webpackChunkName: "settings-appearance" */ '../pages/settings/SettingsAppearance.vue')
-const SettingsFeatures = () => import(/* webpackChunkName: "settings-features" */ '../pages/settings/SettingsFeatures.vue')
-const SettingsSecurity = () => import(/* webpackChunkName: "settings-security" */ '../pages/settings/SettingsSecurity.vue')
 const TextEditorLazy = () => import(/* webpackChunkName: "text-editor" */ '../pages/TextEditor.vue')
 const EditorPrintPreview = () => import(/* webpackChunkName: "editor-print-preview" */ '../pages/EditorPrintPreview.vue')
+// Schema-driven settings: single generic page that renders any schema
+const SchemaSettingsPage = () => import(/* webpackChunkName: "schema-settings" */ '../pages/SchemaSettingsPage.vue')
+const SystemAppearance = () => import(/* webpackChunkName: "system-appearance" */ '../pages/settings/SystemAppearance.vue')
+const SystemBuild = () => import(/* webpackChunkName: "system-build" */ '../pages/settings/SystemBuild.vue')
+const SystemSecurity = () => import(/* webpackChunkName: "system-security" */ '../pages/settings/SystemSecurity.vue')
 
 const routes = [
   { path: '/', redirect: '/dashboard' },
@@ -58,6 +56,18 @@ const routes = [
     name: 'Login',
     component: Login,
     meta: { title: 'login.title' }
+  },
+  {
+    path: '/setup',
+    name: 'Setup',
+    component: Setup,
+    meta: { title: 'setup.title' }
+  },
+  {
+    path: '/recover',
+    name: 'Recover',
+    component: Recover,
+    meta: { title: 'recover.title' }
   },
   {
     path: '/dashboard',
@@ -77,15 +87,42 @@ const routes = [
     component: Settings,
     meta: { requiresAuth: true, title: 'settings.home' },
     children: [
-      { path: 'homepage', name: 'SettingsHome', component: SettingsHome, meta: { requiresAuth: true, title: 'settings.home' } },
-      { path: 'collection', name: 'SettingsCollection', component: SettingsCollection, meta: { requiresAuth: true, title: 'settings.collection' } },
-      { path: 'friends', name: 'SettingsFriends', component: SettingsFriends, meta: { requiresAuth: true, title: 'settings.friends' } },
-      { path: 'about', name: 'SettingsAbout', component: SettingsAbout, meta: { requiresAuth: true, title: 'settings.about' } },
-      { path: 'i18n', redirect: 'appearance' },
-      { path: 'appearance', name: 'SettingsAppearance', component: SettingsAppearance, meta: { requiresAuth: true, title: 'settings.appearance' } },
-      { path: 'features', name: 'SettingsFeatures', component: SettingsFeatures, meta: { requiresAuth: true, title: 'settings.features' } },
-      { path: 'security', name: 'SettingsSecurity', component: SettingsSecurity, meta: { requiresAuth: true, title: 'settings.security' } },
-      { path: 'build', name: 'SettingsBuild', component: () => import(/* webpackChunkName: "settings-build" */ '../pages/SettingsBuild.vue'), meta: { requiresAuth: true, title: 'settings.build' } }
+      // ═══════════════════════════════════════════════
+      // Schema-driven settings (replaces old hand-coded pages)
+      // ═══════════════════════════════════════════════
+      // Template schema tabs — each gets a direct route
+      { path: 'template-homepage',   name: 'SettingsTemplateHomepage',   component: SchemaSettingsPage, props: { schemaId: 'chronicle:template-settings', tab: 'template-homepage' },   meta: { requiresAuth: true, title: 'settings.home' } },
+      { path: 'template-appearance', name: 'SettingsTemplateAppearance', component: SchemaSettingsPage, props: { schemaId: 'chronicle:template-settings', tab: 'template-appearance' }, meta: { requiresAuth: true, title: 'settings.appearance' } },
+      { path: 'template-features',   name: 'SettingsTemplateFeatures',   component: SchemaSettingsPage, props: { schemaId: 'chronicle:template-settings', tab: 'template-features' },   meta: { requiresAuth: true, title: 'settings.features' } },
+      { path: 'template', redirect: '/settings/template-homepage' },
+      // System schema tabs
+      { path: 'system-appearance', name: 'SettingsSystemAppearance', component: SystemAppearance, meta: { requiresAuth: true, title: 'settings.appearance' } },
+      { path: 'system-build',      name: 'SettingsSystemBuild',      component: SystemBuild,      meta: { requiresAuth: true, title: 'settings.build' } },
+      { path: 'system', redirect: '/settings/system-appearance' },
+      // Standalone schemas (no tabs)
+      { path: 'collections', name: 'SettingsCollections', component: SchemaSettingsPage, props: { schemaId: 'chronicle:collections' }, meta: { requiresAuth: true, title: 'settings.collections' } },
+      { path: 'friends',     name: 'SettingsFriends',     component: SchemaSettingsPage, props: { schemaId: 'chronicle:friends' },     meta: { requiresAuth: true, title: 'settings.friends' } },
+      { path: 'profile',     name: 'SettingsProfile',     component: SchemaSettingsPage, props: { schemaId: 'chronicle:profile' },     meta: { requiresAuth: true, title: 'settings.profile' } },
+      { path: 'security',    name: 'SettingsSecurity',    component: SystemSecurity,    meta: { requiresAuth: true, title: 'settings.security' } },
+      // Backward-compat redirects (old paths → new direct routes)
+      { path: 'homepage',   redirect: '/settings/template-homepage' },
+      { path: 'appearance', redirect: '/settings/template-appearance' },
+      { path: 'features',   redirect: '/settings/template-features' },
+      { path: 'about',      redirect: '/settings/profile' },
+      { path: 'collection', redirect: '/settings/collections' },
+      { path: 'build',      redirect: '/settings/system-build' },
+      { path: 'i18n',       redirect: '/settings/template-appearance' },
+      // ═══════════════════════════════════════════════
+      // Legacy (archived hand-coded pages, for reference)
+      // ═══════════════════════════════════════════════
+      { path: 'legacy/homepage',    name: 'LegacyHomepage',    component: () => import(/* webpackChunkName: "legacy-homepage" */    '../pages/archive/SettingsHome.vue'),       meta: { requiresAuth: true, title: 'settings.legacyHomepage' } },
+      { path: 'legacy/appearance',  name: 'LegacyAppearance',  component: () => import(/* webpackChunkName: "legacy-appearance" */  '../pages/archive/settings/SettingsAppearance.vue'), meta: { requiresAuth: true, title: 'settings.legacyAppearance' } },
+      { path: 'legacy/features',    name: 'LegacyFeatures',    component: () => import(/* webpackChunkName: "legacy-features" */    '../pages/archive/settings/SettingsFeatures.vue'),   meta: { requiresAuth: true, title: 'settings.legacyFeatures' } },
+      { path: 'legacy/build',       name: 'LegacyBuild',       component: () => import(/* webpackChunkName: "legacy-build" */       '../pages/archive/SettingsBuild.vue'),              meta: { requiresAuth: true, title: 'settings.legacyBuild' } },
+      { path: 'legacy/collection',  name: 'LegacyCollection',  component: () => import(/* webpackChunkName: "legacy-collection" */  '../pages/archive/SettingsCollection.vue'),          meta: { requiresAuth: true, title: 'settings.legacyCollection' } },
+      { path: 'legacy/friends',     name: 'LegacyFriends',     component: () => import(/* webpackChunkName: "legacy-friends" */     '../pages/archive/SettingsFriends.vue'),             meta: { requiresAuth: true, title: 'settings.legacyFriends' } },
+      { path: 'legacy/about',       name: 'LegacyAbout',       component: () => import(/* webpackChunkName: "legacy-about" */       '../pages/archive/SettingsAbout.vue'),              meta: { requiresAuth: true, title: 'settings.legacyAbout' } },
+      { path: 'legacy/security',    name: 'LegacySecurity',    component: () => import(/* webpackChunkName: "legacy-security" */    '../pages/archive/Security.vue'),                   meta: { requiresAuth: true, title: 'settings.legacySecurity' } },
     ]
   },
   {
@@ -138,11 +175,12 @@ router.beforeEach((to, from, next) => {
         isAuthenticated = true
       } else {
         localStorage.removeItem('chronicle_auth')
+        try { (window as any).__CHRONICLE_SETTINGS__ = null } catch {}
       }
     } catch(e) {
       if (authRecord === 'true') {
         // Legacy support (user just logged in before update) - Migrate or just allow once
-        isAuthenticated = true 
+        isAuthenticated = true
       }
     }
   }

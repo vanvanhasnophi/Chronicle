@@ -544,9 +544,7 @@ defineExpose({
   transition: background-color 0.2s;
   border-radius: 4px;
 }
-.katex-interactive:hover, .katex-interactive-block:hover {
-  background-color: var(--component-bg-hover);
-}
+
 
 .math-tooltip {
   position: fixed;

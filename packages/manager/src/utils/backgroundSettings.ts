@@ -36,12 +36,18 @@ export function normalizeUploadRelPath(value: any) {
 
   const prefix = '/server/data/upload/'
   if (pathPart.startsWith(prefix)) pathPart = pathPart.slice(prefix.length)
+  else if (pathPart.startsWith('/server/data/manager-background/')) pathPart = pathPart.slice('/server/data/manager-background/'.length)
+  else if (pathPart.startsWith('/server/data/branding/')) pathPart = pathPart.slice('/server/data/branding/'.length)
   else if (pathPart.startsWith('/server/data/background/')) pathPart = pathPart.slice('/server/data/background/'.length)
   else if (pathPart.startsWith('/')) pathPart = pathPart.slice(1)
 
   pathPart = pathPart.replace(/^\/+/, '')
+  if (pathPart.startsWith('manager-background/')) pathPart = pathPart.slice('manager-background/'.length)
+  if (pathPart.startsWith('branding/')) pathPart = pathPart.slice('branding/'.length)
   if (pathPart.startsWith('background/')) pathPart = pathPart.slice('background/'.length)
   if (pathPart.startsWith('server/data/upload/')) pathPart = pathPart.slice('server/data/upload/'.length)
+  if (pathPart.startsWith('server/data/manager-background/')) pathPart = pathPart.slice('server/data/manager-background/'.length)
+  if (pathPart.startsWith('server/data/branding/')) pathPart = pathPart.slice('server/data/branding/'.length)
   if (pathPart.startsWith('server/data/background/')) pathPart = pathPart.slice('server/data/background/'.length)
   if (pathPart.startsWith('..')) return ''
   return pathPart
@@ -52,8 +58,14 @@ export function backgroundRelToUrl(rel: any) {
   const normalized = normalizeUploadRelPath(rel)
   if (!normalized) return ''
   const origin = typeof window !== 'undefined' && window.location ? window.location.origin : ''
-  const base = normalized.startsWith('background/') || /^chr_[fb]_bg-/i.test(normalized.split('/').pop() || '')
-    ? '/server/data/background/'
+  const fileName = normalized.split('/').pop() || '';
+  // chr_b_bg-* → manager-background (CMS), chr_f_bg-* → branding (frontend)
+  if (/^chr_b_bg-/i.test(fileName) || normalized.startsWith('manager-background/')) {
+    const base = '/server/data/manager-background/';
+    return origin ? `${origin}${base}${normalized}` : `${base}${normalized}`;
+  }
+  const base = normalized.startsWith('branding/') || normalized.startsWith('background/') || /^chr_f_bg-/i.test(fileName)
+    ? '/server/data/branding/'
     : '/server/data/upload/'
   return origin ? `${origin}${base}${normalized}` : `${base}${normalized}`
 }

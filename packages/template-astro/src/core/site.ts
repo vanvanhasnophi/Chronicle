@@ -6,12 +6,6 @@
 // 才将能力上移到 core/shared；否则允许在 pages 或 theme 中保留适度实现以降低修改成本。
 export const API_BASE_URL = process.env.API_BASE_URL || 'http://127.0.0.1:3000';
 
-/** Data source mode: 'remote' (API fetch) or 'local' (filesystem read) */
-export const DATA_SOURCE = (process.env.DATA_SOURCE || 'remote') as 'local' | 'remote';
-
-/** True when building without a backend (lite/static variants) */
-export const isLocalMode = DATA_SOURCE === 'local';
-
 /**
  * 返回针对 SSR/CSR 的 API 完整地址
  * @param endpoint 例: '/posts' 或 'posts'

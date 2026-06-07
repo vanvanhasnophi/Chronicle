@@ -4,8 +4,7 @@ import BackToTop from '../../components/BackToTop.vue';
 import BlogPostCard from '../../components/BlogPostCard.astro';
 import { getTranslation } from '../../utils/i18n';
 import { buildLocalizedPath, toContentLocale } from '../../utils/routeLocale';
-import { getApiUrl, DATA_SOURCE } from '../../config/api';
-import { isLocalMode } from '../../core/site';
+import { getPublishedPosts, isLocalMode } from '../../data/localDataSource';
 import { loadSiteSettings } from '../../utils/siteSettings';
 
 export const prerender = true;
@@ -19,60 +18,27 @@ const locale = toContentLocale(routeLang);
 const t = (key: string) => getTranslation(locale, key);
 const postRoutePrefix = `/${routeLang}`;
 
-const SSR_PAGE_SIZE = 20;
-
-// ── Fetch posts (local or remote) ──────────────────────
-async function fetchPosts(url: string): Promise<any[]> {
-  const res = await fetch(url, { cache: 'no-store' });
-  if (!res.ok) return [];
-  const data = await res.json();
-  return Array.isArray(data) ? data : data.posts || [];
-}
-
 let initialPosts: any[] = [];
 let initialFeaturedPosts: any[] = [];
 let initialFeaturedTotal = 0;
 // Always define for the client script (used in define:vars)
 let initialPostsRequestUrl = '/api/posts?page=1&perPage=20&timeline=desc';
 
-if (isLocalMode) {
-  // ── Local data source ──────────────────────────────
-  const { getPublishedPosts } = await import('../../data/localDataSource');
-  const allPublished = getPublishedPosts();
-  const sorted = [...allPublished].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+// ── Local data source ──────────────────────────────
+const allPublished = getPublishedPosts();
+const sorted = [...allPublished].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  initialPosts = sorted;
-  // Featured = posts with 'featured' or '精选' tag
-  const featured = sorted.filter(p => (p.tags || []).some((t: string) => {
-    const nt = String(t).trim().toLowerCase();
-    return nt === 'featured' || nt === '精选';
-  }));
-  initialFeaturedPosts = featured;
-  initialFeaturedTotal = featured.length;
-} else {
-  // ── Remote API ─────────────────────────────────────
-  initialPostsRequestUrl = getApiUrl(
-    `/api/posts?page=1&perPage=${SSR_PAGE_SIZE}&timeline=desc&t=${Date.now()}`,
-    true,
-  );
+initialPosts = sorted;
+// Featured = posts with 'featured' or '精选' tag
+const featured = sorted.filter(p => (p.tags || []).some((t: string) => {
+  const nt = String(t).trim().toLowerCase();
+  return nt === 'featured' || nt === '精选';
+}));
+initialFeaturedPosts = featured;
+initialFeaturedTotal = featured.length;
 
-  try {
-    initialPosts = await fetchPosts(initialPostsRequestUrl);
-  } catch (e) {
-    console.error('[blogs] Failed to fetch initial posts:', e);
-  }
-
-  try {
-    const featuredUrl = getApiUrl(
-      `/api/posts?featured=true&timeline=desc&t=${Date.now()}`,
-      true,
-    );
-    initialFeaturedPosts = await fetchPosts(featuredUrl);
-    initialFeaturedTotal = initialFeaturedPosts.length;
-  } catch (e) {
-    console.error('[blogs] Failed to fetch featured posts:', e);
-  }
-}
+// Local mode: embed all posts for client-side fake pagination
+const allPostsJSON = JSON.stringify(sorted);
 
 const settings = await loadSiteSettings();
 
@@ -519,7 +485,7 @@ const metaDescription = locale === 'zh-CN'
   }
 </style>
 
-<script type="module" define:vars={{ expandText: t('blog.expand'), collapseText: t('blog.collapse'), daySuffix: t('blog.daySuffix'), featuredLabel: t('tag.featured'), initialPosts, initialPostsRequestUrl, initialFeaturedPosts, initialFeaturedTotal, locale, postRoutePrefix }}>
+<script type="module" define:vars={{ expandText: t('blog.expand'), collapseText: t('blog.collapse'), daySuffix: t('blog.daySuffix'), featuredLabel: t('tag.featured'), initialPosts, initialPostsRequestUrl, initialFeaturedPosts, initialFeaturedTotal, locale, postRoutePrefix, isLocalMode, allPostsJSON }}>
   (function () {
     const getApiUrlClient = (endpoint) => {
       endpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
@@ -619,20 +585,27 @@ const metaDescription = locale === 'zh-CN'
 
     async function loadFeaturedPosts(loadAll = false) {
       try {
-        let url;
-        if (loadAll) {
-          url = `/api/posts?featured=true&timeline=desc&_ts=${Date.now()}`;
+        let arr;
+        if (isLocalMode) {
+          const allPosts = JSON.parse(allPostsJSON);
+          const featured = allPosts.filter(p => (p.tags || []).some(t => {
+            const nt = String(t).trim().toLowerCase();
+            return nt === 'featured' || nt === '精选';
+          }));
+          arr = loadAll ? featured : featured.slice(0, 3);
         } else {
-          url = `/api/posts?featured=true&timeline=desc&page=1&perPage=3&_ts=${Date.now()}`;
-        }
-        logRequestUrl('featured', url);
-        const res = await fetch(getApiUrlClient(url), { cache: 'no-store' });
-        if (res.ok) {
+          const url = loadAll
+            ? `/api/posts?featured=true&timeline=desc&_ts=${Date.now()}`
+            : `/api/posts?featured=true&timeline=desc&page=1&perPage=3&_ts=${Date.now()}`;
+          logRequestUrl('featured', url);
+          const res = await fetch(getApiUrlClient(url), { cache: 'no-store' });
+          if (!res.ok) return;
           const data = await res.json();
-          const arr = Array.isArray(data) ? data : data.posts || [];
-          arr.forEach((post) => featuredMap.set(post.id, post));
-          renderFeatured();
+          const unwrapped = (data && data.data) ?? data;
+          arr = Array.isArray(unwrapped) ? unwrapped : unwrapped.posts || [];
         }
+        arr.forEach((post) => featuredMap.set(post.id, post));
+        renderFeatured();
       } catch (e) {
         console.error('[blogs] Error loading featured posts:', e);
       }
@@ -798,15 +771,20 @@ const metaDescription = locale === 'zh-CN'
       loading = true;
       page += 1;
       try {
-        const url = `/api/posts?page=${page}&perPage=${perPage}&timeline=desc&_ts=${Date.now()}`;
-        logRequestUrl('csr', url);
-        const res = await fetch(getApiUrlClient(url), { cache: 'no-store' });
-        if (!res.ok) {
-          done = true;
-          return;
+        let arr;
+        if (isLocalMode) {
+          const allPosts = JSON.parse(allPostsJSON);
+          const start = (page - 1) * perPage;
+          arr = allPosts.slice(start, start + perPage);
+        } else {
+          const url = `/api/posts?page=${page}&perPage=${perPage}&timeline=desc&_ts=${Date.now()}`;
+          logRequestUrl('csr', url);
+          const res = await fetch(getApiUrlClient(url), { cache: 'no-store' });
+          if (!res.ok) { done = true; return; }
+          const data = await res.json();
+          const unwrapped = (data && data.data) ?? data;
+          arr = Array.isArray(unwrapped) ? unwrapped : unwrapped.posts || [];
         }
-        const data = await res.json();
-        const arr = Array.isArray(data) ? data : data.posts || [];
         if (page === 2 && placeholder) placeholder.style.display = 'none';
         if (!arr.length) {
           done = true;

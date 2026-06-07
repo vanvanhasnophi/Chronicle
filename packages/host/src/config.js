@@ -12,7 +12,8 @@ const BASE_DIR = __dirname + '/..'; // up from src/ to packages/host/
 const DATA_DIR = path.join(BASE_DIR, 'data');
 const LOG_DIR = path.join(BASE_DIR, 'log');
 const UPLOAD_DIR = path.join(DATA_DIR, 'upload');
-const BACKGROUND_DIR = path.join(DATA_DIR, 'background');
+const BRANDING_DIR = path.join(DATA_DIR, 'branding');
+const MANAGER_BACKGROUND_DIR = path.join(DATA_DIR, 'manager-background');
 const POSTS_DIR = path.join(DATA_DIR, 'posts');
 const PUBLIC_DIR = path.join(BASE_DIR, 'public');
 
@@ -20,6 +21,8 @@ const PUBLIC_DIR = path.join(BASE_DIR, 'public');
 const SECURITY_FILE = path.join(DATA_DIR, 'security.json');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 const COLLECTION_FILE = path.join(DATA_DIR, 'collection.json');
+const FRIENDS_FILE = path.join(DATA_DIR, 'friends.json');
+const PROFILE_FILE = path.join(DATA_DIR, 'profile.json');
 const INDEX_FILE = path.join(POSTS_DIR, 'index.json');
 const ACCESS_LOG = path.join(LOG_DIR, 'access.log');
 
@@ -49,9 +52,9 @@ const TRAFFIC_RANGE_ALIASES = {
 const VALID_TRAFFIC_RANGES = new Set(['30min', '12h', '1d', '7d', '30d']);
 
 module.exports = {
-    BASE_DIR, DATA_DIR, LOG_DIR, UPLOAD_DIR, BACKGROUND_DIR,
+    BASE_DIR, DATA_DIR, LOG_DIR, UPLOAD_DIR, BRANDING_DIR, MANAGER_BACKGROUND_DIR,
     POSTS_DIR, PUBLIC_DIR,
-    SECURITY_FILE, SETTINGS_FILE, COLLECTION_FILE, INDEX_FILE, ACCESS_LOG,
+    SECURITY_FILE, SETTINGS_FILE, FRIENDS_FILE, PROFILE_FILE, COLLECTION_FILE, INDEX_FILE, ACCESS_LOG,
     PORT, DEFAULT_MANAGER_DOMAIN, DEFAULT_BUILD_SETTINGS,
     VALID_BUILD_GRANULARITIES,
     CATEGORIES,

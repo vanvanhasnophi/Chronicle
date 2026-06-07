@@ -1,0 +1,51 @@
+{
+  "nav.tab.system.security": "Security",
+
+  "system.security.setupComplete": "Setup Complete",
+  "system.security.setupToken": "Setup Token",
+  "system.security.setupTokenExpiry": "Setup Token Expiry",
+  "system.security.recoveryCodes": "Recovery Codes",
+  "system.security.recoveryLockUntil": "Recovery Lock Until",
+  "system.security.passwordHash": "Password Hash",
+  "system.security.passwordHash.desc": "SHA-512 hash of the admin password. Set via the CMS login/security page, never edited directly.",
+  "system.security.passkeys": "Passkeys",
+  "system.security.passkeys.desc": "WebAuthn passkeys registered for passwordless login.",
+  "system.security.passkey.label": "Device Label",
+  "system.security.passkey.label.desc": "Human-readable label for this passkey (e.g. 'My YubiKey', 'Chrome on MacBook').",
+  "system.security.passkey.createdAt": "Created",
+  "system.security.passkey.lastUsedAt": "Last Used",
+
+  "auth.setup.title": "Create Admin Password",
+  "auth.setup.hint": "This is the first time you're setting up Chronicle. Choose a strong password.",
+  "auth.setup.tokenLabel": "Setup Token",
+  "auth.setup.tokenHint": "Your setup token was printed when the server started. Check your terminal logs, or run: npx chronicle show-token",
+  "auth.setup.passwordLabel": "Password",
+  "auth.setup.confirmLabel": "Confirm Password",
+  "auth.setup.mismatch": "Passwords do not match.",
+  "auth.setup.tooShort": "Password must be at least 8 characters.",
+  "auth.setup.success": "Setup complete. You can now log in.",
+  "auth.setup.saveCodesPrompt": "Save these recovery codes. They will not be shown again.\nEach code can be used once to reset your password.",
+
+  "auth.login.title": "Log In",
+  "auth.login.passwordLabel": "Password",
+  "auth.login.lostPassword": "Lost your password?",
+  "auth.login.failed": "Incorrect password.",
+
+  "auth.recover.title": "Recover Access",
+  "auth.recover.hint": "Enter one of your recovery codes to reset your password.",
+  "auth.recover.codeLabel": "Recovery Code",
+  "auth.recover.placeholder": "XXXX-XXXX",
+  "auth.recover.invalid": "Invalid or already used recovery code.",
+  "auth.recover.locked": "Too many attempts. Try again in {minutes} minutes.",
+  "auth.recover.remaining": "{count} recovery code(s) remaining.",
+  "auth.recover.success": "Recovery code accepted. Set a new password.",
+  "auth.recover.newPasswordLabel": "New Password",
+  "auth.recover.noCodes": "No recovery codes left. You must reset via CLI:\n  npx chronicle reset-password",
+
+  "auth.reset.title": "Reset Password",
+  "auth.reset.success": "Password has been reset. New recovery codes generated.",
+
+  "auth.cli.setup": "npx chronicle setup",
+  "auth.cli.reset": "npx chronicle reset-password",
+  "auth.cli.showToken": "npx chronicle show-token"
+}

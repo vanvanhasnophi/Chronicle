@@ -41,10 +41,8 @@ export default defineConfig({
           target: 'http://127.0.0.1:3000',
           changeOrigin: true
         },
-        '/server/data/background': {
-          target: 'http://127.0.0.1:3000',
-          changeOrigin: true
-        }
+        // branding/upload served as static files via public/server/data/
+        // (symlinked during build by chronicle-gen)
       }
     }
     ,

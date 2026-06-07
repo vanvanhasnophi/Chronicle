@@ -18,7 +18,11 @@
     "openFrontend": "Open Frontend",
     "rebuildFrontend": "Rebuild Frontend",
     "build": "Build",
-    "buildNow": "Build Now"
+    "buildNow": "Build Now",
+    "group": {
+      "template": "Template",
+      "system": "System"
+    }
   },
   "inblog": {
     "toc-title": "Table of Contents",
@@ -174,9 +178,9 @@
     "homeHint": "Edit the HTML content of your homepage (stored in local config)",
     "friends": "Friends Page",
     "friendsHint": "Edit friend cards, their profile and story links (saved to backend settings)",
-    "cardListTitle": "Friend Cards",
-    "cardListHint": "Add multiple friend cards. Three styles are supported and the story block replaces the intro on hover.",
-    "friendCardEmpty": "No friend cards yet. Add one first.",
+    "cardListTitle": "Card List",
+    "cardListHint": "Drag the left side of each card to reorder them.",
+    "friendCardEmpty": "No cards yet. Add one first.",
     "friendCardAdd": "Add Card",
     "friendCard": "Card",
     "friendCardRemove": "Remove Card",
@@ -235,11 +239,11 @@
     "addCollection": "Add Collection",
     "loadDefaultCollections": "Load Default",
     "build": "Build",
-    "buildHint": "Configure frontend location and build options.",
-    "frontLocation": "Frontend Location",
+    "buildHint": "Configure template location and build options.",
+    "templateLocation": "Template Location",
     "frontendLocation": "Frontend URL",
-    "frontendCodeLocation": "Frontend Code Location",
-    "frontendCodeLocationHint": "The source directory for the frontend pages, so you can verify the build input path.",
+    "frontendCodeLocation": "Template Source Location",
+    "frontendCodeLocationHint": "The source directory for the template, so you can verify the build input path.",
     "frontendBuildTargetLocation": "Build Target Location",
     "frontendBuildTargetLocationHint": "The output directory for build artifacts; cleaning will empty everything here.",
     "visitNow": "Visit Now",
@@ -314,9 +318,9 @@
     "frontendCodeDetected": "Frontend code location detected",
     "frontendBuildTargetDetected": "Build target location detected",
     "detectFailed": "Detection failed or no path found",
-    "appearanceHint": "Configure language, typography and theme colors for frontend/backend with a live preview.",
+    "appearanceHint": "Configure language, typography and theme colors for app.",
     "i18n": "Language & Fonts",
-    "i18nHint": "Set default language and font preferences for frontend/backend (UI only, does not affect post content)",
+    "i18nHint": "Set default language and font preferences for app (UI only, does not affect post content)",
     "security": "Security",
     "locale": {
       "follow": "Follow Browser",
@@ -325,10 +329,38 @@
     },
     "copy_to_light": "Copy to Light",
     "copy_to_dark": "Copy to Dark",
+    "schemasRefreshed": "Schemas re-fetched from server",
+    "schemasRefreshFailed": "Failed to refresh schemas",
     "savedNeedRebuild": "Saved. Rebuild to ensure changes take effect.",
-
     "collectionCoverPick": "Select...",
-    "chooseImage": "Choose Image"
+    "chooseImage": "Choose Image",
+    "templateProperties": "Template Properties",
+    "templateDirectory": "Template Directory",
+    "templateDirectoryHint": "Template source location from saved settings; used as search root for template metadata.",
+    "templateName": "Name",
+    "templateAuthor": "Author",
+    "templateArchitecture": "Architecture",
+    "templateVersion": "Version",
+    "schemaVersions": "Schema Versions",
+    "notLoaded": "Not loaded",
+    "unknown": "Unknown",
+    "fetching": "Fetching...",
+    "forceRefetchSchemas": "Force Re-fetch Schemas",
+    "language": "Language",
+    "backendLanguage": "Backend language",
+    "typography": "Typography",
+    "backendFont": "Backend font",
+    "theme": "Theme",
+    "backendMode": "Backend mode",
+    "accentColor": "Accent color",
+    "backendBackground": "Backend background",
+    "saveAppearance": "Save Appearance",
+    "followBrowser": "Follow Browser",
+    "followSystem": "Follow System",
+    "edit": "Edit",
+    "add": "Add",
+    "sansSerif": "Sans-serif",
+    "serif": "Serif"
   },
   "postPicker": {
     "inputPlaceholder": "Search and select a published post",
@@ -378,6 +410,39 @@
     "loading": "Loading...",
     "noResults": "No posts found matching your criteria."
   },
+  "setup": {
+    "title": "Create Admin Password",
+    "hint": "This is your first time setting up Chronicle. Choose a strong password — you'll need it to access the CMS.",
+    "tokenLabel": "Setup Token",
+    "tokenPlaceholder": "XXXX-XXXX-XXXX",
+    "tokenHint": "Your setup token was printed when the server started. Check your terminal, or run: npx chronicle show-token",
+    "passwordLabel": "Password",
+    "passwordPlaceholder": "At least 8 characters",
+    "confirmLabel": "Confirm Password",
+    "confirmPlaceholder": "Type it again",
+    "create": "Create Account",
+    "creating": "Creating...",
+    "mismatch": "Passwords do not match.",
+    "tooShort": "Password must be at least 8 characters.",
+    "failed": "Setup failed. Check your setup token and try again.",
+    "connectionError": "Could not reach the server. Is the backend running?",
+    "statusFailed": "Could not determine setup status.",
+    "saveCodesTitle": "Save Your Recovery Codes",
+    "saveCodesHint": "Each code can be used once to reset your password. Save them somewhere safe — they will not be shown again.",
+    "saved": "I've Saved My Codes — Go to Login"
+  },
+  "recover": {
+    "title": "Recover Access",
+    "hint": "Enter a recovery code and set a new password.",
+    "codeLabel": "Recovery Code",
+    "newPasswordLabel": "New Password",
+    "reset": "Reset Password",
+    "resetting": "Resetting...",
+    "invalid": "Invalid or already used recovery code.",
+    "locked": "Too many attempts. Try again in {minutes} minutes.",
+    "success": "Password reset. Redirecting to login...",
+    "connectionError": "Connection error. Is the server running?"
+  },
   "login": {
     "title": "Chronicle Manager",
     "password": "Password",
@@ -397,7 +462,12 @@
     "passkeyFailed": "Passkey verification failed",
     "cancelled": "Login cancelled by user",
     "invalidAuthenticator": "Invalid authenticator state",
-    "authFailed": "Authentication failed. Please try again."
+    "authFailed": "Authentication failed. Please try again.",
+    "switchLang": "Switch language",
+    "themeFollow": "Follow system",
+    "themeLight": "Light mode",
+    "themeDark": "Dark mode",
+    "lostPassword": "Lost your password?"
   },
   "security": {
     "title": "Security Settings",
@@ -549,7 +619,8 @@
     "view": {
       "split": "Split View",
       "edit": "Editor Only",
-      "preview": "Preview Only"
+      "preview": "Preview Only",
+      "rendered": "Rendered Output"
     },
     "aiGeneratedLabel": "AI Generated",
     "authorLabel": "Author",
@@ -593,7 +664,7 @@
     "inYears": "in {count} yrs",
     "longAgo": "long ago"
   },
-  "filePicker":{
+  "filePicker": {
     "cancel": "Cancel",
     "confirm": "Confirm",
     "localPickLabel": "Select from Local Files",
@@ -617,6 +688,9 @@
     "created": "Created"
   },
   "backgroundEditor": {
+    "add": "Add",
+    "edit": "Edit",
+    "delete": "Delete",
     "title": "Edit Background",
     "positionX": "Position X",
     "positionY": "Position Y",
@@ -632,10 +706,10 @@
     "custom": "Custom",
     "contain": "Contain"
   },
-  "theme":{
-      "lightFull": "Light Mode",
-      "darkFull": "Dark Mode",
-      "light": "Light",
-      "dark": "Dark"
+  "theme": {
+    "lightFull": "Light Mode",
+    "darkFull": "Dark Mode",
+    "light": "Light",
+    "dark": "Dark"
   }
 }

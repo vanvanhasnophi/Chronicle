@@ -211,7 +211,7 @@ if [ "$ADOPTED_CONFIG" -eq 0 ]; then
     prompt_default BACKEND_DOMAIN "请输入后台域名" "$BACKEND_DOMAIN"
     prompt_default WEB_ROOT "请输入前台部署目录" "$WEB_ROOT"
     prompt_default BACKEND_ROOT "请输入后台部署目录" "$BACKEND_ROOT"
-    prompt_default SERVER_ROOT "请输入后端目录" "$SERVER_ROOT"
+    prompt_default SERVER_ROOT "请输入后端目录（v2 默认 packages/host）" "$SERVER_ROOT"
     prompt_default ASTRO_ROOT "请输入 Astro 源码目录" "$ASTRO_ROOT"
     prompt_default FRONTEND_API_BASE_URL "请输入 packages/manager 的 API 基址" "$FRONTEND_API_BASE_URL"
     prompt_default ASTRO_API_BASE_URL "请输入 Astro 构建时 API 基址" "$ASTRO_API_BASE_URL"
@@ -230,32 +230,28 @@ if ! command_exists rsync; then
     exit 1
 fi
 
-log "同步后端源码到部署目录..."
-mkdir -p "$SERVER_ROOT"
-rsync -av --delete --exclude='data' --exclude='log' --exclude='node_modules' "$REPO_ROOT/packages/host/" "$SERVER_ROOT/"
+log "安装后端依赖并准备运行环境..."
+HOST_DIR="${SERVER_ROOT:-${REPO_ROOT}/packages/host}"
 
-cd "$SERVER_ROOT"
+cd "$HOST_DIR"
 if [ -f package.json ]; then
-    log "Installing server dependencies (npm install)..."
-    npm install || warn "npm install failed in $SERVER_ROOT"
+  log "Installing host dependencies (npm install)..."
+  npm install || warn "npm install failed in $HOST_DIR"
 else
-    warn "No package.json in $SERVER_ROOT, skipping npm install."
+  warn "No package.json in $HOST_DIR, skipping npm install."
 fi
 
-RUN_WRAPPER="$SERVER_ROOT/run.sh"
-cat > "$RUN_WRAPPER" <<EOF
-#!/bin/bash
-export MEDIA_DOMAIN="$MEDIA_DOMAIN"
-cd "$SERVER_ROOT"
-exec node index.js
-EOF
-chmod +x "$RUN_WRAPPER"
-
-log "重启/启动后端服务器..."
+# PM2: v2 入口是 packages/host/index.js（不再是 v1 的 server/index.js）
+log "重启/启动后端服务 (PM2)..."
 if command -v pm2 &> /dev/null; then
-    pm2 restart chronicle-server || pm2 start "$RUN_WRAPPER" --name chronicle-server
+  # 先删除旧 v1 进程名（如果存在）
+  pm2 delete chronicle-server 2>/dev/null || true
+  # 以 v2 入口重新注册
+  pm2 restart chronicle-host 2>/dev/null || pm2 start "$HOST_DIR/index.js" --name chronicle-host
+  pm2 save 2>/dev/null || true
+  log "PM2: chronicle-host 已启动 (入口: packages/host/index.js)"
 else
-    warn "pm2 not found. Cannot restart backend automatically."
+  warn "pm2 not found. 请手动启动: cd $HOST_DIR && node index.js"
 fi
 
 log "构建 packages/manager..."
@@ -291,9 +287,11 @@ else
     log "跳过构建，使用现成 dist。"
 fi
 
-log "恢复 packages/manager 源码中的 upload symlink..."
+log "恢复 packages/manager 源码中的 upload/branding/manager-background symlink..."
 ensure_symlink "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME/public/server/data/upload" "$REPO_ROOT/data/upload"
-ensure_symlink "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME/public/server/data/background" "$REPO_ROOT/data/background"
+ensure_symlink "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME/public/server/data/branding" "$REPO_ROOT/data/branding"
+ensure_symlink "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME/public/server/data/manager-background" "$REPO_ROOT/data/manager-background"
+ensure_symlink "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME/public/server/data/background" "$REPO_ROOT/data/branding"
 
 log "部署 packages/manager 到后台站点目录 ($BACKEND_ROOT)..."
 rsync -a --delete "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME/dist/" "$BACKEND_ROOT/"
@@ -325,20 +323,26 @@ fi
 
 MEDIA_DOMAIN="$MEDIA_DOMAIN" API_BASE_URL="$ASTRO_API_BASE_URL" npm run build
 
-log "恢复 packages/template-astro 源码中的 upload symlink..."
+log "恢复 packages/template-astro 源码中的 upload/branding/manager-background symlink..."
 ensure_symlink "$REPO_ROOT/$REPO_ASTRO_SRC_NAME/public/server/data/upload" "$REPO_ROOT/data/upload"
-ensure_symlink "$REPO_ROOT/$REPO_ASTRO_SRC_NAME/public/server/data/background" "$REPO_ROOT/data/background"
+ensure_symlink "$REPO_ROOT/$REPO_ASTRO_SRC_NAME/public/server/data/branding" "$REPO_ROOT/data/branding"
+ensure_symlink "$REPO_ROOT/$REPO_ASTRO_SRC_NAME/public/server/data/manager-background" "$REPO_ROOT/data/manager-background"
+ensure_symlink "$REPO_ROOT/$REPO_ASTRO_SRC_NAME/public/server/data/background" "$REPO_ROOT/data/branding"
 
 log "部署 packages/template-astro 到前台站点目录 ($WEB_ROOT)..."
 rsync -a --delete "$REPO_ROOT/$REPO_ASTRO_SRC_NAME/dist/" "$WEB_ROOT/"
 
-log "配置前台上传目录符号链接..."
+log "配置前台静态资源符号链接..."
 ensure_symlink "$WEB_ROOT/server/data/upload" "$REPO_ROOT/data/upload"
-ensure_symlink "$WEB_ROOT/server/data/background" "$REPO_ROOT/data/background"
+ensure_symlink "$WEB_ROOT/server/data/branding" "$REPO_ROOT/data/branding"
+ensure_symlink "$WEB_ROOT/server/data/manager-background" "$REPO_ROOT/data/manager-background"
+ensure_symlink "$WEB_ROOT/server/data/background" "$REPO_ROOT/data/branding"
 
-log "配置后台上传目录符号链接..."
+log "配置后台静态资源符号链接..."
 ensure_symlink "$BACKEND_ROOT/server/data/upload" "$REPO_ROOT/data/upload"
-ensure_symlink "$BACKEND_ROOT/server/data/background" "$REPO_ROOT/data/background"
+ensure_symlink "$BACKEND_ROOT/server/data/branding" "$REPO_ROOT/data/branding"
+ensure_symlink "$BACKEND_ROOT/server/data/manager-background" "$REPO_ROOT/data/manager-background"
+ensure_symlink "$BACKEND_ROOT/server/data/background" "$REPO_ROOT/data/branding"
 
 log "重载 Web 服务..."
 if systemctl is-active --quiet nginx; then

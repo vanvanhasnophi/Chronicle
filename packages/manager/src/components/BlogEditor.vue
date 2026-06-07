@@ -57,10 +57,10 @@
                     </button>
                     <span class="divider"></span>
 
-                    <button class="toolbar-btn" @click="undo" :disabled="historyIndex <= 0" :title="t('editor.undo')">
+                    <button class="toolbar-btn" @click="undo" :title="t('editor.undo')">
                         <span class="icon-svg" v-html="Icons.undo"></span>
                     </button>
-                    <button class="toolbar-btn" @click="redo" :disabled="historyIndex >= history.length - 1"
+                    <button class="toolbar-btn" @click="redo"
                         :title="t('editor.redo')">
                         <span class="icon-svg" v-html="Icons.redo"></span>
                     </button>
@@ -91,20 +91,25 @@
                 </button>
             </div>
 
-            <!-- ROW 3: View Settings -->
+            <!-- ROW 3: View + Theme + Locale -->
             <div class="toolbar-row row-view">
                 <div class="tool-group">
-                    <button class="toolbar-btn" :class="{ active: previewReadOnly }"
-                        @click="previewReadOnly = !previewReadOnly"
-                        :title="previewReadOnly ? t('editor.unlock') : t('editor.lock')">
-                        <span class="icon-svg" v-html="previewReadOnly ? Icons.lock : Icons.unlock"></span>
-                        <span class="btn-label">{{ previewReadOnly ? t('editor.locked') : t('editor.editable') }}</span>
-                    </button>
-                    <span class="divider"></span>
                     <button v-for="mode in displayModes" :key="mode.value" class="toolbar-btn"
                         :class="{ active: layout === mode.value }" @click="layout = mode.value" :title="mode.label">
                         <span class="icon-svg" v-html="mode.icon"></span>
                     </button>
+                    <span class="divider"></span>
+                    <button class="toolbar-btn" :class="{ active: editorTheme === 'dark' }" @click="editorTheme = 'dark'" title="Dark">
+                        <span class="icon-svg" v-html="Icons.themeDark"></span>
+                    </button>
+                    <button class="toolbar-btn" :class="{ active: editorTheme === 'light' }" @click="editorTheme = 'light'" title="Light">
+                        <span class="icon-svg" v-html="Icons.themeLight"></span>
+                    </button>
+                    <span class="divider"></span>
+                    <select v-model="editorLocale" class="toolbar-btn locale-select" title="Language">
+                        <option value="en">EN</option>
+                        <option value="zh-CN">ZH-CN</option>
+                    </select>
                 </div>
             </div>
         </div>
@@ -112,21 +117,15 @@
         <div class="editor-workspace">
             <!-- Editor Pane -->
             <div v-show="showEditor" class="pane editor-pane">
-                <div class="editor-pane-surface" :class="{ 'is-searching': !!editorSearchQuery.trim() }">
-                    <div v-if="editorSearchQuery.trim()" class="editor-highlight-layer"
-                        :style="{ transform: `translateY(-${editorHighlightScrollTop}px)` }"
-                        v-html="editorSearchHighlightHtml"></div>
-                    <textarea ref="editorRef" v-model="localValue" class="markdown-input"
-                        :class="{ 'is-searching': !!editorSearchQuery.trim() }" :placeholder="t('editor.placeholder')"
-                        @scroll="onEditorScroll" @mouseover="activeScroll = 'editor'"></textarea>
-                </div>
+                <CmEditor ref="editorRef" v-model="localValue" :placeholder="t('editor.placeholder')" :fontClass="fontClass" @mouseover="activeScroll = 'editor'" @cursorChange="onCursorChange" @changeRange="onChangeRange" @editorScroll="onEditorScroll" />
             </div>
 
             <!-- Preview Pane -->
             <div v-show="showPreview" class="pane preview-pane" :class="fontClass" ref="previewRef" tabindex="0"
                 @scroll="syncScroll('preview')" @mouseover="activeScroll = 'preview'" @focus="activeScroll = 'preview'">
-                <MdParser v-model="localValue" :readOnly="previewReadOnly" :assetMap="assetMap"
-                    class="preview-content" />
+                <!-- Preview: markdown-it renderer — matches template-astro published output exactly -->
+                <!-- Pipeline A (MdParser interactive preview) disabled for now; code preserved in markdownParser.ts + MdParser.vue -->
+                <MarkdownItPreview :markdown="localValue" :cursorLine="cursorLine" :changeRange="changeRange" class="preview-content" />
             </div>
         </div>
 
@@ -540,10 +539,13 @@
 
 <script setup lang="ts">
 import { fetchWithAuth } from '../utils/fetchWithAuth';
+import { settingsStore } from '../composables/settingsApi';
 import { readApiErrorMessage } from '../utils/apiError'
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, reactive } from 'vue'
 import { useRoute, useRouter, onBeforeRouteUpdate, onBeforeRouteLeave } from 'vue-router'
-import MdParser from './MdParser.vue'
+// Pipeline A disabled — keep import for future re-enablement
+// import MdParser from './MdParser.vue'
+import MarkdownItPreview from './MarkdownItPreview.vue'
 import { debounce } from '../utils/debounce'
 import { Icons } from '../utils/icons'
 import { convertToHtml, injectHeadingIds, getStats } from '../utils/markdownParser'
@@ -551,6 +553,7 @@ import { sortTags } from '../utils/tagUtils'
 import { useI18n } from 'vue-i18n'
 import CheckRow from './ui/CheckRow.vue';
 import FilePicker from './FilePicker.vue'
+import CmEditor from './CmEditor.vue'
 import { formatDate as formatDateUtil, formatDateTime } from '../utils/dateUtils'
 import QuarterCircleSpinner from './ui/QuarterCircleSpinner.vue'
 import useToast from '../composables/useToast'
@@ -625,7 +628,6 @@ const emit = defineEmits<{
 }>()
 
 const localValue = ref(props.modelValue)
-const previewReadOnly = ref(false)
 const assetMap = ref<Record<string, string>>({})
 // Post Meta
 const postTitle = ref('')
@@ -1200,11 +1202,20 @@ const isDirty = computed(() => {
     return localValue.value !== savedContent.value || postTitle.value !== savedTitle.value
 })
 
-// Undo/Redo History
-const history = ref<string[]>([])
-const historyIndex = ref(-1)
-const isTimeTraveling = ref(false) // Flag to ignore component's own updates when doing undo/redo
+// Undo/Redo History (CodeMirror owns undo/redo; these remain for session persistence only)
+const history = ref<string[]>([''])
+const historyIndex = ref(0)
+const isTimeTraveling = ref(false)
 const MAX_HISTORY = 50
+function pushHistory(val: string) {
+  if (isTimeTraveling.value) return
+  if (historyIndex.value >= 0 && history.value[historyIndex.value] === val) return
+  if (historyIndex.value < history.value.length - 1) history.value = history.value.slice(0, historyIndex.value + 1)
+  history.value.push(val)
+  if (history.value.length > MAX_HISTORY) { history.value.shift(); historyIndex.value-- }
+  historyIndex.value = history.value.length - 1
+}
+const debouncedPush = debounce(pushHistory, 500)
 
 // Persist Logic
 const draftKey = computed(() => {
@@ -1651,18 +1662,8 @@ async function doSave(action?: 'local' | 'draft' | 'publish' | 'upload' | 'unsav
             closeModals()
 
             if (shouldBuildAstro) {
-                let allowBuild = false
-                try {
-                    const sres = await fetchWithAuth(`/api/settings?t=${Date.now()}`)
-                    if (sres.ok) {
-                        const settings = await sres.json()
-                        allowBuild = !!(settings && settings.autoBuildOnPublish)
-                    } else {
-                        allowBuild = false
-                    }
-                } catch (e) {
-                    allowBuild = false
-                }
+                const settings = settingsStore.value
+                const allowBuild = !!(settings && settings.autoBuildOnPublish)
 
                 if (allowBuild) {
                     try {
@@ -1793,7 +1794,7 @@ async function handleUnsavedOption(action: 'save' | 'discard') {
     }
 }
 
-
+/*
 function pushHistory(val: string) {
     if (isTimeTraveling.value) return
 
@@ -1817,6 +1818,7 @@ function pushHistory(val: string) {
 }
 
 const debouncedPush = debounce(pushHistory, 500)
+*/
 
 // Navigation Guards
 const handleNavigation = (to: any, from: any, next: any) => {
@@ -2065,27 +2067,11 @@ watch(localValue, (val) => {
 })
 
 function undo() {
-    if (historyIndex.value > 0) {
-        isTimeTraveling.value = true
-        historyIndex.value--
-        localValue.value = history.value[historyIndex.value]
-        nextTick(() => {
-            isTimeTraveling.value = false
-            // no auto-save for local file mode
-        })
-    }
+  ;(editorRef.value as any)?.undo()
 }
 
 function redo() {
-    if (historyIndex.value < history.value.length - 1) {
-        isTimeTraveling.value = true
-        historyIndex.value++
-        localValue.value = history.value[historyIndex.value]
-        nextTick(() => {
-            isTimeTraveling.value = false
-            // no auto-save for local file mode
-        })
-    }
+  ;(editorRef.value as any)?.redo()
 }
 
 function handleBeforeUnload(e: BeforeUnloadEvent) {
@@ -2111,7 +2097,6 @@ onMounted(() => {
     } catch (e) { }
 
     window.addEventListener('beforeunload', handleBeforeUnload)
-    // Global editor undo/redo handler
     window.addEventListener('keydown', onKeydown)
 })
 
@@ -2442,7 +2427,6 @@ function openPrintPreview(options?: { autoPrint?: boolean }) {
 }
 
 function onEditorScroll() {
-    editorHighlightScrollTop.value = editorRef.value?.scrollTop || 0
     syncScroll('editor')
 }
 
@@ -2935,22 +2919,83 @@ function syncScroll(source: 'editor' | 'preview') {
     if (layout.value !== 'split') return
     if (activeScroll.value && activeScroll.value !== source) return
 
-    const editor = editorRef.value
+    const scrollDom = (editorRef.value as any)?.getScrollDom?.() as HTMLElement | null
     const preview = previewRef.value
+    if (!scrollDom || !preview) return
 
-    if (!editor || !preview) return
+    const edH = scrollDom.scrollHeight - scrollDom.clientHeight
+    const pvH = preview.scrollHeight - preview.clientHeight
+    if (edH <= 0 || pvH <= 0) return
 
     if (source === 'editor') {
-        const percentage = editor.scrollTop / (editor.scrollHeight - editor.clientHeight)
-        if (!isNaN(percentage)) {
-            preview.scrollTop = percentage * (preview.scrollHeight - preview.clientHeight)
-        }
+        preview.scrollTop = (scrollDom.scrollTop / edH) * pvH
     } else {
-        const percentage = preview.scrollTop / (preview.scrollHeight - preview.clientHeight)
-        if (!isNaN(percentage)) {
-            editor.scrollTop = percentage * (editor.scrollHeight - editor.clientHeight)
-        }
+        scrollDom.scrollTop = (preview.scrollTop / pvH) * edH
     }
+}
+
+/** Scroll preview so the active block is visible. Priority > syncScroll. */
+function scrollActiveBlockIntoView() {
+    if (!previewRef.value) return
+    const el = previewRef.value.querySelector('.active-block') as HTMLElement | null
+    if (!el) return
+    const container = previewRef.value
+    const elTop = el.offsetTop - container.offsetTop
+    const elBot = elTop + el.offsetHeight
+    const margin = 60
+    if (elTop < container.scrollTop + margin) {
+        container.scrollTop = Math.max(0, elTop - margin)
+    } else if (elBot > container.scrollTop + container.clientHeight - margin) {
+        container.scrollTop = elBot - container.clientHeight + margin
+    }
+}
+
+// Page-level theme & locale — persisted in localStorage, optionally overridden by query params
+const LS_THEME = 'chronicle_editor_theme'
+const LS_LOCALE = 'chronicle_editor_locale'
+
+function readInitialTheme(): 'dark' | 'light' {
+  // 1. Explicit query param override
+  const q = (route.query.theme as string) || ''
+  if (q === 'dark' || q === 'light') return q
+  // 2. localStorage
+  const ls = localStorage.getItem(LS_THEME)
+  if (ls === 'dark' || ls === 'light') return ls
+  // 3. CMS current
+  return (document.body.getAttribute('data-backend-theme') as 'dark' | 'light') || 'dark'
+}
+
+function readInitialLocale(): string {
+  const q = (route.query.locale as string) || ''
+  if (q) return q
+  const ls = localStorage.getItem(LS_LOCALE)
+  if (ls) return ls
+  return locale.value
+}
+
+const editorTheme = ref<'dark' | 'light'>(readInitialTheme())
+watch(editorTheme, (v) => {
+  document.body.setAttribute('data-backend-theme', v)
+  localStorage.setItem(LS_THEME, v)
+}, { immediate: true })
+
+const editorLocale = ref(readInitialLocale())
+watch(editorLocale, (v) => {
+  locale.value = v as any
+  localStorage.setItem(LS_LOCALE, v)
+}, { immediate: true })
+
+const cursorLine = ref(1)
+const changeRange = ref<{ from: number; to: number } | null>(null)
+
+function onCursorChange(line: number, _col: number) {
+    cursorLine.value = line
+    // Scroll preview to keep active block visible
+    setTimeout(() => scrollActiveBlockIntoView(), 80)
+}
+
+function onChangeRange(range: { from: number; to: number }) {
+    changeRange.value = range
 }
 const fontClass = computed(() => {
     return `font-${postFont.value}`
@@ -3262,7 +3307,7 @@ const fontClass = computed(() => {
     padding: 12px;
     border-radius: 12px;
     border: 1px solid var(--border-color);
-    background: var(--bg-secondary);
+    background: var(--component-bg-secondary);
     box-shadow: var(--shadow-elev-2);
     display: flex;
     flex-direction: column;
@@ -3372,7 +3417,7 @@ button:disabled {
 
 
 .modal-content {
-    background: var(--bg-secondary);
+    background: var(--component-bg-secondary);
     border: 1px solid var(--border-color);
     border-radius: 6px;
 
@@ -3463,7 +3508,7 @@ button:disabled {
 /* Sidebar */
 .modal-sidebar {
     width: 200px;
-    background: var(--bg-secondary);
+    background: var(--component-bg-secondary);
     border-right: 1px solid var(--border-color);
     padding: 10px;
     overflow-y: auto;
@@ -3672,7 +3717,7 @@ button:disabled {
 .status-chip.draft {
     color: var(--component-text-secondary);
     border-color: var(--border-color);
-    background: var(--component-bg-hover);
+    background: var(--component-bg-blur-alt);
 }
 
 .status-chip.published {
@@ -3794,7 +3839,7 @@ button:disabled {
     width: 24px;
     height: 24px;
     border: 1px solid var(--border-color);
-    background: var(--component-bg-hover);
+    background: var(--component-bg-blur-alt);
     cursor: pointer;
     border-radius: 2px;
 }
@@ -3839,7 +3884,7 @@ button:disabled {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    background: var(--component-bg-hover);
+    background: var(--component-bg-blur-alt);
     padding: 8px;
     border-radius: 8px;
     border: 1px solid var(--border-color);
@@ -4012,17 +4057,18 @@ button:disabled {
 
 .post-item {
     padding: 12px;
-    background: var(--component-bg-hover);
+    background: var(--component-bg-blur-alt);
     border: 1px solid var(--border-color);
     border-radius: 4px;
     cursor: pointer;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    transition: background 0.2s;
 }
 
 .post-item:hover {
-    background: var(--component-bg-secondary);
+    background: var(--component-bg-hover);
 }
 
 .post-title {
@@ -4131,7 +4177,7 @@ button:disabled {
     bottom: 24px;
     right: 24px;
     width: 320px;
-    background: var(--bg-secondary);
+    background: var(--component-bg-secondary);
     border: 1px solid var(--border-color);
     border-radius: 4px;
     box-shadow: var(--shadow-elev-1);
@@ -4230,6 +4276,18 @@ button:disabled {
     color: var(--text-on-accent);
 }
 
+.locale-select{
+    transition: background 0.2s;
+    display: flex;
+    justify-content: center;
+    text-align: start;
+}
+
+.locale-select option{
+    background: var(--bg-secondary);
+    color: var(--component-text-primary);
+}
+
 @keyframes slideIn {
     from {
         transform: translateY(20px);
@@ -4241,4 +4299,5 @@ button:disabled {
         opacity: 1;
     }
 }
+
 </style>

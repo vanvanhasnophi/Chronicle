@@ -248,12 +248,18 @@ install_node_deps() {
 prepare_runtime_dirs() {
   local repo_root="$1"
   root_exec mkdir -p "$repo_root/data/upload"
+  root_exec mkdir -p "$repo_root/data/branding"
+  root_exec mkdir -p "$repo_root/data/manager-background"
   root_exec mkdir -p "$repo_root/packages/host/log"
   root_exec mkdir -p "$repo_root/packages/manager/public/server/data"
   root_exec mkdir -p "$repo_root/packages/template-astro/public/server/data"
 
   ensure_symlink "$repo_root/packages/manager/public/server/data/upload" "$repo_root/data/upload"
+  ensure_symlink "$repo_root/packages/manager/public/server/data/branding" "$repo_root/data/branding"
+  ensure_symlink "$repo_root/packages/manager/public/server/data/manager-background" "$repo_root/data/manager-background"
   ensure_symlink "$repo_root/packages/template-astro/public/server/data/upload" "$repo_root/data/upload"
+  ensure_symlink "$repo_root/packages/template-astro/public/server/data/branding" "$repo_root/data/branding"
+  ensure_symlink "$repo_root/packages/template-astro/public/server/data/manager-background" "$repo_root/data/manager-background"
 }
 
 generate_nginx_config() {
@@ -683,10 +689,17 @@ do_update() {
   
   log INFO "Chronicle 更新模式"
   log INFO "拉取最新代码..."
-  
+
   git -C "$repo_root" fetch origin "$REPO_BRANCH" >/dev/null 2>&1 || die "[ERROR] Git fetch 失败"
   git -C "$repo_root" checkout -B "$REPO_BRANCH" "origin/$REPO_BRANCH" >/dev/null 2>&1 || die "[ERROR] Git checkout 失败"
-  
+
+  # 数据迁移（加密→明文）：仅在迁移脚本存在时执行，幂等操作
+  local migrate_script="$repo_root/scripts/migrate-posts-plaintext.js"
+  if [[ -f "$migrate_script" ]]; then
+    log INFO "检查是否需要数据迁移..."
+    node "$migrate_script" --apply || warn "数据迁移脚本执行失败，可稍后手动运行"
+  fi
+
   # 重新构建和部署
   prepare_runtime_dirs "$repo_root"
   rebuild_frontends "$repo_root"

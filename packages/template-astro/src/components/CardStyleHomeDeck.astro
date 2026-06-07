@@ -2,6 +2,7 @@
 import { buildLocalizedPath } from '../utils/routeLocale';
 import { getApiUrl } from '../config/api';
 import { loadSiteSettings } from '../utils/siteSettings';
+import { loadSiteProfile } from '../utils/siteProfile';
 import { getTranslation, getLocale } from '../utils/i18n';
 import SearchBox from './SearchBox.astro';
 
@@ -14,9 +15,12 @@ const aboutPath = buildLocalizedPath(locale, '/about');
 const collectionPath = buildLocalizedPath(locale, '/collection');
 const searchPath = buildLocalizedPath(locale, '/search');
 const settings = await loadSiteSettings();
+const profile = await loadSiteProfile();
 
 const siteTitle = settings?.siteName || 'Chronicle';
-const authorName = settings?.authorName || (t('home.defaultAuthorName') as string);
+const authorName = profile?.name || settings?.authorName || (t('home.defaultAuthorName') as string);
+const authorBio = profile?.bio || '';
+const authorAvatar = profile?.avatar || '';
 const cardSubtitle = t('home.cardSubtitle') as string;
 const cardAuthorLine = t('home.cardAuthorLine') as string;
 const isFriendsEnabled = featureFlags?.friendsPage !== false;
@@ -28,9 +32,11 @@ function interpolate(template: string, values: Record<string, string | number>) 
 
 
 function normalizeApiList(payload: any) {
-  if (Array.isArray(payload)) return payload;
-  if (Array.isArray(payload?.posts)) return payload.posts;
-  if (Array.isArray(payload?.collections)) return payload.collections;
+  // Unwrap Chronicle API envelope { code, data, message } → data
+  const d = payload?.data ?? payload;
+  if (Array.isArray(d)) return d;
+  if (Array.isArray(d?.posts)) return d.posts;
+  if (Array.isArray(d?.collections)) return d.collections;
   return [];
 }
 
@@ -177,28 +183,47 @@ function buildCollectionSummaries(collectionsList: any[]) {
     .sort((a, b) => b.posts - a.posts || b.groups - a.groups);
 }
 
-const [postsRes, collectionsRes] = await Promise.allSettled([
-  fetch(getApiUrl(`/api/posts?t=${Date.now()}`, true), { cache: 'no-store' }),
-  fetch(getApiUrl(`/api/collections?t=${Date.now()}`, true), { cache: 'no-store' }),
-]);
-
 let posts: any[] = [];
-if (postsRes.status === 'fulfilled' && postsRes.value.ok) {
-  try {
-    const data = await postsRes.value.json();
-    posts = normalizeApiList(data);
-  } catch {
-    posts = [];
-  }
-}
-
 let collections: any[] = [];
-if (collectionsRes.status === 'fulfilled' && collectionsRes.value.ok) {
+
+// In local/filesystem mode, read directly from data/ without API
+const isLocal = process.env.DATA_SOURCE !== 'api';
+if (isLocal) {
   try {
-    const data = await collectionsRes.value.json();
-    collections = normalizeApiList(data);
-  } catch {
-    collections = [];
+    const { getPublishedPosts, getCollections } = await import('../data/localDataSource');
+    posts = getPublishedPosts().map((p: any) => ({ ...p, content: undefined, compiledHtml: undefined }));
+    collections = (getCollections() as any) || [];
+    // unwrap legacy collection format
+    if (!Array.isArray(collections) && Array.isArray((collections as any).collections)) {
+      collections = (collections as any).collections;
+    }
+    if (!Array.isArray(collections)) collections = [];
+  } catch (e) {
+    console.warn('[CardStyleHomeDeck] localDataSource fallback failed, posts empty');
+  }
+} else {
+  // Remote API mode — fetch at build time
+  const [postsRes, collectionsRes] = await Promise.allSettled([
+    fetch(getApiUrl(`/api/posts?t=${Date.now()}`, true), { cache: 'no-store' }),
+    fetch(getApiUrl(`/api/collections?t=${Date.now()}`, true), { cache: 'no-store' }),
+  ]);
+
+  if (postsRes.status === 'fulfilled' && postsRes.value.ok) {
+    try {
+      const data = await postsRes.value.json();
+      posts = normalizeApiList(data);
+    } catch {
+      posts = [];
+    }
+  }
+
+  if (collectionsRes.status === 'fulfilled' && collectionsRes.value.ok) {
+    try {
+      const data = await collectionsRes.value.json();
+      collections = normalizeApiList(data);
+    } catch {
+      collections = [];
+    }
   }
 }
 
@@ -311,13 +336,17 @@ const yearLabel = new Date().getFullYear();
     <aside class="flow-column flow-column--right">
       <article class="author-card panel-card">
         <div class="author-card__top">
-          <div class="author-avatar" aria-hidden="true">{authorInitials}</div>
+          {authorAvatar ? (
+            <img class="author-avatar" src={authorAvatar} alt={authorName} width="64" height="64" loading="eager" decoding="async" />
+          ) : (
+            <div class="author-avatar" aria-hidden="true">{authorInitials}</div>
+          )}
           <div>
             <div class="panel-kicker">{t('home.authorInfo')}</div>
             <h3>{authorName}</h3>
           </div>
         </div>
-        <p style="margin-bottom:0;">{cardAuthorLine}</p>
+        {authorBio ? <p class="author-bio">{authorBio}</p> : <p style="margin-bottom:0;">{cardAuthorLine}</p>}
       </article>
 
       <section class="panel-card taxonomy-card">
@@ -677,6 +706,15 @@ const yearLabel = new Date().getFullYear();
     font-weight: 700;
     letter-spacing: -.04em;
     font-size: 1.2rem;
+  }
+  img.author-avatar {
+    object-fit: cover;
+  }
+  .author-bio {
+    margin: 0.5rem 0 0;
+    color: var(--component-text-secondary);
+    font-size: 0.92rem;
+    line-height: 1.55;
   }
 
   .mini-stats {
