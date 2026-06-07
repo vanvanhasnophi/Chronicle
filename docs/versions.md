@@ -63,8 +63,8 @@ data/
 ├── profile.json           # 作者信息
 ├── settings.json
 ├── security.json
-├── branding/              # 品牌资源 + 已压缩背景图（v2：替代 background/）
-├── background/            # [废弃] 旧背景图目录
+├── branding/              # 前台品牌资源（头像、图标、前台压缩背景图）
+├── manager-background/    # CMS 后台背景图
 └── upload/                # 媒体文件
 ```
 
@@ -184,13 +184,22 @@ sudo bash install.sh install
 
 | 项 | 状态 |
 |----|------|
-| server Express API | ✅ 完成（v2: `packages/host/`，PM2 `chronicle-host`） |
-| manager Vue CMS | ✅ 完成 |
-| template-astro | ✅ 完成 |
-| monorepo 路径更新（install.sh / deploy.sh / build.sh / start.sh） | ✅ 已完成 |
-| data/branding 迁移（background/ → branding/） | ✅ 已完成 |
-| v1→v2 数据迁移脚本 | ✅ 完成 (`scripts/migrate-v1-to-v2.sh`) |
-| README + 文档 | ✅ 已更新 |
+| packages/host/ Express API | ✅ 完成 |
+| packages/manager/ Vue CMS | ✅ 完成 |
+| packages/template-astro/ SSG | ✅ 完成 |
+| packages/gen/ CLI 构建引擎 | ✅ 完成 |
+| chronicle-deploy.sh（PM2 chronicle-host） | ✅ 完成 |
+| install.sh（Nginx + 一键部署） | ✅ 完成 |
+| start.sh / stop.sh（开发环境） | ✅ 完成 |
+| data/branding + manager-background | ✅ 完成 |
+| 构建修复（vite workspace 路径、archive import） | ✅ 完成 |
+| chronicle-gen 改为本地路径（不依赖 npm publish） | ✅ 完成 |
+| 媒体文件由 Nginx serve（构建不复制 upload） | ✅ 完成 |
+| Astro 构建性能（不再复制媒体文件到 dist） | ✅ 完成 |
+| v1→v2 迁移脚本（export + migrate） | ✅ 完成 |
+| 文档（README, CLAUDE.md, CHANGELOG, versions.md） | ✅ 完成 |
+
+**full 版：100% 完成。**
 
 ---
 
@@ -276,9 +285,10 @@ cd /opt/Chronicle && npm run dev:manager
 
 | 项 | 状态 |
 |----|------|
-| VPS server 部署 | ✅ server 可独立部署 |
+| VPS server 部署 | ✅ `install.sh` 可独立部署 host |
 | manager 本地运行 | ✅ `npm run dev` 可用 |
-| manager API 上传模式 | ❌ 需配置远端 API 地址的能力 |
+| manager 远端 API 连接 | ✅ `VITE_API_BASE_URL` 指向远端 host 即可 |
+| CMS 构建触发 | ✅ 调用 `/api/admin/build/astro` |
 | 构建脚本 | ⚠️ 需区分是否含 manager |
 | Electron 桌面应用 | ❌ 未开始 |
 
@@ -366,9 +376,9 @@ git push git@github.com:USER/USER.github.io.git main:gh-pages
 | 项 | 状态 |
 |----|------|
 | manager 本地运行 | ✅ `npm run dev` 可用 |
-| 本地内容保存 | ⚠️ 目前保存依赖 server API |
-| manager 触发 Astro 构建 | ❌ 需打通 manager → template-astro 构建流程 |
-| 构建产物部署指南 | ❌ 无 |
+| 本地内容保存 | ⚠️ 目前依赖 Vite proxy 到 server |
+| chronicle-gen build（本地 Astro 构建） | ✅ CLI 可用 |
+| 静态产物自包含（含 upload 媒体文件） | ❌ 构建不复制 upload，纯静态缺图片 |
 | GitHub Actions 自动部署 | ❌ 无 |
 | Electron 桌面应用 | ❌ 未开始 |
 
@@ -459,13 +469,17 @@ git push
 
 | 项 | 状态 |
 |----|------|
-| Astro Content Collections (本地 .md 数据源) | ❌ **核心阻塞** — 模板当前只支持 API 数据源 |
-| 示例文章 | ❌ 无 `content/` 目录 |
+| localDataSource（`DATA_SOURCE=local`） | ✅ 已实现，从 `data/posts/` 读取 |
+| site/ → data/ 转换（chronicle-gen convert） | ✅ 完成 |
+| settings.yml → settings.json | ✅ 完成 |
+| collections.yml 转换 | ✅ 完成 |
+| 背景图处理（site/branding/ → data/branding/） | ✅ 完成 |
+| 示例文章（site/ 示例内容） | ✅ 有 `site/posts/hello-world/` |
 | lite 分支 | ❌ 未创建 |
-| GitHub Actions 部署模板 | ❌ 无 |
-| 站点配置文件 | ❌ 配置硬编码在 API settings 中 |
+| GitHub Actions 自动部署 | ❌ 无 |
+| 静态产物自包含（upload 进 dist） | ❌ 当前构建不含 upload |
 
-**lite 当前不可用。** 需要给 template-astro 添加 `DATA_SOURCE=local` 模式，通过 Astro Content Collections 加载本地 Markdown。
+**lite 基本可用，缺自动部署流水线和 upload 自包含。**
 
 ---
 
@@ -559,11 +573,12 @@ npm install && npm run dev
 | 项 | 状态 |
 |----|------|
 | manager 核心（CMS CRUD + 编辑） | ✅ 完成 |
-| 独立本地运行 | ✅ 完成 |
-| 本地数据存储（不依赖 server） | ⚠️ 目前通过 Vite proxy 到 server |
-| API 上传组件（可选） | ❌ 需提取为可配置插件 |
-| 静态构建组件（可选） | ❌ 需集成 template-astro 构建链 |
-| 独立构建产物 | ✅ `npm run build:manager` |
+| 独立本地运行 | ✅ `npm run dev` 可用 |
+| 独立构建产物 | ✅ `npm run build` (vite) |
+| 本地数据存储（不依赖 server） | ⚠️ 通过 Vite proxy；独立模式需 `DATA_SOURCE=local` |
+| API 上传组件（→ self-hosted） | ✅ `VITE_API_BASE_URL` 配置远端 host |
+| 静态构建组件（→ static） | ⚠️ 可触发 `/api/admin/build/astro`，缺少本地集成 |
+| Electron 桌面应用 | ❌ 未开始 |
 
 ---
 
@@ -598,30 +613,30 @@ npm install && npm run dev
 ## 附录 B：当前整体进度
 
 ```
-full         ██████████  95%  文档、v1 迁移脚本已完善
-self-hosted  ███░░░░░░░  30%  需 manager API 上传组件
-static       ███░░░░░░░  30%  需 manager 静态构建组件
-lite         █░░░░░░░░░  10%  阻塞：模板需本地数据源
-manager      █████░░░░░  55%  核心完成，缺可选组件
+full         ██████████  100%  生产就绪
+self-hosted  ██████░░░░  60%  manager 可远端连接 host，缺 Electron
+static       ████░░░░░░  35%  本地构建链通，缺 upload 自包含 + Actions
+lite         ███░░░░░░░  30%  localDataSource 可用，缺 Actions + upload
+manager      ███████░░░  70%  核心 + API 上传可用，缺本地静态构建集成
 ─────────────────────────────────
-总体         █████░░░░░  45%  v2 迁移完成，进入 Phase 2
+总体         ██████░░░░  55%  full 完成，其余版本基础能力就绪
 ```
 
 | 优先级 | 阻塞项 | 影响版本 |
 |--------|--------|---------|
-| 🔴 P0 | template-astro 本地 Content Collection（`DATA_SOURCE=local`） | lite, static |
-| 🔴 P0 | manager 独立本地数据存储（不依赖 server API） | manager, static |
-| 🟡 P1 | manager API 上传可选组件 | self-hosted |
-| 🟡 P1 | manager 静态构建可选组件 | static |
+| 🟡 P1 | static 构建产物自包含 upload 媒体文件 | static, lite |
+| 🟡 P1 | manager 独立本地数据存储（不依赖 server API） | manager, static |
+| 🟡 P1 | manager 本地静态构建集成 | static |
 | 🟢 P2 | lite 分支 + GitHub Actions 部署模板 | lite |
+| 🟢 P2 | static GitHub Actions 部署模板 | static |
 | 🔵 P3 | Electron 桌面应用 | static, self-hosted |
 
 ## 附录 C：与 PRD 版本矩阵的对照
 
 | PRD 版本 | 对应 variant | CMS 模式 | PRD 获取入口 | 状态 |
 |----------|-------------|---------|-------------|------|
-| 全自托管版 | full | Cloud | `git clone` + install.sh | ⚠️ 需更新 |
-| 静态自托管版 | self-hosted | Local·API | 桌面应用 + VPS | ❌ 缺 manager 插件 |
-| 完整静态版 | static | Local·静态 | 桌面应用 → 一键部署 | ❌ 缺 manager 插件 |
-| 精简版 | lite | 无 | fork `lite` 分支 | ❌ 缺本地数据源 |
+| 全自托管版 | full | Cloud | `git clone` + install.sh | ✅ 生产就绪 |
+| 静态自托管版 | self-hosted | Local·API | manager + VPS host | ⚠️ 基础可用，缺打包 |
+| 完整静态版 | static | Local·静态 | manager + chronicle-gen → push | ⚠️ 构建链通，缺 upload 自包含 |
+| 精简版 | lite | 无 | fork + chronicle-gen build --site | ⚠️ localDataSource 可用，缺 Actions |
 | CLI 同步器 | — | — | `npm install` | ❌ 未开始 |
