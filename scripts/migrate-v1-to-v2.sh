@@ -1,28 +1,36 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════════
-# Chronicle v1 → v2 数据迁移脚本
+# Chronicle v1 → v2 数据迁移脚本（在 v2 仓库中运行）
 #
 # 用法:
 #   bash scripts/migrate-v1-to-v2.sh /path/to/v1data.tar.gz
-#   bash scripts/migrate-v1-to-v2.sh             # 默认 v1data.tar.gz 在当前目录
+#   bash scripts/migrate-v1-to-v2.sh             # 默认从约定位置读取
+#
+# 约定（与 export-v1-data.sh 共享）:
+#   ~/.chronicle/v1data.tar.gz  — 默认数据包位置
+#   <repo_root>/v1data.tar.gz   — 备选
 #
 # 做以下事情:
 #   1. 停止服务
 #   2. 备份当前 data/ → data.bak.{timestamp}/
-#   3. Git pull（有冲突则清空目录重新 clone）
-#   4. 解压 v1 数据
-#   5. 转换并写入 v2 格式
-#   6. npm install + build
-#   7. 重启服务
+#   3. 解压 v1 数据
+#   4. 转换并写入 v2 格式
+#   5. npm install + build
+#   6. 重启服务
 # ═══════════════════════════════════════════════════════════════
 
 set -Eeuo pipefail
 
 # ── Config ─────────────────────────────────────────────────
-REPO_URL="${REPO_URL:-https://github.com/vanvanhasnophi/Chronicle.git}"
-REPO_BRANCH="${REPO_BRANCH:-main}"
 REPO_ROOT="${REPO_ROOT:-/opt/Chronicle}"
-V1_TARBALL="${1:-${REPO_ROOT}/v1data.tar.gz}"
+
+# 数据包优先顺序: 命令行参数 > 仓库根目录 > 约定位置
+SAFE_FILE_DEFAULT="${HOME}/.chronicle/v1data.tar.gz"
+if [[ -f "${REPO_ROOT}/v1data.tar.gz" ]]; then
+  V1_TARBALL="${1:-${REPO_ROOT}/v1data.tar.gz}"
+else
+  V1_TARBALL="${1:-${SAFE_FILE_DEFAULT}}"
+fi
 
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
@@ -44,57 +52,19 @@ sleep 2
 
 # ── Step 2: 备份现有 data/ ────────────────────────────────
 DATA_DIR="${REPO_ROOT}/data"
-if [[ -d "$DATA_DIR" ]]; then
+if [[ -d "$DATA_DIR" ]] && [[ -f "$DATA_DIR/settings.json" ]]; then
   BACKUP_DIR="${REPO_ROOT}/data.bak.$(date +%Y%m%d-%H%M%S)"
   log "STEP2" "备份现有 data/ → $(basename "$BACKUP_DIR")"
   cp -a "$DATA_DIR" "$BACKUP_DIR"
 fi
 
-# ── Step 3: 更新仓库 ──────────────────────────────────────
-log "STEP3" "更新 Git 仓库..."
-
-if [[ -d "${REPO_ROOT}/.git" ]]; then
-  git -C "$REPO_ROOT" remote set-url origin "$REPO_URL" 2>/dev/null || true
-
-  # 先 stash 本地改动，避免冲突
-  if ! git -C "$REPO_ROOT" diff --quiet 2>/dev/null; then
-    warn "检测到本地改动，stash 暂存..."
-    git -C "$REPO_ROOT" stash push -m "migrate-v1-auto-stash-$(date +%s)" 2>/dev/null || true
-  fi
-
-  git -C "$REPO_ROOT" fetch origin "$REPO_BRANCH" 2>&1 || warn "git fetch 失败，继续..."
-
-  # 尝试 checkout，失败则清空目录重新 clone
-  if ! git -C "$REPO_ROOT" checkout -B "$REPO_BRANCH" "origin/$REPO_BRANCH" 2>&1; then
-    warn "Git checkout 冲突，清空目录重新 clone..."
-    # 保留 data/（已备份，稍后恢复）
-    find "$REPO_ROOT" -mindepth 1 -maxdepth 1 \
-      ! -name 'data' \
-      ! -name 'data.bak.*' \
-      ! -name 'v1data.tar.gz' \
-      -exec rm -rf {} + 2>/dev/null || true
-
-    git clone --branch "$REPO_BRANCH" --depth 1 "$REPO_URL" "$REPO_ROOT" 2>&1 || die "Git clone 失败"
-
-    # restore data/ symlink
-    if [[ -d "$DATA_DIR" ]]; then
-      rm -rf "${REPO_ROOT}/packages/host/data" 2>/dev/null || true
-      ln -sf ../../data "${REPO_ROOT}/packages/host/data"
-    fi
-  fi
-else
-  die "不是 git 仓库: $REPO_ROOT，请先 clone 或设置 REPO_ROOT"
-fi
-
-log "STEP3" "仓库已更新到 $(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo '?')"
-
-# ── Step 4: 解压 v1 数据 ──────────────────────────────────
+# ── Step 3: 解压 v1 数据（从约定安全位置）────────────────
 if [[ ! -f "$V1_TARBALL" ]]; then
   die "v1 数据包不存在: $V1_TARBALL"
 fi
 
 MIGRATE_TMP="/tmp/chronicle-v1-migrate-$$"
-log "STEP4" "解压 v1 数据到 $MIGRATE_TMP ..."
+log "STEP3" "解压 v1 数据到 $MIGRATE_TMP ..."
 rm -rf "$MIGRATE_TMP"
 mkdir -p "$MIGRATE_TMP"
 tar xzf "$V1_TARBALL" -C "$MIGRATE_TMP" 2>&1 || die "解压失败"
@@ -107,36 +77,34 @@ if [[ ! -d "$V1_DATA" ]]; then
     die "找不到 v1 数据目录（需要包含 settings.json 的 data/ 目录）"
   fi
 fi
-log "STEP4" "v1 数据目录: $V1_DATA"
+log "STEP3" "v1 数据目录: $V1_DATA"
 
-# ── Step 5: 确保 v2 data/ 目录结构 ─────────────────────────
-log "STEP5" "准备 v2 数据目录..."
+# ── Step 4: 确保 v2 data/ 目录结构 ─────────────────────────
+log "STEP4" "准备 v2 数据目录..."
 rm -rf "$DATA_DIR"
-mkdir -p "$DATA_DIR"/{posts,upload,branding,background}
+mkdir -p "$DATA_DIR"/{posts,upload,branding,manager-background}
 mkdir -p "$DATA_DIR/upload"/{pic,sound,video,doc,txt,other,.thumbs/pic}
 
 # 恢复 symlink
 rm -rf "${REPO_ROOT}/packages/host/data" 2>/dev/null || true
 ln -sf ../../data "${REPO_ROOT}/packages/host/data"
 
-# ── Step 5a: 复制 upload/ ──────────────────────────────────
-log "STEP5a" "迁移 upload/ ..."
+# ── Step 4a: 复制 upload/ ──────────────────────────────────
+log "STEP4a" "迁移 upload/ ..."
 if [[ -d "$V1_DATA/upload" ]]; then
   rsync -a "$V1_DATA/upload/" "$DATA_DIR/upload/" 2>&1 || warn "rsync upload 有部分错误，继续..."
 fi
-log "STEP5a" "upload 迁移完成 ($(find "$DATA_DIR/upload" -type f | wc -l) 个文件)"
+log "STEP4a" "upload 迁移完成 ($(find "$DATA_DIR/upload" -type f | wc -l) 个文件)"
 
-# ── Step 5b: 迁移 background/ → branding/ ─────────────────
-log "STEP5b" "迁移 background/ → branding/ ..."
+# ── Step 4b: 迁移 background/ → branding/ ─────────────────
+log "STEP4b" "迁移 background/ → branding/ ..."
 if [[ -d "$V1_DATA/background" ]]; then
   cp -a "$V1_DATA/background/"* "$DATA_DIR/branding/" 2>/dev/null || true
-  # 同时也放到 background/ 保证向后兼容
-  cp -a "$V1_DATA/background/"* "$DATA_DIR/background/" 2>/dev/null || true
 fi
-log "STEP5b" "branding 迁移完成 ($(find "$DATA_DIR/branding" -type f | wc -l) 个文件)"
+log "STEP4b" "branding 迁移完成 ($(find "$DATA_DIR/branding" -type f | wc -l) 个文件)"
 
-# ── Step 5c: 迁移 posts/ ──────────────────────────────────
-log "STEP5c" "迁移 posts/ ..."
+# ── Step 4c: 迁移 posts/ ──────────────────────────────────
+log "STEP4c" "迁移 posts/ ..."
 
 # 复制 v1 posts 目录
 if [[ -d "$V1_DATA/posts" ]]; then
@@ -144,7 +112,7 @@ if [[ -d "$V1_DATA/posts" ]]; then
 fi
 
 # ── 清理每个 post 目录（删除 compiled.html 和 toc.json）──
-log "STEP5c" "清理 compiled.html / toc.json ..."
+log "STEP4c" "清理 compiled.html / toc.json ..."
 cleaned=0
 for dir in "$DATA_DIR/posts"/*/; do
   [[ -d "$dir" ]] || continue
@@ -155,10 +123,10 @@ for dir in "$DATA_DIR/posts"/*/; do
     fi
   done
 done
-log "STEP5c" "清理了 $cleaned 个冗余文件"
+log "STEP4c" "清理了 $cleaned 个冗余文件"
 
 # ── 处理遗留的平铺 .md 文件（移入 uuid 目录）─────
-log "STEP5c" "处理遗留平铺 .md 文件..."
+log "STEP4c" "处理遗留平铺 .md 文件..."
 moved=0
 for md_file in "$DATA_DIR/posts"/*.md; do
   [[ -f "$md_file" ]] || continue
@@ -173,12 +141,12 @@ for md_file in "$DATA_DIR/posts"/*.md; do
   # 删除平铺的 md（已安全复制）
   rm -f "$md_file"
 done
-log "STEP5c" "移动了 $moved 个平铺 .md 文件"
+log "STEP4c" "移动了 $moved 个平铺 .md 文件"
 
 # ── 更新 index.json（去掉 toc 字段）─────────────────
 INDEX_FILE="$DATA_DIR/posts/index.json"
 if [[ -f "$INDEX_FILE" ]]; then
-  log "STEP5c" "更新 index.json（移除 toc 字段）..."
+  log "STEP4c" "更新 index.json（移除 toc 字段）..."
 
   node -e "
     const fs = require('fs');
@@ -201,8 +169,8 @@ if [[ -f "$INDEX_FILE" ]]; then
   " 2>&1 || warn "index.json 更新有错误，请手动检查"
 fi
 
-# ── Step 5d: 迁移 collection.json → collections.json ─────
-log "STEP5d" "迁移 collection.json → collections.json ..."
+# ── Step 4d: 迁移 collection.json → collections.json ─────
+log "STEP4d" "迁移 collection.json → collections.json ..."
 V1_COLLECTION="$V1_DATA/collection.json"
 V2_COLLECTIONS="$DATA_DIR/collections.json"
 
@@ -224,11 +192,11 @@ if [[ -f "$V1_COLLECTION" ]]; then
   " 2>&1 || warn "collections.json 迁移有错误"
 else
   echo '[]' > "$V2_COLLECTIONS"
-  log "STEP5d" "无 v1 collection.json，写入空数组"
+  log "STEP4d" "无 v1 collection.json，写入空数组"
 fi
 
-# ── Step 5e: 迁移 settings.json ────────────────────────────
-log "STEP5e" "迁移 settings.json ..."
+# ── Step 4e: 迁移 settings.json ────────────────────────────
+log "STEP4e" "迁移 settings.json ..."
 V1_SETTINGS="$V1_DATA/settings.json"
 V2_SETTINGS="$DATA_DIR/settings.json"
 V2_FRIENDS="$DATA_DIR/friends.json"
@@ -250,10 +218,11 @@ if [[ -f "$V1_SETTINGS" ]]; then
     delete settings.friendsCards;
     delete settings.friendsGlobalStyle;
 
-    // 3. 更新背景图路径: /server/data/background/ → /server/data/branding/
+    // 3. 更新背景图路径: /server/data/background/ → /server/data/branding/ or /server/data/manager-background/
     const rewriteBackgroundUrl = (val) => {
       if (typeof val === 'string') {
-        return val.replace(/\/server\/data\/background\//g, '/server/data/branding/');
+        return val
+          .replace(/\/server\/data\/background\//g, '/server/data/branding/');
       }
       if (val && typeof val === 'object') {
         const out = {};
@@ -311,16 +280,16 @@ else
   warn "v1 settings.json 不存在，跳过"
 fi
 
-# ── Step 5f: 复制 security.json ────────────────────────────
-log "STEP5f" "迁移 security.json ..."
+# ── Step 4f: 复制 security.json ────────────────────────────
+log "STEP4f" "迁移 security.json ..."
 if [[ -f "$V1_DATA/security.json" ]]; then
   cp "$V1_DATA/security.json" "$DATA_DIR/security.json"
 else
   warn "v1 security.json 不存在，将使用默认"
 fi
 
-# ── Step 5g: 写入 .schema-version ──────────────────────────
-log "STEP5g" "写入 .schema-version ..."
+# ── Step 4g: 写入 .schema-version ──────────────────────────
+log "STEP4g" "写入 .schema-version ..."
 cat > "$DATA_DIR/.schema-version" <<'EOF'
 {
   "security": "1.0.0",
@@ -328,10 +297,10 @@ cat > "$DATA_DIR/.schema-version" <<'EOF'
 }
 EOF
 
-# ── Step 6: 创建 profile.json（如果不存在）───────────────
+# ── Step 5: 创建 profile.json（如果不存在）───────────────
 PROFILE_FILE="$DATA_DIR/profile.json"
 if [[ ! -f "$PROFILE_FILE" ]]; then
-  log "STEP6" "创建默认 profile.json ..."
+  log "STEP5" "创建默认 profile.json ..."
   cat > "$PROFILE_FILE" <<'EOF'
 {
   "name": "",
@@ -345,24 +314,24 @@ fi
 rm -rf "$MIGRATE_TMP"
 log "INFO" "临时文件已清理"
 
-# ── Step 7: npm install + build ───────────────────────────
-log "STEP7" "安装依赖并构建..."
+# ── Step 6: npm install + build ───────────────────────────
+log "STEP6" "安装依赖并构建..."
 
 cd "$REPO_ROOT"
 
-log "STEP7" "安装 host 依赖..."
+log "STEP6" "安装 host 依赖..."
 (cd packages/host && npm install --omit=dev 2>&1) || warn "host 依赖安装有错误"
 
-log "STEP7" "安装 manager 依赖..."
+log "STEP6" "安装 manager 依赖..."
 (cd packages/manager && npm install 2>&1) || warn "manager 依赖安装有错误"
 
-log "STEP7" "安装 template-astro 依赖..."
+log "STEP6" "安装 template-astro 依赖..."
 (cd packages/template-astro && npm install 2>&1) || warn "template-astro 依赖安装有错误"
 
-log "STEP7" "构建 CMS (manager)..."
+log "STEP6" "构建 CMS (manager)..."
 (cd packages/manager && npm run build 2>&1) || warn "CMS 构建失败"
 
-log "STEP7" "构建 Astro 前端..."
+log "STEP6" "构建 Astro 前端..."
 # 通过 gen CLI 做完整构建（含 settings 同步 + Astro build + 输出部署）
 DATA_DIR="$DATA_DIR" \
   npx chronicle-gen build \
@@ -371,8 +340,8 @@ DATA_DIR="$DATA_DIR" \
     --targetDir "$REPO_ROOT/packages/template-astro/dist" \
     2>&1 || warn "Astro 构建有错误，请手动检查"
 
-# ── Step 8: 确保运行时目录 ────────────────────────────────
-log "STEP8" "确保运行时目录和 symlink..."
+# ── Step 7: 确保运行时目录 ────────────────────────────────
+log "STEP7" "确保运行时目录和 symlink..."
 
 mkdir -p "$REPO_ROOT/packages/manager/public/server/data"
 mkdir -p "$REPO_ROOT/packages/template-astro/public/server/data"
@@ -389,15 +358,15 @@ for public_dir in "$REPO_ROOT/packages/manager/public/server/data" "$REPO_ROOT/p
   done
 done
 
-# ── Step 9: 运行数据迁移（加密→明文，幂等）─────────────
-log "STEP9" "运行数据迁移（加密→明文）..."
+# ── Step 8: 运行数据迁移（加密→明文，幂等）─────────────
+log "STEP8" "运行数据迁移（加密→明文）..."
 MIGRATE_SCRIPT="$REPO_ROOT/scripts/migrate-posts-plaintext.js"
 if [[ -f "$MIGRATE_SCRIPT" ]]; then
   node "$MIGRATE_SCRIPT" --apply 2>&1 || warn "数据迁移脚本有错误，可稍后手动运行"
 fi
 
-# ── Step 10: PM2 重新注册 + 重启服务 ──────────────────────
-log "STEP10" "PM2 重新注册（v2 入口: packages/host/index.js）..."
+# ── Step 9: PM2 重新注册 + 重启服务 ──────────────────────
+log "STEP9" "PM2 重新注册（v2 入口: packages/host/index.js）..."
 
 HOST_ENTRY="$REPO_ROOT/packages/host/index.js"
 

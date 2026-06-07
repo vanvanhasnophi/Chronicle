@@ -291,7 +291,6 @@ log "恢复 packages/manager 源码中的 upload/branding/manager-background sym
 ensure_symlink "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME/public/server/data/upload" "$REPO_ROOT/data/upload"
 ensure_symlink "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME/public/server/data/branding" "$REPO_ROOT/data/branding"
 ensure_symlink "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME/public/server/data/manager-background" "$REPO_ROOT/data/manager-background"
-ensure_symlink "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME/public/server/data/background" "$REPO_ROOT/data/branding"
 
 log "部署 packages/manager 到后台站点目录 ($BACKEND_ROOT)..."
 rsync -a --delete "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME/dist/" "$BACKEND_ROOT/"
@@ -327,7 +326,6 @@ log "恢复 packages/template-astro 源码中的 upload/branding/manager-backgro
 ensure_symlink "$REPO_ROOT/$REPO_ASTRO_SRC_NAME/public/server/data/upload" "$REPO_ROOT/data/upload"
 ensure_symlink "$REPO_ROOT/$REPO_ASTRO_SRC_NAME/public/server/data/branding" "$REPO_ROOT/data/branding"
 ensure_symlink "$REPO_ROOT/$REPO_ASTRO_SRC_NAME/public/server/data/manager-background" "$REPO_ROOT/data/manager-background"
-ensure_symlink "$REPO_ROOT/$REPO_ASTRO_SRC_NAME/public/server/data/background" "$REPO_ROOT/data/branding"
 
 log "部署 packages/template-astro 到前台站点目录 ($WEB_ROOT)..."
 rsync -a --delete "$REPO_ROOT/$REPO_ASTRO_SRC_NAME/dist/" "$WEB_ROOT/"
@@ -336,13 +334,11 @@ log "配置前台静态资源符号链接..."
 ensure_symlink "$WEB_ROOT/server/data/upload" "$REPO_ROOT/data/upload"
 ensure_symlink "$WEB_ROOT/server/data/branding" "$REPO_ROOT/data/branding"
 ensure_symlink "$WEB_ROOT/server/data/manager-background" "$REPO_ROOT/data/manager-background"
-ensure_symlink "$WEB_ROOT/server/data/background" "$REPO_ROOT/data/branding"
 
 log "配置后台静态资源符号链接..."
 ensure_symlink "$BACKEND_ROOT/server/data/upload" "$REPO_ROOT/data/upload"
 ensure_symlink "$BACKEND_ROOT/server/data/branding" "$REPO_ROOT/data/branding"
 ensure_symlink "$BACKEND_ROOT/server/data/manager-background" "$REPO_ROOT/data/manager-background"
-ensure_symlink "$BACKEND_ROOT/server/data/background" "$REPO_ROOT/data/branding"
 
 log "重载 Web 服务..."
 if systemctl is-active --quiet nginx; then
