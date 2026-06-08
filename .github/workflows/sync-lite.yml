@@ -35,26 +35,41 @@ jobs:
 
       - name: Sync to lite branch
         run: |
-          git checkout lite 2>/dev/null || git checkout --orphan lite
+          # Check if lite branch already exists on remote
+          if git ls-remote --heads origin lite | grep -q lite; then
+            git fetch origin lite
+            git checkout -B lite origin/lite
+          else
+            # First run — create empty orphan branch
+            git checkout --orphan lite
+            git rm -rf --cached . 2>/dev/null || true
+            git commit --allow-empty -m "init lite branch"
+          fi
 
-          # Clear everything (keep .git)
-          git rm -rf --cached . 2>/dev/null || true
-          rm -rf -- * .* 2>/dev/null || true
-          rm -rf .claude 2>/dev/null || true
-          rm -f .gitignore 2>/dev/null || true
+          # Fetch main for checkout paths
+          git fetch origin main
 
-          # Grab the lite subset from main (data/ is generated from site/ at build time)
-          git checkout main -- \
+          # Remove all tracked files from working tree (except .git)
+          if git rev-parse HEAD >/dev/null 2>&1 && [ "$(git ls-files | wc -l)" -gt 0 ]; then
+            git rm -rf --cached . 2>/dev/null || true
+            # Clean working tree of stale files but NEVER delete .git
+            find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} + 2>/dev/null || true
+          fi
+
+          # Grab the lite subset from main
+          for path in \
             packages/template-astro \
             packages/gen \
             packages/shared \
             site \
             package.json \
             package-lock.json \
-            .gitignore
-
-          # Grab lite-specific CI
-          git checkout main -- .github/workflows/lite-deploy.yml 2>/dev/null || true
+            .gitignore \
+            .github/workflows/lite-deploy.yml; do
+            if git cat-file -e "origin/main:$path" 2>/dev/null; then
+              git checkout origin/main -- "$path"
+            fi
+          done
 
           git add -A
           if git diff --cached --quiet; then

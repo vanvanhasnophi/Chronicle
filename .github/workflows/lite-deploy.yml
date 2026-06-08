@@ -14,7 +14,7 @@ name: Deploy Lite to Pages
 
 on:
   push:
-    branches: [lite, main]
+    branches: [lite]
   workflow_dispatch:
 
 permissions:

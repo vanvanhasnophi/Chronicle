@@ -1,5 +1,9 @@
-# Chronicle CI/CD — VPS release + Electron desktop + sync lite
-name: Build & Release
+# Chronicle CI/CD — Type check + Electron release
+#
+# - PR / push main: type check only (full users run install.sh to build)
+# - Tag v*: type check → build Electron (linux/mac/win) → GitHub Release
+
+name: CI
 
 on:
   push:
@@ -13,7 +17,7 @@ env:
   NODE_VERSION: '20'
 
 jobs:
-  # ── Type Check (manager + shared + gen) ────────────────
+  # ── Type Check ─────────────────────────────────────────
   check:
     runs-on: ubuntu-latest
     steps:
@@ -24,66 +28,11 @@ jobs:
       - name: Install dependencies (workspaces)
         run: npm ci
 
-      - name: Type check (all packages)
+      - name: Type check
         run: |
           cd packages/manager && npx vue-tsc --noEmit
           cd ../gen    && npx tsc --noEmit
           cd ../shared && npx tsc --noEmit
-
-  # ── Build: Full (VPS 全自托管版) ──────────────────────
-  build-full:
-    if: github.event_name != 'pull_request'
-    needs: check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '${{ env.NODE_VERSION }}' }
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build manager (CMS)
-        run: cd packages/manager && npm run build
-
-      - name: Build template-astro (SSG)
-        run: |
-          cd packages/host
-          # Start host to provide API data for SSG fetch
-          nohup node index.js &
-          sleep 3
-          cd ../..
-
-          # Build via gen CLI — syncs settings, runs astro, copies output
-          node packages/gen/bin/cli.mjs build \
-            --dataDir data \
-            --codeDir packages/template-astro \
-            --targetDir packages/template-astro/dist
-
-      - name: Assemble release
-        run: |
-          mkdir -p release/chronicle-full
-          cp -a packages/host        release/chronicle-full/host
-          cp -a packages/gen         release/chronicle-full/gen
-          cp -a packages/shared      release/chronicle-full/shared
-          cp -a packages/manager/dist release/chronicle-full/manager-dist
-          cp -a packages/template-astro/dist release/chronicle-full/template-dist
-          cp -a data                 release/chronicle-full/data
-          cp -a scripts              release/chronicle-full/scripts
-          cp install.sh chronicle-deploy.sh start.sh stop.sh package.json \
-             release/chronicle-full/
-          # Clean build-only artifacts
-          rm -rf release/chronicle-full/host/node_modules
-          rm -rf release/chronicle-full/gen/node_modules
-
-      - name: Tar release
-        run: tar -czf chronicle-full.tar.gz -C release chronicle-full
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: chronicle-full
-          path: chronicle-full.tar.gz
 
   # ── Electron Desktop (tag push only) ───────────────────
   build-electron:
@@ -116,13 +65,11 @@ jobs:
   # ── GitHub Release (tag push only) ─────────────────────
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build-full, build-electron]
+    needs: build-electron
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
-        with: { name: chronicle-full }
       - uses: actions/download-artifact@v4
         with: { name: chronicle-electron-ubuntu-latest }
       - uses: actions/download-artifact@v4
@@ -132,35 +79,32 @@ jobs:
 
       - name: Rename artifacts
         run: |
-          mv chronicle-electron-ubuntu-latest/*.AppImage Chronicle-Manager-${{ github.ref_name }}-linux.AppImage 2>/dev/null || true
-          mv chronicle-electron-ubuntu-latest/*.deb  Chronicle-Manager-${{ github.ref_name }}-linux.deb 2>/dev/null || true
-          mv chronicle-electron-macos-latest/*.dmg   Chronicle-Manager-${{ github.ref_name }}-mac.dmg 2>/dev/null || true
-          mv chronicle-electron-windows-latest/*.exe Chronicle-Manager-${{ github.ref_name }}-win.exe 2>/dev/null || true
+          mv *.AppImage "Chronicle-Manager-${{ github.ref_name }}-linux.AppImage" 2>/dev/null || true
+          mv *.deb  "Chronicle-Manager-${{ github.ref_name }}-linux.deb" 2>/dev/null || true
+          mv *.dmg  "Chronicle-Manager-${{ github.ref_name }}-mac.dmg" 2>/dev/null || true
+          mv *.exe  "Chronicle-Manager-${{ github.ref_name }}-win.exe" 2>/dev/null || true
           ls -lh
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            chronicle-full.tar.gz
             Chronicle-Manager-*.AppImage
             Chronicle-Manager-*.deb
             Chronicle-Manager-*.dmg
             Chronicle-Manager-*.exe
           body: |
-            ## Chronicle ${{ github.ref_name }}
+            ## Chronicle Manager ${{ github.ref_name }}
 
-            ### VPS 部署
-            | 文件 | 说明 |
-            |---|---|
-            | `chronicle-full.tar.gz` | 全自托管版 — `bash install.sh install` |
+            桌面客户端（Electron）。下载对应平台的安装包即可使用，无需安装 Node.js 或任何依赖。
 
-            ### 桌面客户端（Electron）
             | 文件 | 平台 |
             |---|---|
             | `.AppImage` / `.deb` | Linux |
             | `.dmg` | macOS |
             | `.exe` | Windows |
+
+            > VPS 部署请使用 `install.sh`：`git clone` → `bash install.sh install`
 
           draft: false
           prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
