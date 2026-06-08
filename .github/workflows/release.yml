@@ -53,6 +53,13 @@ jobs:
       - name: Install Electron + builder
         run: cd packages/manager && npm install electron electron-builder --save-dev
 
+      - name: Fix public symlinks (broken in CI — replace with empty dirs)
+        run: |
+          for dir in upload branding manager-background; do
+            rm -f packages/manager/public/server/data/$dir
+            mkdir -p packages/manager/public/server/data/$dir
+          done
+
       - name: Build Vite + Electron
         run: cd packages/manager && ELECTRON=true npx vite build && npx electron-builder --${{ matrix.os == 'ubuntu-latest' && 'linux' || matrix.os == 'macos-latest' && 'mac' || 'win' }}
 
