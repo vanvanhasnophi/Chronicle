@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '22'
 
 jobs:
   # ── Type Check ─────────────────────────────────────────
@@ -51,7 +51,7 @@ jobs:
         run: npm ci
 
       - name: Install Electron + builder
-        run: cd packages/manager && npm install electron electron-builder --save-dev
+        run: cd packages/manager && npm install electron electron-builder --save-dev --save-exact
 
       - name: Fix public symlinks (broken in CI — replace with empty dirs)
         run: |
