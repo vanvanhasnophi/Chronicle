@@ -33,6 +33,12 @@ function createWindow() {
     },
   });
 
+  // Strip Origin header so the host's CORS allows Electron (no origin = pass-through)
+  mainWindow.webContents.session.webRequest.onBeforeSendHeaders((details, callback) => {
+    delete details.requestHeaders['Origin'];
+    callback({ requestHeaders: details.requestHeaders });
+  });
+
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//i.test(url)) shell.openExternal(url);
     return { action: 'deny' };

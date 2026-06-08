@@ -31,6 +31,7 @@ function resolveMessage(key: string) {
 // 为避免打包和路由暴露，这些路由在路由表中重定向到后台登录。
 
 
+const Welcome = () => import(/* webpackChunkName: "welcome" */ '../pages/Welcome.vue')
 const Login = () => import(/* webpackChunkName: "login" */ '../pages/Login.vue')
 const Setup = () => import(/* webpackChunkName: "setup" */ '../pages/Setup.vue')
 const Recover = () => import(/* webpackChunkName: "recover" */ '../pages/Recover.vue')
@@ -50,7 +51,7 @@ const SystemBuild = () => import(/* webpackChunkName: "system-build" */ '../page
 const SystemSecurity = () => import(/* webpackChunkName: "system-security" */ '../pages/settings/SystemSecurity.vue')
 
 const routes = [
-  { path: '/', redirect: '/dashboard' },
+  { path: '/', name: 'Welcome', component: Welcome, meta: { title: 'welcome.title' } },
   {
     path: '/login',
     name: 'Login',
@@ -186,16 +187,6 @@ router.beforeEach((to, from, next) => {
         isAuthenticated = true
       }
     }
-  }
-
-  // 处理根路径：已认证跳转到dashboard，未认证跳转到login
-  if (to.path === '/') {
-    if (isAuthenticated) {
-      next('/dashboard')
-    } else {
-      next('/login')
-    }
-    return
   }
 
   // 其他需要认证的页面

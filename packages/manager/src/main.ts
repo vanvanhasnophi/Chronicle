@@ -14,7 +14,11 @@ const messages = {
 	'zh-CN': zh
 }
 
-const apiBaseUrl = String(import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '')
+// API URL: localStorage (user-set) > build-time env > Electron default > empty
+const storedUrl = (() => { try { return localStorage.getItem('chronicle_api_url') || '' } catch { return '' } })()
+const buildUrl = String(import.meta.env.VITE_API_BASE_URL || '').trim()
+const isElectron = typeof window !== 'undefined' && !!(window as any).chronicleElectron?.isElectron
+const apiBaseUrl = (storedUrl || buildUrl || (isElectron ? 'http://localhost:3000' : '')).replace(/\/$/, '')
 const mediaBaseUrl = String(import.meta.env.VITE_CDN_BASE_URL || import.meta.env.VITE_MEDIA_DOMAIN || '').trim().replace(/\/$/, '')
 
 if (typeof window !== 'undefined' && apiBaseUrl) {

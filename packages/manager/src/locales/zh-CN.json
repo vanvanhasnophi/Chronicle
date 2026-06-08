@@ -432,7 +432,7 @@
     "saved": "我已保存恢复码 — 前往登录"
   },
   "recover": {
-    "title": "恢复访问",
+    "title": "忘记密码",
     "hint": "输入恢复码并设置新密码。",
     "codeLabel": "恢复码",
     "newPasswordLabel": "新密码",
@@ -441,7 +441,23 @@
     "invalid": "恢复码无效或已使用。",
     "locked": "尝试次数过多，请在 {minutes} 分钟后重试。",
     "success": "密码已重置，正在跳转到登录页...",
-    "connectionError": "连接错误，服务器是否正在运行？"
+    "connectionError": "连接错误，服务器是否正在运行？",
+    "backToLogin": "返回登录"
+  },
+  "welcome": {
+    "title": "Chronicle",
+    "subtitle": "现代化博客内容管理系统",
+    "editor": "编辑器",
+    "console": "控制台",
+    "loggedIn": "已登录",
+    "notLoggedIn": "未登录",
+    "enter": "进入控制台",
+    "login": "前往登录",
+    "noServer": "未配置服务器",
+    "enterHint": "管理文章、合集、站点设置",
+    "loginHint": "登录以管理站点",
+    "editorHint": "Markdown 写作，实时预览",
+    "open": "打开"
   },
   "login": {
     "title": "管理登录",
@@ -467,7 +483,15 @@
     "themeFollow": "跟随系统",
     "themeLight": "浅色模式",
     "themeDark": "深色模式",
-    "lostPassword": "忘记密码？"
+    "lostPassword": "忘记密码？",
+    "serverUrl": "服务器地址",
+    "serverUrlPlaceholder": "https://your-chronicle-server.com",
+    "serverUrlHint": "输入你的 Chronicle 服务器地址进行连接",
+    "connect": "连接",
+    "serverVerifying": "验证中...",
+    "serverOk": "已连接",
+    "serverConnectFailed": "无法连接到服务器",
+    "currentServer": "当前服务器：{url}"
   },
   "security": {
     "title": "安全设置",

@@ -33,6 +33,7 @@
   --code-text: #ff8585;
 
   --status-error: #d9534f;
+  --status-success: #5cb85c;
   --status-progress: #06b6d4;
 
   /* Background hierarchy */
@@ -1276,6 +1277,14 @@ html {
 
 .modern-input:focus:not(:read-only) {
   border-color: var(--accent-color);
+}
+
+
+.login-input {
+  background: var(--bg-primary);
+  width: 100%;
+  margin: 4px 0 6px 0;
+  transition: all .2s ease;
 }
 
 .form-row {

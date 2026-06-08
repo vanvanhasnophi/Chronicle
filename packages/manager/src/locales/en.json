@@ -441,7 +441,23 @@
     "invalid": "Invalid or already used recovery code.",
     "locked": "Too many attempts. Try again in {minutes} minutes.",
     "success": "Password reset. Redirecting to login...",
-    "connectionError": "Connection error. Is the server running?"
+    "connectionError": "Connection error. Is the server running?",
+    "backToLogin": "Back to login"
+  },
+  "welcome": {
+    "title": "Chronicle",
+    "subtitle": "A modern blog content management system",
+    "editor": "Editor",
+    "console": "Dashboard",
+    "loggedIn": "Logged in",
+    "notLoggedIn": "Not logged in",
+    "enter": "Enter Dashboard",
+    "login": "Login",
+    "noServer": "No server configured",
+    "enterHint": "Manage posts, collections, settings",
+    "loginHint": "Sign in to manage your site",
+    "editorHint": "Write in Markdown with live preview",
+    "open": "Open"
   },
   "login": {
     "title": "Chronicle Manager",
@@ -467,7 +483,15 @@
     "themeFollow": "Follow system",
     "themeLight": "Light mode",
     "themeDark": "Dark mode",
-    "lostPassword": "Lost your password?"
+    "lostPassword": "Lost your password?",
+    "serverUrl": "Server URL",
+    "serverUrlPlaceholder": "https://your-chronicle-server.com",
+    "serverUrlHint": "Enter your Chronicle server address to connect.",
+    "connect": "Connect",
+    "serverVerifying": "Verifying...",
+    "serverOk": "Connected",
+    "serverConnectFailed": "Cannot reach server: {msg}",
+    "currentServer": "Current: {url}"
   },
   "security": {
     "title": "Security Settings",

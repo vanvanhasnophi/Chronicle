@@ -751,8 +751,25 @@ onMounted(async () => {
     } catch { /* fall through */ }
   }
 
-  // applySettings() calls getSettings() which triggers schema fetch internally
-  await applySettings()
+  const isAuthPage = route.path === '/login' || route.path === '/setup' || route.path === '/recover' || route.path === '/'
+
+  // Only load settings/schemas if authenticated (skip on public pages)
+  const token = (() => { try { const r = localStorage.getItem('chronicle_auth'); return r ? JSON.parse(r).token : '' } catch { return '' } })()
+  if (token && !isAuthPage) {
+    await applySettings()
+  }
+
+  // Reload settings when navigating from a public page to an authenticated page
+  let settingsLoaded = !!token
+  watch(() => route.path, async (to) => {
+    const pub = to === '/' || to === '/login' || to === '/setup' || to === '/recover'
+    const tok = (() => { try { const r = localStorage.getItem('chronicle_auth'); return r ? JSON.parse(r).token : '' } catch { return '' } })()
+    if (tok && !pub && !settingsLoaded) {
+      await applySettings()
+      settingsLoaded = true
+    }
+  })
+
   try { syncEditorBackgroundLayerUsage() } catch (e) { }
 
   // Defer custom background rendering until LCP is finished.

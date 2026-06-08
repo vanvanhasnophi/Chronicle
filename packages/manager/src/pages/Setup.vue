@@ -1,39 +1,28 @@
 <template>
   <div class="standalone-page">
-    <div class="floating-controls">
-      <select class="ctrl-btn lang-select" :value="locale" @change="onLocaleChange" :title="t('login.switchLang')">
-        <option value="en">EN</option>
-        <option value="zh-CN">中文</option>
-        <option value="ja">日本語</option>
-        <option value="ko">한국어</option>
-      </select>
-      <button class="ctrl-btn theme-toggle" @click="cycleTheme" :title="themeLabel" :aria-label="themeLabel">
-        <span v-if="theme === 'follow' || theme === 'system'" v-html="Icons.themeSystem"></span>
-        <span v-else-if="theme === 'light'" v-html="Icons.themeLight"></span>
-        <span v-else v-html="Icons.themeDark"></span>
-      </button>
-    </div>
+    <StandaloneHeader showBack />
 
     <div class="page-box">
       <!-- Step 1: Password form -->
       <template v-if="!recoveryCodes.length">
         <h2>{{ $t('setup.title') }}</h2>
+        <p v-if="serverHint" class="server-hint">{{ $t("login.currentServer", { url: serverHint }) }}</p>
         <p class="hint">{{ $t('setup.hint') }}</p>
 
         <div v-if="phase === 'token'" class="input-group">
           <label>{{ $t('setup.tokenLabel') }}</label>
-          <input type="text" v-model="setupToken" :placeholder="t('setup.tokenPlaceholder')" class="token-input" />
+          <input class="modern-input login-input token-input" type="text" v-model="setupToken" :placeholder="t('setup.tokenPlaceholder')"  />
           <p class="small muted">{{ $t('setup.tokenHint') }}</p>
         </div>
 
         <div class="input-group">
           <label>{{ $t('setup.passwordLabel') }}</label>
-          <input type="password" v-model="password" :placeholder="t('setup.passwordPlaceholder')" @keyup.enter="handleSetup" />
+          <input class="modern-input login-input" type="password" v-model="password" :placeholder="t('setup.passwordPlaceholder')" @keyup.enter="handleSetup" />
         </div>
 
         <div class="input-group">
           <label>{{ $t('setup.confirmLabel') }}</label>
-          <input type="password" v-model="confirmPassword" :placeholder="t('setup.confirmPlaceholder')" @keyup.enter="handleSetup" />
+          <input class="modern-input login-input" type="password" v-model="confirmPassword" :placeholder="t('setup.confirmPlaceholder')" @keyup.enter="handleSetup" />
         </div>
 
         <button @click="handleSetup" :disabled="loading || !canSubmit" class="primary-btn">
@@ -62,12 +51,12 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { usePreferences } from '../composables/usePreferences'
-import { Icons } from '../utils/icons'
+import StandaloneHeader from '../components/StandaloneHeader.vue'
+import { getSavedServerUrl } from '../composables/useServerUrl'
 
 const router = useRouter()
-const { t, locale: i18nLocale } = useI18n()
-const { locale, theme, cycleTheme } = usePreferences()
+const { t } = useI18n()
+const serverHint = (() => { try { const u = getSavedServerUrl(); return u ? u.replace(/^https?:\/\//, '') : '' } catch { return '' } })()
 
 const phase = ref<'setup' | 'token'>('setup')
 const setupToken = ref('')
@@ -77,17 +66,6 @@ const loading = ref(false)
 const error = ref('')
 const recoveryCodes = ref<string[]>([])
 
-const onLocaleChange = (e: Event) => {
-  const val = (e.target as HTMLSelectElement).value
-  locale.value = val
-  i18nLocale.value = val
-}
-
-const themeLabel = computed(() => {
-  if (theme.value === 'follow' || theme.value === 'system') return t('login.themeFollow')
-  if (theme.value === 'light') return t('login.themeLight')
-  return t('login.themeDark')
-})
 
 const canSubmit = computed(() => {
   if (loading.value) return false
@@ -148,17 +126,12 @@ async function handleSetup() {
 
 <style scoped>
 .standalone-page { display:flex; justify-content:center; align-items:center; height:100vh; position:relative; background:var(--bg-primary); overflow:hidden; }
-.floating-controls { position:fixed; top:16px; right:16px; display:flex; gap:8px; z-index:100; }
-.ctrl-btn { display:flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:50%; border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-primary); cursor:pointer; font-size:14px; padding:0; transition:background .2s; }
-.ctrl-btn:hover { background:var(--component-bg-hover); }
-.lang-select { width:auto; padding:0 8px; border-radius:20px; font-size:12px; font-weight:600; }
-.theme-toggle svg { width:18px; height:18px; }
 .page-box { background:var(--bg-secondary); padding:2rem; border-radius:8px; width:100%; max-width:460px; border:1px solid var(--border-color); }
 h2 { margin:0 0 .5rem; text-align:center; }
+.server-hint { text-align:center; font-size:.8rem; color:var(--text-secondary); margin:.25rem 0 .5rem; }
 .hint { color:var(--text-secondary); font-size:.9em; text-align:center; margin-bottom:1.5rem; }
 .input-group { margin:1rem 0; text-align:left; }
-label { display:block; margin-bottom:.5rem; color:var(--text-secondary); }
-input { width:calc(100% - 20px); padding:.8rem; background:var(--bg-primary); border:1px solid var(--border-color); color:var(--text-primary); border-radius:6px; font-size:1em; }
+label { display:block; margin-bottom:.5rem; color:var(--text-secondary); font-size:0.95rem; }
 .token-input { text-align:center; letter-spacing:2px; font-family:monospace; font-size:1.1em; }
 .small { font-size:.8em; margin-top:.3rem; }
 .muted { color:var(--text-secondary); }

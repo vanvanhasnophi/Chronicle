@@ -1,42 +1,19 @@
 <template>
   <div class="login-container">
-    <!-- Floating controls: language + theme -->
-    <div class="floating-controls">
-      <select
-        class="ctrl-btn lang-select"
-        :value="locale"
-        @change="onLocaleChange"
-        :title="t('login.switchLang')"
-      >
-        <option value="en">EN</option>
-        <option value="zh-CN">中文</option>
-        <option value="ja">日本語</option>
-        <option value="ko">한국어</option>
-      </select>
-      <button
-        class="ctrl-btn theme-toggle"
-        @click="cycleTheme"
-        :title="themeLabel"
-        :aria-label="themeLabel"
-      >
-        <span v-if="theme === 'follow' || theme === 'system'" v-html="Icons.themeSystem"></span>
-        <span v-else-if="theme === 'light'" v-html="Icons.themeLight"></span>
-        <span v-else v-html="Icons.themeDark"></span>
-      </button>
-    </div>
+    <StandaloneHeader showBack />
 
     <div class="login-box">
       <h2>{{ $t('login.title') }}</h2>
-
+      <p v-if="serverHint" class="server-hint">{{ $t("login.currentServer", { url: serverHint }) }}</p>
       <div v-if="!show2FAGate">
         <div class="input-group">
           <label>{{ $t('login.password') }}</label>
           <input
+            class="modern-input login-input"
             type="password"
             v-model="password"
             @keyup.enter="handleLogin"
             :placeholder="t('login.placeholder')"
-            style="width: calc(100% - 20px) !important;"
           />
         </div>
         <button @click="handleLogin" :disabled="loading" class="primary-btn">
@@ -59,6 +36,7 @@
 
           <div class="code-entry">
               <input
+                  class="modern-input login-input"
                   type="text"
                   v-model="inputCode"
                   :placeholder="t('login.codePlaceholder')"
@@ -85,7 +63,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { startAuthentication } from '@simplewebauthn/browser'
 import { Icons } from '../utils/icons'
 import { useI18n } from 'vue-i18n'
-import { usePreferences } from '../composables/usePreferences'
+import StandaloneHeader from '../components/StandaloneHeader.vue'
+import { apiUrl, getSavedServerUrl, needsServerUrl } from '../composables/useServerUrl'
 
 const router = useRouter()
 const route = useRoute()
@@ -93,16 +72,19 @@ const route = useRoute()
 // Redirect to setup if this is a first boot
 onMounted(async () => {
   try {
-    const resp = await fetch(`/api/admin/status?t=${Date.now()}`)
+    const url = apiUrl(`/api/admin/status?t=${Date.now()}`)
+    const resp = await fetch(url)
     const json = await resp.json()
     const phase = (json.data && json.data.phase) || json.phase
     if (phase === 'setup' || phase === 'token') {
-      router.replace('/setup')
+      router.replace(`/setup${window.location.search}`)
     }
   } catch { /* proceed to login form */ }
 })
-const { t, locale: i18nLocale } = useI18n()
-const { locale, theme, cycleTheme } = usePreferences()
+
+const { t } = useI18n()
+const serverHint = (() => { try { const u = getSavedServerUrl(); return u ? u.replace(/^https?:\/\//, "") : "" } catch { return "" } })()
+
 
 const password = ref('')
 const loading = ref(false)
@@ -111,17 +93,6 @@ const show2FAGate = ref(false)
 const inputCode = ref('')
 
 // Sync composable locale ↔ vue-i18n locale
-const onLocaleChange = (e: Event) => {
-  const val = (e.target as HTMLSelectElement).value
-  locale.value = val
-  i18nLocale.value = val
-}
-
-const themeLabel = computed(() => {
-  if (theme.value === 'follow' || theme.value === 'system') return t('login.themeFollow')
-  if (theme.value === 'light') return t('login.themeLight')
-  return t('login.themeDark')
-})
 
 function resolveLoginTarget() {
   const next = route.query.next
@@ -247,6 +218,15 @@ const handlePasskeyLogin = async (is2FA = false) => {
   overflow: hidden;
 }
 
+.login-box h2{
+  margin-top: 8px;
+  margin-bottom: 12px;
+}
+.server-hint {
+  text-align: center; font-size: .8rem; color: var(--text-secondary);
+  margin: .25rem 0 .5rem;
+}
+
 .floating-controls {
   position: fixed;
   top: 16px;
@@ -281,24 +261,16 @@ const handlePasskeyLogin = async (is2FA = false) => {
   color: var(--text-primary);
 }
 
-.lang-select {
-  width: auto;
-  padding: 0 8px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
 .theme-toggle svg {
   width: 18px;
   height: 18px;
 }
 
+
 .login-box {
   background: var(--bg-secondary);
   padding: 2rem;
-  border-radius: 8px;
+  border-radius: 18px;
   width: 100%;
   max-width: 400px;
   text-align: center;
@@ -311,16 +283,10 @@ const handlePasskeyLogin = async (is2FA = false) => {
 label {
   display: block;
   margin-bottom: 0.5rem;
+  font-size: 0.95rem;
   color: var(--text-secondary);
 }
-input {
-  width: 100%;
-  padding: 0.8rem;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  color: var(--text-primary);
-  border-radius: 6px;
-}
+
 .primary-btn {
   width: 100%;
   padding: 0.8rem;
@@ -399,9 +365,6 @@ button:disabled {
         background: transparent;
         padding: 1rem;
     }
-    .input-group input {
-        border-radius: 8px;
-    }
 }
 .two-fa-section {
     display: flex;
@@ -454,5 +417,29 @@ button:disabled {
     align-items: center;
     justify-content: center;
     gap: 10px;
+}
+.server-url-group {
+  margin-bottom: 1.2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+.server-url-group .hint {
+  margin: .35rem 0 .6rem;
+  font-size: .82rem;
+  color: var(--component-text-secondary);
+}
+.server-ok {
+  color: var(--accent-color);
+  font-size: .85rem;
+  margin: .4rem 0 0;
+}
+.server-err {
+  color: var(--status-error);
+  font-size: .85rem;
+  margin: .4rem 0 0;
+}
+.small-btn {
+  font-size: .82rem;
+  padding: .4rem 1rem;
 }
 </style>
