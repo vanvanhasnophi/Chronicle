@@ -1,0 +1,44 @@
+# ============================================================
+# Chronicle Lite — 站点配置文件
+# 扁平 key: value 格式，直接编辑即可
+# ============================================================
+
+# 站点名称（显示在浏览器标题栏和页面头部）
+title: Chronicle Lite
+
+# 站点 URL（你的域名，用于 SEO / RSS / 站点地图）
+url: https://example.com
+
+# 站点默认语言（en / zh-CN / follow 跟随浏览器）
+language: follow
+
+# 前台默认主题（light / dark / follow 跟随系统）
+frontendTheme: follow
+
+# 主题色（十六进制颜色值）
+frontendAccent: "#2ea35f"
+
+# 字体（sans / serif）
+frontendFont: sans
+
+# 首页模式（split 上下拆分 / card 卡片模式 / cover 封面模式）
+homepageMode: split
+
+# 功能开关
+featureFlags:
+  # 是否启用 RSS 订阅功能
+  rss: true
+  
+  # 是否启用站点地图功能
+  sitemap: false
+
+  # 朋友功能
+  friends: true
+
+
+# ============================================================
+# 高级设置，选配
+# ============================================================
+
+# Google Analytics 4 测量 ID（留空则使用本地日志统计）
+gaMeasurementId: ""

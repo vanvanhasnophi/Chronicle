@@ -1,0 +1,25 @@
+# ============================================================
+# Chronicle Lite — 友链配置
+# 每项以 "- name:" 开头，声明一个友链卡片
+#
+# avatar 支持两种格式：
+#   - 外部 URL（保留）: https://example.com/avatar.jpg
+#   - 本地文件（自动上传）: my-friend.jpg  → 从 site/assets/ 读取
+# ============================================================
+
+# 全局卡片样式（留空则各卡片使用默认 left-lg 样式）
+# 可选值: left-sm | left-lg | top-lg
+friendsGlobalStyle: left-lg
+
+# 友链卡片列表
+- name: Waiwai
+  avatar: https://file.eightyfor.top/data/upload/pic/1770999133303_vne7_177099908700-992.webp
+  intro: 非常乐意并享受被人挂网上的感觉
+  homeUrl: https://example.com
+  storyPostId: ""
+
+- name: 凯尔希
+  avatar: Kaltsit.jpg
+  intro: Chronicle 的作者
+  homeUrl: https://blog.eightyfor.top
+  storyPostId: ""

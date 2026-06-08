@@ -1,0 +1,29 @@
+# ============================================================
+# Chronicle Lite — 文章合集
+# 组织文章的分类结构，显示在博客导航中
+#
+# cover 支持两种格式：
+#   - 外部 URL（保留）: https://example.com/cover.jpg
+#   - 本地文件（自动上传）: collection-cover.jpg  → 从 site/assets/ 读取
+# ============================================================
+
+# 示例：
+ - name: 合集名
+   slug: collection-slug
+   cover: collection-cover.jpg
+   description: 合集简介
+   nodes:
+   - type: post
+     id: hello-world
+   - type: group
+     title: 小合集标题
+     children:
+     - type: post
+       id: hello-world-2
+
+# 实际结构：
+#   合集名 (slug: collection-slug, cover: collection-cover.jpg, description: 合集简介)
+#   ├─ [post] post-id
+#   └─ [group] 小合集标题/
+#      └─ [post] post-id-2
+

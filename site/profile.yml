@@ -1,0 +1,28 @@
+# ============================================================
+# Chronicle Lite — 作者信息
+# 用于首页名片展示、链接跳转、关于页默认内容
+# ============================================================
+
+# 显示名称
+name: 八十伏特
+
+# 头像（本地文件从 site/assets/ 读取，或填写完整 URL）
+# 如果已经有了 site/avatar.[任意图片格式]，就不填，构建器自动识别
+avatar: 
+
+# 个人简介
+bio: 一个写代码的博客作者。
+
+# 所在地（可选）
+location: Earth
+
+# 社交链接
+links:
+  - label: GitHub
+    url: https://github.com/vanvanhasnophi
+
+  - label: Blog
+    url: https://blog.eightyfor.top
+
+  - label: Email
+    url: mailto:example@example.com

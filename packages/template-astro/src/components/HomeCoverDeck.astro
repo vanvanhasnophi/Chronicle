@@ -1,0 +1,143 @@
+---
+const { locale, themePostPath, mode = 'cover' } = Astro.props;
+const isSplit = mode === 'split';
+const titleChars = ['新', '生'];
+---
+
+<div class:list={['home-cover-deck', isSplit ? 'home-cover-deck--split' : '']}>
+	<div class:list={['hero', isSplit ? 'hero--split' : 'home-cover-hero']} id={isSplit ? 'split-hero' : undefined}>
+		<h1 class="ink-minimal">
+			{titleChars.map((char) => <span class="ink-char">{char}</span>)}
+		</h1>
+		<p class="subtitle">Esperanza · 26S2</p>
+		<a href={themePostPath} class="cta-btn">
+			<svg
+				viewBox="0 0 24 24"
+				fill="currentColor"
+				xmlns="http://www.w3.org/2000/svg"
+				aria-hidden="true"
+			>
+				<path d="M8 5v14l11-7z" />
+			</svg>
+		</a>
+	</div>
+</div>
+
+<style>
+	.home-cover-deck {
+		position: relative;
+		z-index: 3;
+	}
+
+
+	.home-cover-deck--split {
+		width: 100%;
+		display: block;
+	}
+
+	.hero {
+		position: relative;
+		z-index: 10;
+		left: 15vw;
+		transform: translateY(-20%);
+	}
+
+	.hero--split {
+		position: relative;
+		margin: 0;
+		transform-origin: left bottom;
+		will-change: transform, opacity;
+	}
+
+	.hero p {
+		font-size: 1.2rem;
+		color: #888;
+		margin-bottom: 40px;
+	}
+
+	.hero p.subtitle {
+		font-size: 1.1rem;
+		color: var(--app-text-secondary);
+		margin-bottom: 20px;
+		text-transform: uppercase;
+		letter-spacing: 0.5em;
+	}
+
+	.cta-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--component-bg-blur-alt);
+		border: 1px solid var(--border-color-blur);
+		backdrop-filter: blur(10px);
+		color: var(--component-text-primary);
+		padding: 10px;
+		border-radius: 9999px;
+		width: 40px;
+		height: 40px;
+		text-decoration: none;
+		font-weight: 600;
+		font-variation-settings: "wght" 600;
+		transition: all 0.3s ease;
+	}
+
+	.cta-btn svg {
+		width: 100%;
+		height: 100%;
+	}
+
+	.cta-btn:hover {
+		filter: brightness(1.5);
+		transform: scale(1.05);
+	}
+
+	.ink-minimal {
+		display: flex;
+		justify-content: flex-start;
+		gap: 0.25rem;
+		margin-bottom: 2rem;
+	}
+
+	.ink-char {
+		display: inline-block;
+		font-size: 4rem;
+		font-weight: 600;
+		font-variation-settings: "wght" 600;
+		font-family: "Noto Serif SC", "Ma Shan Zheng", serif;
+		background: var(--app-text-primary);
+		-webkit-background-clip: text;
+		-webkit-text-fill-color: transparent;
+		background-clip: text;
+		letter-spacing: -0.02em;
+		line-height: 1;
+		position: relative;
+		margin-right: 2rem;
+		transition: all 0.3s ease;
+		transform: skewY(8deg);
+		transform-origin: center 72%;
+		--ink-cut-size: 0.38em;
+		clip-path: polygon(
+			0 0,
+			100% 0,
+			100% calc(100% - var(--ink-cut-size)),
+			calc(100% - var(--ink-cut-size)) 100%,
+			0 100%
+		);
+	}
+
+	@media (max-width: 760px) {
+		.hero {
+			left: 60px;
+			transform: translateY(-10%);
+		}
+
+		.ink-char {
+			font-size: 3.2rem;
+			margin-right: 1rem;
+		}
+
+		.ink-minimal {
+			justify-content: flex-start;
+		}
+	}
+</style>

@@ -1,0 +1,11 @@
+{
+  "security.Security": "安全设置",
+  "security.Setup Complete": "初始化完成",
+  "security.Hash Version": "哈希版本",
+  "security.Hash Salt": "哈希盐值",
+  "security.Setup Token": "初始化令牌",
+  "security.Setup Token Expiry": "初始化令牌过期",
+  "security.Recovery Codes": "恢复码",
+  "security.Recovery Lock Until": "恢复锁定至",
+  "security.Passkeys": "通行密钥"
+}

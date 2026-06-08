@@ -1,0 +1,49 @@
+---
+// Root-level post redirect (no locale prefix).
+// Receives /post/<id> via server-side fallback (Nginx try_files / Astro rewrites).
+// Redirects to /{lang}/post/<id> using client-side JS to preserve the post ID.
+// This single page replaces the old post/[id].astro which generated one empty
+// shell page per post via getStaticPaths() — avoiding hundreds of wasted builds.
+import { getLocale } from "../utils/i18n";
+
+const locale = getLocale(Astro.locals);
+const routePrefix = locale === "zh-CN" ? "/zh" : "/en";
+---
+
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Redirecting to Post</title>
+    <!-- No <meta http-equiv="refresh"> here — it would hardcode the redirect
+         URL at build time and lose the post ID before JS can run. -->
+  </head>
+  <body>
+    <script>
+      // Extract post ID from pathname: /post/<id> → id, /post → ''
+      const pathSegments = window.location.pathname.split('/').filter(Boolean);
+      const postId = pathSegments.length > 1 ? pathSegments[1] : '';
+
+      // Determine locale prefix from current URL or browser
+      const routePrefix = window.location.pathname.includes('/zh') ? '/zh' : '/en';
+
+      // Preserve query string and hash
+      const searchParams = window.location.search;
+      const hash = window.location.hash;
+
+      // Build redirect path, preserving the post ID from the URL
+      let redirectPath = routePrefix + '/post';
+      if (postId) {
+        redirectPath += '/' + postId;
+      }
+      redirectPath += searchParams + hash;
+
+      // Immediate client-side redirect
+      window.location.replace(redirectPath);
+    </script>
+    <!-- No-JS fallback: links to /post without ID -->
+    <noscript>
+      <p>If you are not redirected, <a href={`${routePrefix}/post`}>click here</a>.</p>
+    </noscript>
+  </body>
+</html>

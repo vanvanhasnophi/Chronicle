@@ -1,0 +1,53 @@
+# OS
+.DS_Store
+_MACOSX/*
+
+# IDE
+.vscode/*
+.cursor/*
+.joycode/*
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+release/
+!packages/manager/dist/
+packages/template-astro/dist/
+
+# Astro
+.astro/
+packages/template-astro/.astro/
+
+# Runtime data (generated from site/ by convert, or local CMS working dir)
+data/*
+# But keep the directory structure for fresh clones
+!data/.gitkeep
+
+# Dynamic symlinks (created by gen/start.sh during build)
+packages/template-astro/public/server/data/upload
+packages/template-astro/public/server/data/branding
+packages/template-astro/public/server/data/manager-background
+
+# Server logs
+packages/host/log/*
+packages/host/logs/*
+
+# Environment
+.env
+packages/manager/.env.production
+
+# Temporary / one-off
+localhost_5173-*.json
+decrypt_post.js
+scripts/media_speed_test.sh
+
+# Docs (dev only)
+docs/dev
+
+# AI tool config (user-specific)
+.claude
+CLAUDE.md
+*.bak
+

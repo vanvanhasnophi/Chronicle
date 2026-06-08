@@ -1,0 +1,81 @@
+# Chronicle — Sync main → lite branch
+#
+# On every push to main, sync the shared packages into the lite branch.
+# Lite users fork the lite branch and get only what they need:
+#   packages/template-astro/  (blog framework)
+#   packages/gen/             (cli build engine)
+#   packages/shared/          (shared types & styles)
+#   site/                     (example content)
+#   .github/workflows/        (lite-deploy CI)
+#   package.json              (workspace root)
+#
+# Manager and host are intentionally excluded — lite users don't need them.
+
+name: Sync Lite Branch
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Sync to lite branch
+        run: |
+          # Check if lite branch already exists on remote
+          if git ls-remote --heads origin lite | grep -q lite; then
+            git fetch origin lite
+            git checkout -B lite origin/lite
+          else
+            # First run — create empty orphan branch
+            git checkout --orphan lite
+            git rm -rf --cached . 2>/dev/null || true
+            git commit --allow-empty -m "init lite branch"
+          fi
+
+          # Fetch main for checkout paths
+          git fetch origin main
+
+          # Remove all tracked files from working tree (except .git)
+          if git rev-parse HEAD >/dev/null 2>&1 && [ "$(git ls-files | wc -l)" -gt 0 ]; then
+            git rm -rf --cached . 2>/dev/null || true
+            # Clean working tree of stale files but NEVER delete .git
+            find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} + 2>/dev/null || true
+          fi
+
+          # Grab the lite subset from main
+          for path in \
+            packages/template-astro \
+            packages/gen \
+            packages/shared \
+            site \
+            package.json \
+            package-lock.json \
+            .gitignore \
+            .github/workflows/lite-deploy.yml; do
+            if git cat-file -e "origin/main:$path" 2>/dev/null; then
+              git checkout origin/main -- "$path"
+            fi
+          done
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to sync"
+          else
+            git commit -m "sync: update from main ($(date -u +%Y-%m-%d))"
+            git push origin lite --force
+            echo "Lite branch updated"
+          fi

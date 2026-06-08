@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "chronicle:profile",
+  "title": {
+    "en": "Profile",
+    "zh-CN": "个人资料"
+  },
+  "x-lang": "en",
+  "x-version": "2.0.0",
+  "x-migrations": [],
+  "type": "object",
+  "x-nav": {
+    "group": "template",
+    "tabs": {
+      "": {
+        "label": {
+          "en": "Profile",
+          "zh-CN": "个人资料"
+        },
+        "icon": "user",
+        "order": 6
+      }
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "default": "",
+      "minLength": 1,
+      "maxLength": 60,
+      "x-widget": "input",
+      "x-order": 1,
+      "x-required": true,
+      "title": {
+        "en": "Name",
+        "zh-CN": "名称"
+      }
+    },
+    "avatar": {
+      "type": "string",
+      "x-widget": "image-picker",
+      "x-order": 2,
+      "title": {
+        "en": "Avatar",
+        "zh-CN": "头像"
+      }
+    },
+    "bio": {
+      "type": "string",
+      "maxLength": 300,
+      "x-widget": "textarea",
+      "x-order": 3,
+      "title": {
+        "en": "Bio",
+        "zh-CN": "简介"
+      }
+    },
+    "location": {
+      "type": "string",
+      "maxLength": 100,
+      "x-widget": "input",
+      "x-order": 4,
+      "x-advanced": true,
+      "title": {
+        "en": "Location",
+        "zh-CN": "位置"
+      }
+    },
+    "links": {
+      "type": "array",
+      "x-widget": "link-list",
+      "x-order": 5,
+      "items": {
+        "type": "object",
+        "required": [
+          "label",
+          "url"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 30,
+            "x-widget": "input",
+            "x-order": 1,
+            "title": {
+              "en": "Label",
+              "zh": "标签"
+            }
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "x-widget": "input",
+            "x-order": 2,
+            "title": {
+              "en": "URL",
+              "zh": "地址"
+            }
+          }
+        }
+      },
+      "title": {
+        "en": "Links",
+        "zh-CN": "链接"
+      }
+    }
+  }
+}
