@@ -4,7 +4,7 @@
  * Wraps the Vue 3 SPA (Vite build output) in a native desktop window.
  */
 
-const { app, BrowserWindow, shell, Menu } = require('electron');
+const { app, BrowserWindow, shell, Menu, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -50,6 +50,22 @@ function createWindow() {
   } else {
     mainWindow.loadFile(getDistIndex());
   }
+
+  // Intercept beforeunload: show native dialog instead of silently failing
+  mainWindow.webContents.on('will-prevent-unload', (event) => {
+    event.preventDefault();
+    const choice = dialog.showMessageBoxSync(mainWindow, {
+      type: 'question',
+      buttons: ['Leave', 'Stay'],
+      defaultId: 1,
+      title: 'Unsaved changes',
+      message: 'You have unsaved changes. Leave anyway?',
+    });
+    if (choice === 0) {
+      mainWindow.webContents.removeAllListeners('will-prevent-unload');
+      mainWindow.close();
+    }
+  });
 
   mainWindow.on('closed', () => { mainWindow = null; });
 }
