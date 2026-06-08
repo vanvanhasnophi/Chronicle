@@ -87,7 +87,6 @@ jobs:
       - name: Rename artifacts
         run: |
           mv *.AppImage "Chronicle-Manager-${{ github.ref_name }}-linux.AppImage" 2>/dev/null || true
-          mv *.deb  "Chronicle-Manager-${{ github.ref_name }}-linux.deb" 2>/dev/null || true
           mv *.dmg  "Chronicle-Manager-${{ github.ref_name }}-mac.dmg" 2>/dev/null || true
           mv *.exe  "Chronicle-Manager-${{ github.ref_name }}-win.exe" 2>/dev/null || true
           ls -lh
@@ -97,7 +96,6 @@ jobs:
         with:
           files: |
             Chronicle-Manager-*.AppImage
-            Chronicle-Manager-*.deb
             Chronicle-Manager-*.dmg
             Chronicle-Manager-*.exe
           body: |
@@ -107,7 +105,7 @@ jobs:
 
             | 文件 | 平台 |
             |---|---|
-            | `.AppImage` / `.deb` | Linux |
+            | `.AppImage` | Linux |
             | `.dmg` | macOS |
             | `.exe` | Windows |
 

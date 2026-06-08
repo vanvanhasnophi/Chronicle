@@ -29,12 +29,8 @@
       "package.json"
     ],
     "linux": {
-      "target": [
-        "AppImage",
-        "deb"
-      ],
-      "category": "Utility",
-      "maintainer": "j13811593@163.com"
+      "target": "AppImage",
+      "category": "Utility"
     },
     "mac": {
       "target": [
