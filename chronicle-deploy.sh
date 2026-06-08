@@ -260,8 +260,8 @@ cd "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME"
 
 # Ensure frontend dependencies are installed before build
 if [ -f "package.json" ]; then
-    log "Installing ${REPO_FRONTEND_SRC_NAME} dependencies (npm install)..."
-    (cd "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME" && npm install) || warn "npm install failed in $REPO_ROOT/$REPO_FRONTEND_SRC_NAME"
+    log "Installing ${REPO_FRONTEND_SRC_NAME} dependencies (npm install — skip Electron binary)..."
+    (cd "$REPO_ROOT/$REPO_FRONTEND_SRC_NAME" && ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm install) || warn "npm install failed in $REPO_ROOT/$REPO_FRONTEND_SRC_NAME"
 else
     warn "No package.json in $REPO_ROOT/$REPO_FRONTEND_SRC_NAME, skipping npm install."
 fi
