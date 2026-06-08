@@ -9,6 +9,8 @@ const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'))
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [vue()],
+  // Electron needs relative base for file:// loading, server deploy uses absolute /
+  base: process.env.ELECTRON ? './' : '/',
   define: {
     __VERSION__: JSON.stringify(pkg.version),
     __YEAR__: JSON.stringify(new Date().getFullYear())

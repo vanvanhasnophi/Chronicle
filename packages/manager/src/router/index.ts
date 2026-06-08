@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory, createWebHashHistory } from 'vue-router'
 // Import locale messages so we can translate route meta titles without
 // depending on the app instance. We pick locale from localStorage or navigator.
 import en from '../locales/en.json'
@@ -160,7 +160,10 @@ const routes = [
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
+  // Electron file:// needs hash history; web deploy uses HTML5 history
+  history: (typeof window !== 'undefined' && (window as any).chronicleElectron?.isElectron)
+    ? createWebHashHistory()
+    : createWebHistory(),
   routes
 })
 

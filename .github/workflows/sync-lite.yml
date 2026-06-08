@@ -1,0 +1,66 @@
+# Chronicle — Sync main → lite branch
+#
+# On every push to main, sync the shared packages into the lite branch.
+# Lite users fork the lite branch and get only what they need:
+#   packages/template-astro/  (blog framework)
+#   packages/gen/             (cli build engine)
+#   packages/shared/          (shared types & styles)
+#   site/                     (example content)
+#   .github/workflows/        (lite-deploy CI)
+#   package.json              (workspace root)
+#
+# Manager and host are intentionally excluded — lite users don't need them.
+
+name: Sync Lite Branch
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Sync to lite branch
+        run: |
+          git checkout lite 2>/dev/null || git checkout --orphan lite
+
+          # Clear everything (keep .git)
+          git rm -rf --cached . 2>/dev/null || true
+          rm -rf -- * .* 2>/dev/null || true
+          rm -rf .claude 2>/dev/null || true
+          rm -f .gitignore 2>/dev/null || true
+
+          # Grab the lite subset from main (data/ is generated from site/ at build time)
+          git checkout main -- \
+            packages/template-astro \
+            packages/gen \
+            packages/shared \
+            site \
+            package.json \
+            package-lock.json \
+            .gitignore
+
+          # Grab lite-specific CI
+          git checkout main -- .github/workflows/lite-deploy.yml 2>/dev/null || true
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to sync"
+          else
+            git commit -m "sync: update from main ($(date -u +%Y-%m-%d))"
+            git push origin lite --force
+            echo "Lite branch updated"
+          fi

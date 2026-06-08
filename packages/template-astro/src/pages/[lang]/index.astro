@@ -159,13 +159,16 @@ const featureFlags = resolveFeatureFlags(settings?.featureFlags || {});
     );
     border-radius: 50%;
     pointer-events: none;
-    filter: blur(40px);
+    filter: var(--perf-glow-filter, blur(40px));
+    opacity: var(--perf-glow-opacity, 1);
     z-index: 1;
     transform: translateX(0);
     will-change: transform, opacity;
-    animation:
-      move-lr-1 16s ease-in-out infinite alternate,
-      glow-flicker 16s ease-in-out infinite;
+    animation-name: var(--perf-glow-anim-name, move-lr-1, glow-flicker);
+    animation-duration: 16s, 16s;
+    animation-timing-function: ease-in-out, ease-in-out;
+    animation-iteration-count: infinite, infinite;
+    animation-direction: alternate, normal;
   }
 
   .home-container::after {
@@ -183,15 +186,20 @@ const featureFlags = resolveFeatureFlags(settings?.featureFlags || {});
     );
     border-radius: 50%;
     pointer-events: none;
-    filter: blur(50px);
+    filter: var(--perf-glow-filter, blur(50px));
+    opacity: var(--perf-glow-opacity, 1);
     z-index: 1;
     transform: translateX(0);
     will-change: transform, opacity;
-    animation:
-      move-lr-2 20s ease-in-out infinite alternate-reverse,
-      glow-flicker 16s ease-in-out infinite;
+    animation-name: var(--perf-glow-anim-name, move-lr-2, glow-flicker);
+    animation-duration: 20s, 16s;
+    animation-timing-function: ease-in-out, ease-in-out;
+    animation-iteration-count: infinite, infinite;
+    animation-direction: alternate-reverse, normal;
   }
 
+  /* glow-flicker is gated by --glow-anim — only runs in full mode.
+     When --glow-anim is "none", the static filter/opacity from CSS vars apply. */
   @keyframes glow-flicker {
     0% {
       opacity: 0.55;
@@ -218,6 +226,7 @@ const featureFlags = resolveFeatureFlags(settings?.featureFlags || {});
       filter: blur(60px);
     }
   }
+
 
   @keyframes move-lr-1 {
     0% {
@@ -325,28 +334,38 @@ const featureFlags = resolveFeatureFlags(settings?.featureFlags || {});
     const update = () => {
       if (signal.aborted) return;
       ticking = false;
-      // New overlay mode: keep hero height fixed, apply progressive blur
+
+      const isReduced = document.documentElement.getAttribute('data-perf') === 'reduced';
       const vh = window.innerHeight || 900;
-      const maxBlur = 8; // px
-      const cardLiftMax = 80; // px cards translate up as overlay
-      // Use a softer progress mapping to get a pleasant curve
       const range = Math.max(200, vh * 0.35);
       let progress = Math.min(1, Math.max(0, scroller.scrollTop / range));
-      // ease-in-out-ish curve
       progress =
         progress < 0.5
           ? 2 * progress * progress
           : -1 + (4 - 2 * progress) * progress;
-      const blur = Math.round(progress * maxBlur);
-      const decBlur = maxBlur - blur;
-      const lift = Math.round(progress * cardLiftMax);
-      // apply visual changes only
-      hero.style.filter = `blur(${blur}px)`;
-      hero.style.opacity = `${1 - 0.06 * progress}`;
-      hero.style.transform = `scale(${1 - 0.04 * progress})`;
-      cards.style.transform = `translateY(-${lift}px)`;
-      cards.style.opacity = `${0.7 + 0.3 * progress}`;
-      cards.style.filter = `blur(${decBlur}px)`;
+
+      if (isReduced) {
+        // Light mode: only opacity + translate, no blur/scale
+        hero.style.filter = 'none';
+        hero.style.transform = 'none';
+        hero.style.opacity = `${1 - .9 * progress}`;
+        const lift = Math.round(progress * 80);
+        cards.style.transform = `translateY(-${lift}px)`;
+        cards.style.opacity = `${0.5 + 0.5 * progress}`;
+        cards.style.filter = 'none';
+      } else {
+        const maxBlur = 8;
+        const cardLiftMax = 80;
+        const blur = Math.round(progress * maxBlur);
+        const decBlur = maxBlur - blur;
+        const lift = Math.round(progress * cardLiftMax);
+        hero.style.filter = `blur(${blur}px)`;
+        hero.style.opacity = `${1 - 0.06 * progress}`;
+        hero.style.transform = `scale(${1 - 0.04 * progress})`;
+        cards.style.transform = `translateY(-${lift}px)`;
+        cards.style.opacity = `${0.7 + 0.3 * progress}`;
+        cards.style.filter = `blur(${decBlur}px)`;
+      }
     };
 
     const requestUpdate = () => {
@@ -360,6 +379,9 @@ const featureFlags = resolveFeatureFlags(settings?.featureFlags || {});
     window.addEventListener("resize", requestUpdate, { passive: true, signal });
     // kick off after a frame to ensure layout is stable
     requestAnimationFrame(requestUpdate);
+
+    // Expose for perf toggle to trigger immediate visual update
+    window.__chronicleUpdateSplitHero = () => { ticking = false; requestUpdate(); };
   }
 
   // Initialize preload system

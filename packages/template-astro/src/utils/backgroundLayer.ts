@@ -198,9 +198,17 @@ export async function stageBackgroundLayer(
       }
       if (overlayEl) {
         overlayEl.style.background = overlayValue || 'transparent';
+        const blurPx = (meta && meta.blur) || 0;
+        if (blurPx > 0) {
+          overlayEl.style.backdropFilter = `blur(${blurPx}px)`;
+          overlayEl.style.webkitBackdropFilter = `blur(${blurPx}px)`;
+        } else {
+          overlayEl.style.backdropFilter = 'none';
+          overlayEl.style.webkitBackdropFilter = 'none';
+        }
       }
       if (imgEl) {
-        imgEl.style.filter = `blur(${(meta && meta.blur) || 0}px)`;
+        imgEl.style.filter = 'none';
 
         const mode = meta && meta.mode ? meta.mode : 'cover';
         const compression = (meta && (meta.compressionFactor || meta.compression || meta.bgCompression || meta.scale)) || 1;
@@ -249,6 +257,14 @@ export async function stageBackgroundLayer(
     // 第一步：立即设置overlay（最高优先级）
     if (overlayEl) {
       overlayEl.style.background = overlayValue || 'transparent';
+      const blurPx = (meta && meta.blur) || 0;
+      if (blurPx > 0) {
+        overlayEl.style.backdropFilter = `blur(${blurPx}px)`;
+        overlayEl.style.webkitBackdropFilter = `blur(${blurPx}px)`;
+      } else {
+        overlayEl.style.backdropFilter = 'none';
+        overlayEl.style.webkitBackdropFilter = 'none';
+      }
     }
 
     // 第二步：设置surface
@@ -260,7 +276,7 @@ export async function stageBackgroundLayer(
     // 第三步：设置图片样式（但不立即加载图片）
     if (imgEl) {
       imgEl.style.backgroundImage = 'none';
-      imgEl.style.filter = `blur(${(meta && meta.blur) || 0}px)`;
+      imgEl.style.filter = 'none';
 
       const mode = meta && meta.mode ? meta.mode : 'cover';
       const compression = (meta && (meta.compressionFactor || meta.compression || meta.bgCompression || meta.scale)) || 1;

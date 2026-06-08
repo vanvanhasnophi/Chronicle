@@ -31,7 +31,7 @@ const authLifecycle = require('./auth-lifecycle');
 // ── Destructure config ───────────────────────────────────
 const {
   BASE_DIR, DATA_DIR, UPLOAD_DIR, BRANDING_DIR, MANAGER_BACKGROUND_DIR, POSTS_DIR,
-  SECURITY_FILE, SETTINGS_FILE, COLLECTION_FILE, INDEX_FILE,
+  SECURITY_FILE, SETTINGS_FILE, COLLECTION_FILE, PROFILE_FILE, INDEX_FILE,
   DEFAULT_BUILD_SETTINGS, DEFAULT_MANAGER_DOMAIN,
   VALID_BUILD_GRANULARITIES, CATEGORIES,
 } = config;
@@ -183,7 +183,7 @@ function getBuildStatusMessage(status) {
     pending: 'Build is starting...',
     success: 'Build completed successfully',
     failed: 'Build failed',
-    timeout: 'Build timeout after 30s, gen continues in background'
+    timeout: 'Build timeout after 2min, gen continues in background'
   };
   return messages[status] || 'Unknown build status';
 }
@@ -257,14 +257,14 @@ function spawnGenBuild(settings, options = {}) {
       reject(err);
     });
 
-    // 30s timeout: respond to CMS, gen keeps running independently
+    // 2min timeout: respond to CMS, gen keeps running independently
     setTimeout(() => {
       if (settled) return;
       settled = true;
       child.unref();
-      console.log(`[Build ${buildId}] Timeout after 30s — gen continues in background`);
+      console.log(`[Build ${buildId}] Timeout after 2min — gen continues in background`);
       resolve({ buildId, status: 'timeout', result: null, error: null, message: getBuildStatusMessage('timeout') });
-    }, 30000);
+    }, 120000);
   });
 }
 
@@ -1276,7 +1276,7 @@ router.post('/build/astro', async (req, res) => {
       });
     }
 
-    console.log('[Build] Starting Astro build with 60s timeout...');
+    console.log('[Build] Starting Astro build with 2min timeout...');
 
     const settings = getBuildSettings();
     const buildResult = await spawnGenBuild(settings, {
@@ -1911,6 +1911,33 @@ router.post('/friends', (req, res) => {
     writeFriends(body);
     success(res, readFriends());
   } catch (e) { fail(res, 'Failed to save friends'); }
+});
+
+// ═══════════════════════════════════════════════════════════
+//  PROFILE API
+// ═══════════════════════════════════════════════════════════
+
+function readProfile() {
+  if (fs.existsSync(PROFILE_FILE)) {
+    try { return JSON.parse(fs.readFileSync(PROFILE_FILE, 'utf-8')); } catch {}
+  }
+  return { name: '', avatar: '', bio: '', location: '', links: [] };
+}
+
+router.get('/profile', (req, res) => {
+  try { success(res, readProfile()); } catch (e) { fail(res, 'Failed to read profile'); }
+});
+
+router.post('/profile', (req, res) => {
+  if (!requireAdminToken(req, res)) return;
+  try {
+    const body = req.body || {};
+    // Merge with existing rather than overwrite
+    const existing = readProfile();
+    const merged = { ...existing, ...body };
+    fs.writeFileSync(PROFILE_FILE, JSON.stringify(merged, null, 2), 'utf-8');
+    success(res, merged);
+  } catch (e) { fail(res, 'Failed to save profile'); }
 });
 
 // ═══════════════════════════════════════════════════════════

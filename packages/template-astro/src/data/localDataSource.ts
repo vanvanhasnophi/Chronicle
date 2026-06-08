@@ -211,6 +211,8 @@ export interface LocalSettings {
 
 // Cache: avoid re-scanning the filesystem on every call during build
 let _postCache: PostMeta[] | null = null;
+// Cache: avoid re-rendering markdown→HTML for the same post across multiple pages
+const _htmlCache = new Map<string, string>();
 
 /** Parse a YAML date string into an ISO string (handles both ISO and YAML date formats) */
 function normalizeDate(raw: unknown): string {
@@ -348,11 +350,13 @@ export function getPostById(id: string): LocalPost | null {
         }
     }
 
-    // Always render markdown to HTML at build time — no pre-compiled files on disk
-    let compiledHtml = '';
-    if (content) {
+    // Render markdown to HTML — cached per post to avoid redundant work
+    // (same post may appear on index, collection, search, RSS, etc.)
+    let compiledHtml = _htmlCache.get(id) || '';
+    if (!compiledHtml && content) {
         try {
             compiledHtml = renderChronicleMarkdown(content);
+            _htmlCache.set(id, compiledHtml);
         } catch (e) {
             console.warn('[localDataSource] Failed to render markdown for', id, e);
         }

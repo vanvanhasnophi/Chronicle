@@ -35,7 +35,7 @@ const DATA_API_MAP: Record<string, string> = {
   'chronicle:system-settings': '/api/settings',
   'chronicle:collections': '/api/collections',
   'chronicle:friends': '/api/friends',
-  'chronicle:profile': '/api/settings',
+  'chronicle:profile': '/api/profile',
   'chronicle:security': '/api/auth/security',
 }
 

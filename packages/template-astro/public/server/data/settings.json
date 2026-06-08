@@ -10,12 +10,12 @@
   "frontendAccent": "#4da32e",
   "backendTheme": "follow",
   "frontendBackground": {
-    "url": "/server/data/upload/pic/Kaltsit.jpg",
-    "path": "/server/data/upload/pic/Kaltsit.jpg",
+    "url": "/server/data/branding/chr_f_bg-Kaltsit-95dfb467eb.webp",
+    "path": "chr_f_bg-Kaltsit-95dfb467eb.webp",
     "sourcePath": "pic/Kaltsit.jpg",
     "sourceName": "Kaltsit.jpg",
-    "generatedPath": "/server/data/upload/pic/Kaltsit.jpg",
-    "generatedName": "Kaltsit.jpg"
+    "generatedPath": "chr_f_bg-Kaltsit-95dfb467eb.webp",
+    "generatedName": "chr_f_bg-Kaltsit-95dfb467eb.webp"
   },
   "backendBackground": {
     "url": "/server/data/manager-background/chr_b_bg-Kaltsit-1ee7858b34.webp",
@@ -46,5 +46,11 @@
   "rss": true,
   "sitemap": false,
   "friends": true,
-  "gaMeasurementId": ""
+  "gaMeasurementId": "",
+  "name": "Cyf",
+  "avatar": "http://localhost:3000/server/data/upload/pic/Kaltsit.jpg",
+  "bio": "aa",
+  "location": "",
+  "links": [],
+  "defaultPerformanceMode": "auto"
 }

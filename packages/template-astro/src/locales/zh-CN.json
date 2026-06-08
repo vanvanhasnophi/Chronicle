@@ -104,6 +104,13 @@
     "title": "友人",
     "viewStory": "查看故事"
   },
+  "settings": {
+    "locale": {
+      "follow": "跟随浏览器",
+      "zh": "中文（简体）",
+      "en": "English"
+    }
+  },
   "preview": {
     "pdfUnsupported": "你的浏览器无法内嵌显示 PDF。请下载来预览。",
     "downloadPdf": "下载 PDF",

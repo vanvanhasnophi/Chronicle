@@ -82,6 +82,7 @@ const frontendAccent = settings?.frontendAccent || '#2ea35f';
 const frontendBackground = normalizeLayoutBackground(settings?.frontendBackground || '');
 const frontendBackgroundMeta = settings?.frontendBackgroundMeta || null;
 const frontendFont = settings?.frontendFont || 'sans';
+const defaultPerformanceMode = settings?.defaultPerformanceMode || 'auto';
 
 // 从Astro.locals获取locale（由middleware设置）
 const locale = propLocale || getLocale(Astro.locals);
@@ -293,6 +294,69 @@ try {
 
         document.addEventListener('astro:page-load', syncMobileClass);
         document.addEventListener('astro:after-swap', syncMobileClass);
+      })();
+    </script>
+
+    <script is:inline define:vars={{ defaultPerformanceMode }}>
+      // Perf mode: detect low-end device, apply data-perf attribute
+      (function () {
+        if (typeof window === 'undefined') return;
+        const KEY = 'chronicle_performance_mode';
+
+        function getOverride() {
+          try { return localStorage.getItem(KEY); } catch { return null; }
+        }
+        function setOverride(v) {
+          try { localStorage.setItem(KEY, v); } catch {}
+        }
+        function isLowEnd() {
+          try {
+            const c = navigator.hardwareConcurrency;
+            const m = navigator.deviceMemory;
+            if (c && c < 4) return true;
+            if (m && m < 4) return true;
+            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return true;
+          } catch {}
+          return false;
+        }
+        function resolve() {
+          const ov = getOverride();
+          if (ov === 'full' || ov === 'reduced') return ov;
+          if (defaultPerformanceMode === 'full') return 'full';
+          if (defaultPerformanceMode === 'reduced') return 'reduced';
+          return isLowEnd() ? 'reduced' : 'full';
+        }
+        function apply(m) {
+          const root = document.documentElement;
+          root.setAttribute('data-perf', m);
+
+          // Broadcast perf state as CSS variables so any component can react
+          if (m === 'reduced') {
+            root.style.setProperty('--perf-glow-filter', 'blur(8px)');
+            root.style.setProperty('--perf-glow-opacity', '0.45');
+            root.style.setProperty('--perf-glow-anim-name', 'none');
+          } else {
+            root.style.removeProperty('--perf-glow-filter');
+            root.style.removeProperty('--perf-glow-opacity');
+            root.style.removeProperty('--perf-glow-anim-name');
+          }
+
+          const btn = document.getElementById('perf-toggle');
+          if (btn) btn.setAttribute('data-perf', m);
+          if (window.__chronicleUpdateSplitHero) window.__chronicleUpdateSplitHero();
+        }
+
+        // Init on load
+        apply(resolve());
+
+        // Expose toggler to window for button onclick
+        window.__chronicleTogglePerf = function () {
+          const cur = resolve();
+          const next = cur === 'full' ? 'reduced' : 'full';
+          setOverride(next);
+          apply(next);
+        };
+        window.__chronicleGetPerf = resolve;
       })();
     </script>
 

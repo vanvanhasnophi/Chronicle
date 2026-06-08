@@ -878,8 +878,8 @@ body.backend::after {
   filter: none;
   opacity: 0;
   z-index: 2;
-  /* 中间层：背景图片 */
-  transition: opacity 0.32s ease, background-image 0.25s ease, filter 0.25s ease, background-position 0.25s ease, background-size 0.25s ease;
+  /* 中间层：背景图片（清晰，不再 blur） */
+  transition: opacity 0.32s ease, background-image 0.25s ease, background-position 0.25s ease, background-size 0.25s ease;
 }
 
 #chronicle-bg-layer.is-ready .bg-image {
@@ -891,9 +891,10 @@ body.backend::after {
   inset: 0;
   background: transparent;
   z-index: 3;
-  /* 最上层：遮罩层 */
-  transition: background 0.3s ease;
+  /* 最上层：遮罩层 + 模糊 */
+  transition: background 0.3s ease, backdrop-filter 0.3s ease, -webkit-backdrop-filter 0.3s ease;
 }
+
 
 /* Ensure app content sits above the background layer */
 #app {

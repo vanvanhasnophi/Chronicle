@@ -1,4 +1,4 @@
-# Chronicle CI/CD — 多规格发行版自动构建
+# Chronicle CI/CD — VPS release + Electron desktop + sync lite
 name: Build & Release
 
 on:
@@ -8,19 +8,12 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      variant:
-        description: '构建规格 (full / static / lite)'
-        required: true
-        default: 'full'
-        type: choice
-        options: ['full', 'self-hosted', 'static', 'lite']
 
 env:
   NODE_VERSION: '20'
 
 jobs:
-  # ── Lint & Type Check ─────────────────────────────────
+  # ── Type Check (manager + shared + gen) ────────────────
   check:
     runs-on: ubuntu-latest
     steps:
@@ -28,21 +21,18 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '${{ env.NODE_VERSION }}' }
 
-      - name: Install dependencies
+      - name: Install dependencies (workspaces)
+        run: npm ci
+
+      - name: Type check (all packages)
         run: |
-          cd packages/manager && npm ci
-          cd ../template-astro && npm ci
-          cd ../../packages/host && npm ci
+          cd packages/manager && npx vue-tsc --noEmit
+          cd ../gen    && npx tsc --noEmit
+          cd ../shared && npx tsc --noEmit
 
-      - name: Type check (manager)
-        run: cd packages/manager && npx vue-tsc --noEmit
-
-      - name: Lint (if configured)
-        run: echo "Lint step — add eslint later"
-
-  # ── Build: Full (全自托管版) ──────────────────────────
+  # ── Build: Full (VPS 全自托管版) ──────────────────────
   build-full:
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: github.event_name != 'pull_request'
     needs: check
     runs-on: ubuntu-latest
     steps:
@@ -50,102 +40,127 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '${{ env.NODE_VERSION }}' }
 
-      - name: Build full release
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build manager (CMS)
+        run: cd packages/manager && npm run build
+
+      - name: Build template-astro (SSG)
         run: |
-          # Start mock server for Astro SSG data fetch
-          cd packages/host && node index.js &
+          cd packages/host
+          # Start host to provide API data for SSG fetch
+          nohup node index.js &
           sleep 3
-          cd ..
-          bash scripts/build.sh full
+          cd ../..
+
+          # Build via gen CLI — syncs settings, runs astro, copies output
+          node packages/gen/bin/cli.mjs build \
+            --dataDir data \
+            --codeDir packages/template-astro \
+            --targetDir packages/template-astro/dist
+
+      - name: Assemble release
+        run: |
+          mkdir -p release/chronicle-full
+          cp -a packages/host        release/chronicle-full/host
+          cp -a packages/gen         release/chronicle-full/gen
+          cp -a packages/shared      release/chronicle-full/shared
+          cp -a packages/manager/dist release/chronicle-full/manager-dist
+          cp -a packages/template-astro/dist release/chronicle-full/template-dist
+          cp -a data                 release/chronicle-full/data
+          cp -a scripts              release/chronicle-full/scripts
+          cp install.sh chronicle-deploy.sh start.sh stop.sh package.json \
+             release/chronicle-full/
+          # Clean build-only artifacts
+          rm -rf release/chronicle-full/host/node_modules
+          rm -rf release/chronicle-full/gen/node_modules
+
+      - name: Tar release
+        run: tar -czf chronicle-full.tar.gz -C release chronicle-full
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: chronicle-full
-          path: release/chronicle-full-*/
+          path: chronicle-full.tar.gz
 
-  # ── Build: Static (完整静态版 / GitHub Pages) ─────────
-  build-static:
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+  # ── Electron Desktop (tag push only) ───────────────────
+  build-electron:
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: check
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: '${{ env.NODE_VERSION }}' }
 
-      - name: Build static release
-        run: |
-          cd packages/host && node index.js &
-          sleep 3
-          cd ..
-          API_BASE_URL=http://127.0.0.1:3000 bash scripts/build.sh static
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Electron + builder
+        run: cd packages/manager && npm install electron electron-builder --save-dev
+
+      - name: Build Vite + Electron
+        run: cd packages/manager && ELECTRON=true npx vite build && npx electron-builder --${{ matrix.os == 'ubuntu-latest' && 'linux' || matrix.os == 'macos-latest' && 'mac' || 'win' }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: chronicle-static
-          path: release/chronicle-pages-*/
+          name: chronicle-electron-${{ matrix.os }}
+          path: packages/manager/release/*
 
-  # ── Build: Lite (精简版) ──────────────────────────────
-  build-lite:
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-    needs: check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '${{ env.NODE_VERSION }}' }
-
-      - name: Build lite release
-        run: bash scripts/build.sh lite
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: chronicle-lite
-          path: release/chronicle-lite-*/
-
-  # ── GitHub Release (tag push) ─────────────────────────
+  # ── GitHub Release (tag push only) ─────────────────────
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build-full, build-static, build-lite]
+    needs: [build-full, build-electron]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/download-artifact@v4
-        with: { name: chronicle-full, path: release/chronicle-full }
+        with: { name: chronicle-full }
       - uses: actions/download-artifact@v4
-        with: { name: chronicle-static, path: release/chronicle-static }
+        with: { name: chronicle-electron-ubuntu-latest }
       - uses: actions/download-artifact@v4
-        with: { name: chronicle-lite, path: release/chronicle-lite }
+        with: { name: chronicle-electron-macos-latest }
+      - uses: actions/download-artifact@v4
+        with: { name: chronicle-electron-windows-latest }
 
-      - name: Package releases
+      - name: Rename artifacts
         run: |
-          cd release
-          tar -czf chronicle-full.tar.gz chronicle-full/
-          tar -czf chronicle-static.tar.gz chronicle-static/
-          tar -czf chronicle-lite.tar.gz chronicle-lite/
-          ls -lh *.tar.gz
+          mv chronicle-electron-ubuntu-latest/*.AppImage Chronicle-Manager-${{ github.ref_name }}-linux.AppImage 2>/dev/null || true
+          mv chronicle-electron-ubuntu-latest/*.deb  Chronicle-Manager-${{ github.ref_name }}-linux.deb 2>/dev/null || true
+          mv chronicle-electron-macos-latest/*.dmg   Chronicle-Manager-${{ github.ref_name }}-mac.dmg 2>/dev/null || true
+          mv chronicle-electron-windows-latest/*.exe Chronicle-Manager-${{ github.ref_name }}-win.exe 2>/dev/null || true
+          ls -lh
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            release/chronicle-full.tar.gz
-            release/chronicle-static.tar.gz
-            release/chronicle-lite.tar.gz
+            chronicle-full.tar.gz
+            Chronicle-Manager-*.AppImage
+            Chronicle-Manager-*.deb
+            Chronicle-Manager-*.dmg
+            Chronicle-Manager-*.exe
           body: |
             ## Chronicle ${{ github.ref_name }}
 
-            ### 发行版规格
+            ### VPS 部署
+            | 文件 | 说明 |
+            |---|---|
+            | `chronicle-full.tar.gz` | 全自托管版 — `bash install.sh install` |
 
-            | 文件 | 说明 | 部署方式 |
-            |---|---|---|
-            | `chronicle-full.tar.gz` | 全自托管版 | VPS + install.sh |
-            | `chronicle-static.tar.gz` | 完整静态版 | GitHub Pages / Vercel |
-            | `chronicle-lite.tar.gz` | 精简版 | 任意静态托管 |
+            ### 桌面客户端（Electron）
+            | 文件 | 平台 |
+            |---|---|
+            | `.AppImage` / `.deb` | Linux |
+            | `.dmg` | macOS |
+            | `.exe` | Windows |
 
           draft: false
           prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}

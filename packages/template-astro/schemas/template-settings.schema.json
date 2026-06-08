@@ -295,6 +295,28 @@
         }
       ]
     },
+    "defaultPerformanceMode": {
+      "type": "string",
+      "default": "auto",
+      "enum": ["auto", "full", "reduced"],
+      "x-widget": "select",
+      "x-tab": "template-appearance",
+      "x-group": "theme",
+      "x-order": 99,
+      "title": {
+        "en": "Performance Mode",
+        "zh-CN": "性能模式"
+      },
+      "description": {
+        "en": "Auto: detect device capability. Full: all effects. Reduced: disable blur/glow/heavy animations for lower-end devices.",
+        "zh-CN": "auto=自动检测设备性能, full=全效果, reduced=禁用模糊/光晕等重效果以适配低端设备"
+      },
+      "x-options": [
+        { "value": "auto", "label": { "en": "Auto", "zh-CN": "自动" } },
+        { "value": "full", "label": { "en": "Full Effects", "zh-CN": "全效果" } },
+        { "value": "reduced", "label": { "en": "Reduced", "zh-CN": "降性能" } }
+      ]
+    },
     "frontendBackground": {
       "type": "object",
       "x-widget": "background-editor",

@@ -272,6 +272,20 @@ const isActive = (path: string) => {
           style="margin:6px 4px; border:none; border-top:1px solid var(--component-text-secondary); opacity: 0.4;"
         />
 
+        <!-- Performance toggle -->
+        <button class="popup-item" id="perf-toggle" data-perf="" onclick="window.__chronicleTogglePerf?.()">
+          <span class="popup-label">{
+            locale === "zh-CN" ? "高级效果" : "Visual Effects"
+          }</span>
+          <span class="popup-switch">
+            <span class="popup-switch-knob"></span>
+          </span>
+        </button>
+
+        <hr
+          style="margin:6px 4px; border:none; border-top:1px solid var(--component-text-secondary); opacity: 0.4;"
+        />
+
         <!-- Language controls (below) -->
         <button class="popup-item" data-locale="follow">
           <span class="popup-label">{t("settings.locale.follow")}</span>
@@ -683,6 +697,35 @@ const isActive = (path: string) => {
 
   .popup-item.active .popup-check {
     display: flex;
+  }
+
+  /* ── Perf toggle switch ── */
+  .popup-switch {
+    width: 36px;
+    height: 20px;
+    border-radius: 10px;
+    background: var(--border-color);
+    position: relative;
+    transition: background .2s;
+    flex-shrink: 0;
+  }
+  .popup-switch-knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform .2s;
+  }
+  [data-perf="full"] .popup-switch,
+  #perf-toggle[data-perf="full"] .popup-switch {
+    background: var(--accent-color);
+  }
+  [data-perf="full"] .popup-switch-knob,
+  #perf-toggle[data-perf="full"] .popup-switch-knob {
+    transform: translateX(16px);
   }
 
   .popup-divider {
