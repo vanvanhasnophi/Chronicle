@@ -23,7 +23,7 @@ const { t } = useI18n()
 
 <style scoped>
 .text-editor-page {
-  height: 100vh;
+  height: var(--app-height);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -39,7 +39,7 @@ const { t } = useI18n()
   align-items: center;
   justify-content: center;
   width: 100%;
-  height: calc(100vh - 0px);
+  height: calc(var(--app-height) - 0px);
 }
 .skeleton-box {
   background: var(--component-bg-hover);

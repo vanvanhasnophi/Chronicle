@@ -31,8 +31,8 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { apiUrl } from '../composables/useServerUrl'
 import StandaloneHeader from '../components/StandaloneHeader.vue'
+import { apiUrl } from '../composables/useServerUrl'
 import { Icons } from '../utils/icons'
 
 const router = useRouter()
@@ -40,14 +40,26 @@ const { t } = useI18n()
 const isLoggedIn = ref(false)
 
 onMounted(async () => {
-  const token = (() => { try { const r = localStorage.getItem('chronicle_auth'); return r ? JSON.parse(r).token : '' } catch { return '' } })()
-  if (!token) return
+  // Verify auth with a minimal authenticated ping
   try {
-    const resp = await fetch(apiUrl('/api/admin/settings?t=' + Date.now()), {
-      headers: { 'x-chronicle-auth': token }
+    const raw = localStorage.getItem('chronicle_auth')
+    if (!raw) return
+    const session = JSON.parse(raw)
+    if (!session.token || !session.expiry || Date.now() > session.expiry) {
+      localStorage.removeItem('chronicle_auth')
+      return
+    }
+    const resp = await fetch(apiUrl('/api/auth/ping?t=' + Date.now()), {
+      headers: { 'x-chronicle-auth': raw }
     })
-    isLoggedIn.value = resp.ok
-  } catch {}
+    if (resp.ok) {
+      isLoggedIn.value = true
+    } else {
+      localStorage.removeItem('chronicle_auth')
+    }
+  } catch {
+    // Server unreachable — keep existing state, don't clear auth
+  }
 })
 
 function goLogin()   { router.push('/login') }
@@ -57,7 +69,7 @@ function goConsole() { router.push('/dashboard') }
 
 <style scoped>
 .welcome-root {
-  height: 100vh; height: 100dvh;
+  height: var(--app-height);
   overflow: hidden;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   background: var(--bg-primary);

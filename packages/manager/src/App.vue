@@ -15,12 +15,12 @@ import ImagePreviewModal from './components/ImagePreviewModal.vue'
 import Toast from './components/Toast.vue'
 import useToast from './composables/useToast'
 import { useI18n } from 'vue-i18n'
-import WindowControls from './components/WindowControls.vue'
+import TitleBar from './components/TitleBar.vue'
+import SafeTeleport from './components/SafeTeleport.vue'
 
 const route = useRoute()
 const router = useRouter()
 const isPrintPreviewRoute = computed(() => route.path === '/editor/print')
-const isEditorRoute = computed(() => route.path === '/editor' || isPrintPreviewRoute.value)
 const isBackend = computed(() => {
   // Explicit frontend routes: Home, BlogList, BlogPost, Search, Friends
   const frontendPrefixes = ['/', '/blogs', '/post', '/search', '/friends']
@@ -60,21 +60,6 @@ const backgroundObjectUrls = new Set<string>()
 let currentBackgroundUrl = ''
 let backgroundSuspended = false
 let bgRouteSuspendTimer: number | null = null
-
-function syncEditorBackgroundLayerUsage() {
-  try {
-    const hideLayer = isEditorRoute.value
-    try {
-      if (hideLayer) document.body.classList.add('editor-no-bg-layer')
-      else document.body.classList.remove('editor-no-bg-layer')
-    } catch (e) { }
-
-    const layer = document.getElementById('chronicle-bg-layer')
-    if (layer) {
-      layer.style.display = hideLayer ? 'none' : 'block'
-    }
-  } catch (e) { }
-}
 
 function parseBackgroundMeta(raw: any) {
   try {
@@ -422,11 +407,13 @@ function ensureBackgroundLayer() {
 
 function enableCustomBackgroundRendering() {
   if (isCustomBackgroundReady.value) return
-  // enable custom background rendering
   isCustomBackgroundReady.value = true
   try { ensureBackgroundLayer() } catch (e) { }
-  // Re-apply settings once unlocked so custom background image/meta are rendered.
-  try { void applySettings() } catch (e) { }
+  // Skip settings/schemas on auth pages (no auth context needed)
+  const isAuthPage = route.path === '/' || route.path === '/login' || route.path === '/setup' || route.path === '/recover' || route.path === '/editor'
+  if (!isAuthPage) {
+    try { void applySettings() } catch (e) { }
+  }
   try { updateResolvedOverlays() } catch (e) { }
 }
 
@@ -710,6 +697,11 @@ function applySettingsFromStore(s: Record<string, any>) {
           } catch (e) { }
 
           const activeMeta = isBackend.value ? bm : fm
+          // Logout clears the background — force re-stage on next login
+          if ((window as any).__chronicleBgNeedsReset) {
+            currentBackgroundUrl = ''
+            ;(window as any).__chronicleBgNeedsReset = false
+          }
           // Avoid re-staging the same background and don't block navigation.
           try {
             if (!backgroundSuspended && String(activeUrl || '').trim() && String(activeUrl || '').trim() !== currentBackgroundUrl) {
@@ -739,8 +731,8 @@ function applyBackendLocaleIfNeeded() {
 }
 
 onMounted(async () => {
-  // Check auth phase — redirect to setup if first boot
-  if (route.path !== '/login' && route.path !== '/setup' && route.path !== '/recover') {
+  // Check auth phase — redirect to setup if first boot (skip on all auth pages)
+  if (route.path !== '/' && route.path !== '/login' && route.path !== '/setup' && route.path !== '/recover' && route.path !== '/editor') {
     try {
       const resp = await fetch(`/api/admin/status?t=${Date.now()}`)
       const json = await resp.json()
@@ -752,7 +744,13 @@ onMounted(async () => {
     } catch { /* fall through */ }
   }
 
-  const isAuthPage = route.path === '/login' || route.path === '/setup' || route.path === '/recover' || route.path === '/'
+  const isAuthPage = route.path === '/login' || route.path === '/setup' || route.path === '/recover' || route.path === '/' || route.path === '/editor'
+
+  // Auth pages: force-hide custom background layer on initial load
+  try {
+    if (isAuthPage) document.body.classList.add('auth-page')
+    else document.body.classList.remove('auth-page')
+  } catch (e) {}
 
   // Only load settings/schemas if authenticated (skip on public pages)
   const token = (() => { try { const r = localStorage.getItem('chronicle_auth'); return r ? JSON.parse(r).token : '' } catch { return '' } })()
@@ -763,15 +761,13 @@ onMounted(async () => {
   // Reload settings when navigating from a public page to an authenticated page
   let settingsLoaded = !!token
   watch(() => route.path, async (to) => {
-    const pub = to === '/' || to === '/login' || to === '/setup' || to === '/recover'
+    const pub = to === '/' || to === '/login' || to === '/setup' || to === '/recover' || to === '/editor'
     const tok = (() => { try { const r = localStorage.getItem('chronicle_auth'); return r ? JSON.parse(r).token : '' } catch { return '' } })()
     if (tok && !pub && !settingsLoaded) {
       await applySettings()
       settingsLoaded = true
     }
   })
-
-  try { syncEditorBackgroundLayerUsage() } catch (e) { }
 
   // Defer custom background rendering until LCP is finished.
   try { scheduleCustomBackgroundAfterLcp() } catch (e) { }
@@ -926,14 +922,20 @@ onBeforeUnmount(() => {
     }
     backgroundSuspended = false
   } catch (e) { }
-  try { document.body.classList.remove('editor-no-bg-layer') } catch (e) { }
 })
 
 // when route changes, switch between frontend/backend locale policies
 watch(route, () => {
   // navigation happened -> give navigation priority over background rendering
   isMenuOpen.value = false
-  try { syncEditorBackgroundLayerUsage() } catch (e) { }
+
+  // Auth pages (/, /login, /setup, /recover): force-disable background layer
+  const isAuth = route.path === '/' || route.path === '/login' || route.path === '/setup' || route.path === '/recover' || route.path === '/editor'
+  try {
+    if (isAuth) document.body.classList.add('auth-page')
+    else document.body.classList.remove('auth-page')
+  } catch (e) {}
+
   // cancel any in-progress background staging
   try { bgRenderVersion++ } catch (e) { }
   try {
@@ -944,18 +946,17 @@ watch(route, () => {
     }
     // resume background rendering shortly after navigation settles
     bgRouteSuspendTimer = window.setTimeout(() => {
-      // Keep background suspended while editor is active.
-      try { backgroundSuspended = isEditorRoute.value } catch (e) { }
+      try { backgroundSuspended = false } catch (e) { }
       try { bgRouteSuspendTimer = null } catch (e) { }
-      try {
-        if (!isEditorRoute.value) void applySettings()
-      } catch (e) { }
-      try { syncEditorBackgroundLayerUsage() } catch (e) { }
+      // Skip on auth pages — no settings/schema/background requests
+      if (!isAuth) {
+        try { void applySettings() } catch (e) { }
+      }
     }, 250)
   } catch (e) { }
 
   if (isBackend.value) {
-    applyBackendLocaleIfNeeded()
+    if (!isAuth) applyBackendLocaleIfNeeded()
     try { document.body.classList.add('backend') } catch (e) { }
   } else {
     applyFrontendLocaleFromSelection()
@@ -1065,12 +1066,20 @@ async function rebuildFrontend() {
 </script>
 
 <template>
-  <div id="app">
-    <!-- Electron frameless title bar (all non-public pages; public pages use StandaloneHeader) -->
-    <div v-if="showBackendShell || isEditorRoute" class="electron-title-bar">
-      <div class="title-bar-drag"></div>
-      <WindowControls />
-    </div>
+  <div id="app" :style="{ '--title-bar-left': showBackendShell ? '256px' : '0px' }" style="height: 100%;">
+    <!-- Unified Electron title bar: drag on right side of sidebar, window controls fixed top-right -->
+    <TitleBar />
+
+    <!-- Editor: home button injected into TitleBar -->
+    <SafeTeleport v-if="route.path === '/editor'" to="#title-bar-back">
+      <button
+        class="titlebar-btn"
+        @click="router.push('/')" title="Home">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z" />
+        </svg>
+      </button>
+    </SafeTeleport>
 
     <template v-if="showBackendShell">
       <button class="menu-toggle backend-menu-toggle" @click="isMenuOpen = !isMenuOpen"
@@ -1156,36 +1165,17 @@ async function rebuildFrontend() {
 #app {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: var(--app-height);
 }
 
-/* ── Electron frameless title bar (authenticated pages) ── */
-.electron-title-bar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 32px;
-  z-index: 1100;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding: 0 8px;
-  -webkit-app-region: drag;
-}
-
-.title-bar-drag {
-  flex: 1;
-  height: 100%;
-}
-
-/* Shift sidebar down to clear the title bar */
+/* Electron: sidebar background bleeds into title bar, content pushed down */
 body.is-electron .backend-sidebar {
-  top: 36px;
+  top: 8px; /* keep normal position — background extends under title bar */
 }
+
 
 body.is-electron .backend-menu-toggle {
-  top: 40px;
+  top: 48px; /* hamburger below title bar */
 }
 
 .menu-toggle {
@@ -1198,7 +1188,7 @@ body.is-electron .backend-menu-toggle {
   align-items: center;
   justify-content: center;
   padding: 0;
-  z-index: 102;
+  z-index: 10002;
   /* Higher than nav-content */
   /* Make the clickable area compact so the hamburger is not too tall */
   width: 40px;
@@ -1255,8 +1245,8 @@ body.is-electron .backend-menu-toggle {
   overflow-y: auto;
   overflow-x: hidden;
   padding-top: 0;
-  height: 100vh;
-  box-sizing: border-box;
+  min-height: 0;
+  height: var(--app-height);
 }
 
 .main-content.no-nav {
@@ -1275,6 +1265,16 @@ body.is-electron .backend-menu-toggle {
   background: #fff;
 }
 
+/* Electron: margin-top pushes .main-content below the 40px TitleBar.
+   flex:1 naturally fills remaining space (100vh - 40px in Electron, 100vh in browser). */
+body.is-electron .main-content {
+  margin-top: 40px !important;
+}
+
+body.is-electron .main-content.print-preview {
+  padding-top: 0; /* print preview stays full-screen */
+}
+
 @media print {
   .main-content.print-preview {
     overflow: visible !important;
@@ -1287,7 +1287,7 @@ body.is-electron .backend-menu-toggle {
   position: fixed;
   top: 14px;
   left: 14px;
-  z-index: 1100;
+  z-index: 10001;
 }
 
 .backend-sidebar {
@@ -1299,7 +1299,7 @@ body.is-electron .backend-menu-toggle {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   gap: 1rem;
-  z-index: 1090;
+  z-index: 10000;
 }
 
 .backend-sidebar-header {

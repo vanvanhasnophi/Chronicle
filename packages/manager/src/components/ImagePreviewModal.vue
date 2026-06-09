@@ -64,7 +64,7 @@ function handleMouseUp() {
   top: 0;
   left: 0;
   width: 100vw;
-  height: 100vh;
+  height: var(--app-height);
   background: rgba(0, 0, 0, 0.9);
   z-index: 20001; /* Higher than file preview */
   display: flex;

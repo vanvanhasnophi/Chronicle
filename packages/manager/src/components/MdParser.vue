@@ -948,7 +948,7 @@ strong, b {
   top: 0;
   left: 0;
   width: 100vw;
-  height: 100vh;
+  height: var(--app-height);
   background: var(--component-bg-blur);
   z-index: 10000;
   display: flex;

@@ -79,35 +79,29 @@ function closeWindow() {
   display: flex;
   align-items: center;
   gap: 0;
-  height: 32px;
+  height: 40px;
   -webkit-app-region: no-drag;
-  border-radius: 8px;
   overflow: hidden;
-  opacity: 0.45;
-  transition: opacity 0.25s ease;
 }
 
-.win-controls:hover {
-  opacity: 1;
-}
 
 .win-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 28px;
+  width: 44px;
+  height: 36px;
   border: none;
   background: transparent;
   color: var(--text-primary);
-  cursor: pointer;
+  cursor: default;
   border-radius: 0;
   padding: 0;
   transition: background 0.15s ease, color 0.15s ease;
 }
 
 .win-btn:hover {
-  background: var(--component-bg-hover);
+  background: color-mix(in srgb, var(--text-primary) 20%, transparent);
   color: var(--text-primary);
 }
 

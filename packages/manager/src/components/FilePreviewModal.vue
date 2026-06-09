@@ -110,7 +110,7 @@ watch(() => state.file, () => {
   top: 0;
   left: 0;
   width: 100vw;
-  height: 100vh;
+  height: var(--app-height);
   background: rgba(0, 0, 0, 0.85);
   z-index: 20000; /* Higher than image preview if needed */
   display: flex;

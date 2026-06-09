@@ -47,16 +47,17 @@ export function apiUrl(path: string): string {
   return base ? `${base}${path}` : path
 }
 
-export function useServerUrl() {
-  const saved = getSavedServerUrl()
-  const url = ref(saved)
-  const confirmed = ref<boolean | null>(null) // null=never checked, true=ok, false=error
-  const confirmedUrl = ref(saved)
-  const checking = ref(false)
-  const error = ref(getSavedError())
+// Shared reactive state — all callers see the same URL / status.
+const saved = getSavedServerUrl()
+const url = ref(saved)
+const confirmed = ref<boolean | null>(null)
+const confirmedUrl = ref(saved)
+const checking = ref(false)
+const error = ref(getSavedError())
 
+export function useServerUrl() {
   // Auto-verify on mount if URL is saved (triggers error class on load)
-  if (saved && needsServerUrl) {
+  if (saved && needsServerUrl && confirmed.value === null) {
     verify(saved).catch(() => {})
   }
 

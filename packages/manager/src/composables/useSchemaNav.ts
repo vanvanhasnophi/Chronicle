@@ -98,7 +98,13 @@ function buildNavTree(schemas: Record<string, any>): NavGroup[] {
 export function useSchemaNav() {
   const navTree = ref<NavGroup[]>(buildNavTree({ ...LOCAL_SCHEMAS, ...schemaStore.value }))
 
-  setTimeout(() => syncSchemas(), 100)
+  // Only sync schemas on non-auth pages. Auth pages (/, /login, /setup, /recover, /editor)
+  // should not make any server requests.
+  const path = typeof window !== 'undefined' ? window.location.pathname : ''
+  const isAuthPage = path === '/' || path === '/login' || path === '/setup' || path === '/recover' || path === '/editor'
+  if (!isAuthPage) {
+    setTimeout(() => syncSchemas(), 100)
+  }
 
   watch(schemaStore, (store) => {
     navTree.value = buildNavTree({ ...LOCAL_SCHEMAS, ...store })

@@ -64,7 +64,7 @@ import { startAuthentication } from '@simplewebauthn/browser'
 import { Icons } from '../utils/icons'
 import { useI18n } from 'vue-i18n'
 import StandaloneHeader from '../components/StandaloneHeader.vue'
-import { apiUrl, getSavedServerUrl, needsServerUrl } from '../composables/useServerUrl'
+import { apiUrl, useServerUrl, resolveApiBaseUrl } from '../composables/useServerUrl'
 
 const router = useRouter()
 const route = useRoute()
@@ -83,7 +83,11 @@ onMounted(async () => {
 })
 
 const { t } = useI18n()
-const serverHint = (() => { try { const u = getSavedServerUrl(); return u ? u.replace(/^https?:\/\//, "") : "" } catch { return "" } })()
+const { confirmedUrl } = useServerUrl()
+const serverHint = computed(() => {
+  const u = confirmedUrl.value || resolveApiBaseUrl()
+  return u ? u.replace(/^https?:\/\//, '') : ''
+})
 
 
 const password = ref('')
@@ -110,13 +114,50 @@ const resetLogin = () => {
     inputCode.value = ''
 }
 
-const completeLogin = () => {
+const completeLogin = (serverToken: string) => {
     const session = {
-        token: 'active',
+        token: serverToken || 'active',
         expiry: Date.now() + 24 * 60 * 60 * 1000
     }
     localStorage.setItem('chronicle_auth', JSON.stringify(session))
   router.replace(resolveLoginTarget())
+}
+
+// ── PoW Solver ──────────────────────────────────────────
+function countLeadingZeroBits(hex: string): number {
+  let bits = 0
+  for (const ch of hex) {
+    const n = parseInt(ch, 16)
+    if (n === 0) { bits += 4; continue }
+    if (n < 2) { bits += 3; break }
+    if (n < 4) { bits += 2; break }
+    if (n < 8) { bits += 1; break }
+    break
+  }
+  return bits
+}
+
+function bufferToHex(buf: ArrayBuffer): string {
+  return Array.from(new Uint8Array(buf))
+    .map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+async function solvePoW(nonce: string, difficulty: number): Promise<string> {
+  const encoder = new TextEncoder()
+  let solution = 0
+  const batchSize = 20000
+  while (true) {
+    for (let i = 0; i < batchSize; i++) {
+      solution++
+      const msg = encoder.encode(nonce + ':' + solution)
+      const hash = await crypto.subtle.digest('SHA-256', msg)
+      if (countLeadingZeroBits(bufferToHex(hash)) >= difficulty) {
+        return String(solution)
+      }
+    }
+    // Yield to browser to keep UI responsive
+    await new Promise(r => setTimeout(r, 0))
+  }
 }
 
 const handleLogin = async () => {
@@ -126,10 +167,18 @@ const handleLogin = async () => {
   error.value = ''
 
   try {
+    // 1. Fetch PoW challenge
+    const challengeRes = await fetchWithAuth(`/api/auth/challenge?t=${Date.now()}`)
+    const { nonce, difficulty } = await challengeRes.json()
+
+    // 2. Solve (non-blocking)
+    const solution = await solvePoW(nonce, difficulty)
+
+    // 3. Submit login with PoW proof
     const res = await fetchWithAuth(`/api/auth/login?t=${Date.now()}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: password.value })
+      body: JSON.stringify({ password: password.value, nonce, solution })
     })
 
     const data = await res.json()
@@ -137,7 +186,7 @@ const handleLogin = async () => {
       if (data.requirePasskey) {
         show2FAGate.value = true
       } else {
-        completeLogin()
+        completeLogin(data.token)
       }
     } else {
       error.value = data.message || t('login.failed')
@@ -160,7 +209,7 @@ const handleCodeVerify = async () => {
         })
         const data = await res.json()
         if (data.success) {
-            completeLogin()
+            completeLogin(data.token)
         } else {
             error.value = data.message || 'Verification failed'
         }
@@ -189,7 +238,7 @@ const handlePasskeyLogin = async (is2FA = false) => {
         })
         const verData = await verResp.json()
         if (verData.verified) {
-          completeLogin()
+          completeLogin(verData.token)
         } else {
           error.value = t('login.passkeyFailed')
         }
@@ -212,7 +261,7 @@ const handlePasskeyLogin = async (is2FA = false) => {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh;
+  height: var(--app-height);
   position: relative;
   background: var(--bg-primary);
   overflow: hidden;

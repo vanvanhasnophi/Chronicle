@@ -3006,7 +3006,7 @@ const fontClass = computed(() => {
 .blog-editor {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: var(--app-height);
     /* ensure editor fills viewport so internal panes scroll, not the page */
     border: none;
     background: var(--bg-primary);
@@ -3016,7 +3016,7 @@ const fontClass = computed(() => {
     display: flex;
     flex-direction: column;
     gap: 0;
-    padding: 4px 12px 0 12px;
+    padding: 2px 12px 0 12px;
     /*background: var(--bg-secondary);*/
     background: var(--component-bg-blur);
     border-bottom: 1px solid var(--border-color);

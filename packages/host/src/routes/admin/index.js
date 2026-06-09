@@ -22,7 +22,7 @@ const {
 const rateLimit = require('express-rate-limit');
 
 const config = require('../../config');
-const { requireAdminToken, hashPassword, encrypt, decrypt } = require('../../middleware/auth');
+const { requireAdminToken, hashPassword, verifyPassword, encrypt, decrypt, createSession, createChallenge, verifyPoW, recordFailedAttempt, clearFailedAttempts } = require('../../middleware/auth');
 const { success, fail } = require('../../services/response');
 const postService = require('../../services/postService');
 const collectionService = require('../../services/collectionService');
@@ -52,7 +52,7 @@ const MEDIA_DOMAIN = (process.env.MEDIA_DOMAIN && process.env.MEDIA_DOMAIN.repla
 const passkeyChallenges = new Map();
 const verificationCodes = new Map();
 
-// ── Rate Limiter for Auth Endpoints ──────────────────────
+// ── Rate Limiters ────────────────────────────────────────
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 min
   max: 20,
@@ -60,6 +60,24 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   message: { code: 429, data: null, message: 'Too many attempts, try again later' },
 });
+
+const uploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 min
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { code: 429, data: null, message: 'Too many uploads, try again later' },
+});
+
+const buildLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 min
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { code: 429, data: null, message: 'Too many builds, try again later' },
+});
+
+const UPLOAD_MAX_SIZE = 100 * 1024 * 1024; // 100 MB
 
 // ── Gen CLI path (local monorepo, not published to npm) ──────
 const GEN_CLI = path.resolve(__dirname, '..', '..', '..', '..', 'gen', 'bin', 'cli.mjs');
@@ -93,10 +111,11 @@ function spawnCdnWarm(urls = []) {
 // Skip auth for endpoints that validate their own credentials.
 router.use((req, res, next) => {
   if (req.path.startsWith('/auth/login') ||
-      req.path.startsWith('/auth/change') ||
+      req.path.startsWith('/auth/challenge') ||
       req.path.startsWith('/auth/code') ||
       req.path.startsWith('/auth/passkey/register') ||
       req.path.startsWith('/auth/passkey/login') ||
+      req.path.startsWith('/auth/change') ||
       req.path === '/status' ||
       req.path.startsWith('/setup') ||
       req.path.startsWith('/recover')) {
@@ -490,7 +509,7 @@ router.post('/auth/code/verify', (req, res) => {
 
   if (stored.code === code) {
     verificationCodes.delete('admin');
-    res.json({ success: true, token: 'session-valid' });
+    res.json({ success: true, token: createSession() });
   } else {
     res.status(400).json({ success: false, message: 'Invalid code' });
   }
@@ -623,7 +642,7 @@ router.post('/auth/passkey/login/verify', async (req, res) => {
       passkeyChallenges.delete(user);
       device.counter = verification.authenticationInfo.newCounter;
       fs.writeFileSync(SECURITY_FILE, JSON.stringify(saved, null, 2));
-      res.json({ verified: true, token: 'session-valid' });
+      res.json({ verified: true, token: createSession() });
     } else {
       res.status(400).json({ verified: false });
     }
@@ -635,10 +654,28 @@ router.post('/auth/passkey/login/verify', async (req, res) => {
 
 // ── Password Login / Change ───────────────────────────────
 
+// PoW challenge: client must solve before login
+// Lightweight authenticated ping — no functional purpose, just confirms token is valid
+router.get('/auth/ping', (req, res) => {
+  res.json({ ok: true });
+});
+
+router.get('/auth/challenge', (req, res) => {
+  const ip = req.ip || req.connection.remoteAddress || '0.0.0.0';
+  const challenge = createChallenge(ip);
+  res.json(challenge);
+});
+
 router.use('/auth/login', authLimiter);
 router.post('/auth/login', (req, res) => {
   try {
-    const { password } = req.body;
+    const { password, nonce, solution } = req.body;
+    const ip = req.ip || req.connection.remoteAddress || '0.0.0.0';
+
+    // Verify PoW before checking password
+    if (!nonce || !solution || !verifyPoW(nonce, solution)) {
+      return res.status(400).json({ success: false, message: 'Invalid proof-of-work. Refresh and try again.' });
+    }
 
     if (!fs.existsSync(SECURITY_FILE)) {
       const defaultHash = hashPassword('admin');
@@ -646,15 +683,17 @@ router.post('/auth/login', (req, res) => {
     }
 
     const saved = JSON.parse(fs.readFileSync(SECURITY_FILE, 'utf-8'));
-    const attemptHash = hashPassword(password);
 
-    if (saved.passwordHash === attemptHash) {
+    if (verifyPassword(password, saved.passwordHash)) {
+      clearFailedAttempts(ip);
       if (saved.devices && saved.devices.length > 0) {
         res.json({ success: true, requirePasskey: true });
       } else {
-        res.json({ success: true, token: 'session-valid' });
+        const token = createSession();
+        res.json({ success: true, token });
       }
     } else {
+      recordFailedAttempt(ip);
       res.status(401).json({ success: false, message: 'Invalid password' });
     }
   } catch (e) {
@@ -666,7 +705,7 @@ router.use('/auth/change', authLimiter);
 router.post('/auth/change', (req, res) => {
   if (!requireAdminToken(req, res)) return;
   try {
-    const { oldPassword, newPassword, token } = req.body;
+    const { oldPassword, newPassword } = req.body;
 
     if (!fs.existsSync(SECURITY_FILE)) {
       const newHash = hashPassword(newPassword);
@@ -675,13 +714,11 @@ router.post('/auth/change', (req, res) => {
     }
 
     const saved = JSON.parse(fs.readFileSync(SECURITY_FILE, 'utf-8'));
-    const oldHash = hashPassword(oldPassword);
 
-    if (saved.passwordHash === oldHash) {
+    if (verifyPassword(oldPassword, saved.passwordHash)) {
+      // If passkeys are registered, require passkey re-auth for password change
       if (saved.devices && saved.devices.length > 0) {
-        if (token !== 'session-valid') {
-          return res.json({ success: false, requirePasskey: true });
-        }
+        return res.json({ success: false, requirePasskey: true });
       }
 
       const newHash = hashPassword(newPassword);
@@ -931,8 +968,14 @@ router.delete('/files', (req, res) => {
   }
 });
 
-router.post('/upload', (req, res) => {
+router.post('/upload', uploadLimiter, (req, res) => {
   if (!requireAdminToken(req, res)) return;
+
+  const contentLength = parseInt(req.headers['content-length'], 10);
+  if (contentLength > UPLOAD_MAX_SIZE) {
+    return res.status(413).json({ code: 413, data: null, message: 'File too large (max 50 MB)' });
+  }
+
   ensureDevSymlink();
 
   const filename = req.headers['x-filename'];
@@ -1261,7 +1304,7 @@ router.get('/system/storage', (req, res) => {
 
 // ── Build Routes ──────────────────────────────────────────
 
-router.post('/build/astro', async (req, res) => {
+router.post('/build/astro', buildLimiter, async (req, res) => {
   try {
     if (!requireAdminToken(req, res)) return;
 

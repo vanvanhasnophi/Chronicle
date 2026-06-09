@@ -102,4 +102,10 @@ if (isElectron) {
   document.body.classList.add('is-electron')
 }
 
+// Expose Electron state globally (single source of truth for the whole app)
+;(window as any).__chronicle = {
+  isElectron,
+  platform: isElectron ? (window as any).chronicleElectron?.platform : 'browser',
+}
+
 app.mount('#app')

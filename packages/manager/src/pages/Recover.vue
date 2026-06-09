@@ -41,11 +41,15 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import StandaloneHeader from '../components/StandaloneHeader.vue'
-import { apiUrl, getSavedServerUrl, needsServerUrl } from '../composables/useServerUrl'
+import { apiUrl, useServerUrl, resolveApiBaseUrl } from '../composables/useServerUrl'
 
 const router = useRouter()
 const { t } = useI18n()
-const serverHint = (() => { try { const u = getSavedServerUrl(); return u ? u.replace(/^https?:\/\//, "") : "" } catch { return "" } })()
+const { confirmedUrl } = useServerUrl()
+const serverHint = computed(() => {
+  const u = confirmedUrl.value || resolveApiBaseUrl()
+  return u ? u.replace(/^https?:\/\//, '') : ''
+})
 
 const recoveryCode = ref('')
 const password = ref('')
@@ -108,7 +112,7 @@ async function handleRecover() {
 </script>
 
 <style scoped>
-.standalone-page { display:flex; justify-content:center; align-items:center; height:100vh; position:relative; background:var(--bg-primary); overflow:hidden; }
+.standalone-page { display:flex; justify-content:center; align-items:center; height: var(--app-height); position:relative; background:var(--bg-primary); overflow:hidden; }
 .page-box { background:var(--bg-secondary); padding:2rem; border-radius:8px; width:100%; max-width:420px; border:1px solid var(--border-color); }
 h2 { margin:0 0 .5rem; text-align:center; }
 .server-hint { text-align:center; font-size:.8rem; color:var(--text-secondary); margin:.25rem 0 .5rem; }

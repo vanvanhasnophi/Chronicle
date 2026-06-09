@@ -35,9 +35,11 @@ function createWindow() {
     },
   });
 
-  // Strip Origin header so the host's CORS allows Electron (no origin = pass-through)
+  // Strip Origin header so the host's CORS middleware sees no origin
+  // and allows the request. The CSP connectSrc (fixed in host/index.js)
+  // also permits connections to localhost:* now.
   mainWindow.webContents.session.webRequest.onBeforeSendHeaders((details, callback) => {
-    delete details.requestHeaders['Origin'];
+    delete details.requestHeaders['origin'];
     callback({ requestHeaders: details.requestHeaders });
   });
 
