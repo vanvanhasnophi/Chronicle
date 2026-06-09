@@ -4,7 +4,7 @@
  * Wraps the Vue 3 SPA (Vite build output) in a native desktop window.
  */
 
-const { app, BrowserWindow, shell, Menu, dialog } = require('electron');
+const { app, BrowserWindow, shell, Menu, dialog, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -26,6 +26,8 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     title: 'Chronicle Manager',
+    frame: false,
+    titleBarStyle: 'hidden',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -67,6 +69,8 @@ function createWindow() {
     }
   });
 
+  setupMaximizeListener(mainWindow);
+
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
@@ -87,6 +91,38 @@ if (Menu) {
       { label: 'Chronicle Docs', click: () => shell.openExternal('https://github.com/vanvanhasnophi/Chronicle') },
     ]},
   ]));
+}
+
+// ── Window Controls (frameless) ─────────────────────────────
+ipcMain.on('window-minimize', () => {
+  if (mainWindow) mainWindow.minimize();
+});
+
+ipcMain.on('window-maximize', () => {
+  if (!mainWindow) return;
+  if (mainWindow.isMaximized()) {
+    mainWindow.unmaximize();
+  } else {
+    mainWindow.maximize();
+  }
+});
+
+ipcMain.on('window-close', () => {
+  if (mainWindow) mainWindow.close();
+});
+
+ipcMain.handle('window-is-maximized', () => {
+  return mainWindow ? mainWindow.isMaximized() : false;
+});
+
+// Notify renderer when maximize state changes
+function setupMaximizeListener(win) {
+  win.on('maximize', () => {
+    win.webContents.send('window-maximize-change', true);
+  });
+  win.on('unmaximize', () => {
+    win.webContents.send('window-maximize-change', false);
+  });
 }
 
 // ── App Lifecycle ───────────────────────────────────────────

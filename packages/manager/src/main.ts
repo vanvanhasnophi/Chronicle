@@ -97,4 +97,9 @@ function setVh() {
 setVh();
 window.addEventListener('resize', setVh);
 
+// Mark body when running inside Electron (frameless window adjustments)
+if (isElectron) {
+  document.body.classList.add('is-electron')
+}
+
 app.mount('#app')

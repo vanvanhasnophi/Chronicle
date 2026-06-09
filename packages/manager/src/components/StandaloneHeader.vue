@@ -23,6 +23,7 @@
         <span v-else-if="theme === 'light'" v-html="Icons.themeLight"></span>
         <span v-else v-html="Icons.themeDark"></span>
       </button>
+      <WindowControls />
     </div>
 
     <!-- Server config popover (anchored below server-group) -->
@@ -47,6 +48,7 @@ import { useI18n } from 'vue-i18n'
 import { usePreferences } from '../composables/usePreferences'
 import { needsServerUrl, useServerUrl, buildApiUrl } from '../composables/useServerUrl'
 import { Icons } from '../utils/icons'
+import WindowControls from './WindowControls.vue'
 
 const props = defineProps<{ showBack?: boolean }>()
 const router = useRouter()
@@ -111,14 +113,21 @@ const themeLabel = computed(() => {
   padding: 8px 16px 0 16px;
   height: 52px;
   pointer-events: none;
+  -webkit-app-region: drag;
 }
 
 .immersion-bar>* {
   pointer-events: auto;
-
 }
 
-.left-group { display: flex; align-items: center; gap: 4px; }
+.immersion-bar button,
+.immersion-bar select,
+.immersion-bar input,
+.immersion-bar .win-controls {
+  -webkit-app-region: no-drag;
+}
+
+.left-group { display: flex; align-items: center; gap: 4px; -webkit-app-region: no-drag; }
 
 /* ── Server group ── */
 .server-group {
@@ -174,6 +183,7 @@ const themeLabel = computed(() => {
   display: flex;
   align-items: center;
   gap: 4px;
+  -webkit-app-region: no-drag;
 }
 
 .ghost-btn {

@@ -15,6 +15,7 @@ import ImagePreviewModal from './components/ImagePreviewModal.vue'
 import Toast from './components/Toast.vue'
 import useToast from './composables/useToast'
 import { useI18n } from 'vue-i18n'
+import WindowControls from './components/WindowControls.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -1065,6 +1066,12 @@ async function rebuildFrontend() {
 
 <template>
   <div id="app">
+    <!-- Electron frameless title bar (all non-public pages; public pages use StandaloneHeader) -->
+    <div v-if="showBackendShell || isEditorRoute" class="electron-title-bar">
+      <div class="title-bar-drag"></div>
+      <WindowControls />
+    </div>
+
     <template v-if="showBackendShell">
       <button class="menu-toggle backend-menu-toggle" @click="isMenuOpen = !isMenuOpen"
         v-html="isMenuOpen ? null : ShellIcons.menu" aria-label="Toggle backend navigation"></button>
@@ -1150,6 +1157,35 @@ async function rebuildFrontend() {
   display: flex;
   flex-direction: column;
   height: 100vh;
+}
+
+/* ── Electron frameless title bar (authenticated pages) ── */
+.electron-title-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 8px;
+  -webkit-app-region: drag;
+}
+
+.title-bar-drag {
+  flex: 1;
+  height: 100%;
+}
+
+/* Shift sidebar down to clear the title bar */
+body.is-electron .backend-sidebar {
+  top: 36px;
+}
+
+body.is-electron .backend-menu-toggle {
+  top: 40px;
 }
 
 .menu-toggle {

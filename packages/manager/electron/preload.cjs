@@ -13,6 +13,15 @@ contextBridge.exposeInMainWorld('chronicleElectron', {
   platform: process.platform,
   isElectron: true,
 
+  // Window controls (frameless window)
+  windowMinimize: () => ipcRenderer.send('window-minimize'),
+  windowMaximize: () => ipcRenderer.send('window-maximize'),
+  windowClose: () => ipcRenderer.send('window-close'),
+  windowIsMaximized: () => ipcRenderer.invoke('window-is-maximized'),
+  onMaximizeChange: (callback) => {
+    ipcRenderer.on('window-maximize-change', (_event, isMaximized) => callback(isMaximized));
+  },
+
   // IPC channels (placeholder for future use)
   send(channel, data) {
     const allowed = ['open-file', 'save-file', 'set-title'];
