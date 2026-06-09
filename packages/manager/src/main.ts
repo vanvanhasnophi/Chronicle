@@ -15,17 +15,23 @@ const messages = {
 }
 
 // API URL: localStorage (user-set) > build-time env > Electron default > empty
-const storedUrl = (() => { try { return localStorage.getItem('chronicle_api_url') || '' } catch { return '' } })()
 const buildUrl = String(import.meta.env.VITE_API_BASE_URL || '').trim()
 const isElectron = typeof window !== 'undefined' && !!(window as any).chronicleElectron?.isElectron
-const apiBaseUrl = (storedUrl || buildUrl || (isElectron ? 'http://localhost:3000' : '')).replace(/\/$/, '')
 const mediaBaseUrl = String(import.meta.env.VITE_CDN_BASE_URL || import.meta.env.VITE_MEDIA_DOMAIN || '').trim().replace(/\/$/, '')
 
-if (typeof window !== 'undefined' && apiBaseUrl) {
+// Resolve dynamically — re-reads localStorage so runtime URL changes take effect
+function getApiBaseUrl(): string {
+	const storedUrl = (() => { try { return localStorage.getItem('chronicle_api_url') || '' } catch { return '' } })()
+	return (storedUrl || buildUrl || (isElectron ? 'http://localhost:3000' : '')).replace(/\/$/, '')
+}
+
+if (typeof window !== 'undefined') {
 	const originalFetch = window.fetch.bind(window)
 		window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
 			const requestUrl = typeof input === 'string' || input instanceof URL ? String(input) : ''
 			if (requestUrl.startsWith('/api/')) {
+				const apiBaseUrl = getApiBaseUrl()
+				if (!apiBaseUrl) return originalFetch(input, init)
 				const token = typeof window !== 'undefined' ? (localStorage.getItem('chronicle_auth') || '') : ''
 				// clone/init headers safely and set x-chronicle-auth when present
 				const newInit: RequestInit = { ...(init || {}) };
