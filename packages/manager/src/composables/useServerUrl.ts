@@ -18,7 +18,7 @@ const STORAGE_KEY = 'chronicle_api_url'
 const ERROR_KEY = 'chronicle_api_error'
 
 export const buildApiUrl = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '')
-export const needsServerUrl = !buildApiUrl
+export const needsServerUrl = !buildApiUrl && !!(typeof window !== 'undefined' && (window as any).chronicleElectron?.isElectron)
 
 export function getSavedServerUrl(): string {
   try { return (localStorage.getItem(STORAGE_KEY) || '').replace(/\/$/, '') } catch { return '' }
