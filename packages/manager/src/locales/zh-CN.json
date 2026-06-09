@@ -479,6 +479,7 @@
     "cancelled": "用户取消登录",
     "invalidAuthenticator": "认证器状态无效",
     "authFailed": "身份验证失败，请重试。",
+    "useBrowserForPasskey": "桌面应用不支持 Passkey。请通过浏览器登录。",
     "switchLang": "切换语言",
     "themeFollow": "跟随系统",
     "themeLight": "浅色模式",

@@ -36,6 +36,12 @@ contextBridge.exposeInMainWorld('chronicleElectron', {
     }
   },
 
+  // Browser login for Passkey 2FA (WebAuthn not available in Electron)
+  openExternalLogin: (baseUrl) => ipcRenderer.invoke('open-external-login', baseUrl),
+  onLoginCallback: (callback) => {
+    ipcRenderer.on('login-callback', (_event, token) => callback(token));
+  },
+
   // Safe subset of process.env
   env: {
     VITE_API_BASE_URL: process.env.VITE_API_BASE_URL || '',

@@ -127,6 +127,56 @@ function setupMaximizeListener(win) {
   });
 }
 
+// ── Auth callback via custom protocol ────────────────────────
+// Browser login completes → chronicle://auth?token=xxx → Electron receives token
+
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient('chronicle', process.execPath, [path.resolve(process.argv[1])]);
+  }
+} else {
+  app.setAsDefaultProtocolClient('chronicle');
+}
+
+// Handle protocol URL on macOS (open-url event)
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  handleAuthCallback(url);
+});
+
+// Handle protocol URL on Windows/Linux (second-instance or argv)
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (event, argv) => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+    // Check for chronicle:// URL in argv
+    const url = argv.find(a => a.startsWith('chronicle://'));
+    if (url) handleAuthCallback(url);
+  });
+}
+
+function handleAuthCallback(url) {
+  try {
+    const parsed = new URL(url);
+    const token = parsed.searchParams.get('token');
+    if (token && mainWindow) {
+      mainWindow.webContents.send('login-callback', token);
+    }
+  } catch (e) { /* ignore malformed URLs */ }
+}
+
+// IPC: open browser for Passkey login
+ipcMain.handle('open-external-login', async (event, baseUrl) => {
+  const callbackUrl = 'chronicle://auth';
+  const loginUrl = `${baseUrl.replace(/\/$/, '')}/login?next=${encodeURIComponent(callbackUrl)}`;
+  await shell.openExternal(loginUrl);
+});
+
 // ── App Lifecycle ───────────────────────────────────────────
 app.whenReady().then(createWindow);
 

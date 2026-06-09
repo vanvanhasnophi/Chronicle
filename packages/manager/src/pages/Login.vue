@@ -27,12 +27,12 @@
       <div v-else class="two-fa-section">
           <p class="verification-hint">{{ $t('login.2faRequired') }}</p>
 
-          <button @click="handlePasskeyLogin(true)" :disabled="loading" class="primary-btn passkey-main-btn">
+          <button v-if="!isElectron" @click="handlePasskeyLogin(true)" :disabled="loading" class="primary-btn passkey-main-btn">
              <span class="icon" v-html="Icons.lock"></span>
              {{ $t('login.usePasskey') }}
           </button>
 
-          <div class="divider">{{ $t('login.or') }}</div>
+          <div v-if="!isElectron" class="divider">{{ $t('login.or') }}</div>
 
           <div class="code-entry">
               <input
@@ -90,6 +90,7 @@ const serverHint = computed(() => {
 })
 
 
+const isElectron = !!(typeof window !== 'undefined' && (window as any).chronicleElectron?.isElectron)
 const password = ref('')
 const loading = ref(false)
 const error = ref('')
@@ -101,9 +102,7 @@ const inputCode = ref('')
 function resolveLoginTarget() {
   const next = route.query.next
   const target = Array.isArray(next) ? next[0] : next
-  if (typeof target === 'string' && target.startsWith('/')) {
-    return target
-  }
+  if (typeof target === 'string') return target
   return '/manage'
 }
 
@@ -120,7 +119,15 @@ const completeLogin = (serverToken: string) => {
         expiry: Date.now() + 24 * 60 * 60 * 1000
     }
     localStorage.setItem('chronicle_auth', JSON.stringify(session))
-  router.replace(resolveLoginTarget())
+
+    const target = resolveLoginTarget()
+    // If target is a custom protocol URL (chronicle://), redirect browser to it
+    if (/^[a-z][a-z0-9+-.]+:\/\//i.test(target) && !target.startsWith('http')) {
+      const sep = target.includes('?') ? '&' : '?'
+      window.location.href = target + sep + 'token=' + encodeURIComponent(serverToken)
+      return
+    }
+    router.replace(target.startsWith('/') ? target : '/manage')
 }
 
 // ── PoW Solver ──────────────────────────────────────────
@@ -184,6 +191,30 @@ const handleLogin = async () => {
     const data = await res.json()
     if (data.success) {
       if (data.requirePasskey) {
+        if (isElectron) {
+          loading.value = false
+          const el = (window as any).chronicleElectron
+
+          // Listen for callback from system browser (chronicle:// protocol)
+          let callbackFired = false
+          el.onLoginCallback((token: string) => {
+            if (callbackFired) return
+            callbackFired = true
+            completeLogin(token)
+          })
+
+          const base = confirmedUrl.value || resolveApiBaseUrl() || 'http://localhost:3000'
+          await el.openExternalLogin(base)
+
+          // Fallback: if protocol callback doesn't fire (portable/AppImage),
+          // show instructions after 30s
+          setTimeout(() => {
+            if (!callbackFired) {
+              error.value = t('login.loginInBrowserThenRefresh')
+            }
+          }, 30000)
+          return
+        }
         show2FAGate.value = true
       } else {
         completeLogin(data.token)

@@ -479,6 +479,8 @@
     "cancelled": "Login cancelled by user",
     "invalidAuthenticator": "Invalid authenticator state",
     "authFailed": "Authentication failed. Please try again.",
+    "useBrowserForPasskey": "Passkey not available in the desktop app. Please log in via your browser.",
+    "loginInBrowserThenRefresh": "Browser login opened. Once complete, the app will sign in automatically. If nothing happens after 30s, refresh or restart the app — the session is already active on the server.",
     "switchLang": "Switch language",
     "themeFollow": "Follow system",
     "themeLight": "Light mode",
