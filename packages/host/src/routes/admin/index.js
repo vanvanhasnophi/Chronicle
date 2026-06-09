@@ -112,6 +112,7 @@ function spawnCdnWarm(urls = []) {
 router.use((req, res, next) => {
   if (req.path.startsWith('/auth/login') ||
       req.path.startsWith('/auth/challenge') ||
+      req.path.startsWith('/auth/webauthn') ||
       req.path.startsWith('/auth/code') ||
       req.path.startsWith('/auth/passkey/register') ||
       req.path.startsWith('/auth/passkey/login') ||
@@ -656,6 +657,58 @@ router.post('/auth/passkey/login/verify', async (req, res) => {
 
 // PoW challenge: client must solve before login
 // Lightweight authenticated ping — no functional purpose, just confirms token is valid
+// Dedicated WebAuthn page — Electron opens this in system browser for Passkey 2FA.
+// Does the full WebAuthn dance and redirects back to the app via chronicle:// protocol.
+router.get('/auth/webauthn', (req, res) => {
+  const callback = String(req.query.callback || '');
+  if (!callback || !callback.startsWith('chronicle://')) {
+    return res.status(400).send('Missing or invalid callback URL');
+  }
+  const apiBase = `${req.protocol}://${req.get('host')}/api`;
+
+  res.type('html').send(`<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Chronicle Passkey</title>
+<style>body{font-family:system-ui,sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#111;color:#eee;flex-direction:column;gap:1rem}</style>
+</head><body>
+<div id="status">Starting WebAuthn…</div>
+<script type="module">
+import { startAuthentication } from 'https://unpkg.com/@simplewebauthn/browser@13/dist/bundle/index.umd.min.js';
+const api = '${apiBase}';
+const cb  = '${callback}';
+
+async function run() {
+  const status = document.getElementById('status');
+  try {
+    status.textContent = 'Requesting challenge…';
+    const optsRes = await fetch(api + '/auth/passkey/login/options', { method: 'POST' });
+    const options = await optsRes.json();
+
+    status.textContent = 'Waiting for Passkey…';
+    const authResp = await startAuthentication(options);
+
+    status.textContent = 'Verifying…';
+    const verifyRes = await fetch(api + '/auth/passkey/login/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ response: authResp })
+    });
+    const verifyData = await verifyRes.json();
+
+    if (verifyData.verified) {
+      status.textContent = '✓ Signed in! Returning to Chronicle…';
+      const sep = cb.includes('?') ? '&' : '?';
+      window.location.href = cb + sep + 'token=' + encodeURIComponent(verifyData.token);
+    } else {
+      status.textContent = '✗ Verification failed. Close this window and try again.';
+    }
+  } catch (e) {
+    status.textContent = 'Error: ' + (e.message || 'WebAuthn failed') + '. Close this window and try again.';
+  }
+}
+run();
+</script></body></html>`);
+});
+
 router.get('/auth/ping', (req, res) => {
   res.json({ ok: true });
 });

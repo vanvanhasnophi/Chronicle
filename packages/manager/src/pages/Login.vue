@@ -27,12 +27,12 @@
       <div v-else class="two-fa-section">
           <p class="verification-hint">{{ $t('login.2faRequired') }}</p>
 
-          <button v-if="!isElectron" @click="handlePasskeyLogin(true)" :disabled="loading" class="primary-btn passkey-main-btn">
+          <button @click="handlePasskeyLogin(true)" :disabled="loading" class="primary-btn passkey-main-btn">
              <span class="icon" v-html="Icons.lock"></span>
              {{ $t('login.usePasskey') }}
           </button>
 
-          <div v-if="!isElectron" class="divider">{{ $t('login.or') }}</div>
+          <div class="divider">{{ $t('login.or') }}</div>
 
           <div class="code-entry">
               <input
@@ -191,30 +191,6 @@ const handleLogin = async () => {
     const data = await res.json()
     if (data.success) {
       if (data.requirePasskey) {
-        if (isElectron) {
-          loading.value = false
-          const el = (window as any).chronicleElectron
-
-          // Listen for callback from system browser (chronicle:// protocol)
-          let callbackFired = false
-          el.onLoginCallback((token: string) => {
-            if (callbackFired) return
-            callbackFired = true
-            completeLogin(token)
-          })
-
-          const base = confirmedUrl.value || resolveApiBaseUrl() || 'http://localhost:3000'
-          await el.openExternalLogin(base)
-
-          // Fallback: if protocol callback doesn't fire (portable/AppImage),
-          // show instructions after 30s
-          setTimeout(() => {
-            if (!callbackFired) {
-              error.value = t('login.loginInBrowserThenRefresh')
-            }
-          }, 30000)
-          return
-        }
         show2FAGate.value = true
       } else {
         completeLogin(data.token)
@@ -252,6 +228,18 @@ const handleCodeVerify = async () => {
 }
 
 const handlePasskeyLogin = async (is2FA = false) => {
+    // Electron: open system browser to dedicated WebAuthn page
+    if (isElectron) {
+      const el = (window as any).chronicleElectron
+      let done = false
+      el.onLoginCallback((token: string) => { if (!done) { done = true; completeLogin(token) } })
+      const base = (confirmedUrl.value || resolveApiBaseUrl() || 'http://localhost:3000').replace(/\/$/, '')
+      await el.openExternalLogin(`${base}/api/auth/webauthn?callback=${encodeURIComponent('chronicle://auth')}`)
+      setTimeout(() => {
+        if (!done) error.value = t('login.loginInBrowserThenRefresh')
+      }, 30000)
+      return
+    }
     loading.value = true
     if (is2FA) error.value = ''
     else error.value = ''

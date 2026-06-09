@@ -171,10 +171,8 @@ function handleAuthCallback(url) {
 }
 
 // IPC: open browser for Passkey login
-ipcMain.handle('open-external-login', async (event, baseUrl) => {
-  const callbackUrl = 'chronicle://auth';
-  const loginUrl = `${baseUrl.replace(/\/$/, '')}/login?next=${encodeURIComponent(callbackUrl)}`;
-  await shell.openExternal(loginUrl);
+ipcMain.handle('open-external-login', async (event, url) => {
+  await shell.openExternal(url);
 });
 
 // ── App Lifecycle ───────────────────────────────────────────
