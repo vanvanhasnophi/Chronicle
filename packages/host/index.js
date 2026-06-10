@@ -126,6 +126,17 @@ app.use('/api/public', publicRoutes);
 // Admin routes: write ops, auth, file management, builds, etc.
 app.use('/api/admin', adminRoutes);
 
+// Dedicated WebAuthn page (public, no auth — mounted outside /admin)
+app.get('/api/auth/webauthn', (req, res) => {
+  const callback = String(req.query.callback || '');
+  if (!callback || !callback.startsWith('chronicle://')) {
+    return res.status(400).send('Missing or invalid callback URL');
+  }
+  const apiBase = `${req.protocol}://${req.get('host')}/api`;
+
+  res.type('html').send('<!DOCTYPE html>\n<html><head><meta charset="utf-8"><title>Chronicle Passkey</title>\n<style>body{font-family:system-ui,sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#111;color:#eee;flex-direction:column;gap:1rem}</style>\n</head><body>\n<div id="status">Starting WebAuthn…</div>\n<script type="module">\nimport{startAuthentication}from"https://unpkg.com/@simplewebauthn/browser@13/dist/bundle/index.umd.min.js";\nconst a="'+apiBase+'",c="'+callback+'";\n(async()=>{\nconst s=document.getElementById("status");\ntry{\ns.textContent="Requesting challenge…";\nconst o=await(await fetch(a+"/admin/auth/passkey/login/options",{method:"POST"})).json();\ns.textContent="Waiting for Passkey…";\nconst r=await startAuthentication(o);\ns.textContent="Verifying…";\nconst d=await(await fetch(a+"/admin/auth/passkey/login/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({response:r})})).json();\nif(d.verified){s.textContent="✓ Signed in!";location.href=c+(c.includes("?")?"&":"?")+"token="+encodeURIComponent(d.token)}\nelse s.textContent="✗ Verification failed"}\ncatch(e){s.textContent="Error: "+(e.message||"WebAuthn failed")}})()\n</script></body></html>');
+});
+
 function getDiskStatsByPath(targetPath) {
     try {
         if (typeof fs.statfsSync === 'function') {

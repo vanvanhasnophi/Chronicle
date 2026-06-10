@@ -11,7 +11,7 @@
           <div class="timer expire-timer">Expires in {{ Math.floor(codeTimer / 60) }}:{{ (codeTimer %
             60).toString().padStart(2, '0') }}</div>
         </div>
-        <button v-else @click="generateCode" class="secondary-btn">{{ $t('security.generateCode') }}</button>
+        <button v-else @click="generateCode" class="secondary">{{ $t('security.generateCode') }}</button>
       </div>
 
       <div class="settings-card">
@@ -19,20 +19,20 @@
 
         <div class="form-group">
           <label>{{ $t('security.currentPassword') }}</label>
-          <input type="password" v-model="oldPassword" />
+          <input class="modern-input" type="password" v-model="oldPassword" />
         </div>
 
         <div class="form-group">
           <label>{{ $t('security.newPassword') }}</label>
-          <input type="password" v-model="newPassword" />
+          <input class="modern-input" type="password" v-model="newPassword" />
         </div>
 
         <div class="form-group">
           <label>{{ $t('security.confirmPassword') }}</label>
-          <input type="password" v-model="confirmPassword" />
+          <input class="modern-input" type="password" v-model="confirmPassword" />
         </div>
 
-        <button @click="changePassword" :disabled="loading">
+        <button class="primary" @click="changePassword" :disabled="loading">
           {{ loading ? $t('security.updating') : $t('security.updatePassword') }}
         </button>
 
@@ -45,13 +45,18 @@
         <h3>{{ $t('security.twoFactorTitle') }}</h3>
         <p class="hint">{{ $t('security.twoFactorHint') }}</p>
 
-        <button @click="registerPasskey" :disabled="regLoading" class="secondary-btn">
-          {{ regLoading ? $t('security.registering') : $t('security.registerNewPasskey') }}
-        </button>
+        <template v-if="isElectron">
+          <p class="warning-text">Passkey registration requires a browser. Please open Chronicle in your web browser to manage Passkey devices.</p>
+        </template>
+        <template v-else>
+          <button @click="registerPasskey" :disabled="regLoading" class="secondary">
+            {{ regLoading ? $t('security.registering') : $t('security.registerNewPasskey') }}
+          </button>
 
-        <p v-if="regMessage" :class="['message', regSuccess ? 'success' : 'error']">
-          {{ regMessage }}
-        </p>
+          <p v-if="regMessage" :class="['message', regSuccess ? 'success' : 'error']">
+            {{ regMessage }}
+          </p>
+        </template>
 
         <div v-if="passkeys.length > 0" class="passkey-list">
           <h4>{{ $t('security.registeredKeys') }}</h4>
@@ -73,7 +78,7 @@
 
       <div class="settings-card logout-card">
         <h3>{{ $t('security.session') }}</h3>
-        <button class="logout-btn" @click="logout">{{ $t('security.logout') }}</button>
+        <button class="primary logout-btn" @click="logout">{{ $t('security.logout') }}</button>
       </div>
     </div>
   </div>
@@ -90,6 +95,7 @@ import { Icons } from '../../utils/icons'
 
 const router = useRouter()
 const { t, locale } = useI18n()
+const isElectron = !!(typeof window !== 'undefined' && (window as any).chronicleElectron?.isElectron)
 
 function getLocaleStr(): string {
   try {
@@ -317,6 +323,10 @@ onMounted(() => {
   padding: 2rem;
 }
 
+input {
+  background: var(--app-bg-primary);
+}
+
 
 .hint {
   color: var(--component-text-secondary);
@@ -324,20 +334,6 @@ onMounted(() => {
   margin-bottom: 1rem;
 }
 
-.secondary-btn {
-  width: 100%;
-  padding: 0.8rem;
-  background: transparent;
-  border: 1px solid var(--accent-color);
-  color: var(--accent-color);
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: bold;
-}
-
-.secondary-btn:hover {
-  background: var(--component-bg-hover);
-}
 
 .passkey-list {
   margin-top: 2rem;
@@ -418,25 +414,6 @@ label {
   color: var(--text-secondary);
 }
 
-input {
-  display: flex;
-  width: calc(100% - 20px);
-  padding: 0.8rem;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  color: var(--text-primary);
-  border-radius: 4px;
-}
-
-button {
-  padding: 0.8rem 1.5rem;
-  background: var(--accent-color);
-  color: var(--text-on-accent);
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: bold;
-}
 
 button:disabled {
   opacity: 0.7;
@@ -454,8 +431,17 @@ button:disabled {
   color: var(--status-error);
 }
 
-.logout-btn {
+.primary.logout-btn {
   background: var(--status-error);
+}
+
+.primary.logout-btn:hover {
+  background: color-mix(in srgb, var(--status-error) 80%, var(--app-text-primary));
+  border-color: color-mix(in srgb, var(--status-error) 80%, var(--app-text-primary));
+}
+
+button {
+  margin-bottom: 0.5rem;
 }
 
 .code.code-display {

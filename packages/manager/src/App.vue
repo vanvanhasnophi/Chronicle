@@ -626,8 +626,8 @@ function applySettingsFromStore(s: Record<string, any>) {
         }
       }
 
-      if (s.frontendAccent) {
-        const accent = String(s.frontendAccent)
+      if (s.backendAccent || s.frontendAccent) {
+        const accent = String(s.backendAccent || s.frontendAccent)
         document.documentElement.style.setProperty('--accent-color', accent)
         // compute a darker variant for hover/active states
         try {
@@ -1247,6 +1247,26 @@ body.is-electron .backend-menu-toggle {
   padding-top: 0;
   min-height: 0;
   height: var(--app-height);
+}
+
+
+.main-content::-webkit-scrollbar {
+  width: 10px;
+}
+
+.main-content::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--component-text-secondary) 50%, transparent);
+  border-radius: 5px;
+}
+
+.main-content::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--component-text-primary) 50%, transparent);
+
+}
+
+
+.main-content::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .main-content.no-nav {

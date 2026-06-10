@@ -73,6 +73,18 @@
         }
       ]
     },
+    "backendAccent": {
+      "type": "string",
+      "default": "#2ea35f",
+      "x-widget": "color",
+      "x-tab": "system-appearance",
+      "x-group": "theme",
+      "x-order": 2,
+      "title": {
+        "en": "Backend Accent Color",
+        "zh": "后台强调色"
+      }
+    },
     "backendFont": {
       "type": "string",
       "default": "sans",

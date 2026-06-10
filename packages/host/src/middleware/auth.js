@@ -25,12 +25,16 @@ const ipAttempts = new Map();       // IP → fail count
 
 function getDifficulty(ip) {
   const n = ipAttempts.get(ip) || 0;
-  if (n < 10) {
-    // Slow growth: 16 + n*2  (16 … 34)
-    return 16 + n * 2;
+  if (n < 3) {
+    // First 3 attempts: ~instant (8-12 bits, ~256-4096 hashes)
+    return 8 + n * 2;
   }
-  // Exponential: 34 * 2^(n-10)
-  return 34 * Math.pow(2, n - 10);
+  if (n < 10) {
+    // Attempts 3-9: few ms (10 + n*1.5 bits)
+    return 10 + n * 1.5;
+  }
+  // Attempt 10+: double each time
+  return 25 * Math.pow(2, n - 10);
 }
 
 function createChallenge(ip) {

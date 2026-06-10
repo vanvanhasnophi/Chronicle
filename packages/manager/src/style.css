@@ -975,7 +975,7 @@ select:hover option {
 
 .settings-card {
   background: var(--component-bg-blur);
-  padding: 2rem;
+  padding: 1rem 1.5rem;
   border-radius: 12px;
   border: 1px solid var(--border-color);
 }
@@ -995,6 +995,10 @@ select:hover option {
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.settings-card h3{
+  font-size: 1.3rem;
 }
 
 /* Shared styles for feature toggles used across settings pages */

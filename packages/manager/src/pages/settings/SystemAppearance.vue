@@ -136,7 +136,7 @@ async function loadSettingsFromServer() {
     if (s.backendLocale) uiBackendLocale.value = s.backendLocale
     if (s.backendFont) uiBackendFont.value = s.backendFont
     if (s.backendTheme) uiBackendTheme.value = s.backendTheme
-    if (s.frontendAccent) uiAccentColor.value = s.frontendAccent
+    uiAccentColor.value = s.backendAccent || s.frontendAccent || '#2ea35f'
     if (s.backendBackground) {
       const normalized = normalizeBackgroundRecord(s.backendBackground, 'backend')
       uiBackendBackground.value = resolveBackgroundUrl(s.backendBackground, 'backend') || normalized?.url || ''
@@ -382,7 +382,7 @@ async function save() {
   const cfg = {
     backendLocale: uiBackendLocale.value,
     backendFont: uiBackendFont.value,
-    frontendAccent: uiAccentColor.value,
+    backendAccent: uiAccentColor.value,
     backendTheme: uiBackendTheme.value,
     backendBackground: backendBackgroundToSave,
     backendBackgroundMeta: backendBackgroundMeta ? JSON.stringify(backendBackgroundMeta) : undefined,

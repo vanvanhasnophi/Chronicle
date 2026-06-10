@@ -57,7 +57,9 @@ export function backgroundRelToUrl(rel: any) {
   if (isAbsoluteMediaUrl(rel)) return String(rel || '').trim()
   const normalized = normalizeUploadRelPath(rel)
   if (!normalized) return ''
-  const origin = typeof window !== 'undefined' && window.location ? window.location.origin : ''
+  const isElec = typeof window !== 'undefined' && !!(window as any).chronicleElectron?.isElectron
+  const storedUrl = (() => { try { return localStorage.getItem('chronicle_api_url') || '' } catch { return '' } })()
+  const origin = isElec && storedUrl ? storedUrl.replace(/\/$/, '') : (typeof window !== 'undefined' && window.location ? window.location.origin : '')
   const fileName = normalized.split('/').pop() || '';
   // chr_b_bg-* → manager-background (CMS), chr_f_bg-* → branding (frontend)
   if (/^chr_b_bg-/i.test(fileName) || normalized.startsWith('manager-background/')) {
@@ -117,7 +119,9 @@ export function normalizeBackgroundRecord(raw: any, scope: BackgroundScope): Nor
 
   return {
     ...raw,
-    url: raw.url && String(raw.url).trim() ? String(raw.url).trim() : backgroundRelToUrl(pathValue || generatedPath || sourcePath),
+    url: raw.url && String(raw.url).trim()
+      ? (isAbsoluteMediaUrl(raw.url) ? String(raw.url).trim() : backgroundRelToUrl(pathValue || generatedPath || sourcePath))
+      : backgroundRelToUrl(pathValue || generatedPath || sourcePath),
     path: pathValue || generatedPath || sourcePath || '',
     sourcePath: sourcePath || generatedPath || pathValue || '',
     sourceName,

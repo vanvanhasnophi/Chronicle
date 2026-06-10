@@ -149,11 +149,11 @@ const createNew = () => {
   const id = (typeof crypto !== 'undefined' && (crypto as any).randomUUID)
     ? `new-${(crypto as any).randomUUID()}`
     : `new-${Math.random().toString(36).substring(2, 9)}`
-  window.open(`/editor?id=${id}`, '_blank')
+  window.open(`/editor?id=${id}`,'_blank')
 }
 
 const editPost = (id: string) => {
-  window.open(`/editor?id=${id}`, '_blank')
+  window.open(`/editor?id=${id}`,'_blank')
 }
 
 const deletePost = async (id: string) => {

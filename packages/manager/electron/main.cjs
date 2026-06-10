@@ -44,7 +44,18 @@ function createWindow() {
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+    // External URLs → system browser
+    if (/^https?:\/\//i.test(url)) { shell.openExternal(url); return { action: 'deny' }; }
+    // Internal paths (/editor?id=...) → new Electron window with same SPA
+    const newWin = new BrowserWindow({
+      width: 1200, height: 800,
+      webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false }
+    });
+    // Hash routes work natively with Vue Router in both dev and production
+    const routePath = url.replace(/^\//, '');
+    const indexPath = getDistIndex().replace(/\\/g, '/');
+    const winUrl = isDev ? `${DEV_URL}/${routePath}` : `file:///${indexPath}#/${routePath}`;
+    newWin.loadURL(winUrl);
     return { action: 'deny' };
   });
 
@@ -172,7 +183,19 @@ function handleAuthCallback(url) {
 
 // IPC: open browser for Passkey login
 ipcMain.handle('open-external-login', async (event, url) => {
-  await shell.openExternal(url);
+  try {
+    await shell.openExternal(url);
+  } catch (e) {
+    // xdg-open fails in headless/WSL — show URL so user can copy it
+    if (mainWindow) {
+      dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: 'Open in browser',
+        message: `Please open this URL in your browser:\n\n${url}`,
+        buttons: ['OK']
+      });
+    }
+  }
 });
 
 // ── App Lifecycle ───────────────────────────────────────────
