@@ -7,7 +7,7 @@
   "frontendFont": "sans",
   "backendFont": "sans",
   "frontendTheme": "follow",
-  "frontendAccent": "#4da32e",
+  "frontendAccent": "#2ea367",
   "backendTheme": "follow",
   "frontendBackground": {
     "url": "/server/data/branding/chr_f_bg-Kaltsit-95dfb467eb.webp",
@@ -25,8 +25,8 @@
     "generatedPath": "chr_b_bg-Kaltsit-1ee7858b34.webp",
     "generatedName": "chr_b_bg-Kaltsit-1ee7858b34.webp"
   },
-  "backendBackgroundMeta": "{\"url\":\"/server/data/upload/pic/Kaltsit.jpg\",\"sourcePath\":\"pic/Kaltsit.jpg\",\"sourceName\":\"Kaltsit.jpg\",\"mode\":\"cover\",\"posX\":50,\"posY\":50,\"size\":100,\"blur\":30,\"overlayLightColor\":\"#ffffff\",\"overlayLightOpacity\":80,\"overlayDarkColor\":\"#000000\",\"overlayDarkOpacity\":80,\"overlayColor\":\"#000000\",\"overlayOpacity\":80,\"compressionFactor\":19.44,\"compression\":19.44,\"bgCompression\":19.44}",
-  "backendBackgroundCompression": 19.44,
+  "backendBackgroundMeta": "{\"url\":\"http://localhost:5173/server/data/manager-background/chr_b_bg-Kaltsit-1ee7858b34.webp\",\"sourcePath\":\"pic/Kaltsit.jpg\",\"sourceName\":\"Kaltsit.jpg\",\"mode\":\"cover\",\"posX\":50,\"posY\":50,\"size\":100,\"blur\":25,\"overlayLightColor\":\"#ffffff\",\"overlayLightOpacity\":80,\"overlayDarkColor\":\"#000000\",\"overlayDarkOpacity\":80,\"overlayColor\":\"#000000\",\"overlayOpacity\":80,\"compressionFactor\":16.2,\"compression\":16.2,\"bgCompression\":16.2}",
+  "backendBackgroundCompression": 16.2,
   "frontendCodeDir": "/opt/Chronicle/packages/template-astro",
   "frontendBuildTargetDir": "/var/www/blog.eightyfor.top",
   "autoBuildOnPublish": true,
@@ -52,5 +52,6 @@
   "bio": "aa",
   "location": "",
   "links": [],
-  "defaultPerformanceMode": "auto"
+  "defaultPerformanceMode": "auto",
+  "backendAccent": "#2ea336"
 }
