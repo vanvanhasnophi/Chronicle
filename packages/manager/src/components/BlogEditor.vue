@@ -55,6 +55,12 @@
                         <span class="icon-svg" v-html="Icons.file"></span>
                         <span>{{ t('editor.fileLabel') }}</span>
                     </button>
+                    <button class="toolbar-btn" @click="openMetaModal" :title="t('editor.meta') || 'Properties'">
+                        <span class="icon-svg">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                        </span>
+                        <span>{{ t('editor.meta') || 'Properties' }}</span>
+                    </button>
                     <span class="divider"></span>
 
                     <button class="toolbar-btn" @click="undo" :title="t('editor.undo')">
@@ -364,6 +370,55 @@
         </div>
     </div>
 
+    <!-- Group 2.5: Meta Properties Modal -->
+    <div v-if="activeModal === 'meta'" class="modal-overlay">
+        <div class="modal-content small-modal">
+            <div class="modal-header">
+                <h3>{{ t('editor.metaTitle') || 'Properties' }}</h3>
+                <button class="close-btn" @click="activeModal = 'none'">
+                    <span class="icon-svg" v-html="Icons.close"></span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>{{ t('editor.postTitle') }}</label>
+                    <input v-model="postTitle" class="modal-input" :placeholder="t('editor.titlePlaceholder')" />
+                </div>
+                <div class="form-group">
+                    <label>{{ t('editor.tagsLabel') }}</label>
+                    <div class="tags-input-container">
+                        <div class="tags-list">
+                            <span class="tag-badge" v-for="tag in sortTags(postTags)" :key="tag"
+                                :class="{ featured: tag === 'featured' }">
+                                {{ tag === 'featured' ? $t('tag.featured') : tag }}
+                                <button class="tag-remove" @click="removeTag(tag)">
+                                    <span class="icon-svg" v-html="Icons.close"></span>
+                                </button>
+                            </span>
+                        </div>
+                        <div class="tag-controls">
+                            <input v-model="tagInput" class="modal-input small-input"
+                                :placeholder="t('editor.addTagPlaceholder')" @keyup.enter="addTag" />
+                            <button class="secondary-btn small-btn" @click="addTag">{{ t('editor.addTag') }}</button>
+                            <button class="secondary-btn small-btn" :class="{ active: postTags.includes('featured') }"
+                                @click="toggleFeatured" :title="$t('tag.featured')">
+                                {{ $t('tag.featured') }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>{{ t('editor.authorLabel') }}</label>
+                    <input v-model="postAuthor" class="modal-input" :placeholder="t('editor.authorPlaceholder')" />
+                </div>
+                <CheckRow v-model="postAIGenerated" :title="$t('editor.aiGeneratedLabel')" />
+                <div class="modal-actions">
+                    <button class="primary-btn" @click="activeModal = 'none'">{{ t('editor.done') || 'Done' }}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Group 3: Save/Publish Modals -->
     <div v-if="['draft', 'publish'].includes(activeModal)" class="modal-overlay">
         <div class="modal-content small-modal">
@@ -557,6 +612,7 @@ import CmEditor from './CmEditor.vue'
 import { formatDate as formatDateUtil, formatDateTime } from '../utils/dateUtils'
 import QuarterCircleSpinner from './ui/QuarterCircleSpinner.vue'
 import useToast from '../composables/useToast'
+import { serializeFrontmatter, parseFrontmatter } from '../composables/useFrontmatter'
 
 const route = useRoute()
 const router = useRouter()
@@ -865,37 +921,41 @@ async function executeFileAction() {
                 const reader = new FileReader()
                 reader.onload = (ev) => {
                     const txt = ev.target?.result as string || ''
-                    localValue.value = txt
-                    postTitle.value = f.name.replace(/\.[^/.]+$/, '')
                     currentFilePath.value = f.name
-                    postId.value = null
-                    postStatus.value = 'local'
-                    savedContent.value = txt
-                    savedTitle.value = postTitle.value
-                    history.value = [txt]
-                    historyIndex.value = 0
-                    pushRecentProject({ title: postTitle.value, path: f.name, cloud: false })
-                    activeModal.value = 'none'
+                    applyOpenedFile(txt, f.name)
                 }
                 reader.readAsText(f as File)
             } else if (selectedImportUrl.value) {
                 const res = await fetch(selectedImportUrl.value)
                 const txt = await res.text()
-                localValue.value = txt
-                postTitle.value = (selectedImportUrl.value.split('/').pop() || 'imported').replace(/\.[^/.]+$/, '')
+                const filename = selectedImportUrl.value.split('/').pop() || 'imported.md'
                 currentFilePath.value = selectedImportUrl.value
-                postId.value = null
-                postStatus.value = 'local'
-                savedContent.value = txt
-                savedTitle.value = postTitle.value
-                history.value = [txt]
-                historyIndex.value = 0
-                pushRecentProject({ title: postTitle.value, path: selectedImportUrl.value, cloud: false })
-                activeModal.value = 'none'
+                applyOpenedFile(txt, filename)
             }
         } catch (e) { console.error('import action failed', e) }
         return
     }
+}
+
+// Apply a file's raw text: parse frontmatter → meta + content
+function applyOpenedFile(text: string, filename: string) {
+    const { meta, content } = parseFrontmatter(text)
+    localValue.value = content
+    // Hydrate metadata from frontmatter, falling back to filename for title
+    postTitle.value = meta.title || filename.replace(/\.[^/.]+$/, '')
+    postTags.value = Array.isArray(meta.tags) ? meta.tags : []
+    postAuthor.value = typeof meta.author === 'string' ? meta.author : ''
+    if (meta.font && ['sans', 'serif', 'mono'].includes(meta.font)) postFont.value = meta.font
+    postAIGenerated.value = meta.aiGenerated === true
+    postDate.value = typeof meta.date === 'string' ? meta.date : ''
+    postId.value = null
+    postStatus.value = 'local'
+    savedContent.value = content
+    savedTitle.value = postTitle.value
+    history.value = [content]
+    historyIndex.value = 0
+    pushRecentProject({ title: postTitle.value, path: filename, cloud: false })
+    activeModal.value = 'none'
 }
 
 // File system helpers (browser FS API with fallback)
@@ -913,16 +973,7 @@ async function openLocalFilePicker() {
             const text = await file.text()
             currentFileHandle.value = handle
             currentFilePath.value = handle.name || file.name
-            localValue.value = text
-            postTitle.value = file.name.replace(/\.[^/.]+$/, '')
-            postId.value = null
-            postStatus.value = 'local'
-            savedContent.value = text
-            savedTitle.value = postTitle.value
-            history.value = [text]
-            historyIndex.value = 0
-            pushRecentProject({ title: postTitle.value, path: file.name, cloud: false })
-            activeModal.value = 'none'
+            applyOpenedFile(text, file.name)
             return
         }
         // Fallback: use hidden input
@@ -935,17 +986,8 @@ async function openLocalFilePicker() {
             const reader = new FileReader()
             reader.onload = (ev) => {
                 const txt = ev.target?.result as string || ''
-                localValue.value = txt
-                postTitle.value = f.name.replace(/\.[^/.]+$/, '')
                 currentFilePath.value = f.name
-                postId.value = null
-                postStatus.value = 'local'
-                savedContent.value = txt
-                savedTitle.value = postTitle.value
-                history.value = [txt]
-                historyIndex.value = 0
-                pushRecentProject({ title: postTitle.value, path: f.name, cloud: false })
-                activeModal.value = 'none'
+                applyOpenedFile(txt, f.name)
             }
             reader.readAsText(f)
         }
@@ -1021,10 +1063,22 @@ async function writeFileHandle(handle: any, contents: string) {
     return false
 }
 
+/** Build the full file content: frontmatter + markdown body. */
+function buildFileContent(): string {
+    return serializeFrontmatter({
+        title: postTitle.value || undefined,
+        tags: postTags.value.length ? postTags.value : undefined,
+        author: postAuthor.value || undefined,
+        font: postFont.value !== 'sans' ? postFont.value : undefined,
+        aiGenerated: postAIGenerated.value || undefined,
+    }, localValue.value)
+}
+
 async function saveFile() {
     try {
         if (currentFileHandle.value) {
-            const ok = await writeFileHandle(currentFileHandle.value, localValue.value)
+            const contents = buildFileContent()
+            const ok = await writeFileHandle(currentFileHandle.value, contents)
             if (ok) {
                 savedContent.value = localValue.value
                 savedTitle.value = postTitle.value
@@ -1043,12 +1097,13 @@ async function saveFile() {
 
 async function saveAs() {
     try {
+        const contents = buildFileContent()
         if ((window as any).showSaveFilePicker) {
             const handle = await (window as any).showSaveFilePicker({
                 suggestedName: `${(postTitle.value || 'untitled').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.md`,
                 types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }]
             })
-            const ok = await writeFileHandle(handle, localValue.value)
+            const ok = await writeFileHandle(handle, contents)
             if (ok) {
                 currentFileHandle.value = handle
                 currentFilePath.value = (handle.name || null)
@@ -1061,7 +1116,7 @@ async function saveAs() {
             }
         }
         // Fallback: trigger download
-        const blob = new Blob([localValue.value], { type: 'text/markdown;charset=utf-8' })
+        const blob = new Blob([contents], { type: 'text/markdown;charset=utf-8' })
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
         const filename = `${(postTitle.value || 'untitled').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.md`
@@ -1658,6 +1713,9 @@ async function doSave(action?: 'local' | 'draft' | 'publish' | 'upload' | 'unsav
                 }
             }
 
+            // Notify other tabs (e.g. PostManager) that a post changed
+            try { new BroadcastChannel('chronicle').postMessage({ type: 'post-updated', id: data.id }) } catch {}
+
             const shouldBuildAstro = status === 'published'
             closeModals()
 
@@ -1734,12 +1792,6 @@ async function saveLocalDirect(titleArg?: string) {
 
         const ok = await saveFile()
         if (ok) {
-            // If we have a file path/handle, use its filename as displayed title
-            if (currentFilePath.value) {
-                const name = String(currentFilePath.value).replace(/^.*[\\\/]/, '').replace(/\.[^/.]+$/, '')
-                postTitle.value = name || titleToKeep
-                savedTitle.value = postTitle.value
-            }
             return true
         }
         return false
@@ -2865,6 +2917,10 @@ function openTableModal() {
     tblHoverR.value = 2
     tblHoverC.value = 2
     activeModal.value = 'table'
+}
+
+function openMetaModal() {
+    activeModal.value = 'meta'
 }
 
 function tableGridHover(r: number, c: number) {

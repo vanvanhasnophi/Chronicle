@@ -141,11 +141,18 @@ body:not(.is-electron) .title-bar {
   height: 40px;
   border: none;
   background: transparent;
-  color: var(--text-primary);
+  color: var(--text-secondary);
   cursor: default;
   border-radius: 0;
   padding: 0;
   transition: background 0.15s ease, color 0.15s ease;
+}
+
+/* windows 11 风格：关闭按钮延伸 1px，保持视觉上平衡 */
+
+.titlebar-btn.win-btn-close{
+  width: 47px;
+  padding-right: 1px;
 }
 
 .titlebar-btn:hover {

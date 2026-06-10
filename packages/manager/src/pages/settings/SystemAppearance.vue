@@ -3,73 +3,72 @@
     <h2>{{ $t('settings.appearance') }}</h2>
     <p class="hint">{{ $t('settings.appearanceHint') }}</p>
 
-      <section class="settings-grid">
-        <div class="settings-card">
-          <h3>{{ $t('settings.language') }}</h3>
-          <div class="form-row">
-            <label>{{ $t('settings.backendLanguage') }}</label>
-            <select v-model="uiBackendLocale" class="modern-select">
-              <option value="follow">{{ $t('settings.followBrowser') }}</option>
-              <option value="zh-CN">中文 (简体)</option>
-              <option value="en">English</option>
-            </select>
+    <section class="settings-grid">
+      <div class="settings-card">
+        <h3>{{ $t('settings.language') }}</h3>
+        <div class="form-row">
+          <label>{{ $t('settings.backendLanguage') }}</label>
+          <select v-model="uiBackendLocale" class="modern-select">
+            <option value="follow">{{ $t('settings.followBrowser') }}</option>
+            <option value="zh-CN">中文 (简体)</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <h3>{{ $t('settings.typography') }}</h3>
+        <div class="form-row">
+          <label>{{ $t('settings.backendFont') }}</label>
+          <select v-model="uiBackendFont" class="modern-select">
+            <option value="sans">{{ $t('settings.sansSerif') }}</option>
+            <option value="serif">{{ $t('settings.serif') }}</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <h3>{{ $t('settings.theme') }}</h3>
+        <div class="form-row">
+          <label>{{ $t('settings.backendMode') }}</label>
+          <select v-model="uiBackendTheme" class="modern-select">
+            <option value="follow">{{ $t('settings.followSystem') }}</option>
+            <option value="light">{{ $t('theme.light') }}</option>
+            <option value="dark">{{ $t('theme.dark') }}</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <label>{{ $t('settings.accentColor') }}</label>
+          <div class="color-row">
+            <input type="color" v-model="uiAccentColor" class="color-picker" />
+            <span class="color-text">{{ uiAccentColor }}</span>
           </div>
         </div>
 
-        <div class="settings-card">
-          <h3>{{ $t('settings.typography') }}</h3>
-          <div class="form-row">
-            <label>{{ $t('settings.backendFont') }}</label>
-            <select v-model="uiBackendFont" class="modern-select">
-              <option value="sans">{{ $t('settings.sansSerif') }}</option>
-              <option value="serif">{{ $t('settings.serif') }}</option>
-            </select>
+        <div class="form-row">
+          <label>{{ $t('settings.backendBackground') }}</label>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <div v-if="uiBackendBackground" class="bg-preview"
+              :style="{ backgroundImage: `url(${getBackgroundPreviewUrl()})` }"></div>
+            <button class="secondary" @click.prevent="handleEditBackground">{{ uiBackendBackground ? $t('settings.edit')
+              : $t('settings.add') }}</button>
+            <button v-if="uiBackendBackground" class="secondary" @click.prevent="clearBackground">{{
+              $t('settings.clear') }}</button>
           </div>
         </div>
-
-        <div class="settings-card">
-          <h3>{{ $t('settings.theme') }}</h3>
-          <div class="form-row">
-            <label>{{ $t('settings.backendMode') }}</label>
-            <select v-model="uiBackendTheme" class="modern-select">
-              <option value="follow">{{ $t('settings.followSystem') }}</option>
-              <option value="light">{{ $t('theme.light') }}</option>
-              <option value="dark">{{ $t('theme.dark') }}</option>
-            </select>
-          </div>
-
-          <div class="form-row">
-            <label>{{ $t('settings.accentColor') }}</label>
-            <div class="color-row">
-              <input type="color" v-model="uiAccentColor" class="color-picker" />
-              <span class="color-text">{{ uiAccentColor }}</span>
-            </div>
-          </div>
-
-          <div class="form-row">
-            <label>{{ $t('settings.backendBackground') }}</label>
-            <div style="display:flex; gap:8px; align-items:center;">
-              <div v-if="uiBackendBackground" class="bg-preview"
-                :style="{ backgroundImage: `url(${getBackgroundPreviewUrl()})` }"></div>
-              <button class="secondary" @click.prevent="handleEditBackground">{{ uiBackendBackground ? $t('settings.edit') : $t('settings.add') }}</button>
-              <button v-if="uiBackendBackground" class="secondary" @click.prevent="clearBackground">{{ $t('settings.clear') }}</button>
-            </div>
-          </div>
-        </div>
-
+      </div>
+      <div class="actions-wrapper">
         <div class="actions">
           <button @click="save" class="primary">{{ $t('settings.saveAppearance') }}</button>
           <button class="secondary" @click="reset">{{ $t('settings.reset') }}</button>
         </div>
-      </section>
-    </div>
+      </div>
+    </section>
+  </div>
   <!-- Background editor modal -->
-  <BackgroundEditorModal v-if="bgEditorOpen"
-    :url="uiBackendBackground"
-    :initial="uiBackendBackgroundMeta"
-    :sourcePath="uiBackendBackgroundSourcePath"
-    :sourceName="uiBackendBackgroundSourceName"
-    @save="(m) => {
+  <BackgroundEditorModal v-if="bgEditorOpen" :url="uiBackendBackground" :initial="uiBackendBackgroundMeta"
+    :sourcePath="uiBackendBackgroundSourcePath" :sourceName="uiBackendBackgroundSourceName" @save="(m) => {
       uiBackendBackground = m.url
       uiBackendBackgroundMeta = m
       if (m.sourcePath !== undefined) {
@@ -147,12 +146,12 @@ async function loadSettingsFromServer() {
     try {
       uiBackendBackgroundMeta.value = typeof s.backendBackgroundMeta === 'string'
         ? JSON.parse(s.backendBackgroundMeta) : (s.backendBackgroundMeta || uiBackendBackgroundMeta.value)
-    } catch (_) {}
+    } catch (_) { }
     initialBackendBackgroundKey.value = normalizeBackgroundChangeKey(
       uiBackendBackground.value ? { url: uiBackendBackground.value, path: uiBackendBackground.value, sourcePath: uiBackendBackgroundSourcePath.value, sourceName: uiBackendBackgroundSourceName.value } : '',
       uiBackendBackgroundMeta.value
     )
-  } catch (_) {}
+  } catch (_) { }
 }
 
 onMounted(() => { loadSettingsFromServer() })
@@ -484,13 +483,8 @@ function reset() {
   margin-bottom: 0;
 }
 
-.actions {
-  margin-top: 4px;
-  display: flex;
-  gap: 8px;
-}
 
-.settings-card h3{
+.settings-card h3 {
   margin-top: 5px;
 }
 

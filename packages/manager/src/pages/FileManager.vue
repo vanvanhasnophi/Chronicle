@@ -1,184 +1,394 @@
 <template>
-  <div class="file-manager">
-            <div class="sidebar">
+    <div class="file-manager">
+        <!-- Sidebar: category tabs (matches FilePicker cloud-leftbar style) -->
+        <aside class="sidebar">
             <div class="sidebar-header">{{ $t('file.library') }}</div>
-      <div v-for="cat in categories" :key="cat.id" 
-           class="folder-item" 
-           :class="{ active: currentCategory === cat.id }"
-           @click="navigate(cat.id)">
-        <span class="cat-icon" v-html="cat.icon"></span> 
-                {{ $t(cat.label) }}
-      </div>
-    </div>
-    
-    <div class="main-content">
-      <div class="toolbar">
-                <h3>{{ currentCategoryLabel }}</h3>
-        <div class="actions">
-                     <label class="upload-btn">
-                         {{ $t('file.upload') }}
-             <input type="file" @change="handleUpload" hidden multiple />
-           </label>
-                     <button @click="refresh" class="icon-btn" v-html="Icons.refresh" :title="$t('file.refresh')"></button>
-        </div>
-      </div>
-
-      <div class="file-grid">
-         <div v-if="loading" class="loading">{{ $t('file.loading') }}</div>
-         <div v-else-if="items.length === 0" class="empty">{{ $t('file.noFiles') }}</div>
-         
-         <div v-for="file in items" :key="file.name" class="grid-item file">
-            <div class="preview" @click="openPreview(file)">
-               <img v-if="isImage(file.name)" :src="getThumbUrl(file)" loading="lazy" />
-               <div v-else class="icon scalable-icon" v-html="getIconForFile(file.name)"></div>
+            <div class="sidebar-nav">
+                <button v-for="cat in categories" :key="cat.id" type="button" class="sidebar-items"
+                    :class="{ active: currentCategory === cat.id }" @click="navigate(cat.id)">
+                    {{ $t(cat.label) }}
+                </button>
             </div>
-            <div class="name" :title="file.name">{{ file.name }}</div>
-            <div class="actions-row">
-                <button class="copy-btn" @click.stop="copyLink(file)" :title="$t('file.copyLink')" v-html="Icons.link"></button>
-                <button class="delete-btn" @click.stop="deleteItem(file.path)" :title="$t('file.delete')" v-html="Icons.trash"></button>
-            </div>
-         </div>
-      </div>
-    
+        </aside>
 
+        <!-- Main content area -->
+        <section class="main-content">
+            <!-- Toolbar (matches FilePicker cloud-toolbar) -->
+            <div class="chronicle-fb-toolbar">
+                <h3 class="toolbar-title">{{ currentCategoryLabel }}</h3>
+                <!-- Category select replaces the title on narrow screens -->
+                <select v-model="currentCategory" class="category-select">
+                    <option v-for="cat in categories" :key="cat.id" :value="cat.id">
+                        {{ $t(cat.label) }}
+                    </option>
+                </select>
+                <div class="chronicle-fb-toolbar-right">
+                    <!-- View toggle: Card / List -->
+                    <div class="segment-control-bar chronicle-fb-view-toggle">
+                        <button type="button"
+                            :class="['icon-label-btn', 'segment-control-item', 'chronicle-fb-view-btn', view === 'card' ? 'active' : '']"
+                            @click="view = 'card'">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <rect x="2" y="2" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2" />
+                                <rect x="15" y="2" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2" />
+                                <rect x="2" y="15" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2" />
+                                <rect x="15" y="15" width="7" height="7" rx="1" stroke="currentColor"
+                                    stroke-width="2" />
+                            </svg>
+                            <span class="label">{{ $t('filePicker.cardView') || 'Card' }}</span>
+                        </button>
+                        <button type="button"
+                            :class="['icon-label-btn', 'segment-control-item', 'chronicle-fb-view-btn', view === 'list' ? 'active' : '']"
+                            @click="view = 'list'">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="1" cy="3" r="1.25" fill="currentColor" />
+                                <line x1="6" y1="3" x2="23" y2="3" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" />
+                                <circle cx="1" cy="12" r="1.25" fill="currentColor" />
+                                <line x1="6" y1="12" x2="23" y2="12" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" />
+                                <circle cx="1" cy="21" r="1.25" fill="currentColor" />
+                                <line x1="6" y1="21" x2="23" y2="21" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" />
+                            </svg>
+                            <span class="label">{{ $t('filePicker.listView') || 'List' }}</span>
+                        </button>
+                    </div>
+
+                    <!-- Sort controls -->
+                    <div class="chronicle-fb-sort">
+                        <label style="font-size: 0.85rem;">{{ $t('filePicker.sortBy') || 'Sort by: ' }}</label>
+                        <select v-model="selectedSortBy" class="chronicle-fb-sort-select">
+                            <option value="created">{{ $t('filePicker.sortByCreated') || 'Created' }}</option>
+                            <option value="name">{{ $t('filePicker.sortByName') || 'Name' }}</option>
+                            <option value="type">{{ $t('filePicker.sortByType') || 'Type' }}</option>
+                        </select>
+                        <button type="button" class="icon-label-btn chronicle-fb-btn chronicle-fb-sort-toggle"
+                            :class="sortOrder" @click="toggleAscDesc">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <line x1="6" y1="20" x2="6" y2="3" />
+                                <line x1="3" y1="6" x2="6" y2="3" />
+                                <line x1="10" y1="4" x2="18" y2="4" />
+                                <line x1="10" y1="9" x2="19" y2="9" />
+                                <line x1="10" y1="14" x2="20" y2="14" />
+                                <line x1="10" y1="19" x2="21" y2="19" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="chronicle-fb-toolbar-actions">
+                        <!-- Refresh -->
+                        <button type="button" class="icon-label-btn chronicle-fb-btn narrow" @click="refresh"
+                            :title="$t('file.refresh')">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <path d="M23 4v6h-6" />
+                                <path d="M1 20v-6h6" />
+                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                            </svg>
+                        </button>
+
+                        <!-- Upload -->
+                        <button type="button" class="icon-label-btn chronicle-fb-btn" @click="triggerUploadInput">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242" />
+                                <path d="M12 12v9" />
+                                <path d="m16 16-4-4-4 4" />
+                            </svg>
+                            <span class="label">{{ $t('file.upload') }}</span>
+                        </button>
+                        <input ref="uploadInput" type="file" style="display:none" @change="handleUpload" multiple />
+                    </div>
+                </div>
+            </div>
+
+            <!-- File list area -->
+            <div class="chronicle-fb-list">
+                <!-- Loading state -->
+                <div v-if="loading" class="chronicle-fb-loading">{{ $t('file.loading') }}</div>
+
+                <!-- Empty state -->
+                <div v-else-if="items.length === 0" class="chronicle-fb-empty">
+                    {{ $t('file.noFiles') }}
+                </div>
+
+                <!-- Card view -->
+                <div v-else-if="view === 'card'" class="chronicle-fb-grid">
+                    <div v-for="f in items" :key="f.key || f.name"
+                        :class="['chronicle-fb-card', f._justUploaded ? 'chronicle-fb-just-uploaded' : '']"
+                        @click="openPreview(f)">
+                        <div class="chronicle-fb-thumb">
+                            <img v-if="isImage(f.name)" :src="getThumbUrl(f)" loading="lazy" />
+                            <div v-else class="chronicle-fb-icon" v-html="getIconForFile(f.name)"></div>
+                        </div>
+                        <div class="chronicle-fb-meta">
+                            <span class="chronicle-fb-name" :title="f.name">{{ f.name }}</span>
+                            <div class="card-actions">
+                                <button class="chronicle-fb-preview-btn" :title="$t('file.copyLink')"
+                                    @click.stop="copyLink(f)" v-html="Icons.link"></button>
+                                <button class="chronicle-fb-preview-btn delete-action" :title="$t('file.delete')"
+                                    @click.stop="deleteItem(f.path)" v-html="Icons.trash"></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- List / table view -->
+                <table v-else class="chronicle-fb-table">
+                    <thead>
+                        <tr>
+                            <th class="chronicle-fb-name-col" @click="sortBy('name')">
+                                {{ $t('filePicker.name') || 'Name' }}
+                            </th>
+                            <th class="chronicle-fb-type-col" @click="sortBy('type')">
+                                {{ $t('filePicker.type') || 'Type' }}
+                            </th>
+                            <th class="chronicle-fb-created-col" @click="sortBy('created')">
+                                {{ $t('filePicker.created') || 'Created' }}
+                            </th>
+                            <th class="chronicle-fb-actions-col">{{ $t('filePicker.name') ? '' : '' }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="f in items" :key="f.key || f.name"
+                            :class="f._justUploaded ? 'chronicle-fb-just-uploaded' : ''" @click="openPreview(f)">
+                            <td class="chronicle-fb-name-col">{{ f.name }}</td>
+                            <td class="chronicle-fb-type-col">{{ getFileTypeLabel(f.name, t) }}</td>
+                            <td class="chronicle-fb-created-col">
+                                {{ formatDateTime(f.created, locale, 'relative', 'show-weekday', 'hide-seconds', '24h',
+                                t) }}
+                            </td>
+                            <td class="chronicle-fb-actions-col">
+                                <button class="chronicle-fb-preview-btn" :title="$t('file.copyLink')"
+                                    @click.stop="copyLink(f)" v-html="Icons.link"></button>
+                                <button class="chronicle-fb-preview-btn delete-action" :title="$t('file.delete')"
+                                    @click.stop="deleteItem(f.path)" v-html="Icons.trash"></button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
     </div>
-  </div>
 </template>
 
 <script setup lang="ts">
-import { fetchWithAuth } from '../utils/fetchWithAuth';
-import { ref, onMounted, computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { fetchWithAuth } from '../utils/fetchWithAuth'
 import { usePreview } from '../composables/usePreview'
 import { useImagePreview } from '../composables/useImagePreview'
+import {
+    isImage,
+    getCategoryFromFile,
+    getIconForFile,
+    getFileTypeLabel,
+    getThumbUrl,
+} from '../composables/useFileTypes'
 import { Icons } from '../utils/icons'
+import { formatDateTime } from '../utils/dateUtils'
 
-const router = useRouter()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const { openPreview: openGlobalPreview } = usePreview()
 const { openImagePreview } = useImagePreview()
 
+// ── Categories (sidebar tabs) ────────────────────────────────────────
+
 const categories = [
-    { id: 'all', label: 'file.categories.all', icon: Icons.folder },
-    { id: 'pic', label: 'file.categories.images', icon: Icons.image },
-    { id: 'video', label: 'file.categories.videos', icon: Icons.video },
-    { id: 'sound', label: 'file.categories.audio', icon: Icons.audio },
-    { id: 'doc', label: 'file.categories.documents', icon: Icons.document },
-    { id: 'txt', label: 'file.categories.text', icon: Icons.codeText },
-    { id: 'other', label: 'file.categories.others', icon: Icons.archive }
+    { id: 'all', label: 'file.categories.all' },
+    { id: 'pic', label: 'file.categories.images' },
+    { id: 'video', label: 'file.categories.videos' },
+    { id: 'sound', label: 'file.categories.audio' },
+    { id: 'doc', label: 'file.categories.documents' },
+    { id: 'txt', label: 'file.categories.text' },
+    { id: 'other', label: 'file.categories.others' },
 ]
 
 const currentCategory = ref('all')
-const allItems = ref<any[]>([])
-const loading = ref(false)
-
-const getCategoryFromFile = (file: any) => {
-    const name = file.name || ''
-    if (/\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)$/i.test(name)) return 'pic'
-    if (/\.(mp4|avi|mov|mkv|webm)$/i.test(name)) return 'video'
-    if (/\.(mp3|wav|ogg|flac|m4a|aac)$/i.test(name)) return 'sound'
-    if (/\.(pdf|doc|docx|ppt|pptx|xls|xlsx)$/i.test(name)) return 'doc'
-    if (/\.(txt|md|js|ts|json|c|cpp|h|java|py|sh|bat|ini|log|csv|xml|yaml|yml|vue|css|html|rs|go|php)$/i.test(name)) return 'txt'
-    return 'other'
-}
-
-const items = computed(() => {
-    if (currentCategory.value === 'all') {
-        return allItems.value
-    }
-    return allItems.value.filter(file => getCategoryFromFile(file) === currentCategory.value)
-})
-
-// Preview state
-// No local preview state needed anymore
-
 const currentCategoryLabel = computed(() => {
     const key = categories.find(c => c.id === currentCategory.value)?.label || 'file.library'
     return t(key)
 })
 
-const loadItems = async () => {
-  loading.value = true
-  allItems.value = []
-  try {
-    const res = await fetchWithAuth(`/api/files?path=all&t=${Date.now()}`)
-    if (res.ok) {
-       // Filter out subdirectories if any, we just want files 
-       // (Backend ensures flat list structure for categories basically since we don't support sub-sub-folders in this UI view)
-       const all = await res.json()
-       allItems.value = all.filter((i: any) => i.type === 'file')
-    }
-  } catch(e) {
-    console.error(e)
-  } finally {
-    loading.value = false
-  }
-}
+// ── File data ────────────────────────────────────────────────────────
 
-const navigate = (catId: string) => {
-    currentCategory.value = catId
-}
-// "Delete" logic now refers to file path
-const deleteItem = async (path: string) => {
-    if (!confirm(`Permanently delete this file?`)) return
-    
-    // Path comes partially from backend (e.g. "pic/foo.jpg" or "foo.jpg")
-    // Our backend list returns relative to BASE_UPLOAD_DIR
-    // Let's ensure we pass the correct relative path to delete API
-    
-    await fetchWithAuth(`/api/files?path=${encodeURIComponent(path)}&t=${Date.now()}`, {
-        method: 'DELETE'
+const allItems = ref<any[]>([])
+const loading = ref(false)
+const uploadInput = ref<HTMLInputElement | null>(null)
+
+// ── View & sort state ────────────────────────────────────────────────
+
+const view = ref<'card' | 'list'>('card')
+const selectedSortBy = ref<'created' | 'name' | 'type'>('created')
+const sortOrder = ref<'asc' | 'desc'>('desc')
+
+// ── Sorted & filtered items ──────────────────────────────────────────
+
+const items = computed(() => {
+    // Filter by category
+    let filtered =
+        currentCategory.value === 'all'
+            ? [...allItems.value]
+            : allItems.value.filter((f) => getCategoryFromFile(f) === currentCategory.value)
+
+    // Sort
+    filtered.sort((a, b) => {
+        const key = selectedSortBy.value
+        const dir = sortOrder.value === 'asc' ? 1 : -1
+
+        if (key === 'created') {
+            const da = a.created || 0
+            const db = b.created || 0
+            return (da - db) * dir
+        }
+        if (key === 'name') {
+            const na = (a.displayname || a.name || '').toString()
+            const nb = (b.displayname || b.name || '').toString()
+            return na.localeCompare(nb) * dir
+        }
+        // type
+        const ta = (a.type || '').toString()
+        const tb = (b.type || '').toString()
+        return ta.localeCompare(tb) * dir
     })
-    loadItems()
+
+    return filtered
+})
+
+// ── Data loading ─────────────────────────────────────────────────────
+
+async function loadItems() {
+    loading.value = true
+    allItems.value = []
+    try {
+        const res = await fetchWithAuth(`/api/files?path=all&t=${Date.now()}`)
+        if (res.ok) {
+            const all = await res.json()
+            allItems.value = (Array.isArray(all) ? all : [])
+                .filter((i: any) => i.type === 'file')
+                .map((item: any, idx: number) => ({
+                    ...item,
+                    key: item.path || `${Date.now()}_${idx}`,
+                    name: item.displayname || item.name,
+                    type: item.type || getCategoryFromFile(item),
+                }))
+        }
+    } catch (e) {
+        console.error('loadItems failed', e)
+        allItems.value = []
+    } finally {
+        loading.value = false
+    }
 }
 
-const handleUpload = async (e: Event) => {
+// ── Upload ───────────────────────────────────────────────────────────
+
+function triggerUploadInput() {
+    uploadInput.value?.click()
+}
+
+async function uploadFileToServer(file: File): Promise<string | null> {
+    try {
+        const encodedName = encodeURIComponent(file.name)
+        const res = await fetchWithAuth(`/api/upload?t=${Date.now()}`, {
+            method: 'POST',
+            headers: { 'x-filename': encodedName },
+            body: file,
+        })
+        if (!res.ok) throw new Error('upload failed')
+        const j = await res.json()
+        return j && j.url ? j.url : null
+    } catch (e) {
+        console.error('upload failed', e)
+        return null
+    }
+}
+
+async function handleUpload(e: Event) {
     const input = e.target as HTMLInputElement
     if (!input.files || input.files.length === 0) return
 
+    const uploadedKeys: string[] = []
+
     for (const file of Array.from(input.files)) {
-        const encodedName = encodeURIComponent(file.name)
-        // We don't need to specify category manually, backend will auto-sort based on extension
-        await fetchWithAuth(`/api/upload?t=${Date.now()}`, {
-            method: 'POST',
-            headers: { 'x-filename': encodedName },
-            body: file
-        })
+        // Create a placeholder entry that shows the upload highlight
+        const tempKey = `upload_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+        const placeholder: any = {
+            key: tempKey,
+            name: file.name,
+            type: getCategoryFromFile({ name: file.name }),
+            path: tempKey,
+            _justUploaded: true,
+            _uploading: true,
+        }
+        allItems.value.push(placeholder)
+        uploadedKeys.push(tempKey)
+
+        // Upload in background
+        uploadFileToServer(file)
+            .then(() => {
+                // Remove placeholder, will be replaced on reload
+                const idx = allItems.value.findIndex((f: any) => f.key === tempKey)
+                if (idx >= 0) allItems.value.splice(idx, 1)
+            })
+            .catch(() => {
+                // Remove failed placeholder
+                const idx = allItems.value.findIndex((f: any) => f.key === tempKey)
+                if (idx >= 0) allItems.value.splice(idx, 1)
+            })
+            .finally(() => {
+                // Reload when the last upload finishes
+                const stillUploading = allItems.value.some(
+                    (f: any) => uploadedKeys.includes(f.key) && f._uploading
+                )
+                if (!stillUploading) {
+                    loadItems()
+                }
+            })
     }
-    
-    // Reload items. But wait, if user is in 'pic' and uploads a 'mp3', it won't show up.
-    // That confuses users. Maybe we should switch to the category of the last uploaded item?
-    // Or just alert "Uploaded".
-    // For now, just refresh. If it appears, great.
-    loadItems()
+
     input.value = ''
 }
 
-const isImage = (name: string) => /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)$/i.test(name)
+// ── Sort helpers ─────────────────────────────────────────────────────
 
-const getIconForFile = (name: string) => {
-    if (/\.(mp3|wav|ogg|flac)$/i.test(name)) return Icons.audio
-    if (/\.(mp4|avi|mov|mkv)$/i.test(name)) return Icons.video
-    if (/\.(pdf|doc|docx|ppt|pptx|xls|xlsx)$/i.test(name)) return Icons.document
-    if (/\.(txt|md|js|ts|json|c|cpp|h|java|py|sh|bat|ini|log|csv|xml|yaml|yml|vue|css|html)$/i.test(name)) return Icons.codeText
-    return Icons.generic // Using generic file icon for unknown
+function sortBy(key: string) {
+    const keyMap: Record<string, 'created' | 'name' | 'type'> = {
+        created: 'created',
+        name: 'name',
+        type: 'type',
+    }
+    const sortKey = keyMap[key]
+    if (!sortKey) return
+
+    if (selectedSortBy.value === sortKey) {
+        sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
+    } else {
+        selectedSortBy.value = sortKey
+        sortOrder.value = 'asc'
+    }
 }
 
-const copyLink = (file: any) => {
-    const url = file.url || `/server/data/upload/${file.path}`
-    navigator.clipboard.writeText(`![](${url})`)
+function toggleAscDesc() {
+    sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
 }
 
-const getFileType = (name: string) => {
-    if (/\.(mp3|wav|ogg|m4a|flac|aac)$/i.test(name)) return t('file.type.audio')
-    if (/\.(mp4|webm|mkv|mov|avi)$/i.test(name)) return t('file.type.video')
-    if (/\.(pdf|doc|docx|ppt|pptx|xls|xlsx)$/i.test(name)) return t('file.type.document')
-    if (/\.(txt|md|js|ts|json|c|cpp|h|java|py|sh|bat|ini|conf|vue|log|csv|xml|yaml|yml|rs|go|php)$/i.test(name)) return t('file.type.code')
-    return t('file.type.file')
+// ── Navigation ───────────────────────────────────────────────────────
+
+function navigate(catId: string) {
+    currentCategory.value = catId
 }
 
-const openPreview = async (file: any) => {
+// ── Preview ──────────────────────────────────────────────────────────
+
+function openPreview(file: any) {
     const url = file.url || `/server/data/upload/${file.path}`
     if (isImage(file.name)) {
         openImagePreview(url)
@@ -186,27 +396,32 @@ const openPreview = async (file: any) => {
         openGlobalPreview({
             name: file.name,
             path: url,
-            type: getFileType(file.name)
+            type: getFileTypeLabel(file.name, t),
         })
     }
 }
 
-const getThumbUrl = (file: any) => {
-    // Prefer server-provided thumb URL first so CDN-mounted thumbnails work immediately.
-    if (file.thumb && typeof file.thumb === 'string') {
-        return file.thumb
-    }
+// ── File actions ─────────────────────────────────────────────────────
 
-    // If only the original URL is available, derive the thumbnail URL from it.
-    if (file.url && typeof file.url === 'string') {
-        return file.url.replace('/server/data/upload/', '/server/data/upload/.thumbs/')
-    }
-
-    // Fallback to the canonical static path under the upload directory.
-    return `/server/data/upload/.thumbs/${file.path}`
+function copyLink(file: any) {
+    const url = file.url || `/server/data/upload/${file.path}`
+    navigator.clipboard.writeText(`![](${url})`)
 }
 
-const refresh = () => loadItems()
+async function deleteItem(path: string) {
+    if (!confirm(`Permanently delete this file?`)) return
+
+    await fetchWithAuth(`/api/files?path=${encodeURIComponent(path)}&t=${Date.now()}`, {
+        method: 'DELETE',
+    })
+    loadItems()
+}
+
+function refresh() {
+    loadItems()
+}
+
+// ── Init ─────────────────────────────────────────────────────────────
 
 onMounted(() => {
     loadItems()
@@ -214,185 +429,474 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* ── Page-level layout (FileManager-specific) ──────────────────────── */
+
 .file-manager {
     display: flex;
     height: 100%;
     background: transparent;
     color: var(--text-primary);
+    gap: 0;
 }
+
+/* ── Sidebar ───────────────────────────────────────────────────────── */
+
 .sidebar {
     width: 200px;
+    flex-shrink: 0;
+    margin: 0.6rem 0 0.6rem 0.6rem;
+    height: calc(100% - 1.2rem);
     background: transparent;
-    padding: 10px;
-    overflow-y: auto;
+    backdrop-filter: none;
+    border: none;
+    box-shadow: none;
 }
-.folder-item {
-    padding: 8px 12px;
-    cursor: pointer;
-    border-radius: 8px;
-    margin-bottom: 2px;
-    display: flex;
-    align-items: center;
-}
-.folder-item:hover {
-    background: var(--component-bg-hover);
-}
-.folder-item.active {
-    background: var(--accent-color);
-    color: var(--text-on-accent);
-}
+
 .sidebar-header {
-    padding: 10px 12px;
-    font-size: 11px;
+    padding: 12px 14px 8px;
+    font-size: 12px;
     text-transform: uppercase;
     color: var(--component-text-secondary);
     font-weight: 600;
+    letter-spacing: 0.6px;
 }
-.cat-icon {
-    margin-right: 8px;
+
+.sidebar :deep(.sidebar-items) {
+    font-size: 0.95rem;
+    padding: 0.55rem 0.9rem;
 }
+
+/* ── Main content ──────────────────────────────────────────────────── */
+
 .main-content {
     flex: 1;
     display: flex;
     flex-direction: column;
-    padding: 20px;
+    padding: 1.5rem 1.75rem;
     overflow-y: auto;
-}
-.toolbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-    padding-bottom: 10px;
-}
-.actions {
-    display: flex;
-    gap: 10px;
-}
-button, .upload-btn {
-    background: var(--accent-color);
-    color: var(--text-on-accent);
-    border: none;
-    padding: 6px 12px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 13px;
-    display: inline-block;
-}
-button:hover, .upload-btn:hover {
-    background: var(--accent-color-hover);
-}
-.icon-btn {
-    padding: 6px 10px;
-}
-.file-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 15px;
+    min-width: 0;
 }
 
-.preview {
-    height: 100px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 8px;
-    overflow: hidden;
-    background: var(--component-bg-secondary);
-    border-radius: 2px;
-}
-.preview img {
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
-}
-.preview .icon {
-    width: 48px;
+/* ── Toolbar ───────────────────────────────────────────────────────── */
+
+:deep(.chronicle-fb-toolbar) {
     height: 48px;
-    color: var(--component-text-secondary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.preview .icon :deep(svg) {
-    width: 100%;
-    height: 100%;
-    stroke-width: 1;
+    margin-bottom: 1rem;
 }
 
-.delete-btn {
-    position: absolute;
-    top: 5px;
-    right: 5px;
-    background: var(--component-bg-secondary);
-    width: 24px;
-    height: 24px;
+.toolbar-title {
+    margin: 0;
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--component-text-primary);
+}
+
+/* View toggle */
+:deep(.chronicle-fb-view-toggle) {
+    background: color-mix(var(--component-bg-blur-alt) 40%, transparent);
+    height: 28px;
+    border-radius: 10px;
+    margin-right: 10px;
+}
+
+/* Category select — hidden by default, shown at narrow widths */
+.category-select {
+    display: none;
+}
+
+:deep(.chronicle-fb-view-btn) {
+    font-size: 0.85rem;
+    gap: 7px;
+}
+
+:deep(.chronicle-fb-view-btn svg) {
+    width: 14px;
+    height: 14px;
+}
+
+/* Sort label & select */
+:deep(.chronicle-fb-sort label) {
+    font-size: 0.9rem !important;
+}
+
+:deep(.chronicle-fb-sort-select) {
+    font-size: 0.9rem;
+    height: 36px;
+    margin: 0 6px;
+}
+
+/* Sort toggle */
+:deep(.chronicle-fb-sort-toggle) {
+    padding: 0.45rem;
+}
+
+:deep(.chronicle-fb-sort-toggle svg) {
+    width: 22px;
+    height: 22px;
+}
+
+/* Toolbar buttons (refresh, upload) */
+:deep(.chronicle-fb-btn) {
+    font-size: 0.9rem;
+    padding: 0.45rem 0.7rem;
+}
+
+:deep(.chronicle-fb-btn svg) {
+    width: 18px;
+    height: 18px;
+}
+
+/* ── File list height (compensate for taller toolbar) ──────────────── */
+
+:deep(.chronicle-fb-list) {
+    height: calc(100% - 48px - 1.5rem);
+}
+
+/* ── Grid / card view ──────────────────────────────────────────────── */
+
+:deep(.chronicle-fb-grid) {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+:deep(.chronicle-fb-card) {
+    padding: 0.75rem;
+    gap: 0.6rem;
+    border-radius: 14px;
+}
+
+:deep(.chronicle-fb-thumb) {
+    height: 130px;
+    border-radius: 10px;
+}
+
+:deep(.chronicle-fb-thumb img) {
+    border-radius: 10px;
+}
+
+:deep(.chronicle-fb-icon) {
+    width: 44px;
+    height: 44px;
+}
+
+:deep(.chronicle-fb-name) {
+    font-size: 0.9rem;
+}
+
+:deep(.chronicle-fb-meta) {
+    min-height: 28px;
+}
+
+/* ── Card actions (copy link + delete) ─────────────────────────────── */
+
+.card-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.card-actions .chronicle-fb-preview-btn {
+    width: 28px;
+    height: 28px;
     padding: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 50%;
-    opacity: 0;
-    transition: opacity 0.2s;
-    color: var(--component-text-primary);
+    border-radius: 7px;
 }
-.delete-btn :deep(svg) {
-    width: 14px;
-    height: 14px;
+
+.card-actions .chronicle-fb-preview-btn svg {
+    width: 15px;
+    height: 15px;
 }
-.grid-item:hover .delete-btn {
-    opacity: 1;
+
+.delete-action:hover {
+    background: var(--status-error) !important;
+    color: #fff !important;
 }
-.delete-btn:hover {
-    background: var(--status-error);
-    color: #fff;
+
+/* ── Table / list view ─────────────────────────────────────────────── */
+
+:deep(.chronicle-fb-table) {
+    font-size: 0.95rem;
 }
-.actions-row {
-    display: flex;
+
+:deep(.chronicle-fb-table th) {
+    padding: 0.55rem 0.6rem;
+    font-size: 0.85rem;
+}
+
+:deep(.chronicle-fb-table td) {
+    padding: 0.45rem 0.6rem;
+}
+
+:deep(.chronicle-fb-type-col) {
+    font-size: 0.85rem;
+}
+
+:deep(.chronicle-fb-created-col) {
+    font-size: 0.85rem;
+}
+
+:deep(.chronicle-fb-actions-col) {
+    width: 1%;
+    white-space: nowrap;
+    text-align: right;
+}
+
+:deep(.chronicle-fb-actions-col .chronicle-fb-preview-btn) {
+    display: inline-flex;
+    margin-left: 3px;
+}
+
+:deep(.chronicle-fb-actions-col .chronicle-fb-preview-btn svg) {
+    width: 15px;
+    height: 15px;
+}
+
+/* ── Preview button in list rows ───────────────────────────────────── */
+
+:deep(.chronicle-fb-actions-col .chronicle-fb-preview-btn) {
+    width: 28px;
+    height: 28px;
+    padding: 0;
     justify-content: center;
-    gap: 5px;
 }
-.copy-btn {
-    padding: 4px;
-    background: var(--component-bg-secondary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    border-radius: 8px;
-    color: var(--component-text-primary);
+
+/* ── Loading / empty ───────────────────────────────────────────────── */
+
+:deep(.chronicle-fb-loading),
+:deep(.chronicle-fb-empty) {
+    font-size: 1rem;
+    padding: 60px;
 }
-.copy-btn :deep(svg) {
-    width: 14px;
-    height: 14px;
-}
-.cat-icon {
-    margin-right: 8px;
-    display: flex;
+
+/* ── Responsive: toolbar & sidebar ─────────────────────────────────── */
+
+/* Allow toolbar-right to wrap when it runs out of space */
+:deep(.chronicle-fb-toolbar) {
+    min-height: 48px;
+    height: auto;
+    flex-wrap: wrap;
+    gap: 0.5rem;
     align-items: center;
 }
-.cat-icon :deep(svg) {
-    width: 18px;
-    height: 18px;
+
+:deep(.chronicle-fb-toolbar-right) {
+    flex-wrap: wrap;
+    justify-content: space-between;
 }
-.icon-btn {
-    padding: 6px;
-    border-radius: 6px;
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+
+/* ≤ 1100px: hide button labels, keep icons only */
+@media (max-width: 1100px) {
+    .toolbar-title {
+        font-size: 1.15rem;
+    }
+
+    :deep(.chronicle-fb-view-btn .label) {
+        display: none;
+    }
+
+    :deep(.chronicle-fb-sort label) {
+        display: none;
+    }
+
+    :deep(.chronicle-fb-btn .label) {
+        display: none;
+    }
+
+    :deep(.chronicle-fb-view-btn) {
+        padding: 0 8px;
+    }
+
+    :deep(.chronicle-fb-toolbar) {
+        padding-right: 0;
+    }
 }
-.icon-btn :deep(svg) {
-    width: 16px;
-    height: 16px;
+
+/* ≤ 850px: shrink sidebar + reduce grid */
+@media (max-width: 850px) {
+    .sidebar {
+        width: 160px;
+        margin: 0.4rem 0 0.4rem 0.4rem;
+    }
+
+    .sidebar :deep(.sidebar-items) {
+        font-size: 0.85rem;
+        padding: 0.4rem 0.65rem;
+    }
+
+    .sidebar-header {
+        font-size: 10px;
+        padding: 8px 10px 6px;
+    }
+
+    .main-content {
+        padding: 1rem 1rem;
+    }
+
+    :deep(.chronicle-fb-grid) {
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 0.75rem;
+    }
+
+    :deep(.chronicle-fb-thumb) {
+        height: 100px;
+    }
+
+    :deep(.chronicle-fb-card) {
+        padding: 0.5rem;
+        border-radius: 10px;
+    }
+
+    :deep(.chronicle-fb-icon) {
+        width: 36px;
+        height: 36px;
+    }
+
+    :deep(.chronicle-fb-name) {
+        font-size: 0.8rem;
+    }
+
+    .card-actions .chronicle-fb-preview-btn {
+        width: 24px;
+        height: 24px;
+        border-radius: 5px;
+    }
+
+    .card-actions .chronicle-fb-preview-btn svg {
+        width: 13px;
+        height: 13px;
+    }
 }
-.loading, .empty {
-    grid-column: 1 / -1;
-    text-align: center;
-    color: var(--component-text-secondary);
-    padding: 40px;
+
+/* ≤ 600px: sidebar gone, select replaces title (row 1), controls wrap to row 2 */
+@media (max-width: 600px) {
+    .file-manager {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        display: none;
+    }
+
+    /* Select replaces title — transparent, inline, arrow visible, touch height */
+    .category-select {
+        display: inline-block;
+        width: auto;
+        appearance: none;
+        -webkit-appearance: none;
+        height: 44px;
+        padding: 0 1.5rem 0 3rem;
+        font-size: 1.05rem;
+        font-weight: 600;
+        color: var(--component-text-primary);
+        background: transparent;
+        border: none;
+        border-radius: 0;
+        cursor: pointer;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0 center;
+        background-size: 18px;
+    }
+
+    /* Hide the original title */
+    .toolbar-title {
+        display: none;
+    }
+
+    /* Controls row 2 — full width */
+    :deep(.chronicle-fb-toolbar-right) {
+        width: 100%;
+    }
+
+    .main-content {
+        padding: 0.75rem;
+        flex: 1;
+    }
+
+    /* Touch-friendly toolbar buttons */
+    :deep(.chronicle-fb-btn) {
+        min-height: 44px;
+        min-width: 44px;
+        padding: 0.5rem 0.8rem;
+        font-size: 0.875rem;
+    }
+
+    :deep(.chronicle-fb-btn svg) {
+        width: 20px;
+        height: 20px;
+    }
+
+    :deep(.chronicle-fb-sort-select) {
+        height: 44px;
+        font-size: 0.875rem;
+    }
+
+    :deep(.chronicle-fb-sort-toggle) {
+        min-height: 44px;
+        min-width: 44px;
+    }
+
+    :deep(.chronicle-fb-view-toggle) {
+        height: 34px;
+    }
+
+    :deep(.chronicle-fb-view-btn) {
+        width: 34px;
+    }
+
+
+    /* Grid: touch-friendly cards */
+    :deep(.chronicle-fb-grid) {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 0.6rem;
+    }
+
+    :deep(.chronicle-fb-thumb) {
+        height: 110px;
+    }
+
+    :deep(.chronicle-fb-name) {
+        font-size: 0.85rem;
+    }
+
+    /* Card action buttons ≥ 36px */
+    .card-actions {
+        gap: 6px;
+    }
+
+    .card-actions .chronicle-fb-preview-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+    }
+
+    .card-actions .chronicle-fb-preview-btn svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    /* Table row height */
+    :deep(.chronicle-fb-table) {
+        font-size: 0.85rem;
+    }
+
+    :deep(.chronicle-fb-table th),
+    :deep(.chronicle-fb-table td) {
+        padding: 0.5rem 0.45rem;
+    }
+
+    :deep(.chronicle-fb-actions-col .chronicle-fb-preview-btn) {
+        width: 36px;
+        height: 36px;
+    }
+
+    :deep(.chronicle-fb-actions-col .chronicle-fb-preview-btn svg) {
+        width: 16px;
+        height: 16px;
+    }
 }
 </style>

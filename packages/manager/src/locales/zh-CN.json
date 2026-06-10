@@ -15,14 +15,17 @@
     "settings": "设置",
     "newPost": "写文章",
     "about": "关于",
-    "openFrontend": "前往前台",
+    "visitSite": "前往站点",
     "rebuildFrontend": "重新构建前台",
     "build": "构建",
     "buildNow": "立即构建",
     "group": {
       "template": "模板",
       "system": "系统"
-    }
+    },
+    "quickActions": "快捷菜单",
+    "welcome": "欢迎页",
+    "editor": "编辑器"
   },
   "inblog": {
     "toc-title": "目录",
@@ -85,7 +88,9 @@
     "featuredCount": "{count} 篇精选",
     "modifyingCount": "{count} 篇修改中",
     "trafficLast7d": "{count} 近7天",
-    "storageUsedAvl": "{used} 已用 / {avl} 可用"
+    "storageUsedAvl": "{used} 已用 / {avl} 可用",
+    "templateVersion": "模板版本",
+    "templateError": "加载模板出错"
   },
   "traffic": {
     "title": "流量统计",
@@ -141,7 +146,8 @@
       "video": "视频",
       "document": "文档",
       "code": "文本/代码",
-      "file": "文件"
+      "file": "文件",
+      "image": "图片"
     }
   },
   "friends": {
@@ -457,6 +463,7 @@
     "enterHint": "管理文章、合集、站点设置",
     "loginHint": "登录以管理站点",
     "editorHint": "Markdown 写作，实时预览",
+    "checking": "检查中...",
     "open": "打开"
   },
   "login": {
@@ -544,6 +551,8 @@
     "building": "构建中"
   },
   "editor": {
+    "done": "完成",
+    "meta": "属性",
     "restore": "恢复",
     "save": "保存",
     "upload": "上传",

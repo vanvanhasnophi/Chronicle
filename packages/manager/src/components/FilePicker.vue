@@ -114,6 +114,7 @@
                     </div>
 
                     <div class="cloud-list" :class="view">
+                        <div v-if="visibleFiles.length === 0" class="cloud-empty">{{ t('file.noFiles') }}</div>
                         <div v-if="view === 'card'" class="grid">
                             <div v-for="(f, idx) in visibleFiles" :key="f.key"
                                 :class="['grid-item', 'file', f._justUploaded ? 'just-uploaded' : '', isSelected(f) ? 'selected' : '']"
@@ -1213,6 +1214,13 @@ watch(() => props.selectionMode, () => {
     justify-content: flex-end;
     gap: .5rem;
     margin: 0 1rem 1rem 1rem;
+}
+
+.cloud-empty {
+    text-align: center;
+    color: var(--component-text-secondary);
+    padding: 2rem;
+    font-size: 0.9rem;
 }
 
 .cloud-login-overlay {

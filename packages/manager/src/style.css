@@ -1,3 +1,13 @@
+@keyframes spin {
+  from {
+    transform: rotate(0deg)
+  }
+
+  to {
+    transform: rotate(360deg)
+  }
+}
+
 :root {
   /* 可用视口高度：浏览器 = 100dvh，Electron = 100dvh - 40px（避让 TitleBar） */
   --app-height: 100dvh;
@@ -6,7 +16,7 @@
   --app-font-stack-system: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   /*Inter字体*/
   /* Apple设备优先使用系统字体，其他设备使用Inter */
-  --app-font-stack-inter: -apple-system, BlinkMacSystemFont, 'InterVariable', 'Inter', 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  --app-font-stack-inter: -apple-system, BlinkMacSystemFont, 'InterVariable', 'Inter', 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
   /*当前字体栈，入口动态切换*/
   --app-font-stack: var(--app-font-stack-inter);
   /* Backend font stack (admin/editor). Defaults to same as frontend stack unless overridden */
@@ -559,62 +569,67 @@ textarea {
   font-family: inherit;
 }
 
-input[type="range"]{
+input[type="range"] {
   background: transparent;
   accent-color: var(--accent-color);
   border: none;
 }
 
 input[type="range"]::-webkit-slider-runnable-track {
-  border-color: transparent; /* 移除默认边框 */
-    width: 100%;
-    height: 6px;               /* 轨道厚度 */
-    border-radius: 3px;
-    transition: all 0.1s ease;
+  border-color: transparent;
+  /* 移除默认边框 */
+  width: 100%;
+  height: 6px;
+  /* 轨道厚度 */
+  border-radius: 3px;
+  transition: all 0.1s ease;
 }
 
 /* 2.2 设置滑块按钮 */
 input[type="range"]::-webkit-slider-thumb {
-    margin-top: -5px;          /* 按钮居中（(按钮高-轨道高)/2） */
-    cursor: pointer;
-    transition: all 0.1s ease;
+  margin-top: -5px;
+  /* 按钮居中（(按钮高-轨道高)/2） */
+  cursor: pointer;
+  transition: all 0.1s ease;
 }
 
 
 input[type="range"]::-webkit-slider-thumb:hover {
-    scale: 1.4;
-    cursor: pointer;
+  scale: 1.4;
+  cursor: pointer;
 }
 
 /* 3. Firefox 浏览器设置 */
 /* 3.1 设置轨道 */
 input[type="range"]::-moz-range-track {
-    width: 100%;
-    height: 6px;
-    background: var(--app-bg-primary);
-    border-radius: 3px;
+  width: 100%;
+  height: 6px;
+  background: var(--app-bg-primary);
+  border-radius: 3px;
 }
 
 /* 3.2 设置滑块按钮 */
 input[type="range"]::-moz-range-thumb {
-    width: 18px;
-    height: 18px;
-    background: var(--accent-color);
-    border: none;              /* Firefox 需要移除默认边框 */
-    border-radius: 50%;
-    cursor: pointer;
+  width: 18px;
+  height: 18px;
+  background: var(--accent-color);
+  border: none;
+  /* Firefox 需要移除默认边框 */
+  border-radius: 50%;
+  cursor: pointer;
 }
 
 /* 3.3 Firefox 设置已划过部分（可选） */
 input[type="range"]::-moz-range-progress {
-    background: var(--accent-color);       /* 已划过部分的颜色 */
-    height: 6px;
-    border-radius: 3px;
+  background: var(--accent-color);
+  /* 已划过部分的颜色 */
+  height: 6px;
+  border-radius: 3px;
 }
 
 /* 4. 移除聚焦时的外轮廓 */
 input[type="range"] {
-    outline: none;
+  outline: none;
 }
 
 
@@ -831,7 +846,7 @@ html.is-mobile .toc-float {
   background: var(--component-bg-hover);
 }
 
-.modern-select:hover option{
+.modern-select:hover option {
   color: var(--text-primary);
   background: var(--component-bg);
 }
@@ -908,12 +923,12 @@ html.is-mobile .toc-float {
 }
 
 select option {
-  background: var(--component-bg-primary);
+  background: var(--component-bg);
   color: var(--component-text-primary);
 }
 
 select:hover option {
-  background: var(--component-bg-primary);
+  background: var(--component-bg);
   color: var(--component-text-primary);
 }
 
@@ -968,8 +983,8 @@ select:hover option {
 }
 
 .settings-grid {
-  display:flex;
-  flex-direction:column;
+  display: flex;
+  flex-direction: column;
   gap: 1.5rem;
 }
 
@@ -984,20 +999,40 @@ select:hover option {
 .settings-card .actions,
 .settings-page .actions,
 .build-page .actions {
-  position: sticky;
-  bottom: 1rem;
-  z-index: 40;
   padding: 0.85rem 1rem;
   border: 1px solid var(--border-color-blur);
   border-radius: 14px;
   background: var(--component-bg-blur);
   box-shadow: var(--shadow-elev-1);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  display: flex;
+  gap: 0.8rem;
 }
 
-.settings-card h3{
+.actions-wrapper {
+  position: sticky;
+  z-index: 40;
+  padding: 0 0 1rem 0;
+  background: transparent;
+  bottom: 0;
+  border-radius: 14px 14px 0 0;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  margin-top: 1rem;
+}
+
+.sticky-tabs-wrapper {
+  position: sticky;
+  z-index: 30;
+  top: 0;
+  background: transparent;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding-top: 1rem;
+}
+
+
+.settings-card h3 {
   font-size: 1.3rem;
 }
 
@@ -1169,7 +1204,9 @@ body.backend::after {
 }
 
 /* Auth pages: disable entire bg-layer (body has --app-bg-primary by default) */
-body.auth-page #chronicle-bg-layer { display: none; }
+body.auth-page #chronicle-bg-layer {
+  display: none;
+}
 
 /* Order inside layer (lower z => behind): image -> solid surface -> overlay */
 #chronicle-bg-layer .bg-image {
@@ -1284,17 +1321,36 @@ html {
 }
 
 .sidebar-items {
+  display: flex;
+  align-items: center;
   background: transparent;
   border: none;
   color: var(--text-inactive);
   text-decoration: none;
-  border-radius: 4px;
   transition: all 0.3s ease;
   width: 100%;
   box-sizing: border-box;
   text-align: left;
   padding: 0.4rem 0.8rem;
   border-radius: 10px;
+}
+
+.nav-label {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.nav-icon {
+  width: 18px;
+  height: 18px;
+  margin-right: 10px;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  flex-shrink: 0;
 }
 
 .sidebar-items:hover {
@@ -1341,7 +1397,7 @@ html {
   outline: none;
 }
 
-.modern-input:read-only{
+.modern-input:read-only {
   background: var(--component-bg-blur-alt);
 }
 
@@ -1411,24 +1467,24 @@ html {
 }
 
 
-.icon-label-btn.narrow{
-    padding: 0.6rem;
+.icon-label-btn.narrow {
+  padding: 0.6rem;
 }
 
 
 /* Modal Styles */
 .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: #000a;
-    backdrop-filter: blur(4px);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #000a;
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
 }
 
 @media (max-width: 768px) {
@@ -1436,8 +1492,12 @@ html {
   .icon-label-btn .label {
     display: none;
   }
-  
-    .icon-label-btn {
-        padding: 0.6rem;
-    }
+
+  .icon-label-btn {
+    padding: 0.6rem;
+  }
+
+  .responsive-title {
+    padding-left: 40px;
+  }
 }

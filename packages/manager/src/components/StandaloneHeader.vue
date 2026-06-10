@@ -146,21 +146,34 @@ const statusText = computed(() => {
   return t('welcome.noServer')
 })
 
-onMounted(() => {
-  if (showConfigBtn && (!confirmedUrl.value || hasError.value)) showConfig.value = true
-})
-
-// ── Auth state ──────────────────────────────────────────
-const isLoggedIn = ref(checkAuth())
-
+// ── Auth state (sync check runs before first paint) ──────
 function checkAuth(): boolean {
   try {
     const raw = localStorage.getItem('chronicle_auth')
     if (!raw) return false
+    if (raw === 'true') return true
     const session = JSON.parse(raw)
     return session.token && session.expiry && Date.now() < session.expiry
   } catch { return false }
 }
+const isLoggedIn = ref(checkAuth())
+const authVerified = ref(false)
+
+onMounted(async () => {
+  if (showConfigBtn && (!confirmedUrl.value || hasError.value)) showConfig.value = true
+
+  // Async server-side verification — updates label text on result
+  if (isLoggedIn.value && showConfigBtn && serverUrl.value) {
+    try {
+      const raw = localStorage.getItem('chronicle_auth') || ''
+      const resp = await fetch(`${serverUrl.value.replace(/\/$/, '')}/api/admin/auth/ping?t=${Date.now()}`, {
+        headers: { 'x-chronicle-auth': raw }
+      })
+      if (!resp.ok) { isLoggedIn.value = false; localStorage.removeItem('chronicle_auth') }
+    } catch { /* keep local state */ }
+    finally { authVerified.value = true }
+  }
+})
 
 function handleLogout() {
   localStorage.removeItem('chronicle_auth')

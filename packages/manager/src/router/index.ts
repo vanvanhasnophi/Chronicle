@@ -40,7 +40,8 @@ const Recover = () => import(/* webpackChunkName: "recover" */ '../pages/Recover
 const PostManager = () => import(/* webpackChunkName: "post-manager" */ '../pages/PostManager.vue')
 const FileManager = () => import(/* webpackChunkName: "file-manager" */ '../pages/FileManager.vue')
 const Dashboard = () => import(/* webpackChunkName: "dashboard" */ '../pages/Dashboard.vue')
-const Traffic = () => import(/* webpackChunkName: "traffic" */ '../pages/Traffic.vue')
+// Traffic page hidden — self-hosted analytics not meaningful for static Astro sites
+// const Traffic = () => import(/* webpackChunkName: "traffic" */ '../pages/Traffic.vue')
 const Settings = () => import(/* webpackChunkName: "settings" */ '../pages/Settings.vue')
 const TextEditorLazy = () => import(/* webpackChunkName: "text-editor" */ '../pages/TextEditor.vue')
 const EditorPrintPreview = () => import(/* webpackChunkName: "editor-print-preview" */ '../pages/EditorPrintPreview.vue')
@@ -76,12 +77,7 @@ const routes = [
     component: Dashboard,
     meta: { requiresAuth: true, title: 'nav.dashboard' }
   },
-  {
-    path: '/traffic',
-    name: 'Traffic',
-    component: Traffic,
-    meta: { requiresAuth: true, title: 'nav.traffic' }
-  },
+  // /traffic route hidden — server-side analytics not meaningful for static Astro blogs
   {
     path: '/settings',
     name: 'Settings',

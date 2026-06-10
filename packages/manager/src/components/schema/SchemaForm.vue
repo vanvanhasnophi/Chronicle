@@ -1,50 +1,40 @@
 <template>
   <div class="schema-form">
     <!-- Tab bar — each tab is a route link -->
-    <nav v-if="tabs.length > 1" class="segment-control-bar schema-tabs ">
-      <RouterLink
-        v-for="tab in tabs"
-        :key="tab.key"
-        :to="'/settings/' + tab.key"
-        class="segment-control-item icon-label-btn schema-tab"
-        :class="{ active: $route.path === '/settings/' + tab.key }"
-      >
-        <span v-if="tab.icon" class="tab-icon" v-html="tab.iconHtml"></span>
-        <label>{{ tab.label }}</label>
-      </RouterLink>
-    </nav>
+    <div class="sticky-tabs-wrapper">
+      <nav v-if="tabs.length > 1" class="segment-control-bar schema-tabs ">
+        <RouterLink v-for="tab in tabs" :key="tab.key" :to="'/settings/' + tab.key"
+          class="segment-control-item icon-label-btn schema-tab"
+          :class="{ active: $route.path === '/settings/' + tab.key }">
+          <span v-if="tab.icon" class="tab-icon" v-html="tab.iconHtml"></span>
+          <label>{{ tab.label }}</label>
+        </RouterLink>
+      </nav>
+    </div>
 
     <!-- Tab content -->
-    <div v-for="tab in visibleTabs" :key="tab.key" class="schema-tab-content" :class="{ hidden: activeTab !== tab.key }">
+    <div v-for="tab in visibleTabs" :key="tab.key" class="schema-tab-content"
+      :class="{ hidden: activeTab !== tab.key }">
       <!-- Top-level groups (cards) -->
-      <section
-        v-for="group in tab.groups"
-        :key="group.key"
-        class="group-card"
-      >
+      <section v-for="group in tab.groups" :key="group.key" class="group-card">
         <h3 v-if="group.label && group.label !== '_'" class="group-title">{{ group.label }}</h3>
 
         <div class="group-fields">
-          <SchemaField
-            v-for="field in group.fields"
-            :key="field.key"
-            :field-key="field.key"
-            :field-schema="field.schema"
-            :model-value="getValue(field.key)"
-            :disabled="isDisabled(field)"
-            :disabled-text="disabledText(field)"
-            :field-meta="fieldMetaMap?.[field.key]"
+          <SchemaField v-for="field in group.fields" :key="field.key" :field-key="field.key"
+            :field-schema="field.schema" :model-value="getValue(field.key)" :disabled="isDisabled(field)"
+            :disabled-text="disabledText(field)" :field-meta="fieldMetaMap?.[field.key]"
             @update:model-value="(v: any) => setValue(field.key, v)"
-            @update:meta="(v: any) => onFieldMeta(field.key, v)"
-          />
+            @update:meta="(v: any) => onFieldMeta(field.key, v)" />
         </div>
       </section>
     </div>
 
     <!-- Actions -->
-    <div class="actions">
-      <button class="primary" :disabled="saving" @click="handleSave">{{ saveLabel }}</button>
-      <button class="secondary" :disabled="saving" @click="handleReset">{{ resetLabel }}</button>
+    <div class="actions-wrapper">
+      <div class="actions">
+        <button class="primary" :disabled="saving" @click="handleSave">{{ saveLabel }}</button>
+        <button class="secondary" :disabled="saving" @click="handleReset">{{ resetLabel }}</button>
+      </div>
     </div>
   </div>
 </template>
@@ -193,16 +183,19 @@ function handleReset() { emit('reset') }
 
 .schema-tabs {
   gap: 0.8rem;
+  display: flex;
   flex-wrap: wrap;
   padding: 0.6rem;
   border-radius: 12px;
   background: var(--component-bg-blur);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
   border: 1px solid var(--border-color);
-  position: sticky;
-  top: 4px;
-  z-index: 10;
+  z-index: 100;
+}
+
+.sticky-tabs-wrapper{
+  width: 100%;
+  border-radius: 0 0 12px 12px;
 }
 
 .schema-tab {
@@ -216,7 +209,7 @@ function handleReset() { emit('reset') }
   transition: background 0.15s;
 }
 
-.schema-tab label{
+.schema-tab label {
   cursor: pointer;
   transform: translateY(1px);
 }
@@ -232,7 +225,9 @@ function handleReset() { emit('reset') }
   display: fill;
 }
 
-.schema-tab:hover { background: var(--component-bg-hover); }
+.schema-tab:hover {
+  background: var(--component-bg-hover);
+}
 
 .schema-tab.active {
   background: var(--accent-color);
@@ -267,14 +262,8 @@ function handleReset() { emit('reset') }
   gap: 0.75rem;
 }
 
-.actions {
-  display: flex;
-  gap: 0.75rem;
-  margin-top: 0.5rem;
-}
-
-@media (max-width: 720px) {
-  .schema-tabs {
+@media (max-width: 768px) {
+  .sticky-tabs-wrapper {
     position: static;
   }
 }

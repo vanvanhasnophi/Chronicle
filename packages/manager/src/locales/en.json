@@ -15,14 +15,17 @@
     "settings": "Settings",
     "newPost": "New Post",
     "about": "About",
-    "openFrontend": "Open Frontend",
+    "visitSite": "Visit Site",
     "rebuildFrontend": "Rebuild Frontend",
     "build": "Build",
     "buildNow": "Build Now",
     "group": {
       "template": "Template",
       "system": "System"
-    }
+    },
+    "quickActions": "Quick Actions",
+    "welcome": "Landing Page",
+    "editor": "Editor"
   },
   "inblog": {
     "toc-title": "Table of Contents",
@@ -85,7 +88,9 @@
     "featuredCount": "{count} featured",
     "modifyingCount": "{count} modifying",
     "trafficLast7d": "{count} last 7d",
-    "storageUsedAvl": "{used} Used / {avl} Avl"
+    "storageUsedAvl": "{used} Used / {avl} Avl",
+    "templateVersion": "Template Version",
+    "templateError": "Load template error"
   },
   "traffic": {
     "title": "Traffic Statistics",
@@ -141,7 +146,8 @@
       "video": "Video",
       "document": "Document",
       "code": "Code/Text",
-      "file": "File"
+      "file": "File",
+      "image": "Image"
     }
   },
   "friends": {
@@ -457,7 +463,8 @@
     "enterHint": "Manage posts, collections, settings",
     "loginHint": "Sign in to manage your site",
     "editorHint": "Write in Markdown with live preview",
-    "open": "Open"
+    "open": "Open",
+    "checking": "Checking..."
   },
   "login": {
     "title": "Chronicle Manager",
@@ -545,6 +552,8 @@
     "building": "Building"
   },
   "editor": {
+    "done": "Done",
+    "meta": "Properties",
     "restore": "Restore",
     "save": "Save",
     "upload": "Upload",

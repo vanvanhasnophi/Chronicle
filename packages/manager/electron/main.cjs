@@ -19,6 +19,62 @@ function getDistIndex() {
   throw new Error('dist/index.html not found. Run vite build first.');
 }
 
+// ── Helpers ─────────────────────────────────────────────────
+
+function stripOrigin(win) {
+  win.webContents.session.webRequest.onBeforeSendHeaders((details, callback) => {
+    delete details.requestHeaders['origin'];
+    callback({ requestHeaders: details.requestHeaders });
+  });
+}
+
+function setupUnsavedGuard(win) {
+  win.webContents.on('will-prevent-unload', (event) => {
+    event.preventDefault();
+    const choice = dialog.showMessageBoxSync(win, {
+      type: 'question',
+      buttons: ['Leave', 'Stay'],
+      defaultId: 1,
+      title: 'Unsaved changes',
+      message: 'You have unsaved changes. Leave anyway?',
+    });
+    if (choice === 0) {
+      win.webContents.removeAllListeners('will-prevent-unload');
+      win.close();
+    }
+  });
+}
+
+function createChildWindow(url) {
+  const newWin = new BrowserWindow({
+    width: 1200,
+    height: 800,
+    minWidth: 800,
+    minHeight: 500,
+    frame: false,
+    titleBarStyle: 'hidden',
+    title: 'Chronicle Editor',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  stripOrigin(newWin);
+  setupMaximizeListener(newWin);
+  setupUnsavedGuard(newWin);
+
+  const routePath = url.replace(/^\//, '');
+  const winUrl = isDev
+    ? `${DEV_URL}/${routePath}`
+    : `file:///${getDistIndex().replace(/\\/g, '/')}#/${routePath}`;
+  newWin.loadURL(winUrl);
+  return newWin;
+}
+
+// ── Main window ──────────────────────────────────────────────
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -35,27 +91,11 @@ function createWindow() {
     },
   });
 
-  // Strip Origin header so the host's CORS middleware sees no origin
-  // and allows the request. The CSP connectSrc (fixed in host/index.js)
-  // also permits connections to localhost:* now.
-  mainWindow.webContents.session.webRequest.onBeforeSendHeaders((details, callback) => {
-    delete details.requestHeaders['origin'];
-    callback({ requestHeaders: details.requestHeaders });
-  });
+  stripOrigin(mainWindow);
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    // External URLs → system browser
     if (/^https?:\/\//i.test(url)) { shell.openExternal(url); return { action: 'deny' }; }
-    // Internal paths (/editor?id=...) → new Electron window with same SPA
-    const newWin = new BrowserWindow({
-      width: 1200, height: 800,
-      webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false }
-    });
-    // Hash routes work natively with Vue Router in both dev and production
-    const routePath = url.replace(/^\//, '');
-    const indexPath = getDistIndex().replace(/\\/g, '/');
-    const winUrl = isDev ? `${DEV_URL}/${routePath}` : `file:///${indexPath}#/${routePath}`;
-    newWin.loadURL(winUrl);
+    createChildWindow(url);
     return { action: 'deny' };
   });
 
@@ -66,22 +106,7 @@ function createWindow() {
     mainWindow.loadFile(getDistIndex());
   }
 
-  // Intercept beforeunload: show native dialog instead of silently failing
-  mainWindow.webContents.on('will-prevent-unload', (event) => {
-    event.preventDefault();
-    const choice = dialog.showMessageBoxSync(mainWindow, {
-      type: 'question',
-      buttons: ['Leave', 'Stay'],
-      defaultId: 1,
-      title: 'Unsaved changes',
-      message: 'You have unsaved changes. Leave anyway?',
-    });
-    if (choice === 0) {
-      mainWindow.webContents.removeAllListeners('will-prevent-unload');
-      mainWindow.close();
-    }
-  });
-
+  setupUnsavedGuard(mainWindow);
   setupMaximizeListener(mainWindow);
 
   mainWindow.on('closed', () => { mainWindow = null; });
@@ -107,25 +132,30 @@ if (Menu) {
 }
 
 // ── Window Controls (frameless) ─────────────────────────────
-ipcMain.on('window-minimize', () => {
-  if (mainWindow) mainWindow.minimize();
+// Each call targets the window that sent the IPC, not just mainWindow.
+ipcMain.on('window-minimize', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win) win.minimize();
 });
 
-ipcMain.on('window-maximize', () => {
-  if (!mainWindow) return;
-  if (mainWindow.isMaximized()) {
-    mainWindow.unmaximize();
+ipcMain.on('window-maximize', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) return;
+  if (win.isMaximized()) {
+    win.unmaximize();
   } else {
-    mainWindow.maximize();
+    win.maximize();
   }
 });
 
-ipcMain.on('window-close', () => {
-  if (mainWindow) mainWindow.close();
+ipcMain.on('window-close', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win) win.close();
 });
 
-ipcMain.handle('window-is-maximized', () => {
-  return mainWindow ? mainWindow.isMaximized() : false;
+ipcMain.handle('window-is-maximized', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  return win ? win.isMaximized() : false;
 });
 
 // Notify renderer when maximize state changes

@@ -33,6 +33,21 @@ export const fetchWithAuth = async (
 
   const response = await fetch(finalUrl, { ...options, headers })
 
+  // 401 guard: redirect to login on production pages.
+  // Auth-related pages are exempt — they handle auth failures themselves.
+  const AUTH_EXEMPT_PATHS = ['/login', '/setup', '/recover', '/editor', '/']
+  if (response.status === 401) {
+    const currentPath = window.location.pathname + window.location.search
+    const isExempt = AUTH_EXEMPT_PATHS.some(p =>
+      currentPath === p || (p !== '/' && currentPath.startsWith(p))
+    )
+    if (!isExempt) {
+      localStorage.removeItem('chronicle_auth')
+      window.location.href = `/login?next=${encodeURIComponent(currentPath)}`
+      throw new Error('Session expired — redirecting to login')
+    }
+  }
+
   // Patch .json() to auto-unwrap { code, data, message } envelope
   const origJson = response.json.bind(response)
   ;(response as ChronicleResponse).json = async () => {

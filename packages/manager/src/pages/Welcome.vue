@@ -10,11 +10,11 @@
 
     <!-- Cards -->
     <div class="card-row">
-      <button class="hero-card" @click="isLoggedIn ? goConsole() : goLogin()">
+      <button class="hero-card" @click="authChecked && isLoggedIn ? goConsole() : authChecked ? goLogin() : undefined" :style="{ opacity: authChecked ? 1 : 0.5 }">
         <div class="card-icon" v-html="Icons.columns"></div>
         <h2>{{ $t('welcome.console') }}</h2>
-        <p>{{ isLoggedIn ? $t('welcome.enterHint') : $t('welcome.loginHint') }}</p>
-        <span class="card-arrow">{{ isLoggedIn ? $t('welcome.enter') : $t('welcome.login') }} →</span>
+        <p>{{ authChecked ? (isLoggedIn ? $t('welcome.enterHint') : $t('welcome.loginHint')) : $t('welcome.checking') }}</p>
+        <span class="card-arrow">{{ authChecked ? (isLoggedIn ? $t('welcome.enter') : $t('welcome.login')) : '…' }} →</span>
       </button>
 
       <button class="hero-card" @click="goEditor">
@@ -37,10 +37,10 @@ import { Icons } from '../utils/icons'
 
 const router = useRouter()
 const { t } = useI18n()
+const authChecked = ref(false)
 const isLoggedIn = ref(false)
 
 onMounted(async () => {
-  // Verify auth with a minimal authenticated ping
   try {
     const raw = localStorage.getItem('chronicle_auth')
     if (!raw) return
@@ -57,9 +57,8 @@ onMounted(async () => {
     } else {
       localStorage.removeItem('chronicle_auth')
     }
-  } catch {
-    // Server unreachable — keep existing state, don't clear auth
-  }
+  } catch { /* keep existing state */ }
+  finally { authChecked.value = true }
 })
 
 function goLogin()   { router.push('/login') }
@@ -111,13 +110,18 @@ function goConsole() { router.push('/dashboard') }
   color: var(--text-primary);
   cursor: pointer;
   text-align: center;
-  transition: border-color .2s, box-shadow .2s, transform .15s;
-  min-height: 200px;
+  transition: all .2s;
+  min-height: max(200px, 40vh);
 }
 .hero-card:hover {
-  border-color: var(--accent-color);
-  box-shadow: 0 0 0 1px var(--accent-color);
+  border-color: var(--border-color-blur);
+  scale: 1.05;
 }
+
+body[data-backend-theme="dark"] .hero-card:hover {
+  filter: brightness(1.5);
+}
+
 .card-icon { margin-bottom: 1rem; }
 .card-icon :deep(svg) { width: 40px; height: 40px; color: var(--accent-color); }
 .hero-card h2 { margin: 0 0 .4rem; font-size: 1.1rem; font-weight: 700; }

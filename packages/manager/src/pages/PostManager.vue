@@ -1,74 +1,135 @@
 <template>
-  <div class="manager-container">
-    <div class="manager-header">
-      <h1 class="page-title">{{ $t('post.manageTitle') }}</h1>
-      <div class="header-actions">
-        <button class="secondary-action-btn" @click="republishAll"
-          :disabled="republishing || loading || posts.length === 0">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
-          {{ republishing ? $t('post.republishingAll') : $t('post.republishAll') }}
-        </button>
-        <button class="new-post-btn" @click="createNew">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <line x1="12" y1="5" x2="12" y2="19"></line>
-              <line x1="5" y1="12" x2="19" y2="12"></line>
-            </svg> {{ $t('post.newPost') }}
-        </button>
+  <div class="post-manager">
+    <section class="main-content">
+      <!-- Toolbar -->
+      <div class="chronicle-fb-toolbar">
+        <!-- Status filter select — always visible, replaces sidebar -->
+        <select v-model="currentFilter" class="filter-select">
+          <option v-for="tab in statusTabs" :key="tab.id" :value="tab.id">
+            {{ $t(tab.label) }}
+          </option>
+        </select>
+        <div class="chronicle-fb-toolbar-right">
+          <!-- Search -->
+          <div class="search-box">
+            <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input v-model="searchQuery" type="text" :placeholder="$t('search.placeholder')" class="search-input" />
+          </div>
+
+          <!-- Sort -->
+          <div class="chronicle-fb-sort">
+            <label style="font-size: 0.85rem;">{{ $t('filePicker.sortBy') || 'Sort: ' }}</label>
+            <select v-model="selectedSortBy" class="chronicle-fb-sort-select">
+              <option value="date">{{ $t('post.table.date') }}</option>
+              <option value="title">{{ $t('post.table.title') }}</option>
+              <option value="status">{{ $t('post.table.status') }}</option>
+            </select>
+            <button type="button" class="chronicle-fb-btn chronicle-fb-sort-toggle" :class="sortOrder"
+              @click="toggleAscDesc">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="6" y1="20" x2="6" y2="3" />
+                <line x1="3" y1="6" x2="6" y2="3" />
+                <line x1="10" y1="4" x2="18" y2="4" />
+                <line x1="10" y1="9" x2="19" y2="9" />
+                <line x1="10" y1="14" x2="20" y2="14" />
+                <line x1="10" y1="19" x2="21" y2="19" />
+              </svg>
+            </button>
+          </div>
+          <div class="chronicle-fb-toolbar-actions">
+            <!-- Republish All -->
+            <button class="chronicle-fb-btn" @click="republishAll"
+              :disabled="republishing || loading || posts.length === 0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M23 4v6h-6" />
+                <path d="M1 20v-6h6" />
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+              </svg>
+              <span class="label">{{ $t('post.republishAll') }}</span>
+            </button>
+
+            <!-- New Post -->
+            <button class="chronicle-fb-btn new-post-btn" @click="createNew">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              <span class="label">{{ $t('post.newPost') }}</span>
+            </button>
+          </div>
+        </div>
       </div>
-    </div>
 
-    <div v-if="loading" class="loading">{{ $t('post.loadingPosts') }}</div>
-    <div v-else-if="posts.length === 0" class="empty">{{ $t('post.noPostsFound') }}</div>
+      <!-- Post list -->
+      <div class="chronicle-fb-list">
+        <div v-if="loading" class="chronicle-fb-loading">{{ $t('post.loadingPosts') }}</div>
+        <div v-else-if="filteredPosts.length === 0" class="chronicle-fb-empty">
+          {{ searchQuery ? $t('search.noResults') : $t('post.noPostsFound') }}
+        </div>
 
-    <div v-else class="table-wrapper">
-      <table class="posts-table">
-        <thead>
-          <tr>
-            <th>{{ $t('post.table.title') }}</th>
-            <th>{{ $t('post.table.status') }}</th>
-            <th>{{ $t('post.table.date') }}</th>
-            <th>{{ $t('post.table.actions') }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="post in posts" :key="post.id">
-            <td class="col-title">
+        <div v-else class="post-rows">
+          <div v-for="post in filteredPosts" :key="post.id" class="post-row" @dblclick="startRename(post)">
+            <div class="post-body">
+              <!-- Title / rename -->
               <div v-if="renamingId === post.id" class="rename-box">
                 <input :id="`rename-input-${post.id}`" v-model="tempRenameTitle" @blur="saveRename(post)"
                   @keyup.enter="saveRename(post)" @keyup.esc="cancelRename" class="rename-input" />
               </div>
-              <div v-else class="title-container" @dblclick="startRename(post)" :title="$t('post.renameHint')">
-                <span class="title-text">{{ post.title }}</span>
-                <span class="edit-icon-hint" @click.stop="startRename(post)">✎</span>
+              <div v-else class="post-title" :title="$t('post.renameHint')">
+                {{ post.title }}
               </div>
 
-              <span v-if="post.tags && post.tags.length" class="tags-row">
-                <span v-for="tag in sortTags(post.tags)" :key="tag" class="tag-badge">{{ tag === 'featured' ?
-                  $t('tag.featured') : tag }}</span>
-              </span>
-            </td>
-            <td>
-              <span :class="['status-badge', (typeof post.status === 'string' ? post.status : 'published')]">
-                {{ $t('status.' + (typeof post.status === 'string' ? post.status : 'published')) }}
-              </span>
-            </td>
-            <td>{{ formatDate(post.date) }}</td>
-            <td>
-              <button class="action-btn edit-btn" @click="editPost(post.id)">{{ $t('post.table.edit') }}</button>
-              <button class="action-btn delete-btn" @click="deletePost(post.id)">{{ $t('post.table.delete') }}</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+              <!-- Tags -->
+              <div v-if="post.tags && post.tags.length" class="post-tags">
+                <span v-for="tag in sortTags(post.tags)" :key="tag" class="tag-badge">
+                  {{ tag === 'featured' ? $t('tag.featured') : tag }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Date -->
+            <span class="post-date">{{ formatDate(post.date) }}</span>
+
+            <!-- Status badge -->
+            <span :class="['status-badge', getStatus(post.status)]">
+              {{ $t('status.' + getStatus(post.status)) }}
+            </span>
+
+            <!-- Actions -->
+            <div class="post-actions">
+              <button class="chronicle-fb-preview-btn" @click.stop="editPost(post.id)" :title="$t('post.table.edit')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                  stroke-linejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+              </button>
+              <button class="chronicle-fb-preview-btn delete-action" @click.stop="deletePost(post.id)"
+                :title="$t('post.table.delete')">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { fetchWithAuth } from '../utils/fetchWithAuth';
-import { ref, onMounted, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import { fetchWithAuth } from '../utils/fetchWithAuth'
+import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { sortTags } from '../utils/tagUtils'
 import useToast from '../composables/useToast'
@@ -77,28 +138,79 @@ interface Post {
   id: string
   title: string
   date: string
-  status?: 'draft' | 'published'
+  status?: 'draft' | 'published' | 'modifying'
   tags?: string[]
 }
 
-const router = useRouter()
 const { t } = useI18n()
 const { show: showToast } = useToast()
 const posts = ref<Post[]>([])
 const loading = ref(true)
 const republishing = ref(false)
 
-// Rename state
+// ── Sidebar state ────────────────────────────────────────────────────
+
+const statusTabs = [
+  { id: 'all', label: 'file.categories.all' },
+  { id: 'published', label: 'status.published' },
+  { id: 'draft', label: 'status.draft' },
+  { id: 'modifying', label: 'status.modifying' },
+]
+
+const currentFilter = ref('all')
+
+// ── Search & Sort ────────────────────────────────────────────────────
+
+const searchQuery = ref('')
+const selectedSortBy = ref<'date' | 'title' | 'status'>('date')
+const sortOrder = ref<'asc' | 'desc'>('desc')
+
+function toggleAscDesc() {
+  sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
+}
+
+// ── Filtered & sorted posts ──────────────────────────────────────────
+
+const filteredPosts = computed(() => {
+  let result = [...posts.value]
+
+  // Status filter
+  if (currentFilter.value !== 'all') {
+    result = result.filter(p => getStatus(p.status) === currentFilter.value)
+  }
+
+  // Search filter
+  const q = searchQuery.value.trim().toLowerCase()
+  if (q) {
+    result = result.filter(p => p.title.toLowerCase().includes(q))
+  }
+
+  // Sort
+  const dir = sortOrder.value === 'asc' ? 1 : -1
+  result.sort((a, b) => {
+    const key = selectedSortBy.value
+    if (key === 'date') {
+      return ((a.date || '').localeCompare(b.date || '')) * dir
+    }
+    if (key === 'title') {
+      return (a.title || '').localeCompare(b.title || '') * dir
+    }
+    // status
+    return (getStatus(a.status) || '').localeCompare(getStatus(b.status) || '') * dir
+  })
+
+  return result
+})
+
+// ── Rename ───────────────────────────────────────────────────────────
+
 const renamingId = ref<string | null>(null)
 const tempRenameTitle = ref('')
-const renameInput = ref<HTMLInputElement | null>(null)
 
 function startRename(post: Post) {
   renamingId.value = post.id
   tempRenameTitle.value = post.title
   nextTick(() => {
-    // Focus input if possible (v-for ref handling is tricky, simplified here assumption)
-    // With v-for ref array, it's better to just use autofocus or find element
     const el = document.getElementById(`rename-input-${post.id}`)
     if (el) el.focus()
   })
@@ -107,15 +219,11 @@ function startRename(post: Post) {
 async function saveRename(post: Post) {
   if (!renamingId.value) return
   const newTitle = tempRenameTitle.value.trim()
-
   if (newTitle && newTitle !== post.title) {
     try {
       const res = await fetchWithAuth(`/api/post?t=${Date.now()}`, {
         method: 'POST',
-        body: JSON.stringify({
-          id: post.id,
-          title: newTitle
-        })
+        body: JSON.stringify({ id: post.id, title: newTitle }),
       })
       if (res.ok) {
         post.title = newTitle
@@ -126,7 +234,6 @@ async function saveRename(post: Post) {
       alert(t('post.errorRenaming'))
     }
   }
-
   renamingId.value = null
 }
 
@@ -134,31 +241,33 @@ function cancelRename() {
   renamingId.value = null
 }
 
-const getStatus = (s: any) => {
+// ── Helpers ──────────────────────────────────────────────────────────
+
+function getStatus(s: any): string {
   if (typeof s === 'string') return s
-  // If it's an object (likely Event due to bug) or undefined, fallback
   return 'published'
 }
 
-const formatDate = (isoStr: string) => {
+function formatDate(isoStr: string) {
   if (!isoStr) return '-'
   return new Date(isoStr).toLocaleDateString() + ' ' + new Date(isoStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-const createNew = () => {
+// ── Actions ──────────────────────────────────────────────────────────
+
+function createNew() {
   const id = (typeof crypto !== 'undefined' && (crypto as any).randomUUID)
     ? `new-${(crypto as any).randomUUID()}`
     : `new-${Math.random().toString(36).substring(2, 9)}`
-  window.open(`/editor?id=${id}`,'_blank')
+  window.open(`/editor?id=${id}`, '_blank')
 }
 
-const editPost = (id: string) => {
-  window.open(`/editor?id=${id}`,'_blank')
+function editPost(id: string) {
+  window.open(`/editor?id=${id}`, '_blank')
 }
 
-const deletePost = async (id: string) => {
+async function deletePost(id: string) {
   if (!confirm(t('post.confirmDelete'))) return
-
   try {
     const authToken = (() => {
       try {
@@ -166,18 +275,14 @@ const deletePost = async (id: string) => {
         if (!raw) return ''
         const parsed = JSON.parse(raw)
         return typeof parsed?.token === 'string' ? parsed.token : ''
-      } catch (e) {
-        return ''
-      }
+      } catch (e) { return '' }
     })()
 
     const res = await fetchWithAuth(`/api/post?id=${id}&t=${Date.now()}`, {
       method: 'DELETE',
       headers: authToken ? { 'X-Chronicle-Auth': authToken } : {},
     })
-
     if (res.ok) {
-      // refresh
       loadPosts()
     } else {
       alert(t('post.failedToDelete'))
@@ -186,6 +291,8 @@ const deletePost = async (id: string) => {
     alert(t('post.errorDeleting'))
   }
 }
+
+// ── Data loading ─────────────────────────────────────────────────────
 
 async function loadPosts() {
   loading.value = true
@@ -201,50 +308,34 @@ async function loadPosts() {
   }
 }
 
+// ── Republish All ────────────────────────────────────────────────────
+
 async function republishAll() {
   if (republishing.value) return
   if (!posts.value.some((post) => getStatus(post.status) === 'published')) {
     showToast(t('post.noPublishedPosts'), { status: 'warning', position: 'bottom-center', shape: 'capsule', duration: 3000 })
     return
   }
-
   if (!confirm(t('post.republishAllConfirm'))) return
 
   republishing.value = true
   try {
-    const res = await fetchWithAuth(`/api/admin/posts/republish-all?t=${Date.now()}`, {
-      method: 'POST',
-    })
-
+    const res = await fetchWithAuth(`/api/admin/posts/republish-all?t=${Date.now()}`, { method: 'POST' })
     const payload = await res.json().catch(() => null)
-    if (!res.ok || !payload?.success) {
-      throw new Error(payload?.message || t('post.republishAllFailed'))
-    }
+    if (!res.ok || !payload?.success) throw new Error(payload?.message || t('post.republishAllFailed'))
 
     const successList = Array.isArray(payload.successList) ? payload.successList : Array.isArray(payload.republishedPosts) ? payload.republishedPosts : []
     const failureList = Array.isArray(payload.failureList) ? payload.failureList : []
     const skippedList = Array.isArray(payload.skippedList) ? payload.skippedList : Array.isArray(payload.skippedPosts) ? payload.skippedPosts : []
-
     const successCount = Number(payload.successCount ?? successList.length ?? 0)
     const failureCount = Number(payload.failureCount ?? failureList.length ?? 0)
     const skippedCount = Number(payload.skippedCount ?? skippedList.length ?? 0)
     const buildStatus = payload.build?.status
     const buildMessage = payload.build?.message ? ` ${payload.build.message}` : ''
-    const html = buildRepublishToastHtml({
-      successCount,
-      failureCount,
-      skippedCount,
-      successList,
-      failureList,
-      skippedList,
-    })
+    const html = buildRepublishToastHtml({ successCount, failureCount, skippedCount, successList, failureList, skippedList })
     const toastStatus = failureCount > 0 ? 'error' : (skippedCount > 0 ? 'warning' : 'success')
     showToast(`${t('post.republishToastTitle')}：${html}${buildStatus ? ` <span class="republish-build-note">(${escapeHtml(buildStatus)}${buildMessage ? ` ${escapeHtml(buildMessage)}` : ''})</span>` : ''}`, {
-      status: toastStatus,
-      position: 'bottom-center',
-      shape: 'capsule',
-      duration: 6000,
-      rich: true,
+      status: toastStatus, position: 'bottom-center', shape: 'capsule', duration: 6000, rich: true,
     })
     await loadPosts()
   } catch (error: any) {
@@ -255,12 +346,7 @@ async function republishAll() {
 }
 
 function escapeHtml(input: any) {
-  return String(input ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
+  return String(input ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
 }
 
 function buildListLink(label: string, items: Array<{ id?: string; title?: string; reason?: string }>) {
@@ -268,14 +354,7 @@ function buildListLink(label: string, items: Array<{ id?: string; title?: string
   return `<a href="#" class="toast-link" data-toast-label="${escapeHtml(label)}" data-toast-items="${escapeHtml(encodedItems)}">${escapeHtml(label)} ${escapeHtml(items.length)}</a>`
 }
 
-function buildRepublishToastHtml(payload: {
-  successCount: number
-  failureCount: number
-  skippedCount: number
-  successList: Array<{ id?: string; title?: string; reason?: string }>
-  failureList: Array<{ id?: string; title?: string; reason?: string }>
-  skippedList: Array<{ id?: string; title?: string; reason?: string }>
-}) {
+function buildRepublishToastHtml(payload: { successCount: number; failureCount: number; skippedCount: number; successList: any[]; failureList: any[]; skippedList: any[] }) {
   return [
     buildListLink(t('post.republishToastSuccess'), payload.successList),
     buildListLink(t('post.republishToastFailure'), payload.failureList),
@@ -283,196 +362,245 @@ function buildRepublishToastHtml(payload: {
   ].join('，')
 }
 
+// ── Init ─────────────────────────────────────────────────────────────
+
+// ── Init ─────────────────────────────────────────────────────────────
+
+let channel: BroadcastChannel | null = null
+
 onMounted(() => {
   loadPosts()
+  channel = new BroadcastChannel('chronicle')
+  channel.onmessage = (e) => {
+    if (e.data?.type === 'post-updated') {
+      loadPosts()
+    }
+  }
+})
+
+onUnmounted(() => {
+  if (channel) { channel.close(); channel = null }
 })
 </script>
 
 <style scoped>
-.manager-container {
-  max-width: 1000px;
-  margin: 0 auto;
-  padding: 40px 20px;
+/* ── Page layout ───────────────────────────────────────────────────── */
+
+.post-manager {
+  display: flex;
+  height: 100%;
+  background: transparent;
   color: var(--text-primary);
 }
 
-.manager-header {
+/* ── Main content ──────────────────────────────────────────────────── */
+
+.main-content {
+  flex: 1;
   display: flex;
+  flex-direction: column;
+  padding: 1.5rem 1.75rem;
+  overflow-y: auto;
+  min-width: 0;
+}
+
+/* ── Toolbar ───────────────────────────────────────────────────────── */
+
+:deep(.chronicle-fb-toolbar) {
+  min-height: 48px;
+  height: auto;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+:deep(.chronicle-fb-toolbar-right) {
+  flex-wrap: wrap;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 30px;
 }
 
-.header-actions {
+/* ── Filter select — always visible, replaces sidebar ─────────────── */
+
+.filter-select {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 40px;
+  padding: 0 2rem 0 0;
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--component-text-primary);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 16px;
+  transition: border-color 0.2s;
+}
+
+/* ── Search box ────────────────────────────────────────────────────── */
+
+.search-box {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
+  margin-right: 0.5rem;
 }
 
-.page-title {
-  margin: 0;
-  font-size: 2em;
-  color: var(--text-primary);
+.search-icon {
+  position: absolute;
+  left: 10px;
+  width: 16px;
+  height: 16px;
+  color: var(--component-text-secondary);
+  pointer-events: none;
 }
+
+.search-input {
+  height: 36px;
+  padding: 0 12px 0 32px;
+  font-size: 0.9rem;
+  color: var(--component-text-primary);
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  outline: none;
+  width: 180px;
+  transition: border-color 0.2s, width 0.2s;
+}
+
+.search-input:focus {
+  border-color: var(--accent-color);
+  width: 220px;
+}
+
+.search-input::placeholder {
+  color: var(--component-text-secondary);
+}
+
+/* ── New post button ───────────────────────────────────────────────── */
 
 .new-post-btn {
-  flex-shrink: 0;
-  background: var(--accent-color);
-  color: var(--text-on-accent);
-  border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
-  cursor: pointer;
-  line-height: 1;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  transition: all 0.2s;
+  background: var(--accent-color) !important;
+  color: var(--text-on-accent) !important;
+  border-radius: 10px !important;
 }
 
-.new-post-btn svg {
+.new-post-btn:hover {
+  background: var(--accent-color-hover) !important;
+  color: var(--text-on-accent) !important;
+}
+
+/* ── Sort overrides ────────────────────────────────────────────────── */
+
+:deep(.chronicle-fb-sort-select) {
+  font-size: 0.9rem;
+  height: 36px;
+  margin: 0 6px;
+}
+
+:deep(.chronicle-fb-sort-toggle) {
+  padding: 0.45rem;
+}
+
+:deep(.chronicle-fb-sort-toggle svg) {
+  width: 22px;
+  height: 22px;
+}
+
+:deep(.chronicle-fb-btn) {
+  font-size: 0.9rem;
+  padding: 0.45rem 0.7rem;
+}
+
+:deep(.chronicle-fb-btn svg) {
   width: 18px;
   height: 18px;
 }
 
-.new-post-btn:hover {
-  background: var(--accent-color-hover);
+/* ── Post list area ────────────────────────────────────────────────── */
+
+:deep(.chronicle-fb-list) {
+  height: calc(100% - 48px - 1.5rem);
 }
 
-.secondary-action-btn {
+/* ── Post rows (hybrid card-list) ──────────────────────────────────── */
+
+.post-rows {
   display: flex;
-  flex-shrink: 0;
-  background: transparent;
-  color: var(--component-text-primary);
-  border: 1px solid var(--border-color);
-  padding: 8px 16px;
-  border-radius: 6px;
-  cursor: pointer;
-  line-height: 1;
-  font-size: 14px;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.post-row {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  transition: all 0.2s;
-}
-
-.secondary-action-btn svg {
-  width: 16px;
-  height: 16px;
-}
-
-.secondary-action-btn:hover:not(:disabled) {
-  border-color: var(--accent-color);
-  color: var(--accent-color);
-}
-
-.secondary-action-btn:disabled,
-.new-post-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.table-wrapper {
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  border: 1px solid transparent;
   background: transparent;
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-  overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  cursor: default;
 }
 
-.posts-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.posts-table th,
-.posts-table td {
-  padding: 16px;
-  text-align: left;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.posts-table th {
-  background: var(--component-bg-blur);
-  color: var(--component-text-secondary);
-  font-weight: 600;
-  font-size: 0.9em;
-}
-.posts-table tr{
+.post-row:hover {
+  border-color: var(--border-color-blur);
   background: var(--component-bg-blur-alt);
-}
-.posts-table tr:hover {
-  background: var(--component-bg-hover);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
-.posts-table tr:last-child td {
-  border-bottom: none;
-}
-
-.col-title {
-  min-width: 200px;
-}
-
-.title-text {
-  display: inline-block;
-  font-size: 1.1em;
-  color: var(--text-primary);
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.title-container:hover .title-text {
-  color: var(--accent-color);
-  text-decoration: underline;
-}
-
-.edit-icon-hint {
-  opacity: 0;
-  margin-left: 8px;
-  cursor: pointer;
-  font-size: 12px;
-  color: var(--component-text-secondary);
-}
-
-.title-container:hover .edit-icon-hint {
-  opacity: 1;
-}
-
-.rename-input {
-  background: var(--bg-primary);
-  border: 1px solid var(--accent-color);
-  color: var(--text-primary);
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 1.1em;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.tags-row {
+.post-body {
+  flex: 1;
+  min-width: 0;
   display: flex;
-  gap: 6px;
-  margin-top: 4px;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.post-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--component-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.post-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
 }
 
 .tag-badge {
-  font-size: 0.75em;
+  font-size: 0.75rem;
   background: var(--component-bg-hover);
-  padding: 2px 6px;
-  border-radius: 3px;
+  padding: 2px 7px;
+  border-radius: 4px;
   color: var(--component-text-secondary);
+}
+
+.post-date {
+  font-size: 0.85rem;
+  color: var(--component-text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .status-badge {
   display: inline-block;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 0.8em;
-  font-weight: bold;
-  font-variation-settings: 'wght' 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .status-badge.draft {
@@ -489,59 +617,148 @@ onMounted(() => {
 
 .status-badge.modifying {
   background: var(--component-bg-hover);
-  color: var(--featured);
-  border: 1px solid var(--featured);
+  color: var(--featured, #f59e0b);
+  border: 1px solid var(--featured, #f59e0b);
 }
 
-.action-btn {
-  background: transparent;
-  border: 1px solid var(--border-color-blur);
-  color: var(--component-text-primary);
+/* ── Post actions ──────────────────────────────────────────────────── */
+
+.post-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.post-actions .chronicle-fb-preview-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+}
+
+.post-actions .chronicle-fb-preview-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.delete-action:hover {
+  background: var(--status-error) !important;
+  color: #fff !important;
+}
+
+/* ── Rename input ──────────────────────────────────────────────────── */
+
+.rename-box {
+  width: 100%;
+}
+
+.rename-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg-primary);
+  border: 1px solid var(--accent-color);
+  color: var(--text-primary);
   padding: 4px 10px;
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 0.9em;
-  transition: all 0.2s;
+  border-radius: 8px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  outline: none;
 }
 
-.action-btn:hover {
-  border-color: var(--accent-color);
-  color: var(--accent-color);
+/* ── Loading / empty ───────────────────────────────────────────────── */
+
+:deep(.chronicle-fb-loading),
+:deep(.chronicle-fb-empty) {
+  font-size: 1rem;
+  padding: 60px;
 }
 
-.delete-btn {
-  margin-left: 8px;
-  border-color: var(--border-color);
-  color: var(--component-text-secondary);
-}
+/* ── Responsive: ≤ 850px ───────────────────────────────────────────── */
 
-.delete-btn:hover {
-  border-color: var(--status-error);
-  color: var(--status-error);
-}
-
-.loading,
-.empty {
-  text-align: center;
-  padding: 40px;
-  color: var(--component-text-secondary);
-}
-
-@media (max-width: 768px) {
-  .manager-container {
-    padding: 20px 10px;
+@media (max-width: 850px) {
+  .main-content {
+    padding: 1rem;
   }
 
-  .header-actions {
+  .post-row {
+    flex-wrap: wrap;
+    padding: 0.75rem 0.9rem;
+    gap: 0.6rem;
+  }
+
+  .post-actions {
+    order: 3;
+  }
+
+  :deep(.chronicle-fb-btn .label) {
+    display: none;
+  }
+}
+
+/* ── Responsive: ≤ 600px ───────────────────────────────────────────── */
+
+@media (max-width: 600px) {
+  .post-manager {
+    flex-direction: column;
+  }
+
+  /* Filter select: touch height, left padding for hamburger */
+  .filter-select {
+    width: 100%;
+    height: 44px;
+    padding: 0 2rem 0 3rem;
+    font-size: 1rem;
+    background-position: right 0.5rem center;
+    background-size: 18px;
+  }
+
+  /* Toolbar controls: full-width row 2 */
+  :deep(.chronicle-fb-toolbar-right) {
+    width: 100%;
+  }
+
+  .main-content {
+    padding: 0.75rem;
+  }
+
+  /* Search: full width on its own row */
+  .search-box {
+    width: 100%;
+    order: 1;
+    margin-right: 0;
+  }
+
+  .search-input {
+    width: 100%;
+  }
+
+  .search-input:focus {
+    width: 100%;
+  }
+
+  .post-row {
     flex-direction: column;
     align-items: stretch;
-    gap: 8px;
+    padding: 0.75rem;
+    gap: 0.5rem;
   }
 
-  .new-post-btn,
-  .secondary-action-btn {
-    width: 100%;
-    justify-content: center;
+  .post-actions {
+    justify-content: flex-end;
+  }
+
+  .post-actions .chronicle-fb-preview-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .post-actions .chronicle-fb-preview-btn svg {
+    width: 18px;
+    height: 18px;
   }
 }
 </style>

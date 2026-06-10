@@ -234,7 +234,7 @@ const handlePasskeyLogin = async (is2FA = false) => {
       let done = false
       el.onLoginCallback((token: string) => { if (!done) { done = true; completeLogin(token) } })
       const base = (confirmedUrl.value || resolveApiBaseUrl() || 'http://localhost:3000').replace(/\/$/, '')
-      await el.openExternalLogin(`${base}/api/auth/webauthn?callback=${encodeURIComponent('chronicle://auth')}`)
+      await el.openExternalLogin(`${base}/api/public/auth/webauthn?callback=${encodeURIComponent('chronicle://auth')}`)
       setTimeout(() => {
         if (!done) error.value = t('login.loginInBrowserThenRefresh')
       }, 30000)

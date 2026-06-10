@@ -14,6 +14,7 @@ import FilePreviewModal from './components/FilePreviewModal.vue'
 import ImagePreviewModal from './components/ImagePreviewModal.vue'
 import Toast from './components/Toast.vue'
 import useToast from './composables/useToast'
+import { usePreferences } from './composables/usePreferences'
 import { useI18n } from 'vue-i18n'
 import TitleBar from './components/TitleBar.vue'
 import SafeTeleport from './components/SafeTeleport.vue'
@@ -1007,8 +1008,22 @@ watch(route, () => {
 
 // Sidebar actions: open frontend and trigger astro rebuild
 const { show: showToast } = useToast()
+const { theme, cycleTheme } = usePreferences()
+async function cycleAndSaveTheme() {
+  cycleTheme()
+  fetchWithAuth('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ backendTheme: theme.value }) }).catch(() => {})
+}
 const isRebuilding = ref(false)
 const isAvailable = ref(true)
+const quickOpen = ref(false)
+function onQuickMenuFocusOut(e: FocusEvent) {
+  const target = e.relatedTarget as HTMLElement | null
+  if (!target || !target.closest('.quick-menu')) {
+    quickOpen.value = false
+  }
+}
+function doLogout() { localStorage.removeItem("chronicle_auth"); quickOpen.value = false; try { (window as any).__CHRONICLE_SETTINGS__ = null } catch {}; router.push("/login") }
+const groupIcons: Record<string, string> = { template: 'palette', system: 'settings' }
 
 function normalizeFrontendUrl(frontendUrl: string) {
   if (!frontendUrl) return '/'
@@ -1024,6 +1039,10 @@ async function openFrontend() {
     const frontendUrl = normalizeFrontendUrl(settings.frontendUrl || 'blog.eightyfor.top')
     window.open(frontendUrl, '_blank')
   } catch (e) { }
+}
+
+function openEditor() {
+  window.open('/editor', '_blank')
 }
 
 async function rebuildFrontend() {
@@ -1097,14 +1116,12 @@ async function rebuildFrontend() {
         </div>
 
         <div class="sidebar-nav">
-          <RouterLink to="/dashboard" class="sidebar-items nav-link backend-nav-link" @click="isMenuOpen = false">{{
-            $t('nav.dashboard') }}</RouterLink>
-          <RouterLink to="/files" class="sidebar-items nav-link backend-nav-link" @click="isMenuOpen = false">{{
-            $t('nav.files') }}</RouterLink>
-          <RouterLink to="/traffic" class="sidebar-items nav-link backend-nav-link" @click="isMenuOpen = false">{{
-            $t('nav.traffic') }}</RouterLink>
-          <RouterLink to="/manage" class="sidebar-items nav-link backend-nav-link" @click="isMenuOpen = false">{{
-            $t('nav.posts') }}</RouterLink>
+          <RouterLink to="/dashboard" class="sidebar-items nav-link backend-nav-link" @click="isMenuOpen = false">
+            <span class="nav-label"><i class="nav-icon" v-html="ShellIcons.columns"></i>{{ $t('nav.dashboard') }}</span></RouterLink>
+          <RouterLink to="/files" class="sidebar-items nav-link backend-nav-link" @click="isMenuOpen = false">
+            <span class="nav-label"><i class="nav-icon" v-html="ShellIcons.folder"></i>{{ $t('nav.files') }}</span></RouterLink>
+          <RouterLink to="/manage" class="sidebar-items nav-link backend-nav-link" @click="isMenuOpen = false">
+            <span class="nav-label"><i class="nav-icon" v-html="ShellIcons.edit"></i>{{ $t('nav.posts') }}</span></RouterLink>
 
           <!-- Schema-driven groups: each x-nav.group = one sidebar tree group -->
           <div
@@ -1115,7 +1132,10 @@ async function rebuildFrontend() {
           >
             <button type="button" class="sidebar-items nav-link backend-nav-link backend-tree-toggle"
               @click="toggleSchemaGroup(group.group)">
-              <span>{{ $t('nav.group.' + group.group, group.label) }}</span>
+              <span class="nav-label">
+                <i class="nav-icon" v-html="(ShellIcons as any)[groupIcons[group.group] || 'folder']"></i>
+                {{ $t('nav.group.' + group.group, group.label) }}
+              </span>
               <span class="backend-tree-caret" :class="{ open: schemaGroupOpen[group.group] }" v-html="ShellIcons.chevron"></span>
             </button>
             <div v-show="schemaGroupOpen[group.group]" class="backend-tree-children">
@@ -1125,28 +1145,64 @@ async function rebuildFrontend() {
                 :to="item.route"
                 class="sidebar-items nav-link backend-nav-link backend-tree-child"
                 @click="isMenuOpen = false"
-              >{{ item.label }}</RouterLink>
+              >
+                {{ item.label }}
+              </RouterLink>
             </div>
           </div>
         </div>
         <div class="backend-sidebar-footer">
-          <RouterLink to="/settings/system-build"
-            :class="['sidebar-items nav-link backend-nav-link sidebar-footer-item sidebar-footer-link', { 'router-link-active': isBuildActive }]"
-            @click="isMenuOpen = false" :aria-current="isBuildActive ? 'page' : undefined">
-            <span class="icon-svg footer-icon" v-html="ShellIcons.columns"></span>
-            <span class="footer-label">{{ $t('nav.build') }}</span>
-          </RouterLink>
-
-          <button class="sidebar-footer-item sidebar-footer-icon-btn" type="button" @click="rebuildFrontend"
-            :disabled="!isAvailable" :class="{ 'inprogress': isRebuilding }" :title="$t('nav.buildNow')"
-            aria-label="{{ $t('nav.buildNow') }}">
-            <span class="icon-svg footer-icon" v-html="ShellIcons.refresh"></span>
-          </button>
-
-          <button class="sidebar-footer-item sidebar-footer-icon-btn" type="button" @click="openFrontend"
-            :title="$t('nav.openFrontend')" aria-label="{{ $t('nav.openFrontend') }}">
-            <span class="icon-svg footer-icon" v-html="ShellIcons.link"></span>
-          </button>
+          <div class="quick-menu" tabindex="-1" @focusout="onQuickMenuFocusOut">
+            <button class="sidebar-footer-item sidebar-footer-link quick-btn"
+              @click="quickOpen = !quickOpen" :title="$t('nav.quickActions')">
+              <span class="icon-svg footer-icon" v-html="ShellIcons.zap"></span>
+              <span class="footer-label">{{t('nav.quickActions')}}</span>
+              <span class="quick-chevron" :class="{ open: quickOpen }" v-html="ShellIcons.chevron" style="transform:rotate(-90deg)"></span>
+            </button>
+            <div v-if="quickOpen" class="quick-popover">
+              <!-- Section 1: Theme mode -->
+              <div class="quick-section">
+                <button @click="cycleAndSaveTheme()" class="quick-theme-toggle">
+                  <span class="icon-svg" v-html="theme === 'light' ? ShellIcons.sun : theme === 'dark' ? ShellIcons.moon : ShellIcons.monitor"></span>
+                  <span>Theme · {{ theme === 'light' ? 'Light' : theme === 'dark' ? 'Dark' : 'Follow' }}</span>
+                </button>
+              </div>
+              <div class="quick-sep"></div>
+              <!-- Section 2: Navigate -->
+              <div class="quick-section">
+                <button @click="quickOpen = false; router.push('/')">
+                  <span class="icon-svg">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                  </span>
+                  {{ $t('nav.welcome') || 'Welcome' }}
+                </button>
+                <button @click="quickOpen = false; openEditor()">
+                  <span class="icon-svg" v-html="ShellIcons.edit"></span>
+                  {{ $t('nav.editor') || 'Editor' }}
+                </button>
+              </div>
+              <div class="quick-sep"></div>
+              <!-- Section 3: Actions -->
+              <div class="quick-section">
+                <button @click="quickOpen = false; rebuildFrontend()" :disabled="!isAvailable"
+                  :class="{ inprogress: isRebuilding }">
+                  <span class="icon-svg" v-html="ShellIcons.refresh"></span>
+                  {{isRebuilding? t('settings.building') : t('nav.buildNow')}}
+                </button>
+                <button @click="quickOpen = false; openFrontend()">
+                  <span class="icon-svg" v-html="ShellIcons.link"></span>
+                  {{t('nav.visitSite')}}
+                </button>
+              </div>
+              <div class="quick-sep"></div>
+              <!-- Section 3: Logout -->
+              <div class="quick-section">
+                <button class="quick-logout" @click="doLogout()">
+                  {{t('security.logout')}}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </aside>
     </template>
@@ -1388,7 +1444,7 @@ body.is-electron .main-content.print-preview {
 
 .backend-tree-group.active,
 .backend-tree-group.expanded {
-  background: var(--component-bg-blur-alt);
+  background: color-mix(in srgb, var(--app-text-primary) 9%, transparent);
   color: var(--component-text-primary-hover);
 }
 
@@ -1434,7 +1490,7 @@ body.is-electron .main-content.print-preview {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  padding-left: 0.8rem;
+  padding-left: 2rem;
 }
 
 .backend-tree-child {
@@ -1508,8 +1564,9 @@ body.is-electron .main-content.print-preview {
   color: var(--text-inactive);
 }
 
-:deep(.sidebar-footer-icon-btn.inprogress svg) {
-  animation: spin 5s linear infinite;
+:deep(.sidebar-footer-icon-btn.inprogress svg),
+.quick-popover button.inprogress :deep(svg) {
+  animation: spin 4s linear infinite;
 }
 
 .sidebar-footer-item:hover {
@@ -1538,4 +1595,38 @@ body.is-electron .main-content.print-preview {
 .footer-label {
   font-size: 1rem;
 }
+.quick-menu { position: relative; width: 100%; display: flex; justify-content: flex-end; }
+.quick-btn {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 0 14px; height: 36px;
+  border: none; background: none; color: var(--text-secondary); cursor: pointer;
+  border-radius: 9999px; font-size: .85rem;
+  transition: background .15s;
+}
+.quick-btn:hover { background: color-mix(in srgb, var(--text-secondary) 18%, transparent); }
+.quick-chevron { margin-left: auto; width: 16px; height: 16px; display: flex; align-items: center; }
+.quick-chevron.open { transform: rotate(90deg); }
+.quick-popover {
+  position: absolute; left: calc(100% + 4px); bottom: 0;
+  background: var(--component-bg); border: 1px solid var(--border-color);
+  border-radius: 12px; padding: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.3);
+  display: flex; flex-direction: column; gap: 2px;
+  min-width: 170px;
+}
+.quick-popover button {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 8px 12px; border: none; background: none;
+  color: var(--text-primary); cursor: pointer; border-radius: 8px;
+  font-size: .85rem; text-align: left;
+  transition: all .15s;
+}
+.quick-popover button:hover { background: var(--component-bg-hover); }
+.quick-popover button:disabled { opacity: .4; cursor: not-allowed; }
+.quick-popover .icon-svg { width: 16px; height: 16px; display: flex; align-items: center; }
+.quick-sep { height: 1px; background: var(--border-color); margin: 4px 0; }
+.quick-logout { color: var(--status-error) !important; }
+.quick-logout:hover { background: color-mix(in srgb, var(--status-error) 15%, transparent) !important; }
+.quick-theme-toggle { justify-content: flex-start; }
+.footer-icon { width: 18px; height: 18px; display: flex; align-items: center; }
 </style>

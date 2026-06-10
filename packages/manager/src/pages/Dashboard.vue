@@ -51,16 +51,8 @@ const error = ref('')
 const posts = ref<PostRecord[]>([])
 const totalUploads = ref(0)
 const storage = ref<StorageResponse | null>(null)
-const trafficEnabled = ref(true)
-const trafficData = ref<{
-  source?: string
-  range?: { value?: string; days?: string | number; granularity?: string; start?: string | null; end?: string | null }
-  summary?: { totalRequests?: number; pageViews?: number; apiCalls?: number; uniqueVisitors?: number }
-  series?: Array<{ key?: string; label?: string; count?: number; pageViews?: number; apiCalls?: number; uniqueVisitors?: number }>
-  last24h?: number
-  last7d?: number
-} | null>(null)
-const trafficRange = ref<'30min' | '12h' | '1d' | '7d' | '30d'>('1d')
+const templateInfo = ref<{ name?: string; version?: string }>({})
+const templateError = ref(false)
 
 function formatBytes(bytes: number, short?: boolean) {
   if (!bytes) return '0 B'
@@ -106,16 +98,13 @@ onMounted(async () => {
 
     storage.value = await storageRes.json()
 
-    const settings = await syncSettings()  // deduplicates with App.vue's syncSettings
-    trafficEnabled.value = settings?.featureFlags?.traffic === true
+    // 模板版本信息（非阻塞，失败不影响仪表盘）
+    fetchWithAuth('/api/admin/template/info', { cache: 'no-store' })
+      .then(res => res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`)))
+      .then(data => { if (data) templateInfo.value = data; })
+      .catch(() => { templateError.value = true; })
 
-    // 处理流量数据
-    if (trafficEnabled.value) {
-      const trafficRes = await fetchWithAuth(`/api/traffic?range=${trafficRange.value}&t=${stamp}`, { cache: 'no-store' }).catch(() => null)
-      if (trafficRes && trafficRes.ok) {
-        trafficData.value = await trafficRes.json()
-      }
-    }
+    await syncSettings()  // deduplicates with App.vue's syncSettings
   } catch (err) {
     error.value = t('dashboard.loadFailed')
   } finally {
@@ -154,14 +143,6 @@ const overviewCards = computed(() => {
     storageNoteClass = 'warning-note'
   }
 
-  // 流量数据
-  const trafficSeriesTotal = trafficData.value?.summary?.totalRequests ?? NaN
-  const trafficNote = !trafficEnabled.value
-    ? t('dashboard.trafficDisabled')
-    : trafficData.value
-      ? t('dashboard.trafficLast7d', { count: trafficSeriesTotal })
-      : t('dashboard.fetchError')
-
   return [
     { 
       label: t('dashboard.totalPosts'), 
@@ -175,18 +156,18 @@ const overviewCards = computed(() => {
       note: t('dashboard.modifyingCount', { count: modifyingPosts }),
       noteClass: modifyingPosts > 0 ? 'warning-note' : ''
     },
-    { 
-      label: t('dashboard.traffic24h'), 
-      value: trafficEnabled.value ? (isNaN(trafficSeriesTotal) ? 'NaN' : trafficSeriesTotal) : 'N/A',
-      note: trafficNote,
-      noteClass: !trafficEnabled.value ? 'warning-note' : (!trafficData.value ? 'error-note' : '')
-    },
-    { 
+    {
       label: t('dashboard.storageUsage'), 
       value: `${storagePercent.toFixed(1)}%`,
       note: serverTotalBytes > 0 ? t('dashboard.storageUsedAvl', { used: formatBytes(projectUsed), avl: formatBytes(serverAvailable) }) : t('dashboard.fetchError'),
       noteClass: serverTotalBytes === 0 ? 'error-note' : storageNoteClass
     },
+    {
+      label: t('dashboard.templateVersion'),
+      value: templateInfo.value.version || 'N/A',
+      note: templateInfo.value.name || t('dashboard.templateError'),
+      noteClass: templateError.value ? 'error-note' : ''
+    }
   ]
 })
 
@@ -276,12 +257,6 @@ const monthlyPosts = computed(() => {
   return entries.map(([key, count]) => ({ key, label: key.slice(5), count }))
 })
 
-const trafficChartDays = computed(() => (trafficData.value?.series || []).map((item) => item.label || item.key || '-'))
-
-const trafficChartValues = computed(() => (trafficData.value?.series || []).map((item) => Number(item.count) || 0))
-
-const maxTrafficValue = computed(() => Math.max(1, ...trafficChartValues.value))
-
 const recentPosts = computed(() => {
   const sorted = (posts.value || []).slice().sort((a, b) => {
     const ta = new Date(a.updatedAt || a.date || '').getTime() || 0
@@ -311,7 +286,7 @@ const projectUsed = computed(() => {
   <div class="page-dashboard">
     <header class="page-header">
       <div>
-        <h2>{{ t('dashboard.title') }}</h2>
+        <h2 class="responsive-title">{{ t('dashboard.title') }}</h2>
         <p>{{ t('dashboard.subtitle') }}</p>
       </div>
     </header>
@@ -357,23 +332,7 @@ const projectUsed = computed(() => {
       </section>
 
       <section class="section-grid two-col">
-        <article class="panel">
-          <div class="panel-header">
-            <h3>{{ t('dashboard.trafficSnapshot') }}</h3>
-          </div>
-          <div v-if="trafficChartValues.length > 0" class="bar-chart">
-            <div v-for="(value, index) in trafficChartValues" :key="index" class="bar-row">
-              <span class="bar-label">{{ trafficChartDays[index] }}</span>
-              <div class="bar-track"><span class="bar-fill" :style="{ width: `${Math.max(6, (value / maxTrafficValue) * 100)}%` }"></span></div>
-              <span class="bar-value">{{ value }}</span>
-            </div>
-          </div>
-          <div v-else class="traffic-error">
-            <span>{{ !trafficEnabled ? t('dashboard.trafficDisabled') : t('dashboard.trafficFetchError') }}</span>
-          </div>
-        </article>
-
-        <article class="panel">
+        <article class="panel panel-full">
           <div class="panel-header">
             <h3>{{ t('dashboard.spaceContribution') }}</h3>
           </div>
@@ -404,9 +363,6 @@ const projectUsed = computed(() => {
             </div>
           </div>
         </article>
-      </section>
-
-      <section class="section-grid">
         <article class="panel">
           <div class="panel-header">
             <h3>{{ t('dashboard.storagePaths') }}</h3>
@@ -456,9 +412,7 @@ const projectUsed = computed(() => {
 .tag-rank li { display: flex; justify-content: space-between; align-items: center; gap: .6rem; }
 .tag-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tag-count { color: var(--component-text-secondary); }
-.bar-chart { display: grid; gap: .7rem; }
-.traffic-error { display: flex; align-items: center; justify-content: center; height: 200px; color: var(--component-text-secondary); }
-.bar-row { display: grid; grid-template-columns: 50px 1fr 36px; gap: .6rem; align-items: center; }
+.bar-chart { display: grid; gap: .7rem; }.bar-row { display: grid; grid-template-columns: 50px 1fr 36px; gap: .6rem; align-items: center; }
 .bar-label { color: var(--component-text-secondary); font-size: .88rem; }
 .bar-track { height: 10px; background: var(--component-bg); border-radius: 999px; overflow: hidden; }
 .bar-fill { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent-color), color-mix(in srgb, var(--accent-color) 25%, transparent)); }
@@ -491,4 +445,5 @@ const projectUsed = computed(() => {
 .path-list code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace; font-size: .82rem; word-break: break-all; }
 @media (max-width: 1100px) { .summary-grid, .two-col { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 720px) { .summary-grid, .two-col { grid-template-columns: 1fr; } .bar-row { grid-template-columns: 44px 1fr 32px; } }
+
 </style>
