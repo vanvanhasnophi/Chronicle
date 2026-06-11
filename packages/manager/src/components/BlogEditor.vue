@@ -604,6 +604,7 @@ import MarkdownItPreview from './MarkdownItPreview.vue'
 import { debounce } from '../utils/debounce'
 import { Icons } from '../utils/icons'
 import { convertToHtml, injectHeadingIds, getStats } from '../utils/markdownParser'
+import { renderPreview } from '../utils/markdownPreview'
 import { sortTags } from '../utils/tagUtils'
 import { useI18n } from 'vue-i18n'
 import CheckRow from './ui/CheckRow.vue';
@@ -1703,9 +1704,7 @@ async function doSave(action?: 'local' | 'draft' | 'publish' | 'upload' | 'unsav
                 }
 
                 if (!previousPostId && intent === 'publish') {
-                    const currentUrl = new URL(window.location.href)
-                    currentUrl.searchParams.set('id', data.id)
-                    router.replace(currentUrl.pathname + currentUrl.search)
+                    router.replace({ query: { ...route.query, id: data.id } as any })
                 } else if (previousPostId === 'new' && route.query.id !== data.id) {
                     router.replace({ query: { ...route.query, id: data.id } as any })
                 } else if (editorQueryId.value && editorQueryId.value.startsWith('new-')) {
@@ -1749,9 +1748,7 @@ async function doSave(action?: 'local' | 'draft' | 'publish' | 'upload' | 'unsav
                             const newId = allocData && allocData.id
                             if (newId) {
                                 showToast(t('editor.usingNewIdRetry') as string, { status: 'warning', position: 'bottom-center', shape: 'capsule' })
-                                const currentUrl = new URL(window.location.href)
-                                currentUrl.searchParams.set('id', `new-${newId}`)
-                                router.replace(currentUrl.pathname + currentUrl.search)
+                                router.replace({ query: { ...route.query, id: `new-${newId}` } as any })
                                 return
                             }
                         }
@@ -2459,8 +2456,87 @@ function buildPrintSnapshot() {
     }
 }
 
+function buildStandalonePrintHtml(title: string, renderedHtml: string, lang: string): string {
+    // Minimal standalone HTML for system browser printing.
+    // Inlines essential styles from chronicle-markdown.css so the printed
+    // output matches the CMS preview without depending on external assets.
+    return `<!DOCTYPE html>
+<html lang="${lang || 'en'}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${escapeHtml(title)}</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;line-height:1.7;color:#111;background:#fff;max-width:860px;margin:0 auto;padding:40px 48px}
+  h1{font-size:2.4rem;line-height:1.25;font-weight:700;margin:0 0 28px;padding:0 0 20px;border-bottom:1px solid rgba(0,0,0,.08)}
+  h2{font-size:1.6rem;line-height:1.35;font-weight:600;margin:36px 0 12px}
+  h3{font-size:1.25rem;line-height:1.4;font-weight:600;margin:28px 0 8px}
+  h4,h5,h6{font-size:1.05rem;font-weight:600;margin:22px 0 6px}
+  p{margin:0 0 14px}
+  a{color:#2563eb;text-decoration:underline}
+  blockquote{margin:14px 0;padding:8px 16px;border-left:3px solid #d1d5db;color:#4b5563;background:#f9fafb}
+  ul,ol{margin:8px 0 14px;padding-left:24px}
+  li{margin:4px 0}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px}
+  th,td{border:1px solid #e5e7eb;padding:8px 12px;text-align:left}
+  th{background:#f3f4f6;font-weight:600}
+  pre{background:#f5f5f5;border:1px solid #e5e7eb;border-radius:6px;padding:14px 18px;overflow-x:auto;font-size:13.5px;line-height:1.55;margin:14px 0}
+  code{font-family:'SF Mono','Cascadia Code','Fira Code',Consolas,monospace;font-size:.875em}
+  p code,li code{background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:.85em}
+  pre code{background:none;padding:0;font-size:inherit}
+  img{max-width:100%;height:auto;border-radius:4px}
+  .md-image-container{margin:14px 0}
+  .md-image-caption{font-size:13px;color:#6b7280;text-align:center;margin-top:6px}
+  .file-card{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;margin:10px 0}
+  .file-card svg{width:22px;height:22px;flex-shrink:0;color:#6b7280}
+  .file-card-title{font-weight:500;font-size:14px}
+  .file-card-subtitle{font-size:12px;color:#9ca3af}
+  .katex-placeholder{font-family:'KaTeX_Main','Times New Roman',serif;font-size:1.05em}
+  @media print {
+    body{padding:16px;max-width:none}
+    h1{border-bottom:none}
+    pre{white-space:pre-wrap;word-break:break-all}
+    .no-print{display:none!important}
+  }
+  @media (prefers-color-scheme:dark) {
+    body{color:#e5e7eb;background:#111}
+    h1{border-color:rgba(255,255,255,.08)}
+    blockquote{background:#1f1f1f;border-color:#374151;color:#9ca3af}
+    pre{background:#1a1a1a;border-color:#333}
+    p code,li code{background:#1f1f1f}
+    th{background:#1f1f1f}
+    th,td{border-color:#333}
+    .file-card{background:#1a1a1a;border-color:#333}
+  }
+</style>
+</head>
+<body>
+  ${title ? `<h1>${escapeHtml(title)}</h1>` : ''}
+  ${renderedHtml}
+</body>
+</html>`
+}
+
 function openPrintPreview(options?: { autoPrint?: boolean }) {
     try {
+        const isElectron = typeof window !== 'undefined' && window.location.protocol === 'file:'
+
+        if (isElectron) {
+            // Electron: render markdown to a self-contained HTML file and open in system browser.
+            // The system browser has no access to Electron's localStorage, so we inline everything.
+            const renderedHtml = renderPreview(localValue.value || '')
+            const printHtml = buildStandalonePrintHtml(
+                postTitle.value || '',
+                renderedHtml,
+                locale.value || 'en',
+            )
+            ;(window as any).chronicleElectron?.openPrintInBrowser(printHtml, postTitle.value || 'Chronicle Print')
+            return
+        }
+
+        // Web: pass data via localStorage token → new tab opens /editor/print route
         const token = (typeof crypto !== 'undefined' && (crypto as any).randomUUID)
             ? (crypto as any).randomUUID()
             : `print-${Math.random().toString(36).slice(2, 10)}`

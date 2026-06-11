@@ -43,7 +43,13 @@ export const fetchWithAuth = async (
     )
     if (!isExempt) {
       localStorage.removeItem('chronicle_auth')
-      window.location.href = `/login?next=${encodeURIComponent(currentPath)}`
+      // Electron (file:// protocol) must use hash-based routing, otherwise
+      // `/login` resolves to a non-existent `file:///C:/login` filesystem path.
+      const isFileProtocol = window.location.protocol === 'file:'
+      const loginUrl = isFileProtocol
+        ? `${window.location.pathname}#/login?next=${encodeURIComponent(currentPath)}`
+        : `/login?next=${encodeURIComponent(currentPath)}`
+      window.location.href = loginUrl
       throw new Error('Session expired — redirecting to login')
     }
   }

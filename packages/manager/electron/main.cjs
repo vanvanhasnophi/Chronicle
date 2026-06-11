@@ -228,6 +228,16 @@ ipcMain.handle('open-external-login', async (event, url) => {
   }
 });
 
+// IPC: write print HTML to temp file and open in system browser
+ipcMain.handle('open-print-in-browser', async (event, html, title) => {
+  const tmpDir = require('os').tmpdir();
+  const safeTitle = (title || 'chronicle-print').replace(/[^a-zA-Z0-9一-鿿_-]/g, '_').slice(0, 60);
+  const fileName = `chronicle-print-${safeTitle}-${Date.now()}.html`;
+  const filePath = path.join(tmpDir, fileName);
+  fs.writeFileSync(filePath, html, 'utf-8');
+  shell.openPath(filePath);
+});
+
 // ── App Lifecycle ───────────────────────────────────────────
 app.whenReady().then(createWindow);
 

@@ -28,7 +28,9 @@ const trafficEnabled = ref(false)
 const range = ref<'30min' | '12h' | '1d' | '7d' | '30d'>('1d')
 
 const disabledHtml = computed(() => {
-  return t('traffic.disabledMessage', { link: `<a href="/settings/features">${t('settings.features')}</a>` })
+  const isFileProtocol = typeof window !== 'undefined' && window.location.protocol === 'file:'
+  const href = isFileProtocol ? '#/settings/features' : '/settings/features'
+  return t('traffic.disabledMessage', { link: `<a href="${href}">${t('settings.features')}</a>` })
 })
 
 const ranges = computed(() => ([

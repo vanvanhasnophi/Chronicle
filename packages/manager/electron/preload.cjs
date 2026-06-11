@@ -42,6 +42,9 @@ contextBridge.exposeInMainWorld('chronicleElectron', {
     ipcRenderer.on('login-callback', (_event, token) => callback(token));
   },
 
+  // Print: write standalone HTML to a temp file and open in system browser
+  openPrintInBrowser: (html, title) => ipcRenderer.invoke('open-print-in-browser', html, title),
+
   // Safe subset of process.env
   env: {
     VITE_API_BASE_URL: process.env.VITE_API_BASE_URL || '',
