@@ -148,7 +148,15 @@
       "code": "Code/Text",
       "file": "File",
       "image": "Image"
-    }
+    },
+    "selectedCount": "{count} selected",
+    "selectAll": "Select All",
+    "clearSelection": "Clear",
+    "deleteSelected": "Delete Selected",
+    "copySelectedLinks": "Copy Links",
+    "batchDeleteConfirm": "Delete {count} selected files?",
+    "batchCopyResult": "Copied {count} links",
+    "batchDeleteResult": "{success} deleted{failed}"
   },
   "friends": {
     "title": "Friends",
@@ -406,7 +414,16 @@
     "renameFailed": "Rename failed",
     "errorRenaming": "Error renaming",
     "failedToDelete": "Failed to delete",
-    "errorDeleting": "Error deleting"
+    "errorDeleting": "Error deleting",
+    "selectedCount": "{count} selected",
+    "selectAll": "Select All",
+    "clearSelection": "Clear",
+    "publishSelected": "Publish Selected",
+    "unpublishSelected": "Unpublish",
+    "deleteSelected": "Delete Selected",
+    "batchDeleteConfirm": "Delete {count} selected posts?",
+    "batchPublishResult": "{success} published{failed}",
+    "batchDeleteResult": "{success} deleted{failed}"
   },
   "search": {
     "selectTags": "Select Tags",

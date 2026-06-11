@@ -369,7 +369,6 @@
       max-width: 90%;
       max-height: 90%;
       object-fit: contain;
-      border-radius: 4px;
       box-shadow: var(--shadow-elev-3);
       cursor: grab;
       transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);

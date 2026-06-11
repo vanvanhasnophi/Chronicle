@@ -67,6 +67,24 @@
         </div>
       </div>
 
+      <!-- Batch action bar -->
+      <div v-if="selectedCount > 0" class="batch-bar">
+        <span class="batch-count">{{ $t('post.selectedCount', { count: selectedCount }) }}</span>
+        <label class="batch-check-all">
+          <input type="checkbox" :checked="allSelected" @change="toggleSelectAll" />
+          {{ $t('post.selectAll') }}
+        </label>
+        <div class="batch-actions">
+          <button class="chronicle-fb-btn batch-delete-btn" @click="bulkDelete">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            <span class="label">{{ $t('post.deleteSelected') }}</span>
+          </button>
+        </div>
+        <button class="chronicle-fb-btn batch-clear-btn" @click="clearSelection" :title="$t('post.clearSelection')">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
       <!-- Post list -->
       <div class="chronicle-fb-list">
         <div v-if="loading" class="chronicle-fb-loading">{{ $t('post.loadingPosts') }}</div>
@@ -75,7 +93,14 @@
         </div>
 
         <div v-else class="post-rows">
-          <div v-for="post in filteredPosts" :key="post.id" class="post-row" @dblclick="startRename(post)">
+          <div v-for="post in filteredPosts" :key="post.id" class="post-row"
+            :class="{ 'post-row--selected': selectedIds.has(post.id) }" @dblclick="startRename(post)">
+            <input
+              type="checkbox"
+              class="row-checkbox"
+              :checked="selectedIds.has(post.id)"
+              @click.stop="toggleSelect(post.id, $event)"
+            />
             <div class="post-body">
               <!-- Title / rename -->
               <div v-if="renamingId === post.id" class="rename-box">
@@ -148,10 +173,57 @@ const posts = ref<Post[]>([])
 const loading = ref(true)
 const republishing = ref(false)
 
+// ── Multi-select state ────────────────────────────────────────────────
+const selectedIds = ref<Set<string>>(new Set())
+const lastClickedId = ref<string | null>(null)
+
+function toggleSelect(postId: string, event?: MouseEvent) {
+  const shift = event?.shiftKey
+  if (shift && lastClickedId.value) {
+    // Range select
+    const visible = filteredPosts.value.map(p => p.id)
+    const start = visible.indexOf(lastClickedId.value)
+    const end = visible.indexOf(postId)
+    if (start !== -1 && end !== -1) {
+      const [lo, hi] = start < end ? [start, end] : [end, start]
+      for (let i = lo; i <= hi; i++) selectedIds.value.add(visible[i])
+    }
+  } else if (selectedIds.value.has(postId)) {
+    selectedIds.value.delete(postId)
+  } else {
+    selectedIds.value.add(postId)
+  }
+  lastClickedId.value = postId
+  // Trigger reactivity
+  selectedIds.value = new Set(selectedIds.value)
+}
+
+function toggleSelectAll() {
+  const visible = filteredPosts.value.map(p => p.id)
+  if (visible.every(id => selectedIds.value.has(id))) {
+    visible.forEach(id => selectedIds.value.delete(id))
+  } else {
+    visible.forEach(id => selectedIds.value.add(id))
+  }
+  selectedIds.value = new Set(selectedIds.value)
+}
+
+function clearSelection() {
+  selectedIds.value = new Set()
+  lastClickedId.value = null
+}
+
+const allSelected = computed(() => {
+  const visible = filteredPosts.value
+  return visible.length > 0 && visible.every(p => selectedIds.value.has(p.id))
+})
+
+const selectedCount = computed(() => selectedIds.value.size)
+
 // ── Sidebar state ────────────────────────────────────────────────────
 
 const statusTabs = [
-  { id: 'all', label: 'file.categories.all' },
+  { id: 'all', label: 'blog.allPosts' },
   { id: 'published', label: 'status.published' },
   { id: 'draft', label: 'status.draft' },
   { id: 'modifying', label: 'status.modifying' },
@@ -292,6 +364,57 @@ async function deletePost(id: string) {
   }
 }
 
+// ── Batch operations ──────────────────────────────────────────────────
+
+async function bulkDelete() {
+  const ids = [...selectedIds.value]
+  if (!ids.length) return
+  if (!confirm(t('post.batchDeleteConfirm', { count: ids.length }))) return
+
+  let success = 0, failed = 0
+  const authToken = (() => {
+    try {
+      const raw = localStorage.getItem('chronicle_auth')
+      if (!raw) return ''
+      const parsed = JSON.parse(raw)
+      return typeof parsed?.token === 'string' ? parsed.token : ''
+    } catch (e) { return '' }
+  })()
+
+  for (const id of ids) {
+    try {
+      const res = await fetchWithAuth(`/api/post?id=${id}&t=${Date.now()}`, {
+        method: 'DELETE',
+        headers: authToken ? { 'X-Chronicle-Auth': authToken } : {},
+      })
+      if (res.ok) success++; else failed++
+    } catch { failed++ }
+  }
+  showToast(t('post.batchDeleteResult', { success, failed: failed ? `, ${failed} failed` : '' }), {
+    status: failed ? 'warning' : 'success', position: 'bottom-center', shape: 'capsule', duration: 3000,
+  })
+  clearSelection()
+  await loadPosts()
+}
+
+// ── Keyboard shortcuts ────────────────────────────────────────────────
+
+function onKeyDown(e: KeyboardEvent) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+    // Only handle if focus is inside the post manager
+    const el = document.activeElement
+    if (el && (el.closest('.post-manager') || el.tagName === 'BODY')) {
+      e.preventDefault()
+      const visible = filteredPosts.value.map(p => p.id)
+      visible.forEach(id => selectedIds.value.add(id))
+      selectedIds.value = new Set(selectedIds.value)
+    }
+  }
+  if (e.key === 'Escape') {
+    clearSelection()
+  }
+}
+
 // ── Data loading ─────────────────────────────────────────────────────
 
 async function loadPosts() {
@@ -376,10 +499,12 @@ onMounted(() => {
       loadPosts()
     }
   }
+  document.addEventListener('keydown', onKeyDown)
 })
 
 onUnmounted(() => {
   if (channel) { channel.close(); channel = null }
+  document.removeEventListener('keydown', onKeyDown)
 })
 </script>
 
@@ -439,6 +564,10 @@ onUnmounted(() => {
   background-position: right 0.5rem center;
   background-size: 16px;
   transition: border-color 0.2s;
+}
+
+.filter-select:focus {
+  outline: none;
 }
 
 /* ── Search box ────────────────────────────────────────────────────── */
@@ -524,7 +653,74 @@ onUnmounted(() => {
 /* ── Post list area ────────────────────────────────────────────────── */
 
 :deep(.chronicle-fb-list) {
-  height: calc(100% - 48px - 1.5rem);
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Batch action bar ───────────────────────────────────────────────── */
+
+.batch-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.6rem 1rem;
+  margin-bottom: 0.75rem;
+  border-radius: 10px;
+  background: var(--component-bg-blur-alt);
+  border: 1px solid var(--border-color-blur);
+  flex-wrap: wrap;
+}
+
+.batch-count {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--component-text-primary);
+}
+
+.batch-check-all {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  color: var(--component-text-secondary);
+  cursor: pointer;
+}
+
+.batch-check-all input {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent-color);
+}
+
+.batch-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex: 1;
+}
+
+.batch-actions .chronicle-fb-btn {
+  font-size: 0.82rem;
+  padding: 0.35rem 0.65rem;
+}
+
+.batch-delete-btn {
+  color: var(--status-error) !important;
+  border-color: var(--status-error) !important;
+}
+
+.batch-clear-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--component-text-secondary);
+  flex-shrink: 0;
+}
+.batch-clear-btn svg {
+  width: 16px;
+  height: 16px;
 }
 
 /* ── Post rows (hybrid card-list) ──────────────────────────────────── */
@@ -538,8 +734,8 @@ onUnmounted(() => {
 .post-row {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 0.9rem 1rem;
+  gap: 0.75rem;
+  padding: 0.9rem 0.8rem 0.9rem 0.6rem;
   border-radius: 12px;
   border: 1px solid transparent;
   background: transparent;
@@ -547,11 +743,40 @@ onUnmounted(() => {
   cursor: default;
 }
 
+.post-row .row-checkbox{
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent-color);
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.post-row:hover .row-checkbox {
+  opacity: 1;
+}
+
+.post-row:has(.row-checkbox:checked) .row-checkbox {
+  opacity: 1;
+}
+
 .post-row:hover {
   border-color: var(--border-color-blur);
   background: var(--component-bg-blur-alt);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
+
+.post-row--selected {
+  border-color: var(--accent-color);
+  background: color-mix(in srgb, var(--accent-color) 8%, transparent);
+}
+
+.post-row--selected:hover {
+  border-color: var(--accent-color);
+  background: color-mix(in srgb, color-mix(in srgb, var(--accent-color) 70%, var(--component-text-primary)) 10%, transparent);
+}
+
 
 .post-body {
   flex: 1;
@@ -563,10 +788,12 @@ onUnmounted(() => {
 
 .post-title {
   font-size: 1.05rem;
-  font-weight: 600;
+  font-weight: 500;
+  font-variation-settings: 'wght' 500;
   color: var(--component-text-primary);
   white-space: nowrap;
   overflow: hidden;
+  margin:0;
   text-overflow: ellipsis;
 }
 
@@ -708,10 +935,8 @@ onUnmounted(() => {
 
   /* Filter select: touch height, left padding for hamburger */
   .filter-select {
-    width: 100%;
     height: 44px;
     padding: 0 2rem 0 3rem;
-    font-size: 1rem;
     background-position: right 0.5rem center;
     background-size: 18px;
   }

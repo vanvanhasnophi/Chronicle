@@ -121,7 +121,6 @@ function handleMouseUp() {
   max-width: 90%;
   max-height: 90%;
   object-fit: contain;
-  border-radius: 4px;
   box-shadow: 0 4px 24px rgba(0,0,0,0.5);
   cursor: grab;
   transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);

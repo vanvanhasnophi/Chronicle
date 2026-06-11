@@ -199,7 +199,6 @@ import { fetchWithAuth } from '../utils/fetchWithAuth'
 import { ref, watch, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { usePreview } from '../composables/usePreview'
-import { useImagePreview } from '../composables/useImagePreview'
 import { Icons } from '../utils/icons'
 import { useRoute, useRouter, onBeforeRouteUpdate, onBeforeRouteLeave } from 'vue-router'
 import { formatDateTime } from '../utils/dateUtils'
@@ -245,8 +244,7 @@ const localInput = ref<HTMLInputElement | null>(null)
 const uploadInput = ref<HTMLInputElement | null>(null)
 const view = ref<'card' | 'list'>('card')
 const activeTypeTab = ref(restrictedTypes && restrictedTypes.length > 0 ? 'image' : 'all')
-const { openPreview: openGlobalPreview } = usePreview()
-const { openImagePreview } = useImagePreview()
+const { openPreview: openGlobalPreview, openImagePreview } = usePreview()
 
 const fileTypeTabs = computed(() => {
     const tabs = []
@@ -302,7 +300,7 @@ function detectFileType(fileOrName: any) {
     const isImage = /^image\//.test(type) || /\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i.test(name)
     const isVideo = /^video\//.test(type) || /\.(mp4|webm|mov|mkv|avi)$/i.test(name)
     const isAudio = /^audio\//.test(type) || /\.(mp3|wav|ogg|flac|m4a|aac)$/i.test(name)
-    const isDocument = /\.(pdf|docx?|pptx?|xlsx?|txt|md|csv|json|xml|yml|yaml)$/i.test(name)
+    const isDocument = /\.(pdf|docx?|pptx?|xlsx?)$/i.test(name)
     const isCode = /\.(txt|md|js|ts|json|c|cpp|h|java|py|sh|bat|ini|conf|vue|log|csv|xml|yaml|yml|rs|go|php|css|html)$/i.test(name)
 
     return {

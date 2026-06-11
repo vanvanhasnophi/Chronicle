@@ -493,19 +493,4 @@ onBeforeUnmount(() => {
 }
 
 
-.picker-list::-webkit-scrollbar-corner {
-  background: transparent;
-}
-
-.picker-list::-webkit-scrollbar-track {
-  background: transparent;
-}
-.picker-list::-webkit-scrollbar-thumb {
-  background: var(--component-bg-active);
-  border-radius: 6px;
-}
-.picker-list::-webkit-scrollbar-thumb:hover {
-  background: var(--component-text-secondary);
-}
-
 </style>

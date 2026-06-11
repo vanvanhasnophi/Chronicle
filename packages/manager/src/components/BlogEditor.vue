@@ -4128,10 +4128,12 @@ button:disabled {
 }
 
 .post-title {
+    font-size: 1rem;
     font-weight: bold;
+    font-variation-settings: 'wght' 600;
     color: var(--text-primary);
     flex: 1;
-    margin-right: 10px;
+    margin: 0 10px 0 0;
 }
 
 .post-date {

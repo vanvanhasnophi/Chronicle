@@ -285,6 +285,5 @@ onUnmounted(() => {
 .math-tooltip-editor .syntax-highlight::-webkit-scrollbar-thumb,
 .math-tooltip-editor .code-textarea::-webkit-scrollbar-thumb {
   background: #565656;
-  border-radius: 6px;
 }
 </style>

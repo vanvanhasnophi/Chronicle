@@ -369,7 +369,8 @@ function renderCodeChunkHtml(code: string, lang: string): string {
           <button class="icon-btn mermaid-preview-btn" title="Preview">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
-        </div>`;
+        </div>
+        <div class="toolbar-divider"></div>`;
     mermaidPreview = `
     <div class="mermaid-preview" style="padding:0.5rem 1rem;">
       <div class="mermaid-container" style="align-items:center;justify-content:center;display:flex"><!-- prerendered at build time --></div>

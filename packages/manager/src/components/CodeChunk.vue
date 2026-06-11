@@ -1082,32 +1082,4 @@ watch(() => props.language, (n) => {
   height: 8px;
 }
 
-
-.syntax-highlight::-webkit-scrollbar-corner,
-.code-textarea::-webkit-scrollbar-corner {
-  background: transparent;
-}
-
-.syntax-highlight::-webkit-scrollbar-track,
-.code-textarea::-webkit-scrollbar-track {
-  background: transparent;
-}
-.syntax-highlight::-webkit-scrollbar-thumb,
-.code-textarea::-webkit-scrollbar-thumb {
-  background: var(--component-bg-active);
-  border-radius: 6px;
-}
-
-.code-textarea:not(:read-only) .syntax-highlight::-webkit-scrollbar-thumb{
-  background: transparent;
-}
-
-.code-textarea:not(:read-only) .syntax-highlight::-webkit-scrollbar-thumb:hover{
-  background: transparent;
-}
-
-.syntax-highlight::-webkit-scrollbar-thumb:hover,
-.code-textarea::-webkit-scrollbar-thumb:hover {
-  background: var(--component-text-secondary);
-}
 </style>

@@ -209,10 +209,20 @@ export interface LocalSettings {
 
 // ── Post Access ──────────────────────────────────────────
 
-// Cache: avoid re-scanning the filesystem on every call during build
+// Cache: avoid re-scanning the filesystem on every call during build.
+// In dev mode (astro dev) the cache is bypassed so edits reflect immediately.
 let _postCache: PostMeta[] | null = null;
+let _postCacheMtime = 0;
 // Cache: avoid re-rendering markdown→HTML for the same post across multiple pages
 const _htmlCache = new Map<string, string>();
+
+function isCacheStale(): boolean {
+  if (!_postCache) return true;
+  try {
+    const stat = fs.statSync(INDEX_FILE);
+    return stat.mtimeMs > _postCacheMtime;
+  } catch { return true; }
+}
 
 /** Parse a YAML date string into an ISO string (handles both ISO and YAML date formats) */
 function normalizeDate(raw: unknown): string {
@@ -283,7 +293,8 @@ function scanPostsFromDisk(): PostMeta[] {
 
 /** Load all post metadata — index.json first, fall back to scanning directories */
 export function getAllPosts(): PostMeta[] {
-    if (_postCache) return _postCache;
+    // In dev mode, check if cache is stale (index.json was rewritten)
+    if (_postCache && !isCacheStale()) return _postCache;
 
     // Try index.json first (fast path)
     if (fs.existsSync(INDEX_FILE)) {
@@ -292,6 +303,7 @@ export function getAllPosts(): PostMeta[] {
             const parsed = JSON.parse(raw || '[]');
             if (Array.isArray(parsed) && parsed.length > 0) {
                 _postCache = parsed;
+                _postCacheMtime = fs.statSync(INDEX_FILE).mtimeMs;
                 return _postCache;
             }
         } catch { /* fall through to scan */ }
@@ -299,12 +311,20 @@ export function getAllPosts(): PostMeta[] {
 
     // Fallback: scan posts/ directory
     _postCache = scanPostsFromDisk();
+    _postCacheMtime = Date.now();
     if (_postCache.length > 0) {
         console.log(`[localDataSource] Scanned ${_postCache.length} posts from ${POSTS_DIR}`);
     } else {
         console.warn('[localDataSource] No posts found in', POSTS_DIR);
     }
     return _postCache;
+}
+
+/** Invalidate the post cache (call after content changes) */
+export function invalidatePostCache(): void {
+    _postCache = null;
+    _postCacheMtime = 0;
+    _htmlCache.clear();
 }
 
 /** Get published posts only */

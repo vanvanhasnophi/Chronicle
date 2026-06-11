@@ -11,7 +11,6 @@ import { useSchemaNav, type NavGroup } from './composables/useSchemaNav'
 import { syncSchemas } from './composables/schemaApi'
 import { syncSettings, settingsStore } from './composables/settingsApi'
 import FilePreviewModal from './components/FilePreviewModal.vue'
-import ImagePreviewModal from './components/ImagePreviewModal.vue'
 import Toast from './components/Toast.vue'
 import useToast from './composables/useToast'
 import { usePreferences } from './composables/usePreferences'
@@ -1212,7 +1211,6 @@ async function rebuildFrontend() {
       <RouterView />
     </main>
     <FilePreviewModal />
-    <ImagePreviewModal />
     <Toast />
   </div>
 </template>
@@ -1265,9 +1263,10 @@ body.is-electron .backend-menu-toggle {
   }
 
   .backend-sidebar {
-    transform: translateX(-102%);
+    transform: translateX(-101%);
     transition: transform 0.3s ease;
     box-shadow: 4px 4px 0 0 rgba(0, 0, 0, 0.28);
+    width: calc(100vw - 24px) !important;
   }
 
   .main-content.backend-main {
@@ -1284,6 +1283,26 @@ body.is-electron .backend-menu-toggle {
 
   .main-content.backend-main {
     padding-left: 0;
+  }
+
+  .backend-nav-link {
+    padding: 0.75rem 1.25rem !important;
+    font-size: 1.1rem !important;
+  }
+
+  .backend-nav-link svg {
+    zoom: 1.2;
+  }
+
+  .quick-popover {
+    left: auto !important;
+    right: 0 !important;
+    zoom: 1.2;
+  }
+
+  .backend-tree-caret{
+    min-width: 24px;
+    min-height: 24px;
   }
 }
 
@@ -1308,21 +1327,6 @@ body.is-electron .backend-menu-toggle {
 
 .main-content::-webkit-scrollbar {
   width: 10px;
-}
-
-.main-content::-webkit-scrollbar-thumb {
-  background-color: color-mix(in srgb, var(--component-text-secondary) 50%, transparent);
-  border-radius: 5px;
-}
-
-.main-content::-webkit-scrollbar-thumb:hover {
-  background-color: color-mix(in srgb, var(--component-text-primary) 50%, transparent);
-
-}
-
-
-.main-content::-webkit-scrollbar-track {
-  background: transparent;
 }
 
 .main-content.no-nav {
@@ -1376,6 +1380,7 @@ body.is-electron .main-content.print-preview {
   -webkit-backdrop-filter: blur(16px);
   gap: 1rem;
   z-index: 10000;
+  transition: transform 0.3s ease, width 0.15s;
 }
 
 .backend-sidebar-header {
@@ -1629,4 +1634,5 @@ body.is-electron .main-content.print-preview {
 .quick-logout:hover { background: color-mix(in srgb, var(--status-error) 15%, transparent) !important; }
 .quick-theme-toggle { justify-content: flex-start; }
 .footer-icon { width: 18px; height: 18px; display: flex; align-items: center; }
+
 </style>

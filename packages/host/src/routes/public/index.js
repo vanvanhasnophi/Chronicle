@@ -10,10 +10,20 @@
 const { Router } = require('express');
 const fs = require('fs');
 const { success, fail } = require('../../services/response');
-const { INDEX_FILE, SETTINGS_FILE, COLLECTION_FILE, FRIENDS_FILE, PROFILE_FILE } = require('../../config');
+const { INDEX_FILE, SETTINGS_FILE, COLLECTION_FILE, FRIENDS_FILE, PROFILE_FILE, DEFAULT_MANAGER_DOMAIN } = require('../../config');
 const collectionService = require('../../services/collectionService');
 
 const router = Router();
+
+// ── Resolve canonical domain and manager domain ─────────────
+const isDev = process.argv.includes('--dev');
+function getCanonicalDomain() {
+  if (isDev) return 'localhost';
+  return process.env.FRONTEND_DOMAIN || process.env.RP_ID || 'blog.eightyfor.top';
+}
+function getManagerDomain() {
+  return process.env.BACKEND_DOMAIN || DEFAULT_MANAGER_DOMAIN;
+}
 
 // ── WebAuthn page (Electron Passkey 2FA) ────────────────────
 router.get('/auth/webauthn', (req, res) => {
@@ -21,6 +31,23 @@ router.get('/auth/webauthn', (req, res) => {
     if (!callback || !callback.startsWith('chronicle://')) {
         return res.status(400).send('Missing or invalid callback URL');
     }
+
+    // If the request hostname doesn't match the canonical domain or the
+    // manager domain, redirect to the manager domain where passkey-auth.html
+    // lives. This fixes RP ID mismatch: the page origin must match the domain
+    // where the passkey was originally registered (the manager domain).
+    const canonical = getCanonicalDomain();
+    const managerDomain = getManagerDomain();
+    const hostname = (req.hostname || '').toLowerCase();
+    if (canonical !== 'localhost' &&
+        hostname !== canonical.toLowerCase() &&
+        hostname !== managerDomain.toLowerCase()) {
+        const redirectUrl = 'https://' + managerDomain +
+            '/passkey-auth.html?callback=' + encodeURIComponent(callback) +
+            '&api=' + encodeURIComponent('https://' + canonical);
+        return res.redirect(302, redirectUrl);
+    }
+
     res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'unsafe-inline'; connect-src 'self'; style-src 'unsafe-inline'");
     res.type('html').send('<!DOCTYPE html>\n<html><head><meta charset="utf-8"><title>Chronicle Passkey</title>\n<style>body{font-family:system-ui,sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#111;color:#eee;flex-direction:column;gap:1rem}</style>\n</head><body>\n<div id="status">Starting WebAuthn…</div>\n<script>\nconst CB="' + callback + '";\nfunction buf2b64(buf){return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\\+/g,"-").replace(/\\//g,"_").replace(/=+$/,"")}\nfunction b64buf(s){const u=s.replace(/-/g,"+").replace(/_/g,"/");const r=atob(u);const b=new Uint8Array(r.length);for(let i=0;i<r.length;i++)b[i]=r.charCodeAt(i);return b.buffer}\n(async()=>{\nconst s=document.getElementById("status");\ntry{\ns.textContent="Requesting challenge…";\nconst o=await(await fetch("/api/admin/auth/passkey/login/options",{method:"POST"})).json();\nif(o.challenge)o.challenge=b64buf(o.challenge);\nif(o.allowCredentials)o.allowCredentials=o.allowCredentials.map(c=>({...c,id:b64buf(c.id)}));\ns.textContent="Waiting for Passkey…";\nconst cred=await navigator.credentials.get({publicKey:o});\nconst r={id:cred.id,rawId:buf2b64(cred.rawId),type:cred.type,\nresponse:{clientDataJSON:buf2b64(cred.response.clientDataJSON),\nauthenticatorData:buf2b64(cred.response.authenticatorData),\nsignature:buf2b64(cred.response.signature),\nuserHandle:cred.response.userHandle?buf2b64(cred.response.userHandle):null}};\ns.textContent="Verifying…";\nconst d=await(await fetch("/api/admin/auth/passkey/login/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({response:r})})).json();\nif(d.verified){s.textContent="✓ Signed in! You will be redirected to Chronicle app…";location.href=CB+(CB.includes("?")?"&":"?")+"token="+encodeURIComponent(d.token)}\nelse s.textContent="✗ Verification failed"}\ncatch(e){s.textContent="Error: "+(e.message||"WebAuthn failed")}})()\n</script></body></html>');
 });

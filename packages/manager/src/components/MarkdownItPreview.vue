@@ -31,7 +31,6 @@ import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { renderBlockHtml, getBlockRanges, getChangedSegIndices, getSegIndexAtLine } from '../utils/markdownPreview'
 import type { ContentBlock } from '../utils/markdownPreview'
 import { debounce } from '../utils/debounce'
-import { useImagePreview } from '../composables/useImagePreview'
 import { usePreview } from '../composables/usePreview'
 import useMathTooltip from '../composables/useMathTooltip'
 import CodeChunk from './CodeChunk.vue'
@@ -43,8 +42,7 @@ const props = defineProps<{
   changeRange?: { from: number; to: number } | null
 }>()
 
-const { openImagePreview } = useImagePreview()
-const { openPreview } = usePreview()
+const { openImagePreview, openPreview } = usePreview()
 const mathTooltip = useMathTooltip()
 
 const containerRef = ref<HTMLDivElement | null>(null)
@@ -208,8 +206,12 @@ function handleClick(e: MouseEvent) {
   const cardEl = target.closest('.file-card') as HTMLElement | null
   if (cardEl) {
     if (cardEl.tagName === 'A') return
+    const cardUrl = cardEl.getAttribute('data-url') || ''
+    // Direct navigation for link / mailto cards — no preview modal
+    if (/^https?:\/\//i.test(cardUrl)) { window.open(cardUrl, '_blank', 'noopener'); return }
+    if (/^mailto:/i.test(cardUrl)) { window.location.href = cardUrl; return }
     e.stopPropagation()
-    openPreview({ name: cardEl.getAttribute('data-name') || 'File', path: cardEl.getAttribute('data-url') || '', type: cardEl.getAttribute('data-type') || '' })
+    openPreview({ name: cardEl.getAttribute('data-name') || 'File', path: cardUrl, type: cardEl.getAttribute('data-type') || '' })
     return
   }
 

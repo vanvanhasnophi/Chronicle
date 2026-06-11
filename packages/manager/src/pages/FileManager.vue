@@ -109,6 +109,24 @@
                 </div>
             </div>
 
+            <!-- Batch action bar -->
+            <div v-if="selectedFileCount > 0" class="batch-bar">
+                <span class="batch-count">{{ $t('file.selectedCount', { count: selectedFileCount }) }}</span>
+                <label class="batch-check-all">
+                    <input type="checkbox" :checked="allFilesSelected" @change="toggleSelectAllFiles" />
+                    {{ $t('file.selectAll') }}
+                </label>
+                <div class="batch-actions">
+                    <button class="chronicle-fb-btn batch-delete-btn" @click="bulkDeleteFiles">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        <span class="label">{{ $t('file.deleteSelected') }}</span>
+                    </button>
+                </div>
+                <button class="chronicle-fb-btn batch-clear-btn" @click="clearFileSelection" :title="$t('file.clearSelection')">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+
             <!-- File list area -->
             <div class="chronicle-fb-list">
                 <!-- Loading state -->
@@ -122,8 +140,14 @@
                 <!-- Card view -->
                 <div v-else-if="view === 'card'" class="chronicle-fb-grid">
                     <div v-for="f in items" :key="f.key || f.name"
-                        :class="['chronicle-fb-card', f._justUploaded ? 'chronicle-fb-just-uploaded' : '']"
+                        :class="['chronicle-fb-card', f._justUploaded ? 'chronicle-fb-just-uploaded' : '', selectedPaths.has(f.path) ? 'chronicle-fb-card--selected' : '']"
                         @click="openPreview(f)">
+                        <input
+                            type="checkbox"
+                            class="card-checkbox"
+                            :checked="selectedPaths.has(f.path)"
+                            @click.stop="toggleSelectFile(f.path, $event)"
+                        />
                         <div class="chronicle-fb-thumb">
                             <img v-if="isImage(f.name)" :src="getThumbUrl(f)" loading="lazy" />
                             <div v-else class="chronicle-fb-icon" v-html="getIconForFile(f.name)"></div>
@@ -144,6 +168,9 @@
                 <table v-else class="chronicle-fb-table">
                     <thead>
                         <tr>
+                            <th class="chronicle-fb-check-col">
+                                <input type="checkbox" :checked="allFilesSelected" @change="toggleSelectAllFiles" />
+                            </th>
                             <th class="chronicle-fb-name-col" @click="sortBy('name')">
                                 {{ $t('filePicker.name') || 'Name' }}
                             </th>
@@ -158,7 +185,16 @@
                     </thead>
                     <tbody>
                         <tr v-for="f in items" :key="f.key || f.name"
-                            :class="f._justUploaded ? 'chronicle-fb-just-uploaded' : ''" @click="openPreview(f)">
+                            :class="[f._justUploaded ? 'chronicle-fb-just-uploaded' : '', selectedPaths.has(f.path) ? 'chronicle-fb-row--selected' : '']"
+                            @click="openPreview(f)">
+                            <td class="chronicle-fb-check-col" @click.stop>
+                                <input
+                                    type="checkbox"
+                                    class="row-checkbox"
+                                    :checked="selectedPaths.has(f.path)"
+                                    @click.stop="toggleSelectFile(f.path, $event)"
+                                />
+                            </td>
                             <td class="chronicle-fb-name-col">{{ f.name }}</td>
                             <td class="chronicle-fb-type-col">{{ getFileTypeLabel(f.name, t) }}</td>
                             <td class="chronicle-fb-created-col">
@@ -180,11 +216,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { fetchWithAuth } from '../utils/fetchWithAuth'
 import { usePreview } from '../composables/usePreview'
-import { useImagePreview } from '../composables/useImagePreview'
+import useToast from '../composables/useToast'
 import {
     isImage,
     getCategoryFromFile,
@@ -196,8 +232,8 @@ import { Icons } from '../utils/icons'
 import { formatDateTime } from '../utils/dateUtils'
 
 const { t, locale } = useI18n()
-const { openPreview: openGlobalPreview } = usePreview()
-const { openImagePreview } = useImagePreview()
+const { openPreview: openGlobalPreview, openImagePreview } = usePreview()
+const { show: showToast } = useToast()
 
 // ── Categories (sidebar tabs) ────────────────────────────────────────
 
@@ -222,6 +258,90 @@ const currentCategoryLabel = computed(() => {
 const allItems = ref<any[]>([])
 const loading = ref(false)
 const uploadInput = ref<HTMLInputElement | null>(null)
+
+// ── Multi-select state ────────────────────────────────────────────────
+const selectedPaths = ref<Set<string>>(new Set())
+
+function toggleSelectFile(path: string, event?: MouseEvent) {
+  const shift = event?.shiftKey
+  if (shift && lastClickedPath.value) {
+    const visible = items.value.map(f => f.path)
+    const start = visible.indexOf(lastClickedPath.value)
+    const end = visible.indexOf(path)
+    if (start !== -1 && end !== -1) {
+      const [lo, hi] = start < end ? [start, end] : [end, start]
+      for (let i = lo; i <= hi; i++) selectedPaths.value.add(visible[i])
+    }
+  } else if (selectedPaths.value.has(path)) {
+    selectedPaths.value.delete(path)
+  } else {
+    selectedPaths.value.add(path)
+  }
+  lastClickedPath.value = path
+  selectedPaths.value = new Set(selectedPaths.value)
+}
+
+const lastClickedPath = ref<string | null>(null)
+
+function toggleSelectAllFiles() {
+  const visible = items.value.map(f => f.path)
+  if (visible.every(p => selectedPaths.value.has(p))) {
+    visible.forEach(p => selectedPaths.value.delete(p))
+  } else {
+    visible.forEach(p => selectedPaths.value.add(p))
+  }
+  selectedPaths.value = new Set(selectedPaths.value)
+}
+
+function clearFileSelection() {
+  selectedPaths.value = new Set()
+  lastClickedPath.value = null
+}
+
+const allFilesSelected = computed(() => {
+  const visible = items.value
+  return visible.length > 0 && visible.every(f => selectedPaths.value.has(f.path))
+})
+
+const selectedFileCount = computed(() => selectedPaths.value.size)
+
+// ── Batch operations ──────────────────────────────────────────────────
+
+async function bulkDeleteFiles() {
+  const paths = [...selectedPaths.value]
+  if (!paths.length) return
+  if (!confirm(t('file.batchDeleteConfirm', { count: paths.length }))) return
+
+  let success = 0, failed = 0
+  for (const p of paths) {
+    try {
+      const res = await fetchWithAuth(`/api/files?path=${encodeURIComponent(p)}&t=${Date.now()}`, { method: 'DELETE' })
+      if (res.ok) success++; else failed++
+    } catch { failed++ }
+  }
+  showToast(t('file.batchDeleteResult', { success, failed: failed ? `, ${failed} failed` : '' }), {
+    status: failed ? 'warning' : 'success', position: 'bottom-center', shape: 'capsule', duration: 3000,
+  })
+  clearFileSelection()
+  await loadItems()
+}
+
+// ── Keyboard shortcuts ────────────────────────────────────────────────
+
+function onFileKeyDown(e: KeyboardEvent) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+    const el = document.activeElement
+    if (el && (el.closest('.file-manager') || el.tagName === 'BODY')) {
+      e.preventDefault()
+      const visible = items.value.map(f => f.path)
+      visible.forEach(p => selectedPaths.value.add(p))
+      selectedPaths.value = new Set(selectedPaths.value)
+    }
+  }
+  if (e.key === 'Escape') {
+    clearFileSelection()
+  }
+}
 
 // ── View & sort state ────────────────────────────────────────────────
 
@@ -425,6 +545,11 @@ function refresh() {
 
 onMounted(() => {
     loadItems()
+    document.addEventListener('keydown', onFileKeyDown)
+})
+
+onUnmounted(() => {
+    document.removeEventListener('keydown', onFileKeyDown)
 })
 </script>
 
@@ -504,6 +629,10 @@ onMounted(() => {
     display: none;
 }
 
+.category-select:focus {
+    outline: none;
+}
+
 :deep(.chronicle-fb-view-btn) {
     font-size: 0.85rem;
     gap: 7px;
@@ -549,7 +678,128 @@ onMounted(() => {
 /* ── File list height (compensate for taller toolbar) ──────────────── */
 
 :deep(.chronicle-fb-list) {
-    height: calc(100% - 48px - 1.5rem);
+    flex: 1;
+    min-height: 0;
+}
+
+/* ── Batch action bar ───────────────────────────────────────────────── */
+
+.batch-bar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.6rem 1rem;
+    margin-bottom: 0.75rem;
+    border-radius: 10px;
+    background: var(--component-bg-blur-alt);
+    border: 1px solid var(--border-color-blur);
+    flex-wrap: wrap;
+}
+
+.batch-count {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--component-text-primary);
+}
+
+.batch-check-all {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.85rem;
+    color: var(--component-text-secondary);
+    cursor: pointer;
+}
+
+.batch-check-all input {
+    width: 14px;
+    height: 14px;
+    accent-color: var(--accent-color);
+}
+
+.batch-actions {
+    display: flex;
+    gap: 0.4rem;
+    flex: 1;
+}
+
+.batch-actions .chronicle-fb-btn {
+    font-size: 0.82rem;
+    padding: 0.35rem 0.65rem;
+}
+
+.batch-delete-btn {
+    color: var(--status-error) !important;
+    border-color: var(--status-error) !important;
+}
+
+.batch-clear-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--component-text-secondary);
+    flex-shrink: 0;
+}
+.batch-clear-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* ── Checkboxes ─────────────────────────────────────────────────────── */
+
+.card-checkbox {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent-color);
+    cursor: pointer;
+    z-index: 2;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.chronicle-fb-card:hover .card-checkbox,
+.chronicle-fb-card--selected .card-checkbox {
+    opacity: 1;
+}
+
+.row-checkbox {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent-color);
+    cursor: pointer;
+}
+
+.chronicle-fb-check-col {
+    width: 32px;
+    text-align: center;
+    padding: 0 !important;
+}
+
+.chronicle-fb-check-col input {
+    width: 14px;
+    height: 14px;
+    vertical-align: middle;
+    accent-color: var(--accent-color);
+    cursor: pointer;
+}
+
+.chronicle-fb-card--selected {
+    outline: 2px solid var(--accent-color);
+    outline-offset: -2px;
+}
+
+.chronicle-fb-row--selected {
+    background: color-mix(in srgb, var(--accent-color) 6%, transparent) !important;
+}
+
+.chronicle-fb-row--selected td:first-child {
+    border-left: 3px solid var(--accent-color);
 }
 
 /* ── Grid / card view ──────────────────────────────────────────────── */
@@ -563,6 +813,7 @@ onMounted(() => {
     padding: 0.75rem;
     gap: 0.6rem;
     border-radius: 14px;
+    position: relative;
 }
 
 :deep(.chronicle-fb-thumb) {
@@ -698,10 +949,6 @@ onMounted(() => {
         display: none;
     }
 
-    :deep(.chronicle-fb-sort label) {
-        display: none;
-    }
-
     :deep(.chronicle-fb-btn .label) {
         display: none;
     }
@@ -789,8 +1036,9 @@ onMounted(() => {
         -webkit-appearance: none;
         height: 44px;
         padding: 0 1.5rem 0 3rem;
-        font-size: 1.05rem;
+        font-size: 1.3rem;
         font-weight: 600;
+        font-variation-settings: 'wght' 600;
         color: var(--component-text-primary);
         background: transparent;
         border: none;
@@ -801,6 +1049,7 @@ onMounted(() => {
         background-position: right 0 center;
         background-size: 18px;
     }
+
 
     /* Hide the original title */
     .toolbar-title {

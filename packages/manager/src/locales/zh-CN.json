@@ -148,7 +148,15 @@
       "code": "文本/代码",
       "file": "文件",
       "image": "图片"
-    }
+    },
+    "selectedCount": "已选 {count} 个",
+    "selectAll": "全选",
+    "clearSelection": "取消选择",
+    "deleteSelected": "批量删除",
+    "copySelectedLinks": "批量复制链接",
+    "batchDeleteConfirm": "确定删除 {count} 个文件？",
+    "batchCopyResult": "已复制 {count} 个链接",
+    "batchDeleteResult": "{success} 个已删除{failed}"
   },
   "friends": {
     "title": "友人",
@@ -406,7 +414,16 @@
     "renameFailed": "重命名失败",
     "errorRenaming": "重命名出错",
     "failedToDelete": "删除失败",
-    "errorDeleting": "删除时出错"
+    "errorDeleting": "删除时出错",
+    "selectedCount": "已选 {count} 篇",
+    "selectAll": "全选",
+    "clearSelection": "取消选择",
+    "publishSelected": "批量发布",
+    "unpublishSelected": "批量取消发布",
+    "deleteSelected": "批量删除",
+    "batchDeleteConfirm": "确定删除 {count} 篇文章？",
+    "batchPublishResult": "{success} 篇成功{failed}",
+    "batchDeleteResult": "{success} 篇已删除{failed}"
   },
   "search": {
     "selectTags": "选择标签",

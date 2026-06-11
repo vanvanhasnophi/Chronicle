@@ -156,9 +156,15 @@ const routes = [
   { path: '/friends', redirect: '/login' }
 ]
 
+// Electron (file:// protocol) must use hash history; web deploy uses HTML5 history.
+// Use both the preload bridge flag AND the URL protocol as a belt-and-suspenders check —
+// the protocol fallback guards against a race where the router module is evaluated before
+// the preload script has exposed chronicleElectron to the main world.
+const isElectronEnv = (typeof window !== 'undefined' && (window as any).chronicleElectron?.isElectron)
+  || (typeof window !== 'undefined' && window.location.protocol === 'file:')
+
 const router = createRouter({
-  // Electron file:// needs hash history; web deploy uses HTML5 history
-  history: (typeof window !== 'undefined' && (window as any).chronicleElectron?.isElectron)
+  history: isElectronEnv
     ? createWebHashHistory()
     : createWebHistory(),
   routes

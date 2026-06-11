@@ -36,7 +36,6 @@
 import { ref, watch, toRaw, reactive, onMounted, onUnmounted, nextTick, computed } from 'vue'
 import { parseMarkdown, convertToHtml, blocksToMarkdown, type ContentBlock } from '../utils/markdownParser'
 import { usePreview } from '../composables/usePreview'
-import { useImagePreview } from '../composables/useImagePreview'
 import { useI18n } from 'vue-i18n'
 const { t } = useI18n();
 const props = withDefaults(defineProps<{
@@ -58,8 +57,7 @@ const emit = defineEmits<{
 
 const localBlocks = ref<ContentBlock[]>([])
 const keyPrefix = ref('block-')
-const { openPreview } = usePreview()
-const { openImagePreview } = useImagePreview()
+const { openImagePreview, openPreview } = usePreview()
 
 import useMathTooltip from '../composables/useMathTooltip'
 import useToast from '../composables/useToast'
@@ -1003,7 +1001,6 @@ strong, b {
   max-width: 90%;
   max-height: 90%;
   object-fit: contain;
-  border-radius: 4px;
   box-shadow: var(--shadow-elev-3);
   cursor: grab;
   transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);

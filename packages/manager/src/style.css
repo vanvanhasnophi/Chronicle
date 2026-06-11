@@ -1305,18 +1305,25 @@ html {
   width: 4px;
 }
 
-.sidebar-nav::-webkit-scrollbar-thumb {
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
   background-color: color-mix(in srgb, var(--component-text-secondary) 50%, transparent);
-  border-radius: 4px;
+  border-radius: 9999px;
 }
 
-.sidebar-nav::-webkit-scrollbar-thumb:hover {
+::-webkit-scrollbar-thumb:hover {
   background-color: color-mix(in srgb, var(--component-text-primary) 50%, transparent);
-
 }
 
-
-.sidebar-nav::-webkit-scrollbar-track {
+::-webkit-scrollbar-track {
   background: transparent;
 }
 

@@ -6,7 +6,7 @@
     "zh-CN": "友链管理"
   },
   "x-lang": "en",
-  "x-version": "2.0.0",
+  "x-version": "2.0.1",
   "x-migrations": [],
   "type": "object",
   "x-nav": {

@@ -553,7 +553,27 @@ button {
   color: var(--component-text-primary);
 }
 
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
 
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--component-text-secondary) 50%, transparent);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--component-text-primary) 50%, transparent);
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
 
 /* Base form elements */
 input, button, select, textarea {

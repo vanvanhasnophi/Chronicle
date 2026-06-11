@@ -1,7 +1,7 @@
 {
   "name": "@chronicle/manager",
   "private": true,
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Chronicle CMS — Markdown editor, content manager, and site settings",
   "author": { "name": "Eightyfor", "email": "j13811593@163.com" },
   "homepage": "https://github.com/vanvanhasnophi/Chronicle",
