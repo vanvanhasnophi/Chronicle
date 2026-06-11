@@ -54,6 +54,11 @@ const confirmed = ref<boolean | null>(null)
 const confirmedUrl = ref(saved)
 const checking = ref(false)
 const error = ref(getSavedError())
+const webauthnBaseUrl = ref('')
+
+export function getWebauthnBaseUrl(): string {
+  return webauthnBaseUrl.value || ''
+}
 
 export function useServerUrl() {
   // Auto-verify on mount if URL is saved (triggers error class on load)
@@ -79,6 +84,11 @@ export function useServerUrl() {
       const json = await resp.json()
       const phase = (json.data && json.data.phase) || json.phase
       if (!phase) throw new Error('Invalid response')
+      // Cache the server-declared WebAuthn origin so both Electron and
+      // browser flows always perform the ceremony on the correct domain.
+      if (json.data && json.data.webauthnBaseUrl) {
+        webauthnBaseUrl.value = json.data.webauthnBaseUrl.replace(/\/$/, '')
+      }
       confirmed.value = true
       return true
     } catch (e: any) {

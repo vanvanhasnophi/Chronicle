@@ -112,7 +112,6 @@ function spawnCdnWarm(urls = []) {
 router.use((req, res, next) => {
   if (req.path.startsWith('/auth/login') ||
       req.path.startsWith('/auth/challenge') ||
-      req.path.startsWith('/auth/webauthn') ||
       req.path.startsWith('/auth/code') ||
       req.path.startsWith('/auth/passkey/register') ||
       req.path.startsWith('/auth/passkey/login') ||
@@ -221,6 +220,19 @@ function spawnGenBuild(settings, options = {}) {
     const targetDir = path.resolve(settings.frontendBuildTargetDir || `/var/www/${settings.frontendUrl || DEFAULT_BUILD_SETTINGS.frontendUrl}`);
     const dataDir = fs.realpathSync(DATA_DIR); // resolve symlink → canonical path (/opt/Chronicle/data)
     const repoRoot = path.resolve(__dirname, '..', '..', '..');
+
+    // Reject builds when free memory is critically low to avoid OOM on
+    // small (2 GB) servers. The build process (Astro + Vite + sharp) can
+    // easily consume 1+ GB of RSS under load.
+    const freeMB = Math.round(os.freemem() / 1024 / 1024);
+    const MIN_FREE_MB = 384;
+    if (freeMB < MIN_FREE_MB) {
+      return res.status(503).json({
+        code: 503,
+        data: null,
+        message: `Insufficient memory for build — ${freeMB} MB free (minimum ${MIN_FREE_MB} MB). Try again later or free up server resources.`,
+      });
+    }
 
     const args = [
       GEN_CLI, 'build',
@@ -999,7 +1011,9 @@ router.post('/upload', uploadLimiter, (req, res) => {
   const categoryDir = path.join(UPLOAD_DIR, category);
   if (!fs.existsSync(categoryDir)) fs.mkdirSync(categoryDir, { recursive: true });
 
-  const cleanName = decodedName.replace(/[^a-zA-Z0-9.\-_]/g, '');
+  // Preserve Unicode (incl. CJK) — only strip path-traversal, control chars,
+  // and Windows-illegal filename characters.
+  const cleanName = decodedName.replace(/[\/\\\x00-\x1f<>:"|?*]/g, '');
   const randomName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}_${cleanName}`;
   const filePath = path.join(categoryDir, randomName);
 

@@ -10,6 +10,8 @@
 
 import MarkdownIt from 'markdown-it';
 import { Icons } from './icons';
+import DOMPurify from 'dompurify';
+import { SANITIZE_CONFIG } from '@chronicle/shared/utils';
 
 // ═══════════════════════════════════════════════════════════
 //  Config — must match chronicleMarkdown.ts in template-astro
@@ -444,6 +446,11 @@ export function renderPreview(markdown: string): string {
   const { text, mathBlocks } = protectMath(markdown);
   let html = md.render(text);
   html = restoreMath(html, mathBlocks);
+
+  // Sanitize user HTML BEFORE post-processing, so Chronicle's own safe
+  // image-wrapper handlers (onload/onerror) aren't stripped.
+  html = DOMPurify.sanitize(html, SANITIZE_CONFIG);
+
   html = postProcessHtml(html);
 
   return html;

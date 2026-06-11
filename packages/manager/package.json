@@ -3,7 +3,10 @@
   "private": true,
   "version": "2.0.1",
   "description": "Chronicle CMS — Markdown editor, content manager, and site settings",
-  "author": { "name": "Eightyfor", "email": "j13811593@163.com" },
+  "author": {
+    "name": "Eightyfor",
+    "email": "j13811593@163.com"
+  },
   "homepage": "https://github.com/vanvanhasnophi/Chronicle",
   "type": "module",
   "main": "electron/main.cjs",
@@ -47,6 +50,7 @@
   "dependencies": {
     "@simplewebauthn/browser": "^13.2.2",
     "@simplewebauthn/server": "^13.2.2",
+    "dompurify": "^3.4.9",
     "katex": "^0.16.28",
     "lucide-vue-next": "^0.269.0",
     "markdown-it": "^14.2.0",

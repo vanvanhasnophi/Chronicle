@@ -203,6 +203,7 @@ onMounted(async () => {
 
 .print-body {
   color: #111;
+  font-family: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
 }
 
 .print-header {

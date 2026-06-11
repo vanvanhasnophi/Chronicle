@@ -64,12 +64,12 @@ import { startAuthentication } from '@simplewebauthn/browser'
 import { Icons } from '../utils/icons'
 import { useI18n } from 'vue-i18n'
 import StandaloneHeader from '../components/StandaloneHeader.vue'
-import { apiUrl, useServerUrl, resolveApiBaseUrl } from '../composables/useServerUrl'
+import { apiUrl, useServerUrl, resolveApiBaseUrl, getWebauthnBaseUrl } from '../composables/useServerUrl'
 
 const router = useRouter()
 const route = useRoute()
 
-// Redirect to setup if this is a first boot
+// Redirect to setup if this is a first boot.
 onMounted(async () => {
   try {
     const url = apiUrl(`/api/admin/status?t=${Date.now()}`)
@@ -228,18 +228,23 @@ const handleCodeVerify = async () => {
 }
 
 const handlePasskeyLogin = async (is2FA = false) => {
-    // Electron: open system browser to dedicated WebAuthn page
+    const apiBase = (confirmedUrl.value || resolveApiBaseUrl() || 'http://localhost:3000').replace(/\/$/, '')
+    const webauthnOrigin = getWebauthnBaseUrl() || apiBase
+
+    // Electron: open system browser to the manager's passkey-auth page.
+    // The browser runs on the correct origin so WebAuthn rpId always matches.
     if (isElectron) {
       const el = (window as any).chronicleElectron
       let done = false
       el.onLoginCallback((token: string) => { if (!done) { done = true; completeLogin(token) } })
-      const base = (confirmedUrl.value || resolveApiBaseUrl() || 'http://localhost:3000').replace(/\/$/, '')
-      await el.openExternalLogin(`${base}/api/public/auth/webauthn?callback=${encodeURIComponent('chronicle://auth')}`)
+      const cb = encodeURIComponent('chronicle://auth')
+      await el.openExternalLogin(`${webauthnOrigin}/passkey-auth.html?callback=${cb}&api=${encodeURIComponent(apiBase)}`)
       setTimeout(() => {
         if (!done) error.value = t('login.loginInBrowserThenRefresh')
       }, 30000)
       return
     }
+    // Browser: perform WebAuthn directly on the current page.
     loading.value = true
     if (is2FA) error.value = ''
     else error.value = ''

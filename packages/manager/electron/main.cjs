@@ -58,6 +58,11 @@ function createChildWindow(url) {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
+      // sandbox: true is NOT set — Electron's OS-level sandbox requires
+      // user namespaces (Linux) or Seatbelt (Mac) to be pre-configured,
+      // otherwise the renderer may fail to start. The combination of
+      // contextIsolation + nodeIntegration:false + CSP provides a strong
+      // enough isolation layer for this app's threat model.
     },
   });
 
@@ -65,7 +70,23 @@ function createChildWindow(url) {
   setupMaximizeListener(newWin);
   setupUnsavedGuard(newWin);
 
-  const routePath = url.replace(/^\//, '');
+  // Extract the route path from the incoming URL.
+  // setWindowOpenHandler may pass a bare path ("/editor?id=...") or a fully
+  // resolved URL ("file:///path/dist/editor?id=..."). Handle both cases.
+  let routePath
+  if (/^https?:\/\//i.test(url) || /^file:\/\//i.test(url)) {
+    try {
+      const parsed = new URL(url)
+      routePath = parsed.pathname + parsed.search + parsed.hash
+    } catch (_) {
+      routePath = url
+    }
+  } else {
+    routePath = url
+  }
+  // Normalize: strip leading "/" so the final URL is "...index.html#/editor?id=..."
+  routePath = routePath.replace(/^\//, '')
+
   const winUrl = isDev
     ? `${DEV_URL}/${routePath}`
     : `file:///${getDistIndex().replace(/\\/g, '/')}#/${routePath}`;
@@ -93,8 +114,27 @@ function createWindow() {
 
   stripOrigin(mainWindow);
 
+  // ── Navigation / external-link security ──────────────────
+  // Prevent the renderer from navigating to unexpected URLs.
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    // In dev mode, allow navigation to the dev server.
+    if (isDev && url.startsWith(DEV_URL)) return;
+    // In production, only allow the loaded file:// page.
+    if (!isDev && url.startsWith('file://')) return;
+    event.preventDefault();
+  });
+
+  // Prevent redirects in production (file:// pages shouldn't redirect).
+  // Dev mode (Vite) uses redirects for HMR; allow them.
+  if (!isDev) {
+    mainWindow.webContents.on('will-redirect', (event, url) => {
+      event.preventDefault();
+    });
+  }
+
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:\/\//i.test(url)) { shell.openExternal(url); return { action: 'deny' }; }
+    // Only allow https:// external URLs; everything else is internal.
+    if (/^https:\/\//i.test(url)) { shell.openExternal(url); return { action: 'deny' }; }
     createChildWindow(url);
     return { action: 'deny' };
   });
@@ -114,17 +154,17 @@ function createWindow() {
 
 // ── Menu ────────────────────────────────────────────────────
 if (Menu) {
+  const viewSubmenu = isDev
+    ? [{ role: 'reload' }, { role: 'forceReload' }, { role: 'toggleDevTools' }, { type: 'separator' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { role: 'resetZoom' }]
+    : [{ role: 'zoomIn' }, { role: 'zoomOut' }, { role: 'resetZoom' }];
+
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { label: 'File', submenu: [{ role: 'quit', label: 'Quit Chronicle' }] },
     { label: 'Edit', submenu: [
       { role: 'undo' }, { role: 'redo' }, { type: 'separator' },
       { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' },
     ]},
-    { label: 'View', submenu: [
-      { role: 'reload' }, { role: 'forceReload' }, { role: 'toggleDevTools' },
-      { type: 'separator' },
-      { role: 'zoomIn' }, { role: 'zoomOut' }, { role: 'resetZoom' },
-    ]},
+    { label: 'View', submenu: viewSubmenu },
     { label: 'Help', submenu: [
       { label: 'Chronicle Docs', click: () => shell.openExternal('https://github.com/vanvanhasnophi/Chronicle') },
     ]},
@@ -204,8 +244,11 @@ if (!gotTheLock) {
 function handleAuthCallback(url) {
   try {
     const parsed = new URL(url);
+    // Only accept chronicle://auth (ignore other schemes / hosts)
+    if (parsed.protocol !== 'chronicle:' || parsed.hostname !== 'auth') return;
     const token = parsed.searchParams.get('token');
-    if (token && mainWindow) {
+    // Token must be a non-empty hex string (expected session token format)
+    if (token && /^[a-fA-F0-9]{16,}$/.test(token) && mainWindow) {
       mainWindow.webContents.send('login-callback', token);
     }
   } catch (e) { /* ignore malformed URLs */ }
@@ -213,10 +256,15 @@ function handleAuthCallback(url) {
 
 // IPC: open browser for Passkey login
 ipcMain.handle('open-external-login', async (event, url) => {
+  // Only allow https:// (production) or http://localhost (dev)
+  const ok = typeof url === 'string' && (
+    url.startsWith('https://') ||
+    (isDev && url.startsWith('http://localhost'))
+  );
+  if (!ok) return;
   try {
     await shell.openExternal(url);
   } catch (e) {
-    // xdg-open fails in headless/WSL — show URL so user can copy it
     if (mainWindow) {
       dialog.showMessageBox(mainWindow, {
         type: 'info',
@@ -230,12 +278,32 @@ ipcMain.handle('open-external-login', async (event, url) => {
 
 // IPC: write print HTML to temp file and open in system browser
 ipcMain.handle('open-print-in-browser', async (event, html, title) => {
+  // Reject oversized payloads (max ~2 MB of HTML)
+  if (typeof html !== 'string' || html.length > 2 * 1024 * 1024) return;
+  if (typeof title !== 'string') title = 'chronicle-print';
+
   const tmpDir = require('os').tmpdir();
-  const safeTitle = (title || 'chronicle-print').replace(/[^a-zA-Z0-9一-鿿_-]/g, '_').slice(0, 60);
+  const safeTitle = title.replace(/[^a-zA-Z0-9一-鿿_-]/g, '_').slice(0, 60);
   const fileName = `chronicle-print-${safeTitle}-${Date.now()}.html`;
   const filePath = path.join(tmpDir, fileName);
   fs.writeFileSync(filePath, html, 'utf-8');
   shell.openPath(filePath);
+});
+
+// ── Content Security Policy ────────────────────────────────────
+// Restrict what the renderer can load and execute. The CSP is
+// applied to all file:// and internal pages.
+app.on('web-contents-created', (event, contents) => {
+  contents.session.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': isDev
+          ? ["default-src 'self' http://localhost:* ws://localhost:*; style-src 'self' 'unsafe-inline' http://localhost:*; script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:*; img-src 'self' data: blob: http://localhost:* https:; font-src 'self' http://localhost:*; connect-src 'self' http://localhost:* ws://localhost:* https:"]
+          : ["default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https://*"],
+      },
+    });
+  });
 });
 
 // ── App Lifecycle ───────────────────────────────────────────

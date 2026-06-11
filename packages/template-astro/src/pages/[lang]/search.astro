@@ -625,6 +625,7 @@ const metaDescription = locale === "zh-CN"
   data-astro-rerun
 >
   // 使用原生导航替代astro:transitions/client
+  function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
   function navigateTo(url) {
     window.location.href = url;
   }
@@ -822,8 +823,8 @@ const metaDescription = locale === "zh-CN"
             const isF = tag === "featured" || tag === "精选";
             return `
             <span class="selected-tag-chip ${isF ? "featured" : ""}">
-              #${isF ? featuredLabel : tag}
-              <button class="chip-remove ${isF ? "featured" : ""}" data-tag="${tag}" title="移除标签">
+              #${esc(isF ? featuredLabel : tag)}
+              <button class="chip-remove ${isF ? "featured" : ""}" data-tag="${esc(tag)}" title="移除标签">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18"></line>
                   <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -1027,9 +1028,9 @@ const metaDescription = locale === "zh-CN"
             .map((post) => {
               const isF = (tag) => tag === "featured" || tag === "精选";
               return `
-              <article class="result-card" data-post-id="${post.id}">
+              <article class="result-card" data-post-id="${esc(String(post.id))}">
                 <div class="post-header">
-                  <h3 class="post-title">${post.title}</h3>
+                  <h3 class="post-title">${esc(post.title)}</h3>
                   <span class="post-date">${new Date(post.date).toLocaleDateString(locale)}</span>
                 </div>
                 ${
@@ -1040,7 +1041,7 @@ const metaDescription = locale === "zh-CN"
                       .map(
                         (tag) => `
                       <span class="tag-display ${isF(tag) ? "featured" : ""}">
-                        #${isF(tag) ? featuredLabel : tag}
+                        #${esc(isF(tag) ? featuredLabel : tag)}
                       </span>
                     `,
                       )
@@ -1049,7 +1050,7 @@ const metaDescription = locale === "zh-CN"
                 `
                     : ""
                 }
-                <div class="post-summary">${post.summary || ""}</div>
+                <div class="post-summary">${esc(post.summary || "")}</div>
               </article>
             `;
             })

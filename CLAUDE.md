@@ -83,12 +83,22 @@ Both manager and template-astro use **markdown-it** as the single parser, with i
 
 ### Pipeline B (active): Static HTML rendering
 ```
-protectMath() → markdown-it.render() → restoreMath() → postProcessHtml()
+protectMath() → markdown-it.render() → restoreMath() → sanitize() → postProcessHtml()
 ```
 - Used by both template-astro SSG and manager CMS preview
 - Custom inline rules: file-card interception (`audio:`, `video:`, `document:`, `text:`, `link:`, `mailto:`), `=WxH` image sizing
+- `sanitize()` runs DOMPurify against raw markdown-it output using a shared whitelist — strips `<script>`, `<iframe>`, `<svg>`, event handlers, and other XSS vectors. Runs BEFORE `postProcessHtml()` so Chronicle's own image-wrapper attributes (`onload`/`onerror` for loading states) are trusted.
 - `postProcessHtml`: code blocks → CodeChunk HTML, images → image wrapper (title attr → caption)
-- CMS preview uses `CodeChunk.vue` Vue components (reused from Pipeline A for mermaid/editing features)
+- CMS preview uses `CodeChunk.vue` Vue components
+
+### HTML Sanitization Config (shared)
+`packages/shared/src/utils/sanitize.ts` — zero-dependency whitelist consumed by both pipelines:
+- `ALLOWED_TAGS`: 43 tags (a, img, video, table, code, details, etc.). Excludes `<script>`, `<iframe>`, `<svg>`, `<style>`, `<form>`, `<base>`, `<link>`, `<meta>`.
+- `ALLOWED_ATTR`: ~30 attributes (href, src, alt, class, data-*, etc.). Excludes all `on*` event handlers.
+- Template-astro: `dompurify` + `jsdom` (SSG runs in Node.js, needs a DOM window).
+- Manager: `dompurify` directly (browser has native DOM).
+- To allow a new tag or attribute, edit `sanitize.ts` — both pipelines update automatically.
+- The legacy `sanitizeHtmlTag()` in `markdownParser.ts` is NOT the active sanitizer (Pipeline A only).
 
 ### Pipeline A (disabled, code preserved): Interactive ContentBlock parsing
 ```
@@ -102,7 +112,10 @@ Located in `packages/manager/src/utils/markdownParser.ts` + `MdParser.vue`. Kept
 ## Editor (BlogEditor)
 
 - **Editor**: CodeMirror 6 (`CmEditor.vue`) — markdown syntax highlighting via Lezer-based `HighlightStyle`, independent theme (dark/light toggle in toolbar, persisted to localStorage), built-in search/history
-- **Preview**: `MarkdownItPreview.vue` — ContentBlock-based incremental rendering, cursor-position tracking, active-block highlighting, debounced updates
+- **IME composition**: `updateListener` guards on `update.view.composing` — suppresses `update:modelValue` emission mid-composition so the `modelValue` watcher's full-document replacement doesn't interrupt CJK input. The watcher also checks `editorView.composing` before dispatching.
+- **Media insertion**: `CmEditor` exposes `insertAtCursor(text)` and `getSelection()` via `defineExpose`. BlogEditor's `insertMediaMarkdown`, `insertImageMarkdown`, `insertAtCursor`, and `openLinkModal` all use these CodeMirror APIs rather than textarea DOM properties.
+- **Print preview**: Electron — renders markdown to a self-contained HTML file (inline CSS, no external fonts) and opens it in the system browser via IPC (`open-print-in-browser`). Web — opens a new tab at `/editor/print` with content passed via `localStorage` token.
+- **Preview**: `MarkdownItPreview.vue` — Pipeline B rendered HTML, incremented updates synced with cursor position
 - **Toolbar row 3**: view mode buttons, dark/light theme toggle, language select — control global `data-backend-theme` and i18n locale, persisted to localStorage
 
 ## Image Rendering
@@ -177,12 +190,42 @@ Each schema is **valid JSON Schema (draft-2020-12)** extended with `x-*` propert
 
 Full spec: [docs/tech/schema-spec.md](docs/tech/schema-spec.md).
 
+## Electron Desktop App
+
+`packages/manager/electron/` wraps the Vue SPA in a native window. See [docs/tech/electron-security.md](docs/tech/electron-security.md) for the full security model.
+
+### Window & Navigation
+- Frameless windows with custom titlebar controls via IPC (`window-minimize` / `window-maximize` / `window-close`)
+- `setWindowOpenHandler` intercepts all `window.open()` calls: `https://` URLs → `shell.openExternal()`, internal paths → `createChildWindow()`
+- `createChildWindow()` handles both bare paths (`/editor?id=...`) and fully-resolved URLs (`file:///path/dist/editor?...`) by extracting the pathname from `new URL()` before constructing the hash-route URL
+- Main window loads `file:///dist/index.html` in production, `http://localhost:5173` in dev
+
+### CSP
+- Production: `script-src 'self' 'unsafe-eval'` (`'unsafe-eval'` needed by KaTeX and Mermaid), `connect-src 'self' https://*`
+- Dev: additionally allows `http://localhost:*` and `ws://localhost:*` for Vite HMR
+- Applied via `web-contents-created` → `session.webRequest.onHeadersReceived`
+
+### Navigation Restrictions
+- `will-navigate`: production only allows `file://` URLs; dev allows the Vite dev server
+- `will-redirect`: blocked entirely in production (file:// pages shouldn't redirect); dev allows for HMR
+- Production application menu removes DevTools and Reload
+
+### IPC Security
+- `open-external-login`: URL must start with `https://` (or `http://localhost` in dev) — rejects `file://`, `javascript:`, etc.
+- `chronicle://auth?token=...` custom protocol: validates scheme must be `chronicle:`, hostname must be `auth`, token must be 16+ hex chars
+- `open-print-in-browser`: rejects HTML payloads > 2 MB
+
+### Passkey (Electron-specific)
+- Electron cannot call `navigator.credentials.get()` natively → opens system browser to `webauthnBaseUrl/passkey-auth.html`
+- Browser completes WebAuthn on the correct origin, redirects to `chronicle://auth?token=xxx`
+- Main process receives the token via custom protocol, forwards to renderer via IPC `login-callback`
+
 ## Auth Lifecycle
 
 Chronicle uses a **phase-based auth model** with zero external dependencies:
 
 - **Setup phase** (`/api/admin/setup`): First boot — creates password + 10 one-time recovery codes. Setup token protection prevents remote hijacking of uninitialized instances.
-- **Normal phase** (`/api/admin/auth/login`): Password or Passkey login.
+- **Normal phase** (`/api/admin/auth/login`): Password or Passkey (WebAuthn) login. Passkey challenges and verification use `@simplewebauthn/server`. The server's `rpId` is derived from the request `Origin` header (falling back to `FRONTEND_DOMAIN` for same-origin proxied requests).
 - **Recovery phase** (`/api/admin/recover`): recovery codes → reset password. No email/SMTP needed.
 - **CLI bypass**: `npx chronicle setup|reset-password|show-token` — always available when the user has SSH/filesystem access. This is the ultimate fallback across all deployment modes.
 
@@ -190,6 +233,16 @@ Relevant files:
 - `packages/host/src/services/authService.js` — phase detection, token/code generation & verification
 - `packages/host/src/routes/admin/auth-lifecycle.js` — setup/recover endpoints
 - `packages/host/schemas/security.schema.json` — schema for `data/security.json`
+
+### Passkey Domain Model
+
+WebAuthn requires the browser origin to match the credential's `rpId`. The server is the single source of truth for where WebAuthn should happen:
+
+- `GET /api/admin/status` returns `webauthnBaseUrl` — the canonical manager domain (e.g. `https://blogmanager.eightyfor.top`)
+- Electron: opens system browser to `webauthnBaseUrl/passkey-auth.html` — the browser is on the correct origin, WebAuthn succeeds
+- Browser (non-Electron): performs WebAuthn directly on the current page with `startAuthentication()` from `@simplewebauthn/browser`. The manager is always served from the expected domain, so origin === rpId.
+- `passkey-auth.html` in manager's `public/` directory: standalone WebAuthn ceremony page, accepts both `chronicle://` (Electron callback) and `https://` (browser callback) redirect targets
+- Host's `public/index.js` contains no WebAuthn UI — all ceremony pages live on the manager
 
 ## Key Design Rules
 
@@ -221,6 +274,20 @@ pm2 logs chronicle-host
 ```
 
 The old v1 process name `chronicle-server` (pointing to `server/index.js`) should be deleted after migration.
+
+## Build (Astro SSG)
+
+Builds are triggered from the CMS via `POST /api/admin/build/astro`. The host spawns `chronicle-gen` as a child process — see [docs/tech/astro-build.md](docs/tech/astro-build.md) for granularity and incremental build details.
+
+### Resource Management (2 GB servers)
+- **Memory cap**: `NODE_OPTIONS=--max-old-space-size=768` limits the V8 heap. Respects the env var if already set.
+- **Pre-flight check**: API rejects builds with `503` when `os.freemem() < 384 MB` with a message to retry later.
+- **Background compression**: `sharp` WebP encoding at effort 4 (reduced from 6) — visual quality impact is negligible.
+- **Single concurrent build**: `activeAstroBuild` singleton prevents overlapping builds.
+
+### File Upload
+- Uploaded filenames are cleaned with a **blacklist** of dangerous characters (`/ \ \x00-\x1f < > : " | ? *`). Unicode (including CJK) is preserved.
+- The frontend sends filenames via `X-Filename` header, `encodeURIComponent`-encoded. The host decodes with `decodeURIComponent` before cleaning.
 
 ## v1 → v2 Data Migration
 

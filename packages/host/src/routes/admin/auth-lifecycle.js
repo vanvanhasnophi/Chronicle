@@ -14,6 +14,12 @@ const router = express.Router();
 const rateLimit = require('express-rate-limit');
 const authService = require('../../services/authService');
 const { success, fail } = require('../../services/response');
+const { DEFAULT_MANAGER_DOMAIN } = require('../../config');
+
+const isDev = process.argv.includes('--dev');
+const WEBAUTHN_BASE_URL = isDev
+  ? (process.env.VITE_DEV_URL || 'http://localhost:5173')
+  : `https://${process.env.BACKEND_DOMAIN || DEFAULT_MANAGER_DOMAIN}`;
 
 // ── Rate Limiters ───────────────────────────────────────
 const setupLimiter = rateLimit({
@@ -38,7 +44,7 @@ const recoverLimiter = rateLimit({
 router.get('/status', (req, res) => {
   try {
     const phase = authService.getAuthPhase();
-    return success(res, { phase });
+    return success(res, { phase, webauthnBaseUrl: WEBAUTHN_BASE_URL });
   } catch (e) {
     return fail(res, 'Failed to determine auth status');
   }

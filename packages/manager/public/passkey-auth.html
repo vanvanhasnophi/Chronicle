@@ -70,7 +70,7 @@
   var apiBase = (params.get('api') || '').replace(/\/+$/,'');
   var callback = params.get('callback') || '';
 
-  if (!callback || callback.indexOf('chronicle://') !== 0) {
+  if (!callback || (callback.indexOf('chronicle://') !== 0 && callback.indexOf('https://') !== 0)) {
     error('Missing or invalid callback URL.');
     return;
   }

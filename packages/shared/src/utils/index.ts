@@ -1,3 +1,4 @@
+export { ALLOWED_TAGS, ALLOWED_ATTR, SANITIZE_CONFIG } from "./sanitize.js"
 /**
  * Chronicle Shared Utilities
  *

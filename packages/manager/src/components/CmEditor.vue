@@ -77,24 +77,30 @@ function createExtensions(): Extension[] {
     markdown({ base: markdownLanguage }),
     EditorView.updateListener.of((update) => {
       if (update.docChanged) {
-        const val = update.state.doc.toString()
-        const len = update.startState.doc.length
-        const newLen = update.state.doc.length
-        // Compute changed line range from transaction
-        let fromLine = Infinity, toLine = 0
-        if (len > 0 && newLen > 0) {
-          update.changes.iterChanges((fromA, _toA, _fromB, toB) => {
-            const p0 = Math.min(Math.max(fromA, 0), len - 1)
-            const l0 = update.startState.doc.lineAt(p0).number
-            const p1 = Math.min(Math.max(toB - 1, 0), newLen - 1)
-            const l1 = update.state.doc.lineAt(p1).number
-            fromLine = Math.min(fromLine, l0)
-            toLine = Math.max(toLine, l1)
-          })
+        // Suppress model-value emission during IME composition — emitting
+        // mid-composition triggers the modelValue watcher's full-document
+        // replacement, which force-commits the IME and causes double-input
+        // for CJK punctuation marks.
+        if (!update.view.composing) {
+          const val = update.state.doc.toString()
+          const len = update.startState.doc.length
+          const newLen = update.state.doc.length
+          // Compute changed line range from transaction
+          let fromLine = Infinity, toLine = 0
+          if (len > 0 && newLen > 0) {
+            update.changes.iterChanges((fromA, _toA, _fromB, toB) => {
+              const p0 = Math.min(Math.max(fromA, 0), len - 1)
+              const l0 = update.startState.doc.lineAt(p0).number
+              const p1 = Math.min(Math.max(toB - 1, 0), newLen - 1)
+              const l1 = update.state.doc.lineAt(p1).number
+              fromLine = Math.min(fromLine, l0)
+              toLine = Math.max(toLine, l1)
+            })
+          }
+          if (!isFinite(fromLine)) { fromLine = 1; toLine = update.state.doc.lines }
+          emit('update:modelValue', val)
+          emit('changeRange', { from: fromLine, to: toLine })
         }
-        if (!isFinite(fromLine)) { fromLine = 1; toLine = update.state.doc.lines }
-        emit('update:modelValue', val)
-        emit('changeRange', { from: fromLine, to: toLine })
       }
       if (update.selectionSet) {
         emitCursor(update.view)
@@ -150,7 +156,9 @@ onUnmounted(() => {
 
 // Sync external value changes → editor
 watch(() => props.modelValue, (val) => {
-  if (editorView && val !== editorView.state.doc.toString()) {
+  // Never replace the document mid-composition — it force-commits the IME
+  // and causes double-input for CJK characters.
+  if (editorView && !editorView.composing && val !== editorView.state.doc.toString()) {
     editorView.dispatch({
       changes: { from: 0, to: editorView.state.doc.length, insert: val },
     })
@@ -175,6 +183,21 @@ defineExpose({
     if (!editorView) return 1
     const pos = editorView.state.selection.main.head
     return editorView.state.doc.lineAt(pos).number
+  },
+  /** Insert text at the current cursor position, replacing any selection. */
+  insertAtCursor(text: string) {
+    if (!editorView) return
+    const { from, to } = editorView.state.selection.main
+    editorView.dispatch({
+      changes: { from, to, insert: text },
+      selection: { anchor: from + text.length },
+    })
+  },
+  /** Get the current selection range { from, to } plus the full document text. */
+  getSelection(): { from: number; to: number; text: string } | null {
+    if (!editorView) return null
+    const { from, to } = editorView.state.selection.main
+    return { from, to, text: editorView.state.sliceDoc(from, to) }
   },
   /** CodeMirror's scrollable DOM element for scroll-sync */
   getScrollDom(): HTMLElement | null {
