@@ -12,6 +12,13 @@ import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import katex from 'katex';
 import { Icons } from './icons';
+import DOMPurify from 'dompurify';
+import { JSDOM } from 'jsdom';
+import { SANITIZE_CONFIG } from '@chronicle/shared/utils';
+
+// DOMPurify needs a DOM window at build time (SSG runs in Node.js).
+const purifyWindow = new JSDOM('').window as unknown as Window & typeof globalThis;
+const purify = DOMPurify(purifyWindow);
 
 // ═══════════════════════════════════════════════════════════
 //  Config — must match template-astro's localDataSource AND
@@ -548,7 +555,13 @@ export function renderChronicleMarkdown(content: string): string {
   // Step 3: Restore math placeholders
   html = restoreMath(html, mathBlocks);
 
-  // Step 4: Post-process to component HTML
+  // Step 4: Sanitize user HTML — strip scripts, event handlers, etc.
+  // Runs BEFORE post-processing so that Chronicle's own safe image-wrapper
+  // handlers (onload/onerror for loading states) survive.
+  html = purify.sanitize(html, SANITIZE_CONFIG);
+
+  // Step 5: Post-process to component HTML (CodeChunk, image wrapper, file cards).
+  // Happens AFTER sanitize so the wrapper attributes added here are trusted.
   html = postProcessHtml(html);
 
   return html;

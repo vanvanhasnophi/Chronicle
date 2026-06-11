@@ -30,5 +30,8 @@
     "@codemirror/view": "^6.43.0",
     "codemirror": "^6.0.2",
     "mermaid": "^11.15.0"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^28.0.3"
   }
 }

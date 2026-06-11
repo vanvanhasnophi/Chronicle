@@ -267,6 +267,7 @@ async function loadCollections() {
     if (active) { buildTreeHtml(active.nodes || [], props.postId); }
     else { treeHtml.value = ''; }
     loading.value = false;
+    updatePlacement();
     return;
   }
 
@@ -394,8 +395,12 @@ onMounted(() => {
   detectLocaleAndPrefix();
   moveToBody();
   loadCollections();
+  updatePlacement();
   window.addEventListener('resize', handleResize);
-  handleAstroPageLoad = () => moveToBody();
+  handleAstroPageLoad = () => {
+    moveToBody();
+    updatePlacement();
+  };
   document.addEventListener('astro:page-load', handleAstroPageLoad);
 });
 

@@ -257,7 +257,7 @@ async function compressBackground(options) {
   const quality = Math.max(35, Math.min(92, Math.round(92 - (compression - 1) * 5)));
   const resizeWidth = sourceWidth > 0 ? Math.max(128, Math.round(sourceWidth / Math.max(1, compression))) : undefined;
 
-  let transformer = sharp(absSourcePath, { failOnError: false }).webp({ quality, effort: 6 });
+  let transformer = sharp(absSourcePath, { failOnError: false }).webp({ quality, effort: 4 });
   if (resizeWidth && resizeWidth > 0 && sourceWidth > resizeWidth) {
     transformer = transformer.resize({ width: resizeWidth, withoutEnlargement: true });
   }

@@ -261,6 +261,10 @@ export async function runBuild({ dataDir, codeDir, targetDir, granularity }) {
       ...process.env,
       CHRONICLE_DATA_DIR: resolve(dataDir),
       DATA_SOURCE: 'local',
+      // Cap V8 heap at 768 MB to avoid OOM on 2 GB servers.
+      // Astro + Vite + all dependencies (KaTeX, Mermaid, highlight.js, Vue)
+      // can easily exceed 1.4 GB without a limit.
+      NODE_OPTIONS: process.env.NODE_OPTIONS || '--max-old-space-size=768',
     },
   });
 
