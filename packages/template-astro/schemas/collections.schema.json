@@ -6,7 +6,7 @@
     "zh-CN": "合集管理"
   },
   "x-lang": "en",
-  "x-version": "2.0.0",
+  "x-version": "2.0.1",
   "x-migrations": [],
   "type": "array",
   "x-chronicle-class": "collection-tree",

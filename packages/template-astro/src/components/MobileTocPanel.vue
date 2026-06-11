@@ -173,16 +173,6 @@ function ensureActiveItemVisible() {
     width: 3px;
     height: 3px;
 }
-
-.mobile-toc-list::-webkit-scrollbar-thumb{
-    background: var(--component-text-secondary);
-    border-radius: 2px;
-}
-
-.mobile-toc-list::-webkit-scrollbar-thumb:hover{
-    background: var(--component-text-primary);
-}
-
 .mobile-toc-list::-webkit-scrollbar-track{
     background: inherit;
     width: 5px;

@@ -44,8 +44,14 @@ export default defineConfig({
         // branding/upload served as static files via public/server/data/
         // (symlinked during build by chronicle-gen)
       }
-    }
-    ,
+    },
+    // Prevent "Outdated Optimize Dep" 504 errors by excluding
+    // large/volatile deps from Vite's pre-bundle optimization.
+    // NOTE: do NOT exclude 'vue' or '@astrojs/vue' — @astrojs/vue
+    // integration requires them to be pre-bundled.
+    optimizeDeps: {
+      exclude: ['astro-icon'],
+    },
     plugins: [
       // 在构建时排除 src/archive 目录下的所有模块
       (function excludeArchivePlugin() {

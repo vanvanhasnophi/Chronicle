@@ -6,7 +6,7 @@
     "zh-CN": "模板设置"
   },
   "x-lang": "en",
-  "x-version": "2.0.0",
+  "x-version": "2.0.1",
   "x-migrations": [
     {
       "fromVersion": "0.9.0",

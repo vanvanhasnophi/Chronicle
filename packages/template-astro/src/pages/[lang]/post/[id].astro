@@ -493,6 +493,102 @@ const metaDescription = buildMetaDescription(post, locale);
         globalState.__CHRONICLE_IMAGE_CLICK_HANDLER_BOUND__ = true;
         document.addEventListener('click', imageClickHandler, { capture: true });
       }
+
+      // Register image viewer hook (shared with manager pattern)
+      if (!globalState.__CHRONICLE_OPEN_IMAGE_VIEWER__) {
+        globalState.__CHRONICLE_OPEN_IMAGE_VIEWER__ = function(info: { src: string; alt: string; element: HTMLImageElement }) {
+          const existing = document.querySelector('.image-preview-overlay');
+          if (existing) existing.remove();
+
+          const overlay = document.createElement('div');
+          overlay.className = 'image-preview-overlay';
+
+          // Actions group — matches manager FilePreviewModal image mode
+          const actions = document.createElement('div');
+          actions.className = 'preview-header-actions';
+          actions.style.cssText = 'position:fixed;top:30px;right:30px;z-index:20002';
+
+          const downloadBtn = document.createElement('a');
+          downloadBtn.className = 'preview-action-btn';
+          downloadBtn.href = info.src;
+          downloadBtn.download = '';
+          downloadBtn.target = '_blank';
+          downloadBtn.title = 'Download';
+          downloadBtn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+
+          const closeBtn = document.createElement('button');
+          closeBtn.className = 'preview-action-btn';
+          closeBtn.title = 'Close';
+          closeBtn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+
+          actions.appendChild(downloadBtn);
+          actions.appendChild(closeBtn);
+          overlay.appendChild(actions);
+
+          const container = document.createElement('div');
+          container.className = 'image-preview-container';
+
+          const img = document.createElement('img');
+          img.src = info.src;
+          img.alt = info.alt;
+          img.draggable = false;
+          img.className = 'image-preview-content';
+
+          let scale = 1, x = 0, y = 0, dragging = false, startX = 0, startY = 0;
+
+          img.addEventListener('dragstart', function(e) { e.preventDefault(); });
+
+          function apply() {
+            img.style.transform = 'translate(' + x + 'px, ' + y + 'px) scale(' + scale + ')';
+          }
+
+          overlay.addEventListener('wheel', function(e) {
+            e.preventDefault();
+            scale = Math.min(Math.max(0.5, scale * (e.deltaY > 0 ? 0.9 : 1.1)), 5);
+            apply();
+          });
+
+          overlay.addEventListener('mousedown', function(e) {
+            if (e.target === img || e.target === container) {
+              dragging = true;
+              startX = e.clientX - x;
+              startY = e.clientY - y;
+              img.classList.add('is-dragging');
+            }
+          });
+
+          window.addEventListener('mousemove', function(e) {
+            if (!dragging) return;
+            x = e.clientX - startX;
+            y = e.clientY - startY;
+            apply();
+          });
+
+          window.addEventListener('mouseup', function() {
+            dragging = false;
+            img.classList.remove('is-dragging');
+          });
+
+          function close() {
+            overlay.remove();
+            document.removeEventListener('keydown', onEsc);
+          }
+
+          function onEsc(e: KeyboardEvent) {
+            if (e.key === 'Escape') close();
+          }
+          document.addEventListener('keydown', onEsc);
+
+          closeBtn.addEventListener('click', close);
+          overlay.addEventListener('click', function(e) {
+            if (e.target === overlay) close();
+          });
+
+          container.appendChild(img);
+          overlay.appendChild(container);
+          document.body.appendChild(overlay);
+        };
+      }
     }
 
     if (document.readyState === 'loading') {

@@ -118,8 +118,18 @@ function onClick(e) {
   e.preventDefault();
   const url = el.getAttribute('data-url') || el.dataset.url || '';
   const name = el.getAttribute('data-name') || el.dataset.name || '';
-  const hinted = el.getAttribute('data-type') || el.dataset.type || '';
 
+  // Direct navigation for link / mailto cards — no preview modal
+  if (/^https?:\/\//i.test(url)) {
+    window.open(url, '_blank', 'noopener');
+    return;
+  }
+  if (/^mailto:/i.test(url)) {
+    window.location.href = url;
+    return;
+  }
+
+  const hinted = el.getAttribute('data-type') || el.dataset.type || '';
   (async () => {
     let type = await detectTypeByHints(url, hinted);
     try { type = String(type || '').trim().toLowerCase(); } catch (e) { type = 'file'; }
