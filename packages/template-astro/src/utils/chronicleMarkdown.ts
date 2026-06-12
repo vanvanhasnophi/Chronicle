@@ -501,12 +501,26 @@ function renderFileCard(url: string, displayName?: string, forcedType?: string, 
 function postProcessHtml(html: string): string {
   let result = html;
 
-  // 1. Code blocks: <pre><code class="language-X"> → CodeChunk HTML
+  // 1. Code blocks → CodeChunk HTML
+  // (a) Blocks WITH a language tag (```rust, ```c++, ```invalid-lang).
+  //     [^"]* captures full language names including special chars (+, #, -).
+  // (b) Blocks WITHOUT a language tag (bare ```) — fall back to "plain".
+
+  // (a) language-tagged blocks
   result = result.replace(
-    /<pre><code class="language-(\w*)">([\s\S]*?)<\/code><\/pre>/g,
+    /<pre><code class="language-([^"]*)">([\s\S]*?)<\/code><\/pre>/g,
     (_m, lang, rawCode) => {
       const code = unescapeHtml(rawCode);
       return renderCodeChunkHtml(code, lang || 'plain');
+    }
+  );
+
+  // (b) bare blocks (no class). Applied after (a) so tagged blocks are consumed.
+  result = result.replace(
+    /<pre><code>([\s\S]*?)<\/code><\/pre>/g,
+    (_m, rawCode) => {
+      const code = unescapeHtml(rawCode);
+      return renderCodeChunkHtml(code, 'plain');
     }
   );
 

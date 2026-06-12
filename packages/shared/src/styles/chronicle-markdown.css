@@ -220,9 +220,15 @@
   border-radius: 8px;
   max-width: 100%;
   width: fit-content;
-  aspect-ratio: 2 / 1;
   box-sizing: border-box;
   background-color: var(--component-bg-blur-alt);
+}
+
+/* During loading (before .loaded is added to <img>), reserve a 2:1
+   placeholder so the page layout doesn't collapse. Once the image loads,
+   the wrapper resizes to the image's natural aspect ratio. */
+.chronicle-markdown .md-image-wrapper:not(:has(.md-image.loaded)):not([data-error="1"]) {
+  aspect-ratio: 2 / 1;
 }
 
 
@@ -290,6 +296,7 @@
 .chronicle-markdown .md-image.loaded {
   opacity: 1;
   filter: blur(0);
+  object-fit: contain;
 }
 
 /* ═══════════════════════════════════════════════════════════
