@@ -570,6 +570,7 @@
   "editor": {
     "done": "完成",
     "meta": "属性",
+    "metaTitle": "文章属性",
     "restore": "恢复",
     "save": "保存",
     "upload": "上传",

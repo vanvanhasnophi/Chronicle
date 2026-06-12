@@ -221,18 +221,6 @@ function spawnGenBuild(settings, options = {}) {
     const dataDir = fs.realpathSync(DATA_DIR); // resolve symlink → canonical path (/opt/Chronicle/data)
     const repoRoot = path.resolve(__dirname, '..', '..', '..');
 
-    // Reject builds when free memory is critically low to avoid OOM on
-    // small (2 GB) servers. The build process (Astro + Vite + sharp) can
-    // easily consume 1+ GB of RSS under load.
-    const freeMB = Math.round(os.freemem() / 1024 / 1024);
-    const MIN_FREE_MB = 384;
-    if (freeMB < MIN_FREE_MB) {
-      return res.status(503).json({
-        code: 503,
-        data: null,
-        message: `Insufficient memory for build — ${freeMB} MB free (minimum ${MIN_FREE_MB} MB). Try again later or free up server resources.`,
-      });
-    }
 
     const args = [
       GEN_CLI, 'build',
@@ -289,10 +277,12 @@ function spawnGenBuild(settings, options = {}) {
       reject(err);
     });
 
-    // 2min timeout: respond to CMS, gen keeps running independently
+    // 2min timeout: respond to CMS, gen keeps running independently.
+    // Release the build lock so a retry can be issued immediately.
     setTimeout(() => {
       if (settled) return;
       settled = true;
+      endAstroBuild(buildId);
       child.unref();
       console.log(`[Build ${buildId}] Timeout after 2min — gen continues in background`);
       resolve({ buildId, status: 'timeout', result: null, error: null, message: getBuildStatusMessage('timeout') });
@@ -1331,6 +1321,19 @@ router.post('/build/astro', buildLimiter, async (req, res) => {
         message: startedAt
           ? `Build already in progress（buildId=${activeBuild.buildId}, startedAt=${startedAt}）`
           : `Build already in progress（buildId=${activeBuild.buildId}）`,
+      });
+    }
+
+    // Reject builds when free memory is critically low to avoid OOM on
+    // small (2 GB) servers. The build process (Astro + Vite + sharp) can
+    // easily consume 1+ GB of RSS under load.
+    const freeMB = Math.round(os.freemem() / 1024 / 1024);
+    const MIN_FREE_MB = 384;
+    if (freeMB < MIN_FREE_MB) {
+      return res.status(503).json({
+        code: 503,
+        data: null,
+        message: `Insufficient memory for build — ${freeMB} MB free (minimum ${MIN_FREE_MB} MB). Try again later or free up server resources.`,
       });
     }
 

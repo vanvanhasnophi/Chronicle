@@ -396,12 +396,22 @@ function renderFileCard(url: string, displayName?: string, forcedType?: string, 
 function postProcessHtml(html: string): string {
   let result = html;
 
-  // 1. Code blocks → CodeChunk
+  // 1. Code blocks → CodeChunk HTML
+  // (a) Language-tagged blocks — [^"]* captures special chars (+, #, -).
   result = result.replace(
-    /<pre><code class="language-(\w*)">([\s\S]*?)<\/code><\/pre>/g,
+    /<pre><code class="language-([^"]*)">([\s\S]*?)<\/code><\/pre>/g,
     (_m, lang, rawCode) => {
       const code = unescapeHtml(rawCode);
       return renderCodeChunkHtml(code, lang || 'plain');
+    }
+  );
+
+  // (b) Bare blocks (no language class) → fall back to "plain".
+  result = result.replace(
+    /<pre><code>([\s\S]*?)<\/code><\/pre>/g,
+    (_m, rawCode) => {
+      const code = unescapeHtml(rawCode);
+      return renderCodeChunkHtml(code, 'plain');
     }
   );
 
@@ -496,7 +506,8 @@ export function splitMarkdownSegments(markdown: string): MarkdownSegment[] {
   if (!html) return [];
 
   const segments: MarkdownSegment[] = [];
-  const regex = /<pre><code class="language-(\w*)">([\s\S]*?)<\/code><\/pre>/g;
+  // Match both tagged (<pre><code class="language-X">) and bare (<pre><code>) blocks.
+  const regex = /<pre><code(?: class="language-([^"]*)")?>([\s\S]*?)<\/code><\/pre>/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 

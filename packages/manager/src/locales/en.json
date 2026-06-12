@@ -571,6 +571,7 @@
   "editor": {
     "done": "Done",
     "meta": "Properties",
+    "metaTitle": "Post Properties",
     "restore": "Restore",
     "save": "Save",
     "upload": "Upload",

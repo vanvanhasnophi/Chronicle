@@ -9,14 +9,19 @@ interface Props {
   articleBackHref?: string;
   articleBackLabel?: string;
   featureFlags?: Record<string, boolean>;
+  /** Initial performance mode for the SSR-rendered toggle switch. */
+  defaultPerformanceMode?: string;
 }
 
-const { currentPath, locale: propLocale, articleTitle, articleBackHref, articleBackLabel, featureFlags } = Astro.props;
+const { currentPath, locale: propLocale, articleTitle, articleBackHref, articleBackLabel, featureFlags, defaultPerformanceMode } = Astro.props;
 const locale = propLocale || getLocale(Astro.locals);
 const t = (key: string) => getTranslation(locale, key);
 const activePath = stripRouteLocale(currentPath);
 const homeHref = buildLocalizedPath(locale, "/");
 const blogsHref = buildLocalizedPath(locale, "/blogs");
+// Initial SSR state for the perf toggle. 'auto' defaults to 'full' — the
+// client-side script corrects it immediately if the device is low-end.
+const initialPerf = (defaultPerformanceMode === 'reduced') ? 'reduced' : 'full';
 const searchHref = buildLocalizedPath(locale, "/search");
 const collectionHref = buildLocalizedPath(locale, "/collection");
 const friendsHref = buildLocalizedPath(locale, "/friends");
@@ -273,7 +278,7 @@ const isActive = (path: string) => {
         />
 
         <!-- Performance toggle -->
-        <button class="popup-item" id="perf-toggle" data-perf="" onclick="window.__chronicleTogglePerf?.()">
+        <button class="popup-item" id="perf-toggle" data-perf={initialPerf} onclick="window.__chronicleTogglePerf?.()">
           <span class="popup-label">{
             locale === "zh-CN" ? "高级效果" : "Visual Effects"
           }</span>

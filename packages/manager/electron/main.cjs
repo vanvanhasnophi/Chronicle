@@ -71,21 +71,34 @@ function createChildWindow(url) {
   setupUnsavedGuard(newWin);
 
   // Extract the route path from the incoming URL.
-  // setWindowOpenHandler may pass a bare path ("/editor?id=...") or a fully
-  // resolved URL ("file:///path/dist/editor?id=..."). Handle both cases.
+  // Electron resolves relative URLs before passing them to
+  // setWindowOpenHandler, so we receive an absolute file:/// URL
+  // (e.g. "file:///path/dist/editor?id=...") rather than a bare path.
   let routePath
-  if (/^https?:\/\//i.test(url) || /^file:\/\//i.test(url)) {
+  if (/^file:\/\//i.test(url)) {
     try {
       const parsed = new URL(url)
-      routePath = parsed.pathname + parsed.search + parsed.hash
+      // If the URL already has a hash (e.g. "#/editor?id=..."), use it.
+      if (parsed.hash && parsed.hash.startsWith('#/')) {
+        routePath = parsed.hash.slice(1)
+      } else {
+        // pathname is /path/to/dist/editor — take everything after /dist/
+        const pathAfterDist = parsed.pathname.split('/dist/')[1] || ''
+        routePath = pathAfterDist + parsed.search
+      }
     } catch (_) {
       routePath = url
     }
+  } else if (/^https?:\/\//i.test(url)) {
+    try {
+      const parsed = new URL(url)
+      routePath = parsed.pathname.replace(/^\//, '') + parsed.search + parsed.hash
+    } catch (_) {
+      routePath = url.replace(/^\//, '')
+    }
   } else {
-    routePath = url
+    routePath = url.replace(/^\//, '')
   }
-  // Normalize: strip leading "/" so the final URL is "...index.html#/editor?id=..."
-  routePath = routePath.replace(/^\//, '')
 
   const winUrl = isDev
     ? `${DEV_URL}/${routePath}`
