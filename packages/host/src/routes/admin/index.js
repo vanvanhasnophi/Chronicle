@@ -129,6 +129,10 @@ router.use((req, res, next) => {
 // /status, /setup, /recover/verify, /recover/reset
 router.use(authLifecycle);
 
+// ── About Page Routes ─────────────────────────────────────
+const aboutRoutes = require('./about');
+router.use(aboutRoutes);
+
 // ═══════════════════════════════════════════════════════════
 //  HELPER FUNCTIONS (extracted from index.js)
 // ═══════════════════════════════════════════════════════════

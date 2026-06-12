@@ -96,6 +96,7 @@ import '@chronicle/shared/src/styles/chronicle-markdown.css'
 import { fetchWithAuth } from '../utils/fetchWithAuth'
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import { usePreview } from '../composables/usePreview'
+import DOMPurify from 'dompurify'
 
 const { state, imgState, closePreview } = usePreview()
 const loading = ref(false)
@@ -143,9 +144,12 @@ async function loadText() {
       }
     }
     if (lines.length > MAX_LINES) out.push('<span class="fp-truncated">…</span>')
-    textHtml.value = out.join('\n')
+    textHtml.value = DOMPurify.sanitize(out.join('\n'), { ALLOWED_TAGS: ['span'], ALLOWED_ATTR: ['class'] })
   } catch (e: any) {
-    textError.value = e?.message || 'Failed to load text'
+    const msg = e?.message || ''
+    textError.value = msg.includes('ERR_FILE_NOT_FOUND') || msg.includes('blob:')
+      ? 'This file was added in the current session and is no longer available. Save & reload to preview.'
+      : (msg || 'Failed to load text')
   } finally { loading.value = false }
 }
 

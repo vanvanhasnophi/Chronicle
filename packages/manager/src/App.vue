@@ -616,6 +616,9 @@ function applySettingsFromStore(s: Record<string, any>) {
         if (isPrintPreviewRoute.value) {
           document.body.setAttribute('data-backend-theme', 'light')
         } else if (s.backendTheme) {
+          // Sync reactive ref so quick-popover shows correct state on login
+          if (!localStorage.getItem('backendTheme')) theme.value = s.backendTheme
+
           if (s.backendTheme === 'follow' || s.backendTheme === 'system') {
             document.body.removeAttribute('data-backend-theme')
           } else if (s.backendTheme === 'light') {

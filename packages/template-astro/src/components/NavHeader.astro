@@ -11,9 +11,11 @@ interface Props {
   featureFlags?: Record<string, boolean>;
   /** Initial performance mode for the SSR-rendered toggle switch. */
   defaultPerformanceMode?: string;
+  siteName?: string;
 }
 
-const { currentPath, locale: propLocale, articleTitle, articleBackHref, articleBackLabel, featureFlags, defaultPerformanceMode } = Astro.props;
+const { currentPath, locale: propLocale, articleTitle, articleBackHref, articleBackLabel, featureFlags, defaultPerformanceMode, siteName } = Astro.props;
+const appTitle = siteName || 'Chronicle';
 const locale = propLocale || getLocale(Astro.locals);
 const t = (key: string) => getTranslation(locale, key);
 const activePath = stripRouteLocale(currentPath);
@@ -21,10 +23,10 @@ const homeHref = buildLocalizedPath(locale, "/");
 const blogsHref = buildLocalizedPath(locale, "/blogs");
 // Initial SSR state for the perf toggle. 'auto' defaults to 'full' — the
 // client-side script corrects it immediately if the device is low-end.
-const initialPerf = (defaultPerformanceMode === 'reduced') ? 'reduced' : 'full';
 const searchHref = buildLocalizedPath(locale, "/search");
 const collectionHref = buildLocalizedPath(locale, "/collection");
 const friendsHref = buildLocalizedPath(locale, "/friends");
+const aboutHref = buildLocalizedPath(locale, "/about");
 const showFriends = featureFlags?.friendsPage !== false;
 const showAbout = featureFlags?.aboutPage !== false;
 const showCollection = featureFlags?.collectionPage !== false;
@@ -49,7 +51,7 @@ const isActive = (path: string) => {
     <div class="header-swap">
       <div class:list={["site-header", { "entering-up": articleTitle && articleBackHref }]}>
         <a href="/" style="text-decoration:none; color:inherit;">
-          <h1 class="app-title">Chronicle</h1>
+          <h1 class="app-title">{appTitle}</h1>
         </a>
       </div>
 
@@ -278,7 +280,7 @@ const isActive = (path: string) => {
         />
 
         <!-- Performance toggle -->
-        <button class="popup-item" id="perf-toggle" data-perf={initialPerf} onclick="window.__chronicleTogglePerf?.()">
+        <button class="popup-item" id="perf-toggle" onclick="window.__chronicleTogglePerf?.()">
           <span class="popup-label">{
             locale === "zh-CN" ? "高级效果" : "Visual Effects"
           }</span>
@@ -338,7 +340,7 @@ const isActive = (path: string) => {
 
         <!-- About -->
         {showAbout && (
-          <a href="/about" class:list={["popup-item", "popup-item-link"]}>
+          <a href={aboutHref} class:list={["popup-item", "popup-item-link"]}>
             <span class="popup-label">{t("nav.about")}</span>
           </a>
         )}
@@ -724,13 +726,18 @@ const isActive = (path: string) => {
     background: #fff;
     transition: transform .2s;
   }
-  [data-perf="full"] .popup-switch,
-  #perf-toggle[data-perf="full"] .popup-switch {
+  [data-perf="full"] .popup-switch {
     background: var(--accent-color);
   }
-  [data-perf="full"] .popup-switch-knob,
-  #perf-toggle[data-perf="full"] .popup-switch-knob {
+  [data-perf="full"] .popup-switch-knob {
     transform: translateX(16px);
+  }
+
+  [data-perf="reduced"] .popup-switch {
+    background: var(--border-color);
+  }
+  [data-perf="reduced"] .popup-switch-knob {
+    transform: none;
   }
 
   .popup-divider {

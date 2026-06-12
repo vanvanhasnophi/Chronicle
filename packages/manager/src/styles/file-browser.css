@@ -196,6 +196,7 @@
 .chronicle-fb-list {
     overflow-y: auto;
     height: calc(100% - 40px - 1.5rem);
+    padding-right: 0 4px;
 }
 
 /* ── Card view (grid) ──────────────────────────────────────────────── */

@@ -1,11 +1,11 @@
 <template>
-    <div class="blog-editor" :class="[`layout-${layout}`, { 'is-mobile': isMobile }]">
+    <div class="blog-editor" :class="[`layout-${layout}`, { 'is-mobile': isMobile }]" @dragover.prevent>
         <div class="editor-toolbar">
             <!-- ROW 1: Meta & Main Actions -->
             <div class="toolbar-row row-meta">
                 <div class="meta-left">
                     <h4 class="post-title-display">{{ postTitle }}</h4>
-                    <span :class="['status-chip', postStatus]">{{ $t('status.' + (postStatus || 'published')) }}</span>
+                    <span v-if="!isAboutMode" :class="['status-chip', postStatus]">{{ $t('status.' + (postStatus || 'published')) }}</span>
                     <span v-if="isBuilding" class="build-hint">
                         <QuarterCircleSpinner :size="18" />{{ t('editor.building') }}
                     </span>
@@ -22,7 +22,7 @@
                     </div>
                 </div>
                 <div class="actions-right">
-                    <button v-if="postStatus === 'modifying'" class="toolbar-btn danger-btn" @click="restorePost"
+                    <button v-if="postStatus === 'modifying' && !isAboutMode" class="toolbar-btn danger-btn" @click="restorePost"
                         :disabled="isSaving" :title="t('editor.restore')">
                         <span class="icon-svg" v-html="Icons.undo"></span>
                         <span v-if="!isMobile" class="btn-label">{{ t('editor.restore') }}</span>
@@ -34,16 +34,20 @@
                         <span v-if="!isMobile" class="btn-label">{{ t('editor.print') }}</span>
                     </button>
 
-                    <button class="toolbar-btn" @click="() => handleTopRightSave('draft')" :disabled="isSaving">
+                    <button v-if="!isAboutMode" class="toolbar-btn" @click="() => handleTopRightSave('draft')" :disabled="isSaving">
                         <span class="icon-svg" v-html="Icons.save"></span>
                         <span v-if="!isMobile" class="btn-label">{{ isCloudEditing ? t('editor.draft') :
                             t('editor.save') }}</span>
                     </button>
 
-                    <button class="toolbar-btn primary-action" @click="openSaveModal('publish')" :disabled="isSaving">
+                    <button v-if="!isAboutMode" class="toolbar-btn primary-action" @click="openSaveModal('publish')" :disabled="isSaving">
                         <span class="icon-svg" v-html="Icons.publish"></span>
                         <span v-if="!isMobile" class="btn-label">{{ isCloudEditing ? t('editor.publish') :
                             t('editor.upload') }}</span>
+                    </button>
+                    <button v-else class="toolbar-btn primary-action" @click="openSaveModal('publish')" :disabled="isSaving">
+                        <span class="icon-svg" v-html="Icons.publish"></span>
+                        <span v-if="!isMobile" class="btn-label">{{ t('editor.save') }}</span>
                     </button>
                 </div>
             </div>
@@ -51,11 +55,11 @@
             <!-- ROW 2: Editing Tools -->
             <div class="toolbar-row row-tools">
                 <div class="tool-group">
-                    <button class="toolbar-btn" @click="openFileMenu" :title="t('editor.fileLabel')">
+                    <button v-if="!isAboutMode" class="toolbar-btn" @click="openFileMenu" :title="t('editor.fileLabel')">
                         <span class="icon-svg" v-html="Icons.file"></span>
                         <span>{{ t('editor.fileLabel') }}</span>
                     </button>
-                    <button class="toolbar-btn" @click="openMetaModal" :title="t('editor.meta') || 'Properties'">
+                    <button v-if="!isAboutMode" class="toolbar-btn" @click="openMetaModal" :title="t('editor.meta') || 'Properties'">
                         <span class="icon-svg">
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                         </span>
@@ -86,11 +90,13 @@
 
                     <span class="divider"></span>
 
-                    <button v-for="font in fontOptions" :key="font.value" class="toolbar-btn"
-                        :class="{ active: postFont === font.value, ['font-' + font.value]: true }"
-                        @click="postFont = font.value" :title="font.label">
-                        <span class="icon-svg" v-html="font.icon"></span>
-                    </button>
+                    <template v-if="!isAboutMode">
+                        <button v-for="font in fontOptions" :key="font.value" class="toolbar-btn"
+                            :class="{ active: postFont === font.value, ['font-' + font.value]: true }"
+                            @click="postFont = font.value" :title="font.label">
+                            <span class="icon-svg" v-html="font.icon"></span>
+                        </button>
+                    </template>
                 </div>
                 <button class="stats-display" @click="activeModal = 'stats'">
                     {{ wordCountLabel }}
@@ -317,7 +323,7 @@
 
                 <!-- Media Body -->
                 <div v-if="activeModal === 'media'" class="modal-body media-manager-layout">
-                    <FilePicker selectionMode="multiple" :allowLocalPick="true" :allowUpload="isCloudAuthenticated()"
+                    <FilePicker selectionMode="multiple" :allowLocalPick="!isCloudEditing" :allowUpload="isCloudAuthenticated()"
                         :initialFiles="displayedFiles.map(f => ({ name: f.name, uploadedUrl: f.url, preview: f.thumb || f.url }))"
                         @select="handleMediaPicked" @cancel="activeModal = 'none'" />
                 </div>
@@ -430,6 +436,12 @@
                 </button>
             </div>
             <div class="modal-body">
+                <!-- About mode: simple confirmation -->
+                <template v-if="isAboutMode">
+                    <p class="about-save-confirm">{{ t('editor.confirmAboutSave') || 'Save about page content?' }}</p>
+                </template>
+                <!-- Normal mode: full form -->
+                <template v-else>
                 <div class="form-group">
                     <label>{{ t('editor.postTitle') }}</label>
                     <input v-model="tempTitle" class="modal-input" :placeholder="t('editor.titlePlaceholder')"
@@ -475,6 +487,7 @@
                 <div v-if="activeModal === 'publish' && isCloudAuthenticated()" class="form-group">
                     <CheckRow v-model="postAIGenerated" :title="$t('editor.aiGeneratedLabel')" />
                 </div>
+                </template>
 
                 <div class="modal-actions">
                     <button class="secondary-btn" @click="activeModal = 'none'">{{ t('editor.cancel') }}</button>
@@ -489,6 +502,29 @@
                     <button v-else class="primary-btn" @click="doSave('upload')"
                         :disabled="!isCloudAuthenticated() || isSaving || isBuilding || !tempTitle.trim()">
                         {{ isSaving ? t('editor.saving') : isBuilding ? t('editor.building') : t('editor.upload') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Text file insert choice modal -->
+    <div v-if="textFileChoice" class="modal-overlay">
+        <div class="modal-content small-modal">
+            <div class="modal-header">
+                <h3>{{ textFileChoice.name }}</h3>
+            </div>
+            <div class="modal-body">
+                <p style="margin-top:6px;">{{ t('editor.textFileChoiceHint') || 'How would you like to insert this file?' }}</p>
+                <div class="modal-actions" style="flex-wrap:wrap;">
+                    <button class="secondary-btn" @click="doInsertTextFile(textFileChoice!); textFileChoice = null; flushPendingFiles()">
+                        {{ t('editor.insertAsText') || 'Insert as text' }}
+                    </button>
+                    <button class="secondary-btn" @click="doInsertCodeBlock(textFileChoice!); textFileChoice = null; flushPendingFiles()">
+                        {{ t('editor.insertAsCode') || 'Insert as code' }}
+                    </button>
+                    <button class="primary-btn" @click="doInsertFileCard(textFileChoice!); textFileChoice = null; flushPendingFiles()">
+                        {{ t('editor.insertAsFile') || 'Insert as a file' }}
                     </button>
                 </div>
             </div>
@@ -621,12 +657,48 @@ const { t, locale } = useI18n()
 const { show: showToast } = useToast()
 const CDN_BASE_URL = import.meta.env.VITE_CDN_BASE_URL || ''
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
+const isElectron = !!(typeof window !== 'undefined' && (window as any).chronicleElectron?.isElectron)
+
+/** Create a renderable URL for a File: blob:// in browser, file:// in Electron */
+function fileToUrl(file: File): string {
+    if (isElectron && (file as any).path) {
+        const p = (file as any).path as string
+        return p.startsWith('/') ? `file://${p}` : `file:///${p.replace(/\\/g, '/')}`
+    }
+    return URL.createObjectURL(file)
+}
+
+/**
+ * Create a type-prefixed markdown URL for a File.
+ * E.g. "audio:blob:http://...mp3", "document:file:///path/to/report.pdf"
+ * The type prefix lets file-card detection work; the actual URL is still used for rendering.
+ */
+function fileToMarkdownUrl(file: File): string {
+    const url = fileToUrl(file)
+    const prefix = getTypePrefixForFile(file)
+    return prefix ? `${prefix}:${url}` : url
+}
+
+/** Map a File to a type prefix based on extension or MIME. Images return empty (use ![alt](url) syntax). */
+function getTypePrefixForFile(file: File): string {
+    const name = file.name || ''
+    const ext = name.split('.').pop()?.toLowerCase() || ''
+    const mime = (file.type || '').toLowerCase()
+
+    if (mime.startsWith('image/') || ['jpg','jpeg','png','gif','webp','svg','bmp'].includes(ext)) return ''
+    if (mime.startsWith('audio/') || ['mp3','wav','ogg','flac','m4a','aac'].includes(ext)) return 'audio'
+    if (mime.startsWith('video/') || ['mp4','webm','mov','mkv','avi'].includes(ext)) return 'video'
+    if (mime === 'application/pdf' || ['pdf','doc','docx','ppt','pptx','xls','xlsx'].includes(ext)) return 'document'
+    if (mime.startsWith('text/') || ['txt','md','js','ts','json','css','html','log','csv','xml','yaml','yml'].includes(ext)) return 'text'
+    return 'file'
+}
 const editorQueryId = computed(() => {
     const id = route.query.id
     return Array.isArray(id) ? id[0] : id
 })
 
 const isCloudEditing = computed(() => !!editorQueryId.value)
+const isAboutMode = computed(() => editorQueryId.value === '__about__')
 
 function createOnlineDraftId() {
     return (typeof crypto !== 'undefined' && (crypto as any).randomUUID)
@@ -1251,6 +1323,8 @@ function loadPost(id: string) {
 }
 const savedContent = ref('')
 const savedTitle = ref('')
+// Maps type-prefix keys ("document:report.pdf") → original File objects
+const fileMap = new Map<string, File>()
 const pendingRoute = ref<any>(null) // To store where user wanted to go
 const isDirty = computed(() => {
     // Only dirty if we have a valid post loaded/initialized
@@ -1520,6 +1594,31 @@ async function triggerAstroBuild(postId: string) {
 }
 
 async function doSave(action?: 'local' | 'draft' | 'publish' | 'upload' | 'unsaved') {
+    // About mode: save to dedicated endpoint, optionally trigger build
+    if (isAboutMode.value) {
+        isSaving.value = true
+        try {
+            const res = await fetchWithAuth('/api/admin/about', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: localValue.value }),
+            })
+            const data = await res.json()
+            savedContent.value = localValue.value
+            activeModal.value = 'none'
+            showToast(t('editor.saved') as string, { status: 'success', position: 'bottom-center', shape: 'capsule' })
+            const settings = settingsStore.value
+            if (settings?.autoBuildOnPublish) {
+                try { await triggerAstroBuild('__about__') } catch {}
+            }
+        } catch (e: any) {
+            showToast((e?.message || t('editor.saveFailed')) as string, { status: 'error', position: 'bottom-center', shape: 'capsule' })
+        } finally {
+            isSaving.value = false
+        }
+        return
+    }
+
     // Determine intent based on action
     const intent = action || (activeModal.value || 'draft')
     if (intent === 'local' || !intent && (!isCloudEditing.value && activeModal.value !== 'publish')) {
@@ -1625,13 +1724,14 @@ async function doSave(action?: 'local' | 'draft' | 'publish' | 'upload' | 'unsav
             ? tempTitle.value
             : (isDefaultTitle.value ? t('editor.untitled') : postTitle.value)
 
-        // 处理 blob URL：上传本地文件并替换为云端 URL
+        // 上传本地文件（blob/file URL）并替换为服务器 URL（仅已登录）
         let contentToSend = localValue.value
-        const blobMappings = await uploadBlobFiles(contentToSend)
-        if (blobMappings.length > 0) {
-            contentToSend = replaceBlobUrls(contentToSend, blobMappings)
-            // 更新编辑器内容，替换 blob URL 为云端 URL
-            localValue.value = contentToSend
+        if (isCloudAuthenticated()) {
+            const urlMapping = await resolveLocalFileUrls(contentToSend)
+            if (Object.keys(urlMapping).length > 0) {
+                contentToSend = applyUrlMappings(contentToSend, urlMapping)
+                localValue.value = contentToSend
+            }
         }
 
         const toc: Array<{ id: string; text: string; level: number }> = []
@@ -2074,7 +2174,30 @@ async function initLoad() {
         return
     }
 
-    // 4. id=xxx，尝试加载，失败则回退到 id=new
+    // 4. id=__about__ — load about page content from dedicated endpoint
+    if (queryId === '__about__') {
+        try {
+            const res = await fetchWithAuth('/api/admin/about')
+            const data = await res.json()
+            localValue.value = data.content || ''
+            savedContent.value = data.content || ''
+            postId.value = '__about__'
+            postTitle.value = 'About'
+            postStatus.value = 'published'
+            isDefaultTitle.value = false
+            postDate.value = data.lastModified || ''
+            postUpdated.value = data.lastModified || ''
+        } catch {
+            localValue.value = ''
+            savedContent.value = ''
+            postId.value = '__about__'
+            postTitle.value = 'About'
+            postStatus.value = 'published'
+        }
+        return
+    }
+
+    // 5. id=xxx，尝试加载，失败则回退到 id=new
     if (queryId) {
         const ok = await loadPostById(queryId)
         if (!ok) {
@@ -2147,11 +2270,25 @@ onMounted(() => {
 
     window.addEventListener('beforeunload', handleBeforeUnload)
     window.addEventListener('keydown', onKeydown)
+
+    // Capture-phase: intercept paste/drop before CodeMirror handles them
+    const blogEl = document.querySelector('.blog-editor')
+    if (blogEl) {
+        blogEl.addEventListener('paste', onEditorPaste as EventListener, true)
+        blogEl.addEventListener('drop', onEditorDropCapture as EventListener, true)
+        blogEl.addEventListener('keydown', onEditorKeydown as EventListener, true)
+    }
 })
 
 onUnmounted(() => {
     window.removeEventListener('beforeunload', handleBeforeUnload)
     window.removeEventListener('keydown', onKeydown)
+    const blogEl = document.querySelector('.blog-editor')
+    if (blogEl) {
+        blogEl.removeEventListener('paste', onEditorPaste as EventListener, true)
+        blogEl.removeEventListener('drop', onEditorDropCapture as EventListener, true)
+        blogEl.removeEventListener('keydown', onEditorKeydown as EventListener, true)
+    }
 })
 
 type LayoutMode = 'split' | 'edit' | 'preview'
@@ -2593,6 +2730,22 @@ watch(previewSearchQuery, () => {
 function onKeydown(e: KeyboardEvent) {
     const key = (e.key || '').toLowerCase()
     const mod = e.ctrlKey || e.metaKey
+
+    // Ctrl+A: select all in editor, even when focus is elsewhere
+    if (mod && key === 'a') {
+        const ed = (editorRef.value as any)
+        const active = document.activeElement
+        const cmEl = document.querySelector('.blog-editor .cm-editor')
+        const inEditor = cmEl && (active === cmEl || cmEl.contains(active as Node))
+        if (!inEditor) {
+            e.preventDefault()
+            e.stopPropagation()
+            ed?.focus?.()
+            setTimeout(() => document.execCommand('selectAll'), 0)
+        }
+        return
+    }
+
     if (!mod) return
 
     if (key === 'f' || key === 'h') {
@@ -2717,7 +2870,8 @@ function insertMediaMarkdown(name: string, path: string, category?: string) {
     const ext = name.split('.').pop()?.toLowerCase() || ''
     let insertText = ''
 
-    const markdownPath = /^(https?:|blob:|data:|file:|\/)/i.test(path) ? path : `${CDN_BASE_URL}${path}`
+    const markdownPath = /^(https?:|blob:|data:|file:|\/|(?:audio|video|document|text):)/i.test(path)
+        ? path : `${CDN_BASE_URL}${path}`
 
     if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) {
         insertText = `\n![${name}](${markdownPath})\n`
@@ -2735,87 +2889,148 @@ function triggerFileUpload() {
     fileInputRef.value?.click()
 }
 
-async function handleFileSelect(event: Event) {
-    const input = event.target as HTMLInputElement
-    if (input.files && input.files[0]) {
-        if (!isCloudEditing.value) {
-            const files = Array.from(input.files)
-            files.forEach((file) => {
-                const localPath = URL.createObjectURL(file)
-                insertMediaMarkdown(file.name, localPath)
-            })
-            input.value = ''
+// ── Paste / Drop local files ─────────────────────────────────────────
+
+// Text-file insertion choice (drop modal)
+const textFileChoice = ref<File | null>(null)
+const pendingFiles = ref<File[]>([])  // remaining files after modal choice
+
+function isTextFile(file: File): boolean {
+    const mime = (file.type || '').toLowerCase()
+    return mime.startsWith('text/') || mime === 'application/json'
+}
+
+// ── Language detection for code blocks ───────────────────────────────
+
+const EXT_LANG_MAP: Record<string, string> = {
+    js: 'javascript', mjs: 'javascript', cjs: 'javascript',
+    ts: 'typescript', tsx: 'typescript',
+    jsx: 'javascript',
+    py: 'python', rb: 'ruby', php: 'php',
+    java: 'java', kt: 'kotlin', scala: 'scala',
+    c: 'c', cpp: 'cpp', h: 'c', hpp: 'cpp',
+    cs: 'csharp', go: 'go', rs: 'rust', swift: 'swift',
+    css: 'css', scss: 'scss', less: 'less',
+    html: 'html', htm: 'html', xml: 'xml', svg: 'xml',
+    json: 'json', yaml: 'yaml', yml: 'yaml', toml: 'toml',
+    md: 'markdown', markdown: 'markdown',
+    sql: 'sql', sh: 'bash', bash: 'bash', zsh: 'bash',
+    ps1: 'powershell', bat: 'batch', cmd: 'batch',
+    dockerfile: 'dockerfile', ini: 'ini', conf: 'nginx', nginx: 'nginx',
+    vue: 'html', svelte: 'html',
+    graphql: 'graphql', gql: 'graphql',
+}
+
+function getLangFromFile(file: File): string {
+    const ext = (file.name || '').split('.').pop()?.toLowerCase() || ''
+    return EXT_LANG_MAP[ext] || ''
+}
+
+function doInsertTextFile(file: File) {
+    const reader = new FileReader()
+    reader.onerror = () => showToast(`Cannot read file: ${file.name}`, { status: 'error' })
+    reader.onload = () => {
+        if (typeof reader.result !== 'string') return
+        const editor = (editorRef.value as any)
+        if (!editor?.insertAtCursor) return
+        void nextTick(() => {
+            try { editor.insertAtCursor(reader.result as string) } catch {}
+        })
+    }
+    reader.readAsText(file)
+}
+
+function doInsertCodeBlock(file: File) {
+    const lang = getLangFromFile(file)
+    const reader = new FileReader()
+    reader.onerror = () => showToast(`Cannot read file: ${file.name}`, { status: 'error' })
+    reader.onload = () => {
+        if (typeof reader.result !== 'string') return
+        const editor = (editorRef.value as any)
+        if (!editor?.insertAtCursor) return
+        const code = `\n\`\`\`${lang}\n${reader.result}\n\`\`\`\n`
+        void nextTick(() => {
+            try { editor.insertAtCursor(code) } catch {}
+        })
+    }
+    reader.readAsText(file)
+}
+
+function doInsertFileCard(file: File) {
+    if (isCloudEditing.value) {
+        showToast('Uploading...')
+        uploadMediaFile(file).then((url) => {
+            if (url) insertMediaMarkdown(file.name, url)
+        })
+        return
+    }
+    const markdownUrl = fileToMarkdownUrl(file)
+    const rawUrl = fileToUrl(file)
+    fileMap.set(rawUrl, file)
+    insertMediaMarkdown(file.name, markdownUrl)
+}
+
+function flushPendingFiles() {
+    if (pendingFiles.value.length === 0) return
+    const files = pendingFiles.value
+    pendingFiles.value = []
+    for (const file of files) doInsertFileCard(file)
+}
+
+function handleLocalFiles(files: FileList | File[], forceCard?: boolean) {
+    const list = Array.from(files)
+    for (let i = 0; i < list.length; i++) {
+        const file = list[i]
+        if (!forceCard && isTextFile(file)) {
+            // Block: show modal, queue remaining files
+            textFileChoice.value = file
+            pendingFiles.value = list.slice(i + 1)
             return
         }
-        const file = input.files[0]
-        const filename = encodeURIComponent(file.name)
+        doInsertFileCard(file)
+    }
+}
 
-        // Init Toast
-        uploadState.show = true
-        uploadState.progress = 0
-        uploadState.status = 'uploading'
-        uploadState.message = `Uploading: ${file.name}`
+function onEditorPaste(e: ClipboardEvent) {
+    const files = e.clipboardData?.files
+    if (!files || files.length === 0) return
+    e.preventDefault()
+    e.stopPropagation()
+    // Force card for pasted files
+    handleLocalFiles(files, true)
+}
 
-        try {
-            const xhr = new XMLHttpRequest()
-            // Upload should go directly to backend origin when configured to avoid CDN proxying upload requests
-            const uploadUrl = API_BASE_URL ? `${API_BASE_URL.replace(/\/$/, '')}/api/upload` : '/api/upload'
-            xhr.open('POST', uploadUrl, true)
-            xhr.setRequestHeader('Content-Type', 'application/octet-stream')
-            xhr.setRequestHeader('X-Filename', filename)
+function onEditorDrop(e: DragEvent) {
+    const files = e.dataTransfer?.files
+    if (!files || files.length === 0) return
+    handleLocalFiles(files)
+}
 
-            // Progress: Browser -> Server transfer
-            xhr.upload.onprogress = (e) => {
-                if (e.lengthComputable) {
-                    const percent = Math.round((e.loaded / e.total) * 100)
-                    uploadState.progress = percent
-                    if (percent === 100) {
-                        uploadState.status = 'processing'
-                        uploadState.message = 'Processing...'
-                    }
-                }
-            }
+function onEditorKeydown(e: KeyboardEvent) {
+    // Tab/Shift+Tab: indent/dedent in editor, regardless of focus
+    if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault()
+        e.stopPropagation()
+        const ed = (editorRef.value as any)
+        ed?.focus?.()
+        ed?.insertAtCursor?.(e.shiftKey ? '' : '\t')
+        // Shift+Tab: no simple dedent via insertAtCursor — rely on manual backspace
+    }
+}
 
-            xhr.onload = () => {
-                if (xhr.status === 200) {
-                    uploadState.status = 'success'
-                    uploadState.progress = 100
-                    uploadState.message = 'Upload successful'
+// Capture-phase wrapper — preventDefault before CodeMirror sees the event
+function onEditorDropCapture(e: DragEvent) {
+    if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+        e.preventDefault()
+        e.stopPropagation()
+        onEditorDrop(e)
+    }
+}
 
-                    try {
-                        const data = JSON.parse(xhr.responseText)
-                        if (data.category === 'pic') fetchServerImages()
-
-                        if (/\.(png|jpe?g|gif|svg|webp|bmp|ico)$/i.test(file.name)) {
-                            insertMediaMarkdown(file.name, data.url)
-                        } else {
-                            insertMediaMarkdown(file.name, data.url)
-                        }
-                    } catch (e) {
-                        console.error('JSON Parse error', e);
-                    }
-
-                    // Auto hide
-                    setTimeout(() => { uploadState.show = false }, 3000)
-                } else {
-                    uploadState.status = 'error'
-                    uploadState.message = `Upload failed (${xhr.status})`
-                    setTimeout(() => { uploadState.show = false }, 5000) // Keep error longer
-                }
-            }
-
-            xhr.onerror = () => {
-                uploadState.status = 'error'
-                uploadState.message = 'Network error'
-                setTimeout(() => { uploadState.show = false }, 5000)
-            }
-
-            xhr.send(file)
-        } catch (e) {
-            uploadState.status = 'error'
-            uploadState.message = 'Upload error'
-            setTimeout(() => { uploadState.show = false }, 5000)
-        }
+async function handleFileSelect(event: Event) {
+    const input = event.target as HTMLInputElement
+    if (input.files && input.files.length > 0) {
+        handleLocalFiles(input.files, true)  // toolbar always inserts as card
         input.value = ''
     }
 }
@@ -2838,53 +3053,72 @@ async function uploadMediaFile(file: File) {
     }
 }
 
-// 提取 markdown 中的所有 blob URL
-function extractBlobUrls(markdown: string): string[] {
-    const blobUrlPattern = /blob:[^)\s\]]+/g
-    const matches = markdown.match(blobUrlPattern)
+// ── Local file resolution (blob/file URL → File via fileMap) ────────
+
+/** Find blob: and file:// URLs in markdown (with or without type prefix) */
+function extractLocalUrls(markdown: string): string[] {
+    // Match: blob:http://... or file:///... possibly with audio:/video:/document:/text:/file: prefix
+    const pattern = /(?:(?:audio|video|document|text|file):)?(?:blob:https?:\/\/[^)\s\]]+|file:\/\/\/[^)\s\]]+)/gi
+    const matches = markdown.match(pattern)
     return matches ? [...new Set(matches)] : []
 }
 
-// 从 blob URL 获取文件对象
-async function getFileFromBlobUrl(blobUrl: string): Promise<File | null> {
-    try {
-        const response = await fetch(blobUrl)
-        if (!response.ok) return null
-        const blob = await response.blob()
-        const filename = `blob_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
-        const mimeType = blob.type || 'application/octet-stream'
-        return new File([blob], filename, { type: mimeType })
-    } catch (e) {
-        console.error('getFileFromBlobUrl failed', e)
-        return null
-    }
-}
+/** Resolve a File from a raw URL: try fileMap first, then disk for file:// URLs */
+async function getFileFromUrl(rawUrl: string): Promise<File | null> {
+    // In-memory (blob URLs still alive, or recently dropped)
+    const cached = fileMap.get(rawUrl)
+    if (cached) return cached
 
-// 上传所有 blob 文件并返回映射关系
-async function uploadBlobFiles(markdown: string): Promise<{ blobUrl: string; cloudUrl: string }[]> {
-    const blobUrls = extractBlobUrls(markdown)
-    if (blobUrls.length === 0) return []
-
-    const mappings: { blobUrl: string; cloudUrl: string }[] = []
-
-    for (const blobUrl of blobUrls) {
-        const file = await getFileFromBlobUrl(blobUrl)
-        if (file) {
-            const cloudUrl = await uploadMediaFile(file)
-            if (cloudUrl) {
-                mappings.push({ blobUrl, cloudUrl })
-            }
+    // Electron: read from disk when fileMap is gone (e.g. after refresh)
+    if (isElectron && rawUrl.startsWith('file://')) {
+        try {
+            const res = await fetch(rawUrl)
+            if (!res.ok) return null
+            const blob = await res.blob()
+            const filename = rawUrl.split('/').pop() || 'file'
+            const type = blob.type || 'application/octet-stream'
+            return new File([blob], filename, { type })
+        } catch {
+            return null
         }
     }
 
-    return mappings
+    return null
 }
 
-// 替换 markdown 中的 blob URL 为云端 URL
-function replaceBlobUrls(markdown: string, mappings: { blobUrl: string; cloudUrl: string }[]): string {
+/** Upload files referenced by blob/file URLs, return { url → serverUrl } */
+async function resolveLocalFileUrls(markdown: string): Promise<Record<string, string>> {
+    const urls = extractLocalUrls(markdown)
+    if (urls.length === 0) return {}
+
+    const mapping: Record<string, string> = {}
+
+    for (const fullUrl of urls) {
+        // Strip type prefix to get the raw blob/file URL
+        const rawUrl = fullUrl.replace(/^(audio|video|document|text|file):/, '')
+        const file = await getFileFromUrl(rawUrl)
+        if (!file) continue
+        try {
+            const cloudUrl = await uploadMediaFile(file)
+            if (cloudUrl) {
+                mapping[fullUrl] = cloudUrl
+                fileMap.delete(rawUrl)
+            } else {
+                showToast(`Upload failed: ${file.name}`, { status: 'error', duration: 3000 })
+            }
+        } catch {
+            showToast(`Upload error: ${file.name}`, { status: 'error', duration: 3000 })
+        }
+    }
+
+    return mapping
+}
+
+/** Replace blob/file URLs in markdown with resolved server URLs */
+function applyUrlMappings(markdown: string, mapping: Record<string, string>): string {
     let result = markdown
-    for (const { blobUrl, cloudUrl } of mappings) {
-        result = result.split(blobUrl).join(cloudUrl)
+    for (const [key, url] of Object.entries(mapping)) {
+        result = result.split(key).join(url)
     }
     return result
 }
@@ -2894,22 +3128,31 @@ async function handleMediaPicked(entry: any) {
     try {
         const entries = Array.isArray(entry) ? entry : [entry]
         for (const ent of entries) {
-            if (ent.uploadedUrl) {
-                insertMediaMarkdown(ent.name || ent.file?.name || 'file', ent.uploadedUrl)
+            const name = ent.name || ent.file?.name || 'file'
+
+            // Local file, local editing: type-prefixed blobURL/fileURL + fileMap
+            if (ent.file && !isCloudEditing.value) {
+                const rawUrl = ent.uploadedUrl || ent.preview || fileToUrl(ent.file)
+                const prefix = getTypePrefixForFile(ent.file)
+                const markdownUrl = prefix ? `${prefix}:${rawUrl}` : rawUrl
+                fileMap.set(rawUrl, ent.file)
+                insertMediaMarkdown(name, markdownUrl)
                 continue
             }
-            if (ent.file) {
-                if (isCloudAuthenticated()) {
-                    showToast('Uploading...')
-                    const url = await uploadMediaFile(ent.file)
-                    if (url) insertMediaMarkdown(ent.name || ent.file.name, url)
-                    else showToast('Upload failed', { status: 'error' })
-                    continue
-                }
-                if (ent.preview) {
-                    insertMediaMarkdown(ent.name || ent.file.name, ent.preview)
-                    continue
-                }
+
+            // Cloud file with server URL (cloud editing)
+            if (ent.uploadedUrl && isCloudEditing.value) {
+                insertMediaMarkdown(name, ent.uploadedUrl)
+                continue
+            }
+
+            // Raw file, cloud editing: upload to server first
+            if (ent.file && isCloudEditing.value) {
+                showToast('Uploading...')
+                const url = await uploadMediaFile(ent.file)
+                if (url) insertMediaMarkdown(name, url)
+                else showToast('Upload failed', { status: 'error' })
+                continue
             }
         }
     } catch (e) { console.error('handleMediaPicked error', e) }

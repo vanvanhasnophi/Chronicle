@@ -21,10 +21,20 @@ const siteTitle = settings?.siteName || 'Chronicle';
 const authorName = profile?.name || settings?.authorName || (t('home.defaultAuthorName') as string);
 const authorBio = profile?.bio || '';
 const authorAvatar = profile?.avatar || '';
-const cardSubtitle = t('home.cardSubtitle') as string;
+const cardSubtitle = settings?.siteDescription || (t('home.cardSubtitle') as string);
 const cardAuthorLine = t('home.cardAuthorLine') as string;
 const isFriendsEnabled = featureFlags?.friendsPage !== false;
 const isCollectionEnabled = featureFlags?.collectionPage !== false;
+
+// Homepage card visibility
+const cv = settings?.cardVisibility || {};
+const showAuthorCard = cv?.author !== false;
+const showTaxonomyCard = cv?.taxonomy !== false;
+const showActivityCard = cv?.activity !== false;
+const isSingleColumn = settings?.singleColumnHomepage === true;
+
+// Right column is empty if all cards in it are hidden
+const rightColumnEmpty = !showAuthorCard && !showTaxonomyCard && !showActivityCard;
 
 function interpolate(template: string, values: Record<string, string | number>) {
   return template.replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? ''));
@@ -232,10 +242,16 @@ const featuredPosts = sortedPosts.filter((post) => Array.isArray(post?.tags) && 
 const recentPosts = sortedPosts.slice(0, 10);
 const leadPost = recentPosts[0] || featuredPosts[0] || null;
 const secondaryPosts = uniqueById([...featuredPosts, ...recentPosts]).filter((post) => post?.id && post?.id !== leadPost?.id).slice(0, 4);
-const tagStats = buildTagStats(sortedPosts).filter((item) => !item.featured).slice(0, 14);
-const featuredTagStats = buildTagStats(sortedPosts).filter((item) => item.featured).slice(0, 1);
+const TAG_LIMIT = 14;
+const COLLECTION_LIMIT = 3;
+const allTagStats = buildTagStats(sortedPosts);
+const tagStats = allTagStats.filter((item) => !item.featured).slice(0, TAG_LIMIT);
+const hasMoreTags = allTagStats.filter((item) => !item.featured).length > TAG_LIMIT;
+const featuredTagStats = allTagStats.filter((item) => item.featured).slice(0, 1);
 const archiveStats = buildArchiveStats(sortedPosts);
-const collectionSummaries = buildCollectionSummaries(collections).slice(0, 3);
+const allCollectionSummaries = buildCollectionSummaries(collections);
+const collectionSummaries = allCollectionSummaries.slice(0, COLLECTION_LIMIT);
+const hasMoreCollections = allCollectionSummaries.length > COLLECTION_LIMIT;
 
 const recommendedPosts = uniqueById([...featuredPosts, ...recentPosts])
   .filter((post) => post?.id && post?.id !== leadPost?.id)
@@ -283,7 +299,7 @@ const yearLabel = new Date().getFullYear();
 ---
 
 <section class="home-shell">
-  <div class="card-flows">
+  <div class="card-flows" class:list={[{"single-col": isSingleColumn || rightColumnEmpty}]}>
     <main class="flow-column flow-column--left">
       <article class="panel-card flow-intro">
         <h1>{siteTitle}</h1>
@@ -333,7 +349,8 @@ const yearLabel = new Date().getFullYear();
 
     </main>
 
-    <aside class="flow-column flow-column--right">
+    <aside class="flow-column flow-column--right" class:list={[{"column-empty": rightColumnEmpty}]}>
+      {showAuthorCard && (
       <article class="author-card panel-card">
         <div class="author-card__top">
           {authorAvatar ? (
@@ -348,7 +365,9 @@ const yearLabel = new Date().getFullYear();
         </div>
         {authorBio ? <p class="author-bio">{authorBio}</p> : <p style="margin-bottom:0;">{cardAuthorLine}</p>}
       </article>
+      )}
 
+      {showTaxonomyCard && (
       <section class="panel-card taxonomy-card">
         <div class="section-head" style="margin-bottom: 0;">
           <div>
@@ -380,21 +399,33 @@ const yearLabel = new Date().getFullYear();
               </a>
             )) : null}
           </div>
+          {hasMoreCollections ? (
+            <a href={collectionPath} class="view-more-link">
+              {t('home.viewAll')} →
+            </a>
+          ) : null}
         </div>
 
         <div class="taxonomy-block">
           <h3>{t('home.tagCloud')}</h3>
           <div class="tag-cloud">
-            {tagStats.slice(0, 14).map((tag) => (
+            {tagStats.map((tag) => (
               <a class:list={['tag-cloud-item', tag.featured ? 'featured' : '']} href={searchPath + '?tags=' + encodeURIComponent(tag.name)}>
                 {tag.featured ? t('blog.featured') : tag.name}
                 <span class="tag-count">{tag.count}</span>
               </a>
             ))}
           </div>
+          {hasMoreTags ? (
+            <a href={searchPath + '?view=tags'} class="view-more-link">
+              {t('home.viewAllTags')} →
+            </a>
+          ) : null}
         </div>
       </section>
+      )}
 
+      {showActivityCard && (
       <section class="panel-card activity-card">
         <div class="section-head">
           <div>
@@ -411,6 +442,7 @@ const yearLabel = new Date().getFullYear();
           )) : <div class="empty-state">{t('home.noInteractionData')}</div>}
         </div>
       </section>
+      )}
     </aside>
   </div>
 
@@ -470,6 +502,16 @@ const yearLabel = new Date().getFullYear();
     grid-template-columns: minmax(0, 1.45fr) minmax(320px, .85fr);
     gap: 1rem;
     align-items: start;
+  }
+
+  /* Single column: forced by toggle OR right column has no visible cards */
+  .card-flows.single-col {
+    grid-template-columns: 1fr;
+  }
+
+  /* Hide the empty right column to avoid wasted gap space */
+  .flow-column--right.column-empty {
+    display: none;
   }
 
   .flow-column {
@@ -639,8 +681,8 @@ const yearLabel = new Date().getFullYear();
   }
 
   .stream-card:hover {
-    background: var(--component-bg-hover);
-    border-color: var(--component-text-primary-hover);
+    background: var(--component-bg-highlight);
+    border-color: var(--component-text-primary-highlight);
   }
 
   .story-card p,
@@ -962,6 +1004,24 @@ const yearLabel = new Date().getFullYear();
     border-radius: 4px;
     min-width: 14px;
     text-align: center;
+    transform: translateY(1px);
+  }
+
+  .view-more-link {
+    width: 100%;
+    height: 24px;
+    text-align: center;
+    display: inline-block;
+    margin-top: 12px;
+    font-size: 1rem;
+    color: var(--accent-color);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+
+  .view-more-link:hover {
+    color: var(--accent-color-dark);
+    text-decoration: underline;
   }
 
   .recommend-item,

@@ -191,9 +191,14 @@ export function processEmphasis(text: string, isHeading = false): string {
     // 识别常见文件后缀与特殊协议，如果是媒体/文档/邮件/强制链接则渲染为卡片，否则保留默认链接样式
     processed = processed.replace(/\[([^\]]+?)\]\((.*?)\)/g, (match, text, url) => {
       const { cleanUrl, scheme, payload } = getLinkKind(url)
-        const extMatch = cleanUrl.match(/\.([0-9a-z]+)($|\?)/i)
-        const ext = extMatch ? extMatch[1].toLowerCase() : ''
-        
+        let extMatch = cleanUrl.match(/\.([0-9a-z]+)($|\?)/i)
+        let ext = extMatch ? extMatch[1].toLowerCase() : ''
+        // Fallback: blob/file URLs have no extension — use link text extension
+        if (!ext && (cleanUrl.startsWith('blob:') || cleanUrl.startsWith('file://'))) {
+            const textExtMatch = text.match(/\.([0-9a-z]+)$/i)
+            if (textExtMatch) ext = textExtMatch[1].toLowerCase()
+        }
+
         // Define types
       let type = '', icon = '', targetUrl = cleanUrl, displayType = ''
 
@@ -212,6 +217,16 @@ export function processEmphasis(text: string, isHeading = false): string {
         type = 'Video';
         displayType = 'Video'
         icon = Icons.video
+        targetUrl = payload || cleanUrl
+      } else if (scheme === 'document') {
+        type = 'Document';
+        displayType = 'Document'
+        icon = Icons.document
+        targetUrl = payload || cleanUrl
+      } else if (scheme === 'text') {
+        type = 'Code/Text';
+        displayType = 'Code/Text'
+        icon = Icons.codeText
         targetUrl = payload || cleanUrl
       } else if (scheme === 'link') {
         type = 'Link';

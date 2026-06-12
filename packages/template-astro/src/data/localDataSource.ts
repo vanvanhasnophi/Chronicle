@@ -193,6 +193,8 @@ export interface LocalPost extends PostMeta {
 }
 
 export interface LocalSettings {
+    siteName?: string;
+    siteDescription?: string;
     frontendTheme?: string;
     frontendAccent?: string;
     frontendBackground?: unknown;
@@ -203,6 +205,8 @@ export interface LocalSettings {
     friendsCards?: unknown;
     friendsGlobalStyle?: unknown;
     homepageMode?: string;
+    singleColumnHomepage?: boolean;
+    cardVisibility?: { author?: boolean; taxonomy?: boolean; activity?: boolean };
     frontendBackgroundCompression?: number;
     gaMeasurementId?: string;
 }
@@ -448,16 +452,27 @@ export function getPublicSettings(): LocalSettings {
     }
     const raw = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
     return {
+        siteName: raw.siteName || raw.sitename || raw.site_name,
+        siteDescription: raw.siteDescription || '',
         frontendTheme: raw.frontendTheme,
         frontendAccent: raw.frontendAccent,
         frontendBackground: raw.frontendBackground,
         frontendBackgroundMeta: raw.frontendBackgroundMeta,
         frontendFont: raw.frontendFont,
         frontendLocale: raw.frontendLocale,
-        featureFlags: raw.featureFlags,
+        collectionPage: raw.collectionPage ?? raw.featureFlags?.collectionPage ?? true,
+        aboutPage: raw.aboutPage ?? raw.featureFlags?.aboutPage ?? true,
+        friendsPage: raw.friendsPage ?? raw.featureFlags?.friendsPage ?? raw.friends ?? true,
+        rss: raw.rss ?? raw.featureFlags?.rss ?? true,
+        sitemap: raw.sitemap ?? raw.featureFlags?.sitemap ?? false,
+        searchSuggestions: raw.searchSuggestions ?? raw.featureFlags?.searchSuggestions ?? false,
+        relatedPosts: raw.relatedPosts ?? raw.featureFlags?.relatedPosts ?? false,
+        traffic: raw.traffic ?? raw.featureFlags?.traffic ?? true,
         friendsCards: readFriendsCards(),
         friendsGlobalStyle: readFriendsGlobalStyle(),
         homepageMode: raw.homepageMode,
+        singleColumnHomepage: raw.singleColumnHomepage,
+        cardVisibility: raw.cardVisibility || {},
         frontendBackgroundCompression: raw.frontendBackgroundCompression,
         gaMeasurementId: raw.gaMeasurementId,
     };

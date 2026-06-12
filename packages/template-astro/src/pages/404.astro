@@ -2,7 +2,7 @@
 import Layout from '../layouts/Layout.astro';
 import { getLocale, getTranslation } from '../utils/i18n';
 import { buildLocalizedPath } from '../utils/routeLocale';
-import { getApiUrl } from '../config/api';
+import { loadSiteSettings } from '../utils/siteSettings';
 
 export const prerender = true;
 
@@ -13,28 +13,7 @@ const homeHref = buildLocalizedPath(locale, '/');
 const blogsHref = buildLocalizedPath(locale, '/blogs');
 const searchHref = buildLocalizedPath(locale, '/search');
 
-let settings: Record<string, any> = {};
-try {
-  const res = await fetch(getApiUrl('/api/settings?t=' + Date.now(), true), { cache: 'no-store' });
-  if (res.ok) {
-    const json = await res.json();
-    settings = (json && json.data) ?? json ?? {};
-  }
-} catch {
-  settings = {};
-}
-
-if (!settings || Object.keys(settings).length === 0) {
-  try {
-    const res = await fetch(getApiUrl('/api/public/settings?t=' + Date.now(), true), { cache: 'no-store' });
-    if (res.ok) {
-      const json = await res.json();
-      settings = (json && json.data) ?? json ?? {};
-    }
-  } catch {
-    settings = {};
-  }
-}
+const settings = await loadSiteSettings();
 ---
 
 <Layout 
@@ -60,9 +39,9 @@ if (!settings || Object.keys(settings).length === 0) {
       </p>
 
       <div class="error-actions">
-        <a href={homeHref}>{isZh ? '返回首页' : 'Go home'}</a>
-        <a href={blogsHref}>{isZh ? '浏览文章' : 'Browse posts'}</a>
-        <a href={searchHref}>{isZh ? '搜索内容' : 'Search'}</a>
+        <a class="error-action" href={homeHref}>{isZh ? '返回首页' : 'Go home'}</a>
+        <a class="error-action" href={blogsHref}>{isZh ? '浏览文章' : 'Browse posts'}</a>
+        <a class="error-action" href={searchHref}>{isZh ? '搜索内容' : 'Search'}</a>
       </div>
 
       <p class="error-footnote">
@@ -123,7 +102,7 @@ if (!settings || Object.keys(settings).length === 0) {
       align-items: center;
       justify-content: center;
       min-height: 40px;
-      padding: .65rem .95rem;
+      padding: .5rem 1rem;
       border-radius: 12px;
       border: 1px solid var(--border-color-blur);
       background: var(--component-bg-blur-alt);

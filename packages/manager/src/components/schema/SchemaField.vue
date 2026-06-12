@@ -45,6 +45,7 @@ import PasswordInputField from './fields/PasswordInputField.vue'
 import BackgroundEditorField from './fields/BackgroundEditorField.vue'
 import CardListField from './fields/CardListField.vue'
 import CollectionTreeField from './fields/CollectionTreeField.vue'
+import AboutEditorButton from './fields/AboutEditorButton.vue'
 
 // ── Component registry: x-chronicle-class → generic component ──
 const COMPONENT_MAP: Record<string, any> = {
@@ -64,6 +65,7 @@ const COMPONENT_MAP: Record<string, any> = {
   'background-editor':   BackgroundEditorField,
   'card-list':           CardListField,
   'collection-tree':     CollectionTreeField,
+  'about-editor':        AboutEditorButton,
   'passkey-list':        null, // handled by security page directly
 }
 

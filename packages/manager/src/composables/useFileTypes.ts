@@ -228,3 +228,25 @@ export function isFileTypeAllowed(
         return ext === a                                         // "jpg"
     })
 }
+
+// ── Type prefix for markdown links ──────────────────────────────────
+
+const TYPE_PREFIX_MAP: Record<string, string> = {
+    image:    'image',
+    video:    'video',
+    audio:    'audio',
+    document: 'document',
+    text:     'text',
+    file:     'file',
+}
+
+/**
+ * Return a type-prefix string for insertion into markdown links.
+ * E.g. "document:report.pdf", "audio:sound.mp3"
+ * The prefix enables file-card detection without requiring a blob URL.
+ */
+export function getTypePrefix(filename: string): string {
+    const type = getFileTypeFromName(filename)
+    const prefix = TYPE_PREFIX_MAP[type] || 'file'
+    return `${prefix}:${filename}`
+}

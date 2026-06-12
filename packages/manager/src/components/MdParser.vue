@@ -1034,7 +1034,7 @@ strong, b {
 }
 
 .file-card:hover {
-  background-color: var(--component-bg-hover);
+  background-color: var(--component-bg-highlight);
   border-color: var(--accent-color);
   transform: translateY(-1px);
   box-shadow: var(--shadow-elev-1);

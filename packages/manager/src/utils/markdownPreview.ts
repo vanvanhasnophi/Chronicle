@@ -196,17 +196,32 @@ md.inline.ruler.before('link', 'chronicle_file_card', (state, silent) => {
   // ── Intercept: type-prefix OR file-extension ──
   const prefixMatch = parseTypePrefix(href);
 
-  if (!prefixMatch && !hasFileExtension(href)) return false;
+  // Blob/file URLs lack extensions — fall back to link text extension
+  const textExt = (href.startsWith('blob:') || href.startsWith('file://'))
+    ? (linkText.match(/\.([0-9a-z]+)$/i) || [])[1]?.toLowerCase()
+    : undefined;
+  const effectiveExt = textExt && FILE_EXTENSIONS.includes(textExt) ? textExt : undefined;
+
+  if (!prefixMatch && !hasFileExtension(href) && !effectiveExt) return false;
+
+  // If we matched via text extension, build a virtual prefix for rendering
+  const effectivePrefix = !prefixMatch && effectiveExt
+    ? (() => {
+        const ct = getFileCardType(effectiveExt);
+        const iconKey = ct.type === 'Code/Text' ? 'codetext' : ct.type.toLowerCase();
+        return { type: ct.type, icon: getPrefixIcon(iconKey), actualUrl: href };
+      })()
+    : null;
 
   if (!silent) {
-    // mailto: keeps the full href as data-url; link:/mailto: show stripped URL as subtitle
-    const isMailto = prefixMatch?.type === 'Email';
-    const isLink   = prefixMatch?.type === 'Link';
-    const cardUrl  = isMailto ? href : (prefixMatch ? prefixMatch.actualUrl : href);
-    const subtitle = (isMailto || isLink) ? (prefixMatch?.actualUrl || href) : undefined;
+    const activePrefix = effectivePrefix || prefixMatch;
+    const isMailto = activePrefix?.type === 'Email';
+    const isLink   = activePrefix?.type === 'Link';
+    const cardUrl  = isMailto ? href : (activePrefix ? activePrefix.actualUrl : href);
+    const subtitle = (isMailto || isLink) ? (activePrefix?.actualUrl || href) : undefined;
 
     const token = state.push('html_inline', '', 0);
-    token.content = renderFileCard(cardUrl, linkText.trim(), prefixMatch?.type, subtitle);
+    token.content = renderFileCard(cardUrl, linkText.trim(), activePrefix?.type, subtitle);
   }
   state.pos = i;
   return true;

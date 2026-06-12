@@ -76,6 +76,7 @@ const tagsParam = url.searchParams.get("tags") || "";
 const initialTitle = keywordParam || url.searchParams.get("title") || "";
 const initialTags = tagsParam ? tagsParam.split(",") : url.searchParams.getAll("tags");
 
+// Tag cloud view: ?view=tags shows the full tag cloud directly
 const resultsTitleText = t("search.resultsTitle");
 const resultsCountText = t("search.resultsCount").replace("{count}", "0");
 const metaDescription = locale === "zh-CN"
@@ -696,7 +697,19 @@ const metaDescription = locale === "zh-CN"
       const urlParams = new URLSearchParams(window.location.search);
       const keyword = urlParams.get("keyword") || "";
       const tags = urlParams.get("tags") || "";
-      
+      const view = urlParams.get("view") || "";
+
+      // Tag cloud view: directly open tag cloud, then clean URL
+      if (view === "tags") {
+        isTagCloudOpen = true;
+        syncTagTriggerState();
+        updateCenteredMode();
+        updateVisibility();
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, '', cleanUrl);
+        return;
+      }
+
       if (keyword || tags) {
         // 更新搜索状态
         if (keyword) {

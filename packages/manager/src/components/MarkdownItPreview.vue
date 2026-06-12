@@ -205,11 +205,13 @@ function handleClick(e: MouseEvent) {
 
   const cardEl = target.closest('.file-card') as HTMLElement | null
   if (cardEl) {
+    // <a> cards (link + mailto) — let browser handle navigation
     if (cardEl.tagName === 'A') return
     const cardUrl = cardEl.getAttribute('data-url') || ''
-    // Direct navigation for link / mailto cards — no preview modal
-    if (/^https?:\/\//i.test(cardUrl)) { window.open(cardUrl, '_blank', 'noopener'); return }
-    if (/^mailto:/i.test(cardUrl)) { window.location.href = cardUrl; return }
+    const cardType = (cardEl.getAttribute('data-type') || '').toLowerCase()
+    // Only explicit Link / Email types redirect; everything else previews
+    if (cardType === 'link') { window.open(cardUrl, '_blank', 'noopener'); return }
+    if (cardType === 'email') { window.location.href = cardUrl; return }
     e.stopPropagation()
     openPreview({ name: cardEl.getAttribute('data-name') || 'File', path: cardUrl, type: cardEl.getAttribute('data-type') || '' })
     return

@@ -512,7 +512,7 @@ function triggerLocalPicker() {
                         continue
                     }
                     const data: any = await toFileEntry(file)
-                    data.uploadedUrl = data.preview || URL.createObjectURL(file)
+                    // Image preview kept for thumbnail display only
                     addToSelectedPool(data)
                 } catch (e) { console.error('local pick failed', e) }
             }
@@ -532,7 +532,6 @@ function onLocalSelect(e: Event) {
             continue
         }
         toFileEntry(f).then((data: any) => {
-            data.uploadedUrl = data.preview || URL.createObjectURL(f)
             addToSelectedPool(data)
         })
     }

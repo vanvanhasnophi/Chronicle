@@ -3,18 +3,19 @@
   --app-font-stack-system: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   /*Inter字体*/
   /* Apple设备优先使用系统字体，其他设备使用Inter */
-  --app-font-stack-inter: -apple-system, BlinkMacSystemFont, 'InterVariable','Inter', 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  --app-font-stack-inter: -apple-system, BlinkMacSystemFont, 'InterVariable', 'Inter', 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   /*当前字体栈，入口动态切换*/
   --app-font-stack: var(--app-font-stack-inter);
   /* Backend font stack (admin/editor). Defaults to same as frontend stack unless overridden */
   --backend-font-stack: var(--app-font-stack-inter);
 
   --app-font-stack-serif: "Noto Serif SC", serif;
-  
+
   font-family: var(--app-font-stack);
   line-height: 1.5;
   --app-text-wght: 400;
-  --app-heading-wght: 570; /* 比正文略粗，避免 700 的过粗带来的闪烁与布局抖动 */
+  --app-heading-wght: 570;
+  /* 比正文略粗，避免 700 的过粗带来的闪烁与布局抖动 */
 
   color-scheme: dark;
 
@@ -34,6 +35,8 @@
   --code-text: #ff8585;
 
   --status-error: #d9534f;
+  --status-success: #5cb85c;
+  --status-progress: #06b6d4;
 
   /* Background hierarchy */
   --app-bg-primary: #141414;
@@ -51,6 +54,7 @@
   --app-bg-secondary-hover: rgba(255, 255, 255, 0.06);
   --app-bg-secondary-active: rgba(255, 255, 255, 0.12);
   --component-bg-hover: rgba(255, 255, 255, 0.08);
+  --component-bg-highlight: rgba(255, 255, 255, 0.1);
   --component-bg-active: rgba(255, 255, 255, 0.14);
   --component-bg-accent-hover: var(--component-bg-accent-blur);
   --component-bg-accent-active: var(--component-bg-accent-blur);
@@ -68,10 +72,12 @@
   --component-text-secondary-hover: var(--app-text-secondary);
   --component-text-primary-active: var(--component-text-primary-hover);
   --component-text-secondary-active: var(--component-text-secondary-hover);
+  --component-text-primary-highlight: var(--app-text-primary);
+  --component-text-secondary-highlight: var(--app-text-secondary);
   --component-text-accent-hover: #ffffff;
   --component-text-accent-active: #ffffff;
 
-  --border-color: #333;
+  --border-color: color-mix(in srgb, var(--app-text-secondary) 20%, transparent);
   --border-color-blur: rgba(113, 113, 113, 0.2);
   --glow-light: rgba(0, 0, 0, 0.678);
   --glow-dark: rgba(255, 255, 255, 0.644);
@@ -181,107 +187,6 @@
 }
 
 
-/* Backend-specific theme overrides
-   When backend area requests a separate theme, we apply the same
-   variable set scoped to the body so frontend and backend can differ.
-*/
-body[data-backend-theme="light"] {
-  color-scheme: light;
-  --app-text-wght: 430;
-
-  --code-bg: rgba(255, 0, 0, 0.12);
-  --code-text: #c7254e;
-
-  --recommended-accent-text: #fff;
-
-  --app-bg-primary: #f9f9f9;
-  /* Backend light-mode should use light overlay variant */
-  --backend-bg-overlay: var(--backend-bg-overlay-light);
-  --app-bg-secondary: #f0f0f0;
-  --component-bg: #ffffff;
-  --component-bg-alt: #f7f7f7;
-  --component-bg-blur: rgba(230, 230, 230, 0.7);
-  --component-bg-blur-alt: rgba(232, 232, 232, 0.5);
-  --component-bg-accent: color-mix(in srgb, var(--accent-color) 30%, #fffb);
-  --component-bg-accent-blur: color-mix(in srgb, var(--accent-color) 35%, #fffb);
-
-  --app-bg-primary-hover: rgba(0, 0, 0, 0.03);
-  --app-bg-primary-active: rgba(0, 0, 0, 0.06);
-  --app-bg-secondary-hover: rgba(0, 0, 0, 0.05);
-  --app-bg-secondary-active: rgba(0, 0, 0, 0.08);
-  --component-bg-hover: color-mix(in srgb, var(--accent-color) 30%, #fffb);
-  --component-bg-active: color-mix(in srgb, var(--accent-color) 35%, #fffb);
-  --component-bg-accent-hover: var(--component-bg-accent-blur);
-  --component-bg-accent-active: var(--component-bg-accent-blur);
-
-  --app-text-primary: #1f2a36;
-  --app-text-secondary: #5f6b78;
-  --component-text-primary: #2a3745;
-  --component-text-secondary: #66768a;
-  --component-text-primary-disabled: rgba(61, 61, 61, 0.42);
-  --component-text-secondary-disabled: rgba(129, 129, 129, 0.42);
-
-  --component-text-primary-hover: var(--accent-color);
-  --component-text-secondary-hover: color-mix(in srgb, var(--accent-color) 75%, #555);
-  --component-text-primary-active: var(--component-text-primary-hover);
-  --component-text-secondary-active: var(--component-text-secondary-hover);
-  --component-text-accent-hover: #ffffff;
-  --component-text-accent-active: #ffffff;
-
-  --featured: #c58f00;
-  --featured-bg: rgba(242, 234, 212, 0.9);
-  --warning: #ff1c20;
-  --warning-bg: rgba(255, 28, 32, 0.15);
-  --border-color: #d4d4d4;
-  --border-color-blur: rgba(28, 28, 28, 0.12);
-  --select-arrow-color: #999;
-
-  /* Legacy aliases */
-  --app-bg: var(--app-bg-primary);
-  --bg-primary: var(--app-bg-primary);
-  --bg-secondary: var(--app-bg-secondary);
-  --app-text-dark: var(--app-text-primary);
-  --text-primary: var(--app-text-primary);
-  --text-secondary: var(--app-text-secondary);
-  --text-inactive: var(--app-text-secondary);
-  --shadow-elev-1: 0 4px 12px rgba(28, 28, 28, 0.12);
-  --shadow-elev-2: 0 4px 12px rgba(28, 28, 28, 0.14);
-  --shadow-elev-3: 0 10px 30px rgba(28, 28, 28, 0.16);
-  --toc-divider-color: rgba(28, 28, 28, 0.08);
-
-  color: var(--app-text-primary);
-  background-color: transparent;
-}
-
-body[data-backend-theme="dark"] {
-  /* Explicitly apply dark tokens (matches default :root values) */
-  color-scheme: dark;
-  --app-text-wght: 400;
-  --app-bg-primary: #141414;
-  --app-bg-secondary: #1e1e1e;
-  --component-bg: #222222;
-  --component-bg-alt: #2a2a2a;
-  --component-bg-blur: rgba(34, 34, 34, 0.9);
-  --component-bg-blur-alt: rgba(72, 72, 72, 0.5);
-  --app-text-primary: #e0e0e0;
-  --app-text-secondary: #a9a9a9;
-  --component-text-primary: #d4d4d4;
-  --component-text-secondary: #a5a5a5;
-  --border-color: #333;
-  --border-color-blur: rgba(113, 113, 113, 0.2);
-  --select-arrow-color: #bbbbbb;
-  --app-bg: var(--app-bg-primary);
-  --bg-primary: var(--app-bg-primary);
-  /* Backend dark-mode should use dark overlay variant */
-  --backend-bg-overlay: var(--backend-bg-overlay-dark);
-  --bg-secondary: var(--app-bg-secondary);
-  --text-primary: var(--app-text-primary);
-  --text-secondary: var(--app-text-secondary);
-  color: var(--app-text-primary);
-  background-color: transparent;
-}
-
-
 /* Explicit light theme tokens */
 :root[data-theme="light"] {
   color-scheme: light;
@@ -307,22 +212,25 @@ body[data-backend-theme="dark"] {
   --app-bg-primary-active: rgba(0, 0, 0, 0.06);
   --app-bg-secondary-hover: rgba(0, 0, 0, 0.05);
   --app-bg-secondary-active: rgba(0, 0, 0, 0.08);
-  --component-bg-hover: color-mix(in srgb, var(--accent-color) 30%, #fffb);
-  --component-bg-active: color-mix(in srgb, var(--accent-color) 35%, #fffb);
+  --component-bg-hover: rgba(0, 0, 0, 0.06);
+  --component-bg-highlight: color-mix(in srgb, var(--accent-color) 30%, #fffb);
+  --component-bg-active: rgba(0, 0, 0, 0.08);
   --component-bg-accent-hover: var(--component-bg-accent-blur);
   --component-bg-accent-active: var(--component-bg-accent-blur);
 
-  --app-text-primary: #1f2a36;
-  --app-text-secondary: #5f6b78;
-  --component-text-primary: #2a3745;
-  --component-text-secondary: #66768a;
+  --app-text-primary: #111;
+  --app-text-secondary: #444;
+  --component-text-primary: #222;
+  --component-text-secondary: #555;
   --component-text-primary-disabled: rgba(61, 61, 61, 0.42);
   --component-text-secondary-disabled: rgba(129, 129, 129, 0.42);
 
-  --component-text-primary-hover: var(--accent-color);
-  --component-text-secondary-hover: color-mix(in srgb, var(--accent-color) 75%, #555);
+  --component-text-primary-hover: var(--app-text-primary);
+  --component-text-secondary-hover: var(--app-text-secondary);
   --component-text-primary-active: var(--component-text-primary-hover);
   --component-text-secondary-active: var(--component-text-secondary-hover);
+  --component-text-primary-highlight: var(--accent-color);
+  --component-text-secondary-highlight: color-mix(in srgb, var(--accent-color) 75%, #555);
   --component-text-accent-hover: #ffffff;
   --component-text-accent-active: #ffffff;
 
@@ -330,7 +238,7 @@ body[data-backend-theme="dark"] {
   --featured-bg: rgba(242, 234, 212, 0.9);
   --warning: #ff1c20;
   --warning-bg: rgba(255, 28, 32, 0.15);
-  --border-color: #d4d4d4;
+  --border-color: color-mix(in srgb, var(--app-text-secondary) 20%, transparent);
   --border-color-blur: rgba(28, 28, 28, 0.12);
   --select-arrow-color: #999;
 
@@ -367,19 +275,22 @@ body[data-backend-theme="dark"] {
     --app-bg-primary-active: rgba(0, 0, 0, 0.06);
     --app-bg-secondary-hover: rgba(0, 0, 0, 0.05);
     --app-bg-secondary-active: rgba(0, 0, 0, 0.08);
-    --component-bg-hover: rgba(46, 163, 95, 0.12);
-    --component-bg-active: rgba(46, 163, 95, 0.18);
+    --component-bg-hover: rgba(0, 0, 0, 0.06);
+    --component-bg-highlight: color-mix(in srgb, var(--accent-color) 30%, #fffb);
+    --component-bg-active: rgba(0, 0, 0, 0.08);
     --app-text-primary: #1f2a36;
     --app-text-secondary: #5f6b78;
-    --component-text-primary: #2a3745;
-    --component-text-secondary: #66768a;
-    --component-text-primary-hover: var(--accent-color);
-    --component-text-secondary-hover: color-mix(in srgb, var(--accent-color) 75%, #555);
+    --component-text-primary-hover: var(--app-text-primary);
+    --component-text-secondary-hover: var(--app-text-secondary);
+    --component-text-primary-active: var(--component-text-primary-hover);
+    --component-text-secondary-active: var(--component-text-secondary-hover);
+    --component-text-primary-highlight: var(--accent-color);
+    --component-text-secondary-highlight: color-mix(in srgb, var(--accent-color) 75%, #555);
     --featured: #c58f00;
     --featured-bg: rgba(242, 234, 212, 0.9);
     --warning: #ff4d50;
     --warning-bg: rgba(255, 77, 80, 0.15);
-    --border-color: #d4d4d4;
+  --border-color: color-mix(in srgb, var(--app-text-secondary) 20%, transparent);
     --border-color-blur: rgba(28, 28, 28, 0.12);
     --select-arrow-color: #999;
     --app-bg: var(--app-bg-primary);
@@ -400,7 +311,8 @@ body[data-backend-theme="dark"] {
 
 
 
-i, em {
+i,
+em {
   font-style: italic;
 }
 
@@ -410,6 +322,7 @@ a {
   color: var(--accent-color);
   text-decoration: inherit;
 }
+
 a:hover {
   color: var(--accent-color-dark);
 }
@@ -418,7 +331,8 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: transparent; /* moved solid background into bg-surface lowest layer */
+  background: transparent;
+  /* moved solid background into bg-surface lowest layer */
   color: var(--app-text-primary);
   font-weight: var(--app-text-wght, 400);
   /* For variable fonts (e.g. InterVariable), keep正文在可配置字重 */
@@ -470,7 +384,12 @@ h6 {
 }
 
 /* 标题使用稍高字重（Inter 可变轴 + 非可变字体回退） */
-h1, h2, h3, h4, h5, h6,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
 .ant-typography h1,
 .ant-typography h2,
 .ant-typography h3,
@@ -489,8 +408,8 @@ h1, h2, h3, h4, h5, h6,
 .ant-tabs-tab,
 .ant-menu-submenu-title,
 .ant-steps-item-title,
-.ant-table-thead > tr > th,
-.ant-form-item-label > label,
+.ant-table-thead>tr>th,
+.ant-form-item-label>label,
 .ant-list-item-meta-title,
 .ant-alert-message,
 .ant-notification-notice-message,
@@ -522,21 +441,21 @@ button {
 }
 
 .float-btn {
-    background: var(--component-bg-blur-alt);
-    border: 1px solid var(--border-color-blur);
-    border-radius: 8px;
-    color: var(--component-text-primary);
-    cursor: pointer;
-    font-size: 1em;
-    font-family: inherit;
-    transition: all .2s ease;
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
-    padding: 10px 20px;
-    outline: none;
+  background: var(--component-bg-blur-alt);
+  border: 1px solid var(--border-color-blur);
+  border-radius: 8px;
+  color: var(--component-text-primary);
+  cursor: pointer;
+  font-size: 1em;
+  font-family: inherit;
+  transition: all .2s ease;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  padding: 10px 20px;
+  outline: none;
 }
 
-.float-btn.primary{
+.float-btn.primary {
   background: var(--accent-color);
   color: #fff;
   border: background;
@@ -547,7 +466,7 @@ button {
   color: #111;
 }
 
-.float-btn:hover{
+.float-btn:hover {
   filter: brightness(1.2);
   transform: scale(1.05);
   color: var(--component-text-primary);
@@ -576,19 +495,23 @@ button {
 }
 
 /* Base form elements */
-input, button, select, textarea {
+input,
+button,
+select,
+textarea {
   font-family: inherit;
 }
 
 html:not(.is-mobile) button:hover {
   border-color: var(--accent-color);
 }
+
 button:focus,
 button:focus-visible {
   outline: none;
 }
 
-button.primary{
+button.primary {
   background: var(--accent-color);
   color: var(--text-on-accent);
   transition: all 0.3s ease;
@@ -597,6 +520,7 @@ button.primary{
 html:not(.is-mobile) button.primary:hover {
   background: var(--accent-color-dark);
 }
+
 button.secondary {
   background: transparent;
   border-color: var(--accent-color) !important;
@@ -606,34 +530,42 @@ button.secondary {
 
 /* Corner buttons (used by back-to-top and mobile TOC) */
 .corner-button {
-    position: fixed;
-    bottom: 30px;
-    right: 30px;
-    width: 50px !important;
-    height: 50px !important;
-    border-radius: 50%;
-    background: var(--component-bg-blur-alt);
-    border: 1px solid var(--border-color-blur);
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
-    color: var(--component-text-primary);
-    padding: 0;
-    cursor: pointer;
-    box-shadow: var(--shadow-elev-1);
-    opacity: 0;
-    pointer-events: none;
-    transition: all 0.15s ease-out; 
-    transform: translateY(20px);
-    z-index: 200;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 0;
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  width: 50px !important;
+  height: 50px !important;
+  border-radius: 50%;
+  background: var(--component-bg-blur-alt);
+  border: 1px solid var(--border-color-blur);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  color: var(--component-text-primary);
+  padding: 0;
+  cursor: pointer;
+  box-shadow: var(--shadow-elev-1);
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.15s ease-out;
+  transform: translateY(20px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
 }
 
-.corner-button span { display: flex; align-items: center; justify-content: center; }
+.corner-button span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
-.corner-button.visible { opacity: 1; pointer-events: auto; transform: translateY(0); }
+.corner-button.visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
 
 /* Hover only when the app root is NOT in mobile mode (global class 'is-mobile') */
 html:not(.is-mobile) .corner-button:hover {
@@ -658,8 +590,18 @@ html.is-mobile .corner-button:active {
 }
 
 /* Pressed state visual for primary (works on mobile via :active) */
-html.is-mobile .corner-button.primary:active { transform: scale(1.3); border-color: var(--component-bg-accent-blur); background: var(--component-bg-accent-blur); }
-html:not(.is-mobile) .corner-button.primary:hover { transform: scale(1.1); background: var(--component-bg-accent-hover); border-color: var(--component-bg-accent-hover); color: var(--component-text-accent-hover); }
+html.is-mobile .corner-button.primary:active {
+  transform: scale(1.3);
+  border-color: var(--component-bg-accent-blur);
+  background: var(--component-bg-accent-blur);
+}
+
+html:not(.is-mobile) .corner-button.primary:hover {
+  transform: scale(1.1);
+  background: var(--component-bg-accent-hover);
+  border-color: var(--component-bg-accent-hover);
+  color: var(--component-text-accent-hover);
+}
 
 /* When running in mobile mode, ensure the primary corner button is visible on the left */
 html.is-mobile .corner-button.primary {
@@ -672,8 +614,13 @@ html.is-mobile .corner-button.primary {
 }
 
 /* Hide desktop inline/floating TOC on mobile (app has html.is-mobile) */
-html.is-mobile .markdown-toc { display: none !important; }
-html.is-mobile .toc-float { display: none !important; }
+html.is-mobile .markdown-toc {
+  display: none !important;
+}
+
+html.is-mobile .toc-float {
+  display: none !important;
+}
 
 
 /* Mobile TOC fly-in animation and fixed header */
@@ -681,8 +628,9 @@ html.is-mobile .toc-float { display: none !important; }
   transform-origin: left bottom;
   opacity: 0;
   transform: translateY(10px) scale(0.96);
-  transition: opacity 220ms ease, transform 260ms cubic-bezier(.22,.9,.36,1);
+  transition: opacity 220ms ease, transform 260ms cubic-bezier(.22, .9, .36, 1);
 }
+
 .mobile-toc-panel.open {
   opacity: 1;
   transform: translateY(0) scale(1);
@@ -690,16 +638,32 @@ html.is-mobile .toc-float { display: none !important; }
   z-index: 1400;
 }
 
-.mobile-toc-panel.open { animation: mobileTocFlyIn 140ms ease-out both; }
+.mobile-toc-panel.open {
+  animation: mobileTocFlyIn 140ms ease-out both;
+}
 
 @keyframes mobileTocFlyIn {
-  from { opacity: 0; transform: translateY(18px) scale(0.5); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.5);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 /* Make header sticky inside the panel so it stays visible while the list scrolls */
-.mobile-toc-panel-inner { padding: 0; }
-.mobile-toc-panel .mobile-toc-list { padding: 8px; max-height: calc(60vh - 56px); overflow: auto; }
+.mobile-toc-panel-inner {
+  padding: 0;
+}
+
+.mobile-toc-panel .mobile-toc-list {
+  padding: 8px;
+  max-height: calc(60vh - 56px);
+  overflow: auto;
+}
 
 .card {
   padding: 2em;
@@ -721,36 +685,85 @@ html.is-mobile .toc-float { display: none !important; }
   background-repeat: no-repeat;
   background-position: right 12px center;
   background-size: 20px;
-  padding-right: 48px; /* reserve more space for larger arrow */
+  padding-right: 48px;
+  /* reserve more space for larger arrow */
 }
-.modern-select:hover { border-color: var(--border-color-blur); background: var(--component-bg-hover); }
-.modern-select:focus { outline: none; background-color: var(--component-bg-active); box-shadow: var(--shadow-elev-2); border-color: var(--accent-color);}
+
+.modern-select:hover {
+  border-color: var(--border-color-blur);
+  background: var(--component-bg-hover);
+}
+
+.modern-select:focus {
+  outline: none;
+  background-color: var(--component-bg-active);
+  box-shadow: var(--shadow-elev-2);
+  border-color: var(--accent-color);
+}
 
 /* Mobile TOC panel styles (moved from component) */
 .mobile-toc-panel {
-    position: fixed;
-    left: 12px;
-    right: 12px;
-    bottom: 80px;
-    z-index: 1400;
-    background: var(--component-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 10px;
-    max-height: 60vh;
-    overflow: auto;
-    box-shadow: var(--shadow-elev-3);
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: 80px;
+  z-index: 1400;
+  background: var(--component-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  max-height: 60vh;
+  overflow: auto;
+  box-shadow: var(--shadow-elev-3);
 }
-.mobile-toc-panel-inner { padding: 8px }
-  .mobile-toc-header { display:flex; align-items:center; justify-content:space-between; padding: 6px 8px; border-bottom: 1px solid var(--toc-divider-color) }
-.mobile-toc-title { font-weight:600 }
-.mobile-toc-close { background: transparent; border: none; color: inherit; padding: 6px }
-.mobile-toc-list { list-style:none; margin:0; padding:6px }
-.mobile-toc-list li { padding: 6px 4px; border-radius: 6px }
-.mobile-toc-list li.active { background: var(--component-bg-hover); }
-.mobile-toc-list li a { color: inherit; text-decoration: none; display:block }
+
+.mobile-toc-panel-inner {
+  padding: 8px
+}
+
+.mobile-toc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--toc-divider-color)
+}
+
+.mobile-toc-title {
+  font-weight: 600
+}
+
+.mobile-toc-close {
+  background: transparent;
+  border: none;
+  color: inherit;
+  padding: 6px
+}
+
+.mobile-toc-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px
+}
+
+.mobile-toc-list li {
+  padding: 6px 4px;
+  border-radius: 6px
+}
+
+.mobile-toc-list li.active {
+  background: var(--component-bg-hover);
+}
+
+.mobile-toc-list li a {
+  color: inherit;
+  text-decoration: none;
+  display: block
+}
 
 /* Hide native IE arrow */
-.modern-select::-ms-expand { display: none; }
+.modern-select::-ms-expand {
+  display: none;
+}
 
 /* Option styles (browser support varies) */
 .modern-select option {
@@ -758,7 +771,7 @@ html.is-mobile .toc-float { display: none !important; }
   -webkit-appearance: none;
   -moz-appearance: none;
 
-  
+
   border: 2px solid var(--select-option-border-color);
   border-radius: 8px;
   padding: 8px 12px;
@@ -796,11 +809,14 @@ html.is-mobile .toc-float { display: none !important; }
   display: inline-block;
   position: relative;
 }
+
 .select-wrap .modern-select {
-  display: block; /* fill the wrapper */
+  display: block;
+  /* fill the wrapper */
   width: 100%;
   position: relative;
-  z-index: 1; /* keep select below the arrow pseudo-element */
+  z-index: 1;
+  /* keep select below the arrow pseudo-element */
   box-sizing: border-box;
 }
 
@@ -819,7 +835,8 @@ html.is-mobile .toc-float { display: none !important; }
   -webkit-mask-size: 18px 18px;
   mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M6 9 L12 15 L18 9' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>") no-repeat center;
   mask-size: 18px 18px;
-  z-index: 3; /* ensure arrow is above the select */
+  z-index: 3;
+  /* ensure arrow is above the select */
 }
 
 #app {
@@ -839,12 +856,15 @@ html.is-mobile .toc-float { display: none !important; }
 
 /* Article Fonts */
 .font-serif {
-  font-family: var(--app-font-stack-serif)!important;
-  font-size: 1em; /* Adjust size for EB Garamond visual balance */
+  font-family: var(--app-font-stack-serif) !important;
+  font-size: 1em;
+  /* Adjust size for EB Garamond visual balance */
 }
+
 .font-mono {
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace !important;
 }
+
 .font-sans {
   font-family: var(--app-font-stack-inter) !important;
 }

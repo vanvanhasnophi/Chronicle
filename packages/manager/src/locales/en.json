@@ -226,6 +226,7 @@
     "friendCardStoryBound": "Bound to a Post",
     "about": "About Page",
     "shortAbout": "About Page",
+    "editAboutPage": "Edit About Page",
     "aboutHint": "Edit the HTML content of your about page (stored in local config)",
     "appearance": "Appearance",
     "features": "Feature Toggles",
@@ -574,6 +575,8 @@
     "metaTitle": "Post Properties",
     "restore": "Restore",
     "save": "Save",
+    "saved": "Saved",
+    "saveFailed": "Save Failed",
     "upload": "Upload",
     "draft": "Draft",
     "publish": "Publish",
@@ -677,7 +680,12 @@
     },
     "aiGeneratedLabel": "AI Generated",
     "authorLabel": "Author",
-    "authorPlaceholder": "Enter author name (eightyfor as default)"
+    "authorPlaceholder": "Enter author name (eightyfor as default)",
+    "confirmAboutSave": "Do you want to save changes to the about page now?",
+    "insertAsText": "Insert as text",
+    "insertAsCode": "Insert as code",
+    "insertAsFile": "Insert as a file",
+    "textFileChoiceHint": "How would you like to insert this file?"
   },
   "formula": {
     "copied": "Formula copied"

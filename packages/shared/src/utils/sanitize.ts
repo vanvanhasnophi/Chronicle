@@ -9,7 +9,7 @@
  */
 
 /** Tags allowed through. Everything else is stripped, including:
- *  script, iframe, object, embed, style, form, base, svg, math, link, meta. */
+ *  script, iframe, object, embed, style, form, base, math, link, meta. */
 export const ALLOWED_TAGS: string[] = [
   // Structure
   'a', 'img', 'video', 'audio', 'source', 'track',
@@ -27,6 +27,8 @@ export const ALLOWED_TAGS: string[] = [
   'details', 'summary',
   // Chronicle-specific
   'input',   // code-block checkboxes in tasks
+  // SVG (file-card icons, inline icons). DOMPurify strips on* handlers.
+  'svg', 'path', 'circle', 'rect', 'line', 'polyline', 'polygon', 'g',
 ]
 
 /** Allowed attributes per tag (or '*' for global). Everything else, including
@@ -35,6 +37,10 @@ export const ALLOWED_ATTR: string[] = [
   'href', 'src', 'alt', 'title', 'width', 'height',
   'class', 'id', 'target', 'rel', 'loading', 'decoding',
   'controls', 'autoplay', 'loop', 'muted', 'playsinline',
+  // SVG attributes
+  'viewBox', 'fill', 'stroke', 'stroke-width', 'stroke-linecap',
+  'stroke-linejoin', 'd', 'cx', 'cy', 'r', 'x1', 'y1', 'x2', 'y2',
+  'points', 'xmlns', 'aria-hidden', 'role', 'transform',
   'type', 'start', 'reversed',
   'colspan', 'rowspan', 'scope',
   'open',                          // <details>

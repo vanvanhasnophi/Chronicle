@@ -226,6 +226,7 @@
     "friendCardStoryBound": "已绑定到文章",
     "about": "关于页",
     "shortAbout": "关于页",
+    "editAboutPage": "编辑关于页",
     "aboutHint": "编辑关于页自定义 HTML（将保存在本地配置中）",
     "appearance": "外观",
     "features": "功能开关",
@@ -573,6 +574,8 @@
     "metaTitle": "文章属性",
     "restore": "恢复",
     "save": "保存",
+    "saved": "已保存",
+    "saveFailed": "保存失败",
     "upload": "上传",
     "draft": "存草稿",
     "publish": "发布",
@@ -676,7 +679,12 @@
       "edit": "仅编辑",
       "preview": "仅预览",
       "rendered": "渲染输出"
-    }
+    },
+    "confirmAboutSave": "确认保存关于页更改？",
+    "insertAsText": "作为文本插入",
+    "insertAsCode": "作为代码块插入",
+    "insertAsFile": "作为文件插入",
+    "textFileChoiceHint": "如何插入该文件？"
   },
   "formula": {
     "copied": "公式已复制"

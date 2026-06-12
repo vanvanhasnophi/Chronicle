@@ -191,6 +191,13 @@ router.beforeEach((to, from, next) => {
     }
   }
 
+  // Auth pages: redirect to dashboard if already logged in
+  const authPages = ['/login', '/setup', '/recover']
+  if (isAuthenticated && authPages.includes(to.path)) {
+    next('/dashboard')
+    return
+  }
+
   // 其他需要认证的页面
   if (to.meta.requiresAuth && !isAuthenticated) {
     next('/login')

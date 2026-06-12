@@ -1,5 +1,6 @@
 <template>
   <div class="fieldset">
+    <legend v-if="title" class="fieldset-title">{{ title }}</legend>
     <SchemaField
       v-for="key in childKeys"
       :key="key"
@@ -14,11 +15,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import SchemaField from '../SchemaField.vue'
+import { resolveLocale } from '../../../utils/resolveLocale'
 
 const props = defineProps<{
   modelValue: Record<string, any>
   schema: Record<string, any>
 }>()
+
+const title = computed(() => resolveLocale(props.schema.title, ''))
 
 const emit = defineEmits<{
   'update:modelValue': [value: Record<string, any>]
@@ -50,5 +54,15 @@ function setNested(key: string, val: any) {
   border-radius: 8px;
   background: var(--component-bg-secondary, rgba(128, 128, 128, 0.04));
   border: 1px solid var(--border-color, rgba(128, 128, 128, 0.15));
+}
+
+.fieldset-title {
+  padding: 0;
+  margin: 0 0 0.25rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--component-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
 }
 </style>
