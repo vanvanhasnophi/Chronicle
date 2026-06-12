@@ -22,6 +22,9 @@ packages/template-astro/.astro/
 
 # Runtime data (generated from site/ by convert, or local CMS working dir)
 data/*
+data.backup/*
+
+data.tar.gz
 # But keep the directory structure for fresh clones
 !data/.gitkeep
 

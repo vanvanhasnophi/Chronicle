@@ -31,25 +31,57 @@ function slugToUuid(slug) {
   return createHash('sha256').update(`chronicle:post:${slug}`).digest('hex').slice(0, 32);
 }
 
-// ── Minimal YAML→JSON (flat key-value only) ─────────────
+// ── Minimal YAML→JSON (flat key-value + simple nesting) ──
+
+function parseYamlValue(raw) {
+  // Strip inline comment (space+# or tab+#), but keep # inside quotes
+  let value = raw.replace(/^(.*?)\s+#.*$/, '$1').trim();
+
+  // Quoted string — content is the value regardless of emptiness
+  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    return value.slice(1, -1);
+  }
+
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  if (value === '' || value === '~' || value === 'null') return null;
+  if (!isNaN(Number(value))) return Number(value);
+  return value;
+}
 
 function yamlToJson(yaml) {
   const out = {};
   const lines = yaml.split('\n');
+  const stack = [{ indent: -1, obj: out }];
+
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;
+
+    const indent = line.length - line.trimStart().length;
     const m = trimmed.match(/^([\w_-]+):\s*(.*)$/);
     if (!m) continue;
-    let value = m[2].trim();
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-      value = value.slice(1, -1);
+
+    const key = m[1];
+    const value = parseYamlValue(m[2]);
+
+    // Pop stack until we find the parent at a lower indent
+    while (stack.length > 1 && stack[stack.length - 1].indent >= indent) {
+      stack.pop();
     }
-    if (value === 'true') value = true;
-    else if (value === 'false') value = false;
-    else if (!isNaN(Number(value)) && value !== '') value = Number(value);
-    out[m[1]] = value;
+    const parent = stack[stack.length - 1].obj;
+
+    if (value === null) {
+      // Object key — push a new nested object
+      const child = {};
+      parent[key] = child;
+      stack.push({ indent, obj: child });
+    } else {
+      // Scalar value
+      parent[key] = value;
+    }
   }
+
   return out;
 }
 
@@ -204,16 +236,115 @@ function rebuildIndex(postsDir, results) {
 // ── Settings Conversion ───────────────────────────────────
 // ═══════════════════════════════════════════════════════════
 
+/**
+ * Convert site/settings.yml → data/settings.json.
+ *
+ * YAML keys use lite-friendly names; this function maps them to
+ * Chronicle's internal JSON keys and fills defaults for any field
+ * not present in the YAML.
+ *
+ * YAML → JSON mapping:
+ *   title       → siteName
+ *   url         → frontendUrl
+ *   description → siteDescription
+ *   language    → frontendLocale
+ *   theme       → frontendTheme        (light | dark | follow)
+ *   accent      → frontendAccent       (#rrggbb)
+ *   font        → frontendFont         (sans | serif)
+ *   homepage    → homepageMode         (cover | split | cards)
+ *   rss         → rss                  (boolean)
+ *   sitemap     → sitemap              (boolean)
+ *
+ * Fields NOT in YAML receive Chronicle defaults:
+ *   featureFlags, cardVisibility, frontendBackground*, ga*, performance, etc.
+ */
+const SETTINGS_DEFAULTS = {
+  siteName: 'Chronicle',
+  siteDescription: '',
+  homepageMode: 'split',
+  singleColumnHomepage: false,
+  cardVisibility: { author: true, taxonomy: true, activity: true },
+  frontendTheme: 'follow',
+  frontendAccent: '#2ea35f',
+  frontendFont: 'sans',
+  frontendLocale: 'follow',
+  collectionPage: true,
+  aboutPage: true,
+  friendsPage: true,
+  rss: true,
+  sitemap: false,
+  searchSuggestions: false,
+  relatedPosts: false,
+  traffic: true,
+  defaultPerformanceMode: 'auto',
+  frontendBackgroundCompression: 12.96,
+  gaMeasurementId: '',
+};
+
+const YAML_TO_JSON_KEY = {
+  title:       'siteName',
+  url:         'frontendUrl',
+  description: 'siteDescription',
+  language:    'frontendLocale',
+  theme:       'frontendTheme',
+  accent:      'frontendAccent',
+  font:        'frontendFont',
+  homepage:    'homepageMode',
+  rss:         'rss',
+  sitemap:     'sitemap',
+};
+
+// Fields that belong to the backend — preserved across converts
+const BACKEND_KEYS = new Set([
+  'backendTheme', 'backendAccent', 'backendFont', 'backendLocale',
+  'backendBackground', 'backendBackgroundMeta', 'backendBackgroundCompression',
+  'scheduledBuildEnabled', 'scheduledBuildMode', 'scheduledBuildMinute',
+  'scheduledBuildHour', 'scheduledBuildWeekday', 'scheduledBuildCron',
+  'scheduledBuildInterval',
+  'frontendUrl',  // configured in CMS, not from site.yml
+  'name',          // author name from CMS
+]);
+
 function convertSettings(siteDir, dataDir) {
+  // Preserve backend fields from existing settings.json
+  const settingsPath = join(dataDir, 'settings.json');
+  let backend = {};
+  if (existsSync(settingsPath)) {
+    try {
+      const existing = JSON.parse(readFileSync(settingsPath, 'utf-8'));
+      for (const key of BACKEND_KEYS) {
+        if (key in existing) backend[key] = existing[key];
+      }
+    } catch (e) { /* corrupt — start fresh */ }
+  }
+
+  // Start with frontend defaults, overlay backend
+  const settings = { ...SETTINGS_DEFAULTS, ...backend };
+
   const ymlFile = join(siteDir, 'settings.yml');
-  if (!existsSync(ymlFile)) return false;
-  const yaml = readFileSync(ymlFile, 'utf-8');
-  const json = yamlToJson(yaml);
-  // Map lite-friendly field names to Chronicle internal names
-  if (json.title) { json.siteName = json.title; delete json.title; }
-  if (json.url) { json.frontendUrl = json.url; delete json.url; }
-  if (json.language) { json.frontendLocale = json.language; }
-  writeFileSync(join(dataDir, 'settings.json'), JSON.stringify(json, null, 2), 'utf-8');
+  if (existsSync(ymlFile)) {
+    const yaml = readFileSync(ymlFile, 'utf-8');
+    const yml = yamlToJson(yaml);
+
+    for (const [ymlKey, jsonKey] of Object.entries(YAML_TO_JSON_KEY)) {
+      if (ymlKey in yml) {
+        settings[jsonKey] = yml[ymlKey];
+        delete yml[ymlKey];
+      }
+    }
+
+    for (const key of Object.keys(yml)) {
+      if (key in settings) {
+        settings[key] = yml[key];
+      }
+    }
+
+    if (!yml.url) {
+      settings.frontendUrl = backend.frontendUrl || '';
+    }
+  }
+
+  writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
   return true;
 }
 
@@ -990,6 +1121,14 @@ export async function convertSite(siteDir, dataDir) {
     return { success: false, error: 'site directory not found' };
   }
 
+  // ── Backup existing data/ before overwriting (keep only 1) ──
+  if (existsSync(dataDir) && readdirSync(dataDir).length > 0) {
+    const backupDir = join(dirname(dataDir), 'data.backup');
+    if (existsSync(backupDir)) rmSync(backupDir, { recursive: true, force: true });
+    cpSync(dataDir, backupDir, { recursive: true, force: true });
+    console.log(`[convert] Backed up existing data/ → data.backup`);
+  }
+
   const postsDir = join(dataDir, 'posts');
   mkdirSync(dataDir, { recursive: true });
   cleanPostsDir(postsDir);
@@ -1048,6 +1187,48 @@ export async function convertSite(siteDir, dataDir) {
     settings.frontendBackgroundCompression =
       JSON.parse(backgroundResult.meta).compressionFactor || 1;
     writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
+  }
+
+  // ── About page (site/about.md → data/about.md) ───
+  const aboutSrc = join(siteDir, 'about.md');
+  if (existsSync(aboutSrc)) {
+    const aboutRaw = readFileSync(aboutSrc, 'utf-8');
+    // Parse frontmatter: extract showProfileCard → settings, keep lastModified
+    let aboutContent = aboutRaw;
+    const aboutLines = aboutRaw.split('\n');
+    const frontmatter = {};
+    if (aboutLines[0]?.trim() === '---') {
+      let i = 1;
+      while (i < aboutLines.length && aboutLines[i].trim() !== '---') {
+        const m = aboutLines[i].match(/^(\w+):\s*(.+)/);
+        if (m) {
+          const key = m[1].trim();
+          let val = m[2].trim().replace(/^["']|["']$/g, '');
+          if (val === 'true') val = true;
+          else if (val === 'false') val = false;
+          frontmatter[key] = val;
+        }
+        i++;
+      }
+      aboutContent = aboutLines.slice(i + 1).join('\n');
+    }
+    // Move showProfileCard from frontmatter to settings
+    if ('showProfileCard' in frontmatter) {
+      const settings = JSON.parse(readFileSync(join(dataDir, 'settings.json'), 'utf-8'));
+      if (!settings.about) settings.about = {};
+      settings.about.showProfileCard = frontmatter.showProfileCard;
+      writeFileSync(join(dataDir, 'settings.json'), JSON.stringify(settings, null, 2), 'utf-8');
+      delete frontmatter.showProfileCard;
+      // Rebuild about.md without the consumed key
+      frontmatter.lastModified = frontmatter.lastModified || new Date().toISOString().slice(0, 10);
+      const newFm = Object.entries(frontmatter).map(([k, v]) => `${k}: ${v}`).join('\n');
+      aboutContent = `---\n${newFm}\n---\n\n${aboutContent}`;
+      writeFileSync(join(dataDir, 'about.md'), aboutContent, 'utf-8');
+    } else {
+      // No showProfileCard to extract — just copy
+      copyFileSync(aboutSrc, join(dataDir, 'about.md'));
+    }
+    console.log('[convert] About: site/about.md → data/about.md');
   }
 
   // ── Profile ──────────────────────────────────────

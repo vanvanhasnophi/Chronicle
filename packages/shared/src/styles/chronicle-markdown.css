@@ -152,7 +152,7 @@
 
 .chronicle-markdown blockquote {
   border-left: 4px solid var(--accent-color);
-  background: var(--component-bg-blur);
+  background: var(--component-bg-active);
   padding: 0.5em 1em;
   margin: 0.5em 0;
   border-radius: 4px;
@@ -190,14 +190,14 @@
 }
 
 .chronicle-markdown th {
-  background: var(--component-bg-hover);
+  background: color-mix(in srgb, #808080 50%, var(--component-bg-blur));
   font-weight: 600;
   font-variation-settings: 'wght' 600;
   color: var(--text-primary);
 }
 
 .chronicle-markdown td {
-  background: var(--component-bg);
+  background: var(--component-bg-blur-alt);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -296,7 +296,6 @@
 .chronicle-markdown .md-image.loaded {
   opacity: 1;
   filter: blur(0);
-  object-fit: contain;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -329,7 +328,7 @@
 }
 
 .chronicle-markdown .file-card:hover {
-  background-color: var(--component-bg-hover);
+  background-color: var(--component-bg-highlight);
   border-color: var(--accent-color);
   transform: translateY(-1px);
   box-shadow: var(--shadow-elev-1);
@@ -1089,7 +1088,7 @@
 }
 
 .file-preview-title {
-  color: var(--text-primary);
+  color: #fff;
   font-weight: 600;
   font-variation-settings: 'wght' 600;
   font-size: 1.7rem;

@@ -240,8 +240,8 @@ function onFloatMouseLeave() {
 .toc-float.collapsed .toc-level-5 { padding-left: 11px !important; }
 .toc-float.collapsed .toc-level-6 { padding-left: 12px !important; }
 .toc-float li:hover .toc-text { background: var(--component-bg-hover); color: var(--component-text-primary-hover) }
-.toc-float li:active .toc-text, .toc-float li:focus .toc-text { background: var(--component-bg-active); color: var(--component-text-primary-active); }
-.toc-float li.active .toc-text { background: var(--component-bg-active); color: var(--component-text-primary-active); }
+.toc-float li:active .toc-text { background: var(--component-bg-highlight); color: var(--component-text-primary-highlight); }
+.toc-float li:focus .toc-text { background: var(--component-bg-highlight); color: var(--component-text-primary-highlight); }
 
 .toc-float { 
     right: calc(10px + 2vw); 
@@ -315,9 +315,9 @@ function onFloatMouseLeave() {
 
 /* Active State for Line */
 .toc-float li.active .toc-line {
-    background: var(--component-text-primary-active);
-    box-shadow: 0 0 4px color-mix(in srgb, var(--component-text-primary-active) 70%, transparent), 0 0 8px color-mix(in srgb, var(--component-text-primary) 20%, transparent);
-    filter: drop-shadow(0 0 3px color-mix(in srgb, var(--component-text-primary-active) 45%, transparent));
+    background: var(--component-text-primary-highlight);
+    box-shadow: 0 0 4px color-mix(in srgb, var(--component-text-primary-highlight) 70%, transparent), 0 0 8px color-mix(in srgb, var(--component-text-primary) 20%, transparent);
+    filter: drop-shadow(0 0 3px color-mix(in srgb, var(--component-text-primary-highlight) 45%, transparent));
     transition: box-shadow 0.18s ease, background 0.18s ease, filter 0.18s ease;
 }
 .toc-float li:hover .toc-line { background: var(--component-text-primary-hover); }
@@ -359,6 +359,6 @@ function onFloatMouseLeave() {
 
 /* Hover/Active states for Text */
 .toc-float:not(.collapsed) li:hover .toc-text { background: var(--component-bg-hover); color: var(--component-text-primary-hover) }
-.toc-float:not(.collapsed) li.active .toc-text { background: var(--component-bg-active); color: var(--component-text-primary-active); font-weight: 500; }
+.toc-float:not(.collapsed) li.active .toc-text { background: var(--component-bg-highlight); color: var(--component-text-primary-highlight); font-weight: 500; font-variation-settings: 'wght' 500; }
 
 </style>
