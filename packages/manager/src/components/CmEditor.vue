@@ -21,26 +21,25 @@ import { tags } from '@lezer/highlight'
 // but @codemirror/lang-markdown's NodeProp mapping converts them to
 // Link/LinkMark (styled as links).  This ViewPlugin overrides the
 // styling so checkboxes look like checkboxes, not hyperlinks.
-import { ViewPlugin, Decoration } from '@codemirror/view'
+import { ViewPlugin, Decoration, type ViewUpdate, type DecorationSet } from '@codemirror/view'
 
 const taskMarkerPlugin = ViewPlugin.fromClass(class {
-  decorations: ReturnType<typeof Decoration.set>
+  decorations: DecorationSet
 
-  constructor(view) {
+  constructor(view: EditorView) {
     this.decorations = this._scan(view)
   }
 
-  update(update) {
+  update(update: ViewUpdate) {
     if (update.docChanged || update.viewportChanged)
       this.decorations = this._scan(update.view)
   }
 
-  _scan(view) {
-    const marks = []
+  _scan(view: EditorView): DecorationSet {
+    const marks: any[] = []
     const doc = view.state.doc
     for (let i = 1; i <= doc.lines; i++) {
       const line = doc.line(i)
-      // Match list item + task marker: optional indent, list bullet, space, [ ] or [x], space
       const m = /^(\s*[-*+]\s+)\[([ xX])\](?=\s)/.exec(line.text)
       if (m) {
         const from = line.from + m[1].length
