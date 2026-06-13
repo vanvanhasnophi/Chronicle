@@ -84,9 +84,16 @@ function createChildWindow(url) {
       } else {
         // pathname is /path/to/dist/editor — take everything after /dist/
         const pathAfterDist = parsed.pathname.split('/dist/')[1] || ''
-        routePath = pathAfterDist
-          ? pathAfterDist + parsed.search
-          : parsed.pathname.replace(/^\//, '') + parsed.search
+        if (pathAfterDist) {
+          routePath = pathAfterDist + parsed.search
+        } else {
+          // Fallback: strip leading slash and Windows drive letter
+          // (e.g. /H:/editor → editor) — Electron preserves the drive
+          // prefix when resolving relative paths against file:// URLs.
+          let p = parsed.pathname.replace(/^\//, '')
+          p = p.replace(/^[A-Za-z]:\//, '')
+          routePath = p + parsed.search
+        }
       }
     } catch (_) {
       routePath = url
@@ -119,8 +126,18 @@ async function loadChildWithAuth(newWin, winUrl) {
       'localStorage.getItem("chronicle_auth")',
     ));
     if (token) {
-      const sep = winUrl.includes('?') ? '&' : '?';
-      newWin.loadURL(`${winUrl}${sep}_auth=${encodeURIComponent(token)}`);
+      // Insert _auth query param BEFORE the hash fragment.
+      // winUrl = "file:///.../index.html#/editor"
+      // Must become: "file:///.../index.html?_auth=<token>#/editor"
+      const hashIdx = winUrl.indexOf('#');
+      if (hashIdx !== -1) {
+        const beforeHash = winUrl.slice(0, hashIdx);
+        const hash = winUrl.slice(hashIdx);
+        newWin.loadURL(`${beforeHash}?_auth=${encodeURIComponent(token)}${hash}`);
+      } else {
+        const sep = winUrl.includes('?') ? '&' : '?';
+        newWin.loadURL(`${winUrl}${sep}_auth=${encodeURIComponent(token)}`);
+      }
     } else {
       newWin.loadURL(winUrl);
     }
