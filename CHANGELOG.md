@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and uses [Semantic Versioning](https://semver.org/).
 
+## [2.0.4] - 2026-06-14
+
+### Fixed
+- **Electron new window URL parsing**: Fixed `createChildWindow` on Windows to strip drive letters from window hashes (e.g., `#/C:/editor?id=xxx` → `#/editor?id=xxx`), preventing blank editor pages.
+
 ## [2.0.3] - 2026-06-13
 
 ### Changed
