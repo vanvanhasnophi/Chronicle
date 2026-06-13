@@ -103,6 +103,23 @@
         "zh-CN": "站点描述"
       }
     },
+    "icpNumber": {
+      "type": "string",
+      "default": "",
+      "maxLength": 50,
+      "x-widget": "input",
+      "x-tab": "template-homepage",
+      "x-group": "general",
+      "x-order": 5,
+      "title": {
+        "en": "ICP Filing Number",
+        "zh-CN": "备案号"
+      },
+      "description": {
+        "en": "China ICP filing number. Leave blank to hide.",
+        "zh-CN": "中国大陆ICP备案号，留空则隐藏。"
+      }
+    },
     "homepageMode": {
       "type": "string",
       "default": "split",

@@ -209,6 +209,34 @@ function convertPost(entry, postsDir) {
 // ── Index Rebuild ─────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════
 
+/**
+ * Strip markdown to plain text for summary generation.
+ * Same logic as host/src/routes/admin/index.js stripSummary.
+ */
+function stripSummary(content, maxLen = 200) {
+  if (!content) return ''
+  let t = content
+  t = t.replace(/^---[\s\S]*?---\n*/g, '')
+  t = t.replace(/```[\s\S]*?```/g, '')
+  t = t.replace(/\$\$[\s\S]*?\$\$/g, '')
+  t = t.replace(/(?<!\$)\$([^$\n]+?)\$(?!\$)/g, '')
+  t = t.replace(/!\[([^\]]*)\]\([^)]+\)/g, (_m, a) => a.trim() || '')
+  t = t.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+  t = t.replace(/^#{1,6}\s+/gm, '')
+  t = t.replace(/^>\s?/gm, '')
+  t = t.replace(/^[\s-]*[-+*]\s+/gm, '')
+  t = t.replace(/^\s*\d+\.\s+/gm, '')
+  t = t.replace(/(\*\*|__)(.*?)\1/g, '$2')
+  t = t.replace(/(\*|_)(.*?)\1/g, '$2')
+  t = t.replace(/~~(.*?)~~/g, '$1')
+  t = t.replace(/`([^`]+)`/g, '$1')
+  t = t.replace(/<[^>]+>/g, '')
+  t = t.replace(/^[-*_]{3,}\s*$/gm, '')
+  t = t.replace(/\s+/g, ' ').trim()
+  if (t.length <= maxLen) return t
+  return t.slice(0, maxLen).replace(/\s+\S*$/, '')
+}
+
 function rebuildIndex(postsDir, results) {
   const index = [];
   for (const { slug, uuid } of results) {
@@ -227,7 +255,8 @@ function rebuildIndex(postsDir, results) {
       if (fm.date) date = new Date(fm.date).toISOString();
       if (fm.tags) tags = Array.isArray(fm.tags) ? fm.tags : String(fm.tags).split(/,\s*/).filter(Boolean);
     }
-    index.push({ id: uuid, slug, title, date, tags, status: 'published' });
+    const summary = stripSummary(content, 200);
+    index.push({ id: uuid, slug, title, date, tags, summary, status: 'published' });
   }
   writeFileSync(join(postsDir, 'index.json'), JSON.stringify(index, null, 2), 'utf-8');
 }
@@ -279,6 +308,7 @@ const SETTINGS_DEFAULTS = {
   defaultPerformanceMode: 'auto',
   frontendBackgroundCompression: 12.96,
   gaMeasurementId: '',
+  icpNumber: '',
 };
 
 const YAML_TO_JSON_KEY = {

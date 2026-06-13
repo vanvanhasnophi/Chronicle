@@ -39,7 +39,8 @@ export const ALLOWED_ATTR: string[] = [
   'controls', 'autoplay', 'loop', 'muted', 'playsinline',
   // SVG attributes
   'viewBox', 'fill', 'stroke', 'stroke-width', 'stroke-linecap',
-  'stroke-linejoin', 'd', 'cx', 'cy', 'r', 'x1', 'y1', 'x2', 'y2',
+  'stroke-linejoin', 'd', 'cx', 'cy', 'r', 'x', 'y', 'rx', 'ry',
+  'x1', 'y1', 'x2', 'y2',
   'points', 'xmlns', 'aria-hidden', 'role', 'transform',
   'type', 'start', 'reversed',
   'colspan', 'rowspan', 'scope',

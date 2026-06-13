@@ -73,3 +73,6 @@ traffic: true
 
 # Google Analytics 4 测量 ID（留空则不注入 GA）
 gaMeasurementId: ""
+
+# ICP备案号（留空则不显示）
+icpNumber: ""
