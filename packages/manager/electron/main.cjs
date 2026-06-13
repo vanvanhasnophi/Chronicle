@@ -128,8 +128,6 @@ async function loadChildWithAuth(newWin, winUrl) {
     newWin.loadURL(winUrl);
   }
 }
-  return newWin;
-}
 
 // ── Main window ──────────────────────────────────────────────
 
