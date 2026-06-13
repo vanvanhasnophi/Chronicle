@@ -157,10 +157,12 @@ router.get('/settings', (req, res) => {
         const settings = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
         // Strip sensitive fields
         const {
+            siteName, siteDescription,
             frontendTheme, frontendAccent, frontendBackground, frontendBackgroundMeta,
             frontendFont, featureFlags,
             homepageMode, frontendLocale, frontendBackgroundCompression,
-            gaMeasurementId
+            gaMeasurementId, icpNumber,
+            singleColumnHomepage, cardVisibility,
         } = settings;
         // Read friends from dedicated file
         let friends = { cards: [], globalStyle: null };
@@ -174,10 +176,12 @@ router.get('/settings', (req, res) => {
             };
         }
         success(res, {
+            siteName, siteDescription,
             frontendTheme, frontendAccent, frontendBackground, frontendBackgroundMeta,
             frontendFont, featureFlags,
             homepageMode, frontendLocale, frontendBackgroundCompression,
-            gaMeasurementId,
+            gaMeasurementId, icpNumber: icpNumber || '',
+            singleColumnHomepage, cardVisibility,
             friendsCards: friends.cards,
             friendsGlobalStyle: friends.globalStyle,
         });

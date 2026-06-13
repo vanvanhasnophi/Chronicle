@@ -829,40 +829,6 @@ watch(() => props.language, (n) => {
 .editor-header, .editor-footer {
   font-family: var(--app-font-stack);
 }
-.syntax-highlight .keyword { color: var(--code-keyword); font-weight: bold; }
-.syntax-highlight .string { color: var(--code-string); }
-.syntax-highlight .comment { color: var(--code-comment); font-style: italic; }
-.syntax-highlight .katexcommand { color: var(--code-katexcommand); }
-.syntax-highlight .number { color: var(--code-number); }
-.syntax-highlight .katexnumber { color: var(--code-number); }
-.syntax-highlight .boolean { color: var(--code-boolean); }
-.syntax-highlight .operator { color: var(--code-operator); }
-.syntax-highlight .katexoperator { color: var(--component-text-secondary); }
-.syntax-highlight .bracket { color: var(--featured); }
-.syntax-highlight .katexbracket { color: var(--component-text-secondary); }
-.syntax-highlight .tag { color: var(--code-tag); }
-.syntax-highlight .attribute { color: var(--code-attribute); }
-.syntax-highlight .property { color: var(--code-property); }
-.syntax-highlight .selector { color: var(--code-selector); }
-.syntax-highlight .type { color: var(--code-type); }
-.syntax-highlight .variable { color: var(--code-variable); }
-.syntax-highlight .parameter { color: var(--code-parameter); }
-.syntax-highlight .cmdlet { color: var(--code-cmdlet); font-weight: bold; }
-.syntax-highlight .directive { color: var(--code-directive); }
-.syntax-highlight .preprocessor { color: var(--code-preprocessor); }
-.syntax-highlight .color { color: var(--code-color); font-weight: bold; }
-.syntax-highlight .section { color: var(--code-section); font-weight: bold; }
-.syntax-highlight .date { color: var(--code-date); }
-.syntax-highlight .quote { color: var(--code-quote); font-style: italic; border-left: 4px solid var(--code-quote); padding-left: 0.5rem; margin-left: 0.5rem; }
-.syntax-highlight .header { color: var(--code-header); font-weight: bold; }
-.syntax-highlight .bold { font-weight: bold; color: var(--text-primary); }
-.syntax-highlight .italic { font-style: italic; color: var(--component-text-primary); }
-.syntax-highlight .inline-code { background: var(--component-bg-hover); color: var(--code-inline); padding: 0.2rem 0.4rem; border-radius: 3px; }
-.syntax-highlight .code-block { background: var(--component-bg-hover); color: var(--component-text-primary); padding: 0.5rem; border-radius: 4px; border-left: 4px solid var(--accent-color); }
-.syntax-highlight .link { color: var(--code-link); }
-.syntax-highlight .list { color: var(--featured); }
-
-/* 代码块主体统一深灰色 */
 /* 代码块主体统一深灰色，降低饱和度 */
 .code-chunk-container {
   display: flex;

@@ -660,11 +660,24 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 const isElectron = !!(typeof window !== 'undefined' && (window as any).chronicleElectron?.isElectron)
 
 /** Create a renderable URL for a File: blob:// in browser, file:// in Electron */
-function fileToUrl(file: File): string {
-    if (isElectron && (file as any).path) {
-        const p = (file as any).path as string
-        return p.startsWith('/') ? `file://${p}` : `file:///${p.replace(/\\/g, '/')}`
+async function fileToUrl(file: File): Promise<string> {
+    if (isElectron) {
+        // 1. Sync: try legacy .path property (drag-drop, <input type="file">)
+        const p = (file as any).path as string | undefined
+        if (p) {
+            return p.startsWith('/') ? `file://${p}` : `file:///${p.replace(/\\/g, '/')}`
+        }
+        // 2. Async: webUtils.getPathForFile (Electron 32+) — covers clipboard paste
+        try {
+            const resolved = await ((window as any).chronicleElectron?.getPathForFile?.(file))
+            if (resolved) {
+                return resolved.startsWith('/')
+                    ? `file://${resolved}`
+                    : `file:///${resolved.replace(/\\/g, '/')}`
+            }
+        } catch {}
     }
+    // 3. Fallback: in-memory blob (browser, or Electron with no disk backing)
     return URL.createObjectURL(file)
 }
 
@@ -673,10 +686,11 @@ function fileToUrl(file: File): string {
  * E.g. "audio:blob:http://...mp3", "document:file:///path/to/report.pdf"
  * The type prefix lets file-card detection work; the actual URL is still used for rendering.
  */
-function fileToMarkdownUrl(file: File): string {
-    const url = fileToUrl(file)
-    const prefix = getTypePrefixForFile(file)
-    return prefix ? `${prefix}:${url}` : url
+function fileToMarkdownUrl(file: File): Promise<string> {
+    return fileToUrl(file).then(url => {
+        const prefix = getTypePrefixForFile(file)
+        return prefix ? `${prefix}:${url}` : url
+    })
 }
 
 /** Map a File to a type prefix based on extension or MIME. Images return empty (use ![alt](url) syntax). */
@@ -2956,7 +2970,7 @@ function doInsertCodeBlock(file: File) {
     reader.readAsText(file)
 }
 
-function doInsertFileCard(file: File) {
+async function doInsertFileCard(file: File) {
     if (isCloudEditing.value) {
         showToast('Uploading...')
         uploadMediaFile(file).then((url) => {
@@ -2964,8 +2978,10 @@ function doInsertFileCard(file: File) {
         })
         return
     }
-    const markdownUrl = fileToMarkdownUrl(file)
-    const rawUrl = fileToUrl(file)
+    const [markdownUrl, rawUrl] = await Promise.all([
+        fileToMarkdownUrl(file),
+        fileToUrl(file),
+    ])
     fileMap.set(rawUrl, file)
     insertMediaMarkdown(file.name, markdownUrl)
 }
@@ -3132,7 +3148,7 @@ async function handleMediaPicked(entry: any) {
 
             // Local file, local editing: type-prefixed blobURL/fileURL + fileMap
             if (ent.file && !isCloudEditing.value) {
-                const rawUrl = ent.uploadedUrl || ent.preview || fileToUrl(ent.file)
+                const rawUrl = ent.uploadedUrl || ent.preview || await fileToUrl(ent.file)
                 const prefix = getTypePrefixForFile(ent.file)
                 const markdownUrl = prefix ? `${prefix}:${rawUrl}` : rawUrl
                 fileMap.set(rawUrl, ent.file)

@@ -13,8 +13,227 @@ import { Compartment, EditorState, type Extension } from '@codemirror/state'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { defaultKeymap, history, historyKeymap, undo, redo } from '@codemirror/commands'
 import { searchKeymap } from '@codemirror/search'
-import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
+import { HighlightStyle, syntaxHighlighting, LanguageDescription, StreamLanguage, LanguageSupport } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
+
+// ── Task list (GFM) decoration plugin ────────────────────
+// @lezer/markdown parses - [ ] / - [x] correctly as Task/TaskMarker,
+// but @codemirror/lang-markdown's NodeProp mapping converts them to
+// Link/LinkMark (styled as links).  This ViewPlugin overrides the
+// styling so checkboxes look like checkboxes, not hyperlinks.
+import { ViewPlugin, Decoration } from '@codemirror/view'
+
+const taskMarkerPlugin = ViewPlugin.fromClass(class {
+  decorations: ReturnType<typeof Decoration.set>
+
+  constructor(view) {
+    this.decorations = this._scan(view)
+  }
+
+  update(update) {
+    if (update.docChanged || update.viewportChanged)
+      this.decorations = this._scan(update.view)
+  }
+
+  _scan(view) {
+    const marks = []
+    const doc = view.state.doc
+    for (let i = 1; i <= doc.lines; i++) {
+      const line = doc.line(i)
+      // Match list item + task marker: optional indent, list bullet, space, [ ] or [x], space
+      const m = /^(\s*[-*+]\s+)\[([ xX])\](?=\s)/.exec(line.text)
+      if (m) {
+        const from = line.from + m[1].length
+        const to = from + 3
+        const checked = m[2].toLowerCase() === 'x'
+        marks.push(Decoration.mark({
+          class: 'cm-task-marker ' + (checked ? 'cm-task-checked' : 'cm-task-unchecked')
+        }).range(from, to))
+      }
+    }
+    return Decoration.set(marks)
+  }
+}, {
+  decorations: v => v.decorations
+})
+
+// ── Code block language support ─────────────────────────────
+// LanguageDescription objects for fenced code blocks in markdown.
+// Each language is lazily loaded only when first used.
+//
+// Two sources:
+//   • Official CM6 packages (@codemirror/lang-*) — first-class Lezer grammars
+//   • Legacy modes (@codemirror/legacy-modes) — CM5 modes wrapped via StreamLanguage
+//
+// Cost: all loaded via dynamic import(), zero impact on editor bootstrap.
+// Only the language used in the current post is ever fetched over the network.
+
+/** Helper: dynamic import a legacy CM5 mode, wrap with StreamLanguage → LanguageSupport. */
+function legacyLoader(modePath: string, exportName: string) {
+  return () => import(modePath).then((m: Record<string, any>) => {
+    const lang = StreamLanguage.define(m[exportName])
+    return new LanguageSupport(lang)
+  })
+}
+
+const codeLanguages = [
+  // ── Tier 1: Official CM6 language packages ──────────
+  LanguageDescription.of({
+    name: 'JavaScript',
+    alias: ['js', 'jsx', 'mjs', 'cjs'],
+    extensions: ['js', 'jsx', 'mjs', 'cjs'],
+    load() { return import('@codemirror/lang-javascript').then(m => m.javascript()) },
+  }),
+  LanguageDescription.of({
+    name: 'TypeScript',
+    alias: ['ts', 'tsx', 'typescript'],
+    extensions: ['ts', 'tsx'],
+    load() { return import('@codemirror/lang-javascript').then(m => m.javascript({ typescript: true })) },
+  }),
+  LanguageDescription.of({
+    name: 'CSS',
+    alias: ['css'],
+    extensions: ['css'],
+    load() { return import('@codemirror/lang-css').then(m => m.css()) },
+  }),
+  LanguageDescription.of({
+    name: 'SCSS',
+    alias: ['scss'],
+    extensions: ['scss'],
+    load() { return import('@codemirror/lang-css').then(m => m.css()) },
+  }),
+  LanguageDescription.of({
+    name: 'HTML',
+    alias: ['html', 'htm', 'xml', 'svg'],
+    extensions: ['html', 'htm'],
+    load() { return import('@codemirror/lang-html').then(m => m.html()) },
+  }),
+  LanguageDescription.of({
+    name: 'JSON',
+    alias: ['json'],
+    extensions: ['json'],
+    load() { return import('@codemirror/lang-json').then(m => m.json()) },
+  }),
+  LanguageDescription.of({
+    name: 'Python',
+    alias: ['py', 'python', 'python3'],
+    extensions: ['py'],
+    load() { return import('@codemirror/lang-python').then(m => m.python()) },
+  }),
+  LanguageDescription.of({
+    name: 'SQL',
+    alias: ['sql', 'mysql', 'postgresql', 'sqlite', 'psql'],
+    extensions: ['sql'],
+    load() { return import('@codemirror/lang-sql').then(m => m.sql()) },
+  }),
+  LanguageDescription.of({
+    name: 'YAML',
+    alias: ['yaml', 'yml'],
+    extensions: ['yaml', 'yml'],
+    load() { return import('@codemirror/lang-yaml').then(m => m.yaml()) },
+  }),
+  LanguageDescription.of({
+    name: 'Rust',
+    alias: ['rust', 'rs'],
+    extensions: ['rs'],
+    load() { return import('@codemirror/lang-rust').then(m => m.rust()) },
+  }),
+  LanguageDescription.of({
+    name: 'Go',
+    alias: ['go', 'golang'],
+    extensions: ['go'],
+    load() { return import('@codemirror/lang-go').then(m => m.go()) },
+  }),
+  LanguageDescription.of({
+    name: 'Java',
+    alias: ['java'],
+    extensions: ['java'],
+    load() { return import('@codemirror/lang-java').then(m => m.java()) },
+  }),
+  LanguageDescription.of({
+    name: 'C++',
+    alias: ['cpp', 'c++', 'c', 'cc', 'h', 'hpp'],
+    extensions: ['cpp', 'c', 'cc', 'h', 'hpp'],
+    load() { return import('@codemirror/lang-cpp').then(m => m.cpp()) },
+  }),
+  LanguageDescription.of({
+    name: 'PHP',
+    alias: ['php'],
+    extensions: ['php'],
+    load() { return import('@codemirror/lang-php').then(m => m.php()) },
+  }),
+  LanguageDescription.of({
+    name: 'XML',
+    alias: ['xml', 'xsl', 'xsd', 'wsdl'],
+    extensions: ['xml', 'xsl', 'xsd'],
+    load() { return import('@codemirror/lang-xml').then(m => m.xml()) },
+  }),
+
+  // ── Tier 2: Legacy modes (CM5 → StreamLanguage) ─────
+  // StreamLanguage.define() extends Language, not LanguageSupport.
+  // LanguageDescription.load() expects LanguageSupport — legacyLoader() wraps with new LanguageSupport().
+  LanguageDescription.of({
+    name: 'Shell',
+    alias: ['bash', 'sh', 'zsh', 'shell', 'fish'],
+    extensions: ['sh', 'bash', 'zsh'],
+    load: legacyLoader('@codemirror/legacy-modes/mode/shell', 'shell'),
+  }),
+  LanguageDescription.of({
+    name: 'Diff',
+    alias: ['diff', 'patch'],
+    extensions: ['diff', 'patch'],
+    load: legacyLoader('@codemirror/legacy-modes/mode/diff', 'diff'),
+  }),
+  LanguageDescription.of({
+    name: 'Dockerfile',
+    alias: ['dockerfile', 'docker'],
+    extensions: ['dockerfile'],
+    load: legacyLoader('@codemirror/legacy-modes/mode/dockerfile', 'dockerFile'),
+  }),
+  LanguageDescription.of({
+    name: 'TOML',
+    alias: ['toml'],
+    extensions: ['toml'],
+    load: legacyLoader('@codemirror/legacy-modes/mode/toml', 'toml'),
+  }),
+  LanguageDescription.of({
+    name: 'Ruby',
+    alias: ['ruby', 'rb'],
+    extensions: ['rb'],
+    load: legacyLoader('@codemirror/legacy-modes/mode/ruby', 'ruby'),
+  }),
+  LanguageDescription.of({
+    name: 'Lua',
+    alias: ['lua'],
+    extensions: ['lua'],
+    load: legacyLoader('@codemirror/legacy-modes/mode/lua', 'lua'),
+  }),
+  LanguageDescription.of({
+    name: 'Nginx',
+    alias: ['nginx', 'nginxconf'],
+    extensions: ['conf'],
+    load: legacyLoader('@codemirror/legacy-modes/mode/nginx', 'nginx'),
+  }),
+  LanguageDescription.of({
+    name: 'INI',
+    alias: ['ini', 'properties', 'cfg'],
+    extensions: ['ini', 'properties', 'cfg'],
+    load: legacyLoader('@codemirror/legacy-modes/mode/properties', 'properties'),
+  }),
+  LanguageDescription.of({
+    name: 'PowerShell',
+    alias: ['powershell', 'pwsh', 'ps1'],
+    extensions: ['ps1'],
+    load: legacyLoader('@codemirror/legacy-modes/mode/powershell', 'powerShell'),
+  }),
+  LanguageDescription.of({
+    name: 'Makefile',
+    alias: ['makefile', 'make', 'mk'],
+    extensions: ['mk'],
+    // No dedicated CM5 make mode — shell provides passable highlighting
+    load: legacyLoader('@codemirror/legacy-modes/mode/shell', 'shell'),
+  }),
+]
 
 const props = withDefaults(defineProps<{
   modelValue?: string
@@ -51,41 +270,138 @@ function emitCursor(view: EditorView) {
   }, 50)
 }
 
-// hljs-inspired markdown syntax highlighting (class-based, colors in CSS)
+// ── Syntax Highlighting ─────────────────────────────────
+// Class names mirror hljs conventions; colors come from CSS below.
+//
+// Two categories — physically separate, logically independent:
+//   1. Markdown structure — always active, highlights prose syntax
+//      (headings, emphasis, links, quotes, list markers, etc.)
+//   2. Code tokens — only active inside fenced code blocks
+//      (keywords, strings, types — delegated from markdown parser
+//       to the per-language Lezer/StreamLanguage grammar)
+//
+// @lezer/highlight tags are context-aware: tags.keyword inside a
+// markdown document only fires within fenced code regions, never
+// on prose text.  So the two rule sets cannot conflict.
 const hljsHighlight = HighlightStyle.define([
-  { tag: tags.heading1, class: 'hljs-heading' },
-  { tag: tags.heading2, class: 'hljs-heading' },
-  { tag: tags.heading3, class: 'hljs-heading' },
-  { tag: tags.heading4, class: 'hljs-heading' },
-  { tag: tags.heading5, class: 'hljs-heading' },
-  { tag: tags.heading6, class: 'hljs-heading' },
-  { tag: tags.strong, class: 'hljs-strong' },
-  { tag: tags.emphasis, class: 'hljs-emphasis' },
-  { tag: tags.strikethrough, class: 'hljs-strikethrough' },
-  { tag: tags.link, class: 'hljs-link' },
-  { tag: tags.url, class: 'hljs-link' },
-  { tag: tags.monospace, class: 'hljs-code' },
-  { tag: tags.list, class: 'hljs-list' },
-  { tag: tags.quote, class: 'hljs-quote' },
-  { tag: tags.meta, class: 'hljs-meta' },
-  { tag: tags.comment, class: 'hljs-comment' },
-  { tag: tags.contentSeparator, class: 'hljs-hr' },
+
+  // ═══════════════════════════════════════════════════════
+  //  Category 1: Markdown structure → cm-md-*
+  //  Editor-only.  Colored by CmEditor.vue <style>.
+  //  No overlap with hljs-* code-token classes.
+  // ═══════════════════════════════════════════════════════
+
+  // Headings
+  { tag: tags.heading1, class: 'cm-md-heading' },
+  { tag: tags.heading2, class: 'cm-md-heading' },
+  { tag: tags.heading3, class: 'cm-md-heading' },
+  { tag: tags.heading4, class: 'cm-md-heading' },
+  { tag: tags.heading5, class: 'cm-md-heading' },
+  { tag: tags.heading6, class: 'cm-md-heading' },
+
+  // Inline formatting
+  { tag: tags.strong, class: 'cm-md-strong' },
+  { tag: tags.emphasis, class: 'cm-md-emphasis' },
+  { tag: tags.strikethrough, class: 'cm-md-strikethrough' },
+  { tag: tags.monospace, class: 'cm-md-code' },
+
+  // Links & URLs
+  { tag: tags.link, class: 'cm-md-link' },
+  { tag: tags.url, class: 'cm-md-link' },
+
+  // Block-level
+  { tag: tags.list, class: 'cm-md-list' },
+  { tag: tags.quote, class: 'cm-md-quote' },
+
+  // Structural punctuation (heading #, list -, blockquote >, etc.)
+  { tag: tags.meta, class: 'cm-md-meta' },
+  { tag: tags.contentSeparator, class: 'cm-md-hr' },
+
+  // HTML comments in markdown
+  { tag: tags.comment, class: 'cm-md-comment' },
+
+  // ═══════════════════════════════════════════════════════
+  //  Category 2: Code tokens → hljs-*
+  //  Fenced blocks only.  Color source:
+  //    chronicle-markdown.css — shared between SSG + editor
+  //    .syntax-highlight .hljs-*  ← published pages
+  //    .cm-editor-host  .hljs-*  ← CMS editor
+  //  Both contexts use the same --code-* CSS variables.
+  // ═══════════════════════════════════════════════════════
+
+  // Keywords (multiple tiers to cover language variations)
+  { tag: tags.keyword, class: 'hljs-keyword' },
+  { tag: tags.controlKeyword, class: 'hljs-keyword' },
+  { tag: tags.definitionKeyword, class: 'hljs-keyword' },
+  { tag: tags.operatorKeyword, class: 'hljs-keyword' },
+  { tag: tags.moduleKeyword, class: 'hljs-keyword' },
+
+  // Literals
+  { tag: tags.string, class: 'hljs-string' },
+  { tag: tags.special(tags.string), class: 'hljs-string' },
+  { tag: tags.number, class: 'hljs-number' },
+  { tag: tags.bool, class: 'hljs-literal' },
+  { tag: tags.null, class: 'hljs-literal' },
+  { tag: tags.literal, class: 'hljs-literal' },
+  { tag: tags.character, class: 'hljs-char' },
+  { tag: tags.escape, class: 'hljs-char escape_' },
+
+  // Identifiers & types
+  { tag: tags.variableName, class: 'hljs-variable' },
+  { tag: tags.definition(tags.variableName), class: 'hljs-variable' },
+  { tag: tags.typeName, class: 'hljs-type' },
+  { tag: tags.namespace, class: 'hljs-type' },
+  { tag: tags.className, class: 'hljs-title class_' },
+  // Function calls: foo(), method(), obj.method()
+  { tag: tags.function(tags.variableName), class: 'hljs-title function_' },
+  { tag: tags.function(tags.propertyName), class: 'hljs-title function_' },
+
+  // Function definitions: def foo, function foo, fn foo
+  { tag: tags.definition(tags.function(tags.variableName)), class: 'hljs-title function_' },
+
+  { tag: tags.labelName, class: 'hljs-symbol' },
+
+  // Macros: macro_rules! foo, println! — function-like macros get function color
+  { tag: tags.macroName, class: 'hljs-symbol' },
+  { tag: tags.function(tags.macroName), class: 'hljs-title function_' },
+  { tag: tags.modifier, class: 'hljs-modifier' },
+  { tag: tags.self, class: 'hljs-built_in' },
+  { tag: tags.annotation, class: 'hljs-meta' },
+
+  // Object / struct / tag members
+  { tag: tags.propertyName, class: 'hljs-property' },
+  { tag: tags.attributeName, class: 'hljs-attr' },
+  { tag: tags.attributeValue, class: 'hljs-string' },
+  { tag: tags.tagName, class: 'hljs-tag' },
+
+  // Operators & punctuation
+  { tag: tags.operator, class: 'hljs-operator' },
+  { tag: tags.punctuation, class: 'hljs-punctuation' },
+  { tag: tags.bracket, class: 'hljs-punctuation' },
+  { tag: tags.separator, class: 'hljs-punctuation' },
+
+  // Regex & special
+  { tag: tags.regexp, class: 'hljs-regexp' },
+  { tag: tags.invalid, class: 'hljs-invalid' },
+
+  // Comments inside code blocks
+  { tag: tags.lineComment, class: 'hljs-comment' },
+  { tag: tags.blockComment, class: 'hljs-comment' },
+  { tag: tags.docComment, class: 'hljs-comment' },
+  { tag: tags.docString, class: 'hljs-string' },
+
 ])
 
 function createExtensions(): Extension[] {
   const exts: Extension[] = [
-    markdown({ base: markdownLanguage }),
+    markdown({ base: markdownLanguage, codeLanguages }),
     EditorView.updateListener.of((update) => {
       if (update.docChanged) {
-        // Suppress model-value emission during IME composition — emitting
-        // mid-composition triggers the modelValue watcher's full-document
-        // replacement, which force-commits the IME and causes double-input
-        // for CJK punctuation marks.
+        // Suppress model-value emission during IME composition
         if (!update.view.composing) {
           const val = update.state.doc.toString()
           const len = update.startState.doc.length
           const newLen = update.state.doc.length
-          // Compute changed line range from transaction
           let fromLine = Infinity, toLine = 0
           if (len > 0 && newLen > 0) {
             update.changes.iterChanges((fromA, _toA, _fromB, toB) => {
@@ -110,13 +426,13 @@ function createExtensions(): Extension[] {
     history(),
     EditorState.allowMultipleSelections.of(false),
     EditorView.lineWrapping,
+    taskMarkerPlugin,
   ]
 
   if (props.placeholder) {
     exts.push(cmPlaceholder(props.placeholder))
   }
 
-  // hljs-style syntax highlighting
   exts.push(syntaxHighlighting(hljsHighlight))
 
   if (props.disabled) {
@@ -143,7 +459,6 @@ function createEditor() {
 onMounted(() => {
   nextTick(() => {
     createEditor()
-    // Listen to CodeMirror's internal scroller (not host div)
     editorView?.scrollDOM.addEventListener('scroll', () => emit('editorScroll'), { passive: true })
   })
 })
@@ -154,10 +469,7 @@ onUnmounted(() => {
   editorView = null
 })
 
-// Sync external value changes → editor
 watch(() => props.modelValue, (val) => {
-  // Never replace the document mid-composition — it force-commits the IME
-  // and causes double-input for CJK characters.
   if (editorView && !editorView.composing && val !== editorView.state.doc.toString()) {
     editorView.dispatch({
       changes: { from: 0, to: editorView.state.doc.length, insert: val },
@@ -165,7 +477,6 @@ watch(() => props.modelValue, (val) => {
   }
 })
 
-// Sync disabled state
 watch(() => props.disabled, (val) => {
   if (editorView) {
     editorView.dispatch({
@@ -184,7 +495,6 @@ defineExpose({
     const pos = editorView.state.selection.main.head
     return editorView.state.doc.lineAt(pos).number
   },
-  /** Insert text at the current cursor position, replacing any selection. */
   insertAtCursor(text: string) {
     if (!editorView) return
     const { from, to } = editorView.state.selection.main
@@ -193,13 +503,11 @@ defineExpose({
       selection: { anchor: from + text.length },
     })
   },
-  /** Get the current selection range { from, to } plus the full document text. */
   getSelection(): { from: number; to: number; text: string } | null {
     if (!editorView) return null
     const { from, to } = editorView.state.selection.main
     return { from, to, text: editorView.state.sliceDoc(from, to) }
   },
-  /** CodeMirror's scrollable DOM element for scroll-sync */
   getScrollDom(): HTMLElement | null {
     return editorView?.scrollDOM ?? null
   },
@@ -238,38 +546,78 @@ defineExpose({
   outline: none;
 }
 
-/* ── hljs token colors ─────────────────────────────── */
-.cm-editor-host .hljs-strong       { font-weight: bold; }
-.cm-editor-host .hljs-emphasis     { font-style: italic; }
-.cm-editor-host .hljs-strikethrough{ text-decoration: line-through; opacity: 0.6; }
+/* ── Category 1: Markdown structure (cm-md-*) ──────────
+   Editor-only.  These classes come from CmEditor.vue's
+   HighlightStyle Category 1 — no equivalent in the published
+   site's chronicle-markdown.css.
 
-/* Dark theme (default) */
-.cm-editor-host .hljs-heading      { color: #c678dd; font-weight: bold; }
-.cm-editor-host .hljs-heading.hljs-meta{ color: #c678dd; }
-.cm-editor-host .hljs-link         { color: #61afef; text-decoration: underline; }
-.cm-editor-host .hljs-code         { color: var(--code-text) }
-.cm-editor-host .hljs-code.hljs-meta{ color: var(--code-text) }
-.cm-editor-host .hljs-list.hljs-meta{ color: #d19a66; }
-.cm-editor-host .hljs-quote        { color: #98c379; }
-.cm-editor-host .hljs-quote.hljs-meta{ color: #98c379; }
-.cm-editor-host .hljs-comment      { color: #5c6370; font-style: italic; }
-.cm-editor-host .hljs-hr           { color: #5c6370; }
+   Color inheritance:
+     cm-md-heading / cm-md-link / cm-md-quote / cm-md-meta
+       → explicit hex (editor dark/light theme)
+     cm-md-hr / cm-md-comment
+       → var(--code-comment)  ← shared variable
+     cm-md-code
+       → var(--code-text)     ← shared variable
+     cm-md-strong / cm-md-emphasis / cm-md-strikethrough
+       → font-* property only, inherits text color from .cm-editor
+*/
 
-.cm-editor-host .hljs-strong.hljs-meta{ color: var(--app-text-primary); }
-.cm-editor-host .hljs-italic.hljs-meta{ color: var(--app-text-primary); }
+/* ── Inline formatting ───────────────────────────── */
+.cm-editor-host .cm-md-strong        { font-weight: bold; }
+.cm-editor-host .cm-md-emphasis      { font-style: italic; }
+.cm-editor-host .cm-md-strikethrough { text-decoration: line-through; opacity: 0.6; }
 
+/* ── Dark theme (default) ────────────────────────── */
+.cm-editor-host .cm-md-heading       { color: #c678dd; font-weight: bold; }
+.cm-editor-host .cm-md-heading.cm-md-meta { color: #c678dd; }
+.cm-editor-host .cm-md-link          { color: #61afef; text-decoration: underline; }
+.cm-editor-host .cm-md-code          { color: var(--code-text); }
+.cm-editor-host .cm-md-code.cm-md-meta { color: var(--code-text); }
+.cm-editor-host .cm-md-list.cm-md-meta { color: #d19a66; }
+.cm-editor-host .cm-md-quote         { color: #98c379; }
+.cm-editor-host .cm-md-quote.cm-md-meta { color: #98c379; }
+.cm-editor-host .cm-md-comment       { color: var(--code-comment); font-style: italic; }
+.cm-editor-host .cm-md-hr            { color: var(--code-comment); }
+.cm-editor-host .cm-md-strong.cm-md-meta { color: var(--app-text-primary); }
+.cm-editor-host .cm-md-emphasis.cm-md-meta { color: var(--app-text-primary); }
+.cm-editor-host .cm-md-strikethrough.cm-md-meta { color: var(--app-text-primary); }
 
-/* Light theme — same hues, adjusted for light background */
-[data-backend-theme="light"] .cm-editor-host .hljs-heading { color: #a626a4; font-weight: bold; }
-[data-backend-theme="light"] .cm-editor-host .hljs-heading.hljs-meta{ color: #a626a4; }
-[data-backend-theme="light"] .cm-editor-host .hljs-link    { color: #4078f2; text-decoration: underline; }
-[data-backend-theme="light"] .cm-editor-host .hljs-quote   { color: #50a14f; }
-[data-backend-theme="light"] .cm-editor-host .hljs-list.hljs-meta    { color: #986801; }
-[data-backend-theme="light"] .cm-editor-host .hljs-quote.hljs-meta   { color: #50a14f; }
-[data-backend-theme="light"] .cm-editor-host .hljs-meta    { color: #a626a4; }
-[data-backend-theme="light"] .cm-editor-host .hljs-comment { color: #a0a1a7; font-style: italic; }
-[data-backend-theme="light"] .cm-editor-host .hljs-hr      { color: #a0a1a7; }
+/* ── Light theme ─────────────────────────────────── */
+[data-backend-theme="light"] .cm-editor-host .cm-md-heading { color: #a626a4; font-weight: bold; }
+[data-backend-theme="light"] .cm-editor-host .cm-md-heading.cm-md-meta { color: #a626a4; }
+[data-backend-theme="light"] .cm-editor-host .cm-md-link    { color: #4078f2; text-decoration: underline; }
+[data-backend-theme="light"] .cm-editor-host .cm-md-quote   { color: #50a14f; }
+[data-backend-theme="light"] .cm-editor-host .cm-md-list.cm-md-meta   { color: #986801; }
+[data-backend-theme="light"] .cm-editor-host .cm-md-quote.cm-md-meta  { color: #50a14f; }
+[data-backend-theme="light"] .cm-editor-host .cm-md-comment { color: #a0a1a7; font-style: italic; }
+[data-backend-theme="light"] .cm-editor-host .cm-md-hr      { color: #a0a1a7; }
 
+/* ── Task list markers (GFM) ─────────────────────────
+ * - [ ] unchecked  → dimmed square
+ * - [x] checked    → accent checkmark
+ * CmEditor applies `cm-task-marker` + `cm-task-checked`/`cm-task-unchecked`
+ * via ViewPlugin (see taskMarkerPlugin above).
+ */
+.cm-editor-host .cm-task-marker.cm-task-unchecked {
+  color: var(--featured);
+  font-weight: bold;
+}
+.cm-editor-host .cm-task-marker.cm-task-checked {
+  color: var(--accent-color);
+  font-weight: bold;
+}
+
+/*
+ * ── Category 2: Code tokens (hljs-*) ─────────────────────
+ * Fenced-block-only.  Rules live in chronicle-markdown.css:
+ *
+ *   .syntax-highlight .hljs-*  ← SSG output + CMS preview
+ *   .cm-editor-host  .hljs-*  ← CMS editor (CodeMirror)
+ *
+ * Both contexts share the same --code-* CSS variables,
+ * so hljs-keyword always = var(--code-keyword) everywhere.
+ * Adding a new code token class?  Edit chronicle-markdown.css.
+ */
 /* Cursor & selection */
 .cm-editor-host .cm-editor .cm-content  { caret-color: var(--app-text-primary); }
 .cm-editor-host .cm-editor .cm-cursor   { border-left: 2px solid var(--app-text-primary); }
@@ -279,7 +627,6 @@ defineExpose({
 
 /* ── Search / Replace Panel ────────────────────── */
 
-/* Float panels above editor content */
 .cm-panels {
   position: absolute !important;
   top: 0;
@@ -325,7 +672,6 @@ defineExpose({
   right: 8px !important;
 }
 
-/* Search / replace text fields */
 .cm-panel .cm-textfield {
   background: var(--app-bg-primary) !important;
   color: var(--component-text-primary) !important;
@@ -343,7 +689,6 @@ defineExpose({
   box-shadow: 0 0 0 2px var(--accent-color-bg);
 }
 
-/* Action buttons (Find Next, Prev, Replace, etc.) */
 .cm-panel .cm-button {
   background-image: none !important;
   background: var(--component-bg) !important;
@@ -367,7 +712,6 @@ defineExpose({
   background: var(--component-bg-active) !important;
 }
 
-/* Option checkboxes (case, word, regex) */
 .cm-panel label {
   font-family: var(--app-font-stack) !important;
   font-size: 0.8rem !important;

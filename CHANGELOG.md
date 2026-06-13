@@ -4,6 +4,43 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and uses [Semantic Versioning](https://semver.org/).
 
+## [2.0.3] - 2026-06-13
+
+### Changed
+- **Syntax highlighting**: replaced ~800 lines of triplicated regex rules with `highlight.js` v11 across manager, markdownParser, and shared code. Custom grammars for KaTeX and Mermaid. Added `hljsSetup.ts` as single source of truth for 40+ languages.
+- **Homepage footer**: profile links (`data/profile.json`) now render dynamically, replacing hardcoded GitHub/Twitter/Email links. RSS and About links retain independent feature toggles.
+- **StripMarkdown unified**: `shared/utils/index.ts` now contains the canonical `stripMarkdown()` — handles YAML frontmatter, code blocks, math, tables, HTML, images, links in 18 ordered steps. Both manager and template-astro import it instead of maintaining local copies.
+- **Summary generation**: host `admin/index.js` saves use `stripSummary()` instead of raw `content.slice(0,200)`. Posts saved via CMS now get clean plain-text summaries. All existing polluted summaries in `data/posts/index.json` migrated.
+- **Lite mode summaries**: `chronicle-gen convert` `rebuildIndex()` now generates summaries via `stripSummary()`, so lite posts have summaries in `index.json`.
+- **Dependency consolidation**: all `@codemirror/*` packages moved from root to `@chronicle/manager`. Eliminates duplicate `node_modules` copies that caused TypeScript type incompatibility (`EditorView` has private `dispatchTransactions` member — two physical copies = incompatible types).
+- **Highlight architecture refactor**: markdown structure classes renamed to `cm-md-*` (editor-only, no collision with code tokens). Code token `hljs-*` rules merged into `chronicle-markdown.css` with bare class selectors — single source of truth shared by SSG output, CMS preview, and editor. Removed `.syntax-highlight` / `.cm-editor-host` prefix selectors.
+- **Code block languages**: expanded from 6 to 25. Added 8 official CM6 packages (SQL, YAML, Rust, Go, Java, C++, PHP, XML) + 10 legacy modes via `StreamLanguage` (Shell, Diff, Dockerfile, TOML, Ruby, Lua, Nginx, INI, PowerShell, Makefile). All lazy-loaded via dynamic `import()`.
+- **HighlightStyle function tags**: added `tags.function(tags.propertyName)` (method calls), `tags.definition(tags.function(tags.variableName))` (function defs), `tags.function(tags.macroName)` (Rust/C macros) — functions now consistently get `--code-type` color regardless of parser convention.
+
+### Added
+- **GFM task list support**: CmEditor `taskMarkerPlugin` ViewPlugin decorates `[ ]`/`[x]` as checkboxes; `markdown-it` inline rule in both `chronicleMarkdown.ts` and `markdownPreview.ts` renders `<input class="md-task-checkbox">`. CSS in `chronicle-markdown.css`.
+- **Footnotes** (`markdown-it-footnote` v4): `chronicleMarkdown.ts` + `markdownPreview.ts` use plugin with custom renderer — capsule-styled number refs, no brackets, no `<sup>`. Footnote section rendered separately in preview (outside cursor→block focus mapping).
+- **ICP Filing Number**: `icpNumber` field in template settings schema (`x-tab: template-homepage`). When set, renders `备案号：<value>` as a link to miit.gov.cn below the copyright line. Empty → hidden.
+- **Missing settings fields in host API**: `siteName`, `siteDescription`, `singleColumnHomepage`, `cardVisibility` now exposed via `GET /api/public/settings`.
+- **`extractExcerpt()`**: sentence/word-boundary truncation with CJK awareness in shared utils.
+- i18n: theme follow-mode labels (`followFull`, `follow`).
+
+### Fixed
+- **Electron child window editor navigation**: `createChildWindow` URL parser now correctly handles `file:///editor?id=xxx` (without `/dist/` in path) by falling back to pathname as route.
+- **Electron child window auth token loss**: main process reads token from main window, passes it to child via `?_auth=` URL parameter; preload script extracts it into `localStorage` before Vue boots.
+- **Electron paste/drop file blob URL**: added `webUtils.getPathForFile()` (Electron 32+) to `preload.cjs`; `fileToUrl()` in BlogEditor now resolves clipboard File objects to real filesystem paths instead of `blob:file://` UUIDs.
+- **Video file card SVG**: added `x`, `y`, `rx`, `ry` to DOMPurify `ALLOWED_ATTR` — `<rect>` position and rounded corners were stripped during sanitization.
+- **Footnotes breaking preview focus**: `renderBlockHtml` and `getBlockRanges` used fixed `i += 3` offsets for paragraph/heading tokens; `markdown-it-footnote` inserted extra `footnote_anchor` tokens. Fixed with depth-loop matching (same pattern as list/blockquote/table).
+- **Inter font missing in production print**: `index.html` used relative `./fonts/` path → deep routes like `/editor/print` resolved to `/editor/fonts/` (404). Changed to absolute `/fonts/`; `vite.config.ts` `transformIndexHtml` converts back to `./fonts/` for Electron `file://` builds.
+- **Schema loading on editor pages**: `useSchemaNav` and `App.vue` route guards extended from `path === '/editor'` to `path.startsWith('/editor')` — editor sub-pages no longer fire `syncSchemas()` requests.
+
+### Removed
+- **`syntaxHighlight.ts`** — dead code, zero imports across the entire codebase.
+
+### Internal
+- All 6 packages bumped to `2.0.3`.
+- `markdownParser.ts` (manager + template-astro) now re-exports `stripMarkdown` and `extractExcerpt` from `@chronicle/shared/utils`.
+
 ## [2.0.2] - 2026-06-13
 
 ### Added

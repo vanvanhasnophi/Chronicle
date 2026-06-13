@@ -7,10 +7,23 @@ const pkgPath = new URL('./package.json', import.meta.url)
 const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'))
 
 // https://vite.dev/config/
+const isElectron = !!process.env.ELECTRON
+
 export default defineConfig({
-  plugins: [vue()],
-  // Electron needs relative base for file:// loading, server deploy uses absolute /
-  base: process.env.ELECTRON ? './' : '/',
+  plugins: [
+    vue(),
+    // Fix font paths: web uses absolute /fonts/ (safe for deep routes),
+    // Electron uses relative ./fonts/ (required for file:// loading).
+    {
+      name: 'fix-font-paths',
+      transformIndexHtml(html) {
+        return isElectron
+          ? html.replace('/fonts/', './fonts/')
+          : html
+      }
+    }
+  ],
+  base: isElectron ? './' : '/',
   define: {
     __VERSION__: JSON.stringify(pkg.version),
     __YEAR__: JSON.stringify(new Date().getFullYear())

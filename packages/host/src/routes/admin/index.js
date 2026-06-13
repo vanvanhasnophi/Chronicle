@@ -28,6 +28,48 @@ const postService = require('../../services/postService');
 const collectionService = require('../../services/collectionService');
 const authLifecycle = require('./auth-lifecycle');
 
+/**
+ * Strip markdown for summary generation.
+ * Strips frontmatter, code blocks, images, formatting — keeps link text, file names.
+ * Plain regex approach (no markdown-it) for speed and zero dependencies.
+ */
+function stripSummary(content, maxLen = 200) {
+  if (!content) return ''
+  let t = content
+  // Frontmatter
+  t = t.replace(/^---[\s\S]*?---\n*/g, '')
+  // Code blocks
+  t = t.replace(/```[\s\S]*?```/g, '')
+  // Math
+  t = t.replace(/\$\$[\s\S]*?\$\$/g, '')
+  t = t.replace(/(?<!\$)\$([^$\n]+?)\$(?!\$)/g, '')
+  // Images (keep alt)
+  t = t.replace(/!\[([^\]]*)\]\([^)]+\)/g, (_m, a) => a.trim() ? a.trim() : '')
+  // Links (keep text)
+  t = t.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+  // Headers
+  t = t.replace(/^#{1,6}\s+/gm, '')
+  // Blockquotes
+  t = t.replace(/^>\s?/gm, '')
+  // Lists
+  t = t.replace(/^[\s-]*[-+*]\s+/gm, '')
+  t = t.replace(/^\s*\d+\.\s+/gm, '')
+  // Bold/italic/strikethrough
+  t = t.replace(/(\*\*|__)(.*?)\1/g, '$2')
+  t = t.replace(/(\*|_)(.*?)\1/g, '$2')
+  t = t.replace(/~~(.*?)~~/g, '$1')
+  // Inline code
+  t = t.replace(/`([^`]+)`/g, '$1')
+  // HTML / horizontal rules
+  t = t.replace(/<[^>]+>/g, '')
+  t = t.replace(/^[-*_]{3,}\s*$/gm, '')
+  // Collapse whitespace
+  t = t.replace(/\s+/g, ' ').trim()
+  // Truncate at word boundary
+  if (t.length <= maxLen) return t
+  return t.slice(0, maxLen).replace(/\s+\S*$/, '')
+}
+
 // ── Destructure config ───────────────────────────────────
 const {
   BASE_DIR, DATA_DIR, UPLOAD_DIR, BRANDING_DIR, MANAGER_BACKGROUND_DIR, POSTS_DIR,
@@ -1695,7 +1737,7 @@ router.post('/post', (req, res) => {
         updatedAt: now,
         filename,
         dir: data.id,
-        summary: (content || '').slice(0, 200).replace(/[#*`\[\]]/g, ''),
+        summary: stripSummary(content, 200),
         tags: sortTags(data.tags || []),
         font: data.font || 'sans',
         author: String(data.author || '').trim(),
@@ -1711,7 +1753,7 @@ router.post('/post', (req, res) => {
         if (data.author !== undefined) post.author = String(data.author || '').trim();
         if (data.aiGenerated !== undefined) post.aiGenerated = !!data.aiGenerated;
         if (content !== undefined) {
-          post.summary = content.slice(0, 200).replace(/[#*`\[\]]/g, '');
+          post.summary = stripSummary(content, 200);
         }
         if (status === 'modifying') {
           post.status = 'modifying';
@@ -1736,7 +1778,7 @@ router.post('/post', (req, res) => {
           updatedAt: now,
           filename,
           dir: data.id,
-          summary: (content || '').slice(0, 200).replace(/[#*`\[\]]/g, ''),
+          summary: stripSummary(content, 200),
           tags: sortTags(data.tags || []),
           font: data.font || 'sans',
           author: String(data.author || '').trim(),
@@ -1899,7 +1941,7 @@ router.post('/scan', (req, res) => {
           date: stats.birthtime || new Date(),
           filename,
           dir: id,
-          summary: content.slice(0, 100).replace(/[#*`\[\]]/g, ''),
+          summary: stripSummary(content, 100),
           tags: ['recovered'],
           status: 'draft'
         });

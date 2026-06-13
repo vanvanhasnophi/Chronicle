@@ -22,13 +22,15 @@
         <div v-else v-memo="[blk._memo]" v-html="blk.content" />
       </div>
     </template>
+    <!-- Footnotes rendered separately — not part of cursor→block mapping -->
+    <div v-if="footnoteHtml" class="chronicle-footnotes" v-html="footnoteHtml" />
   </div>
   <component v-if="mathTooltipLoaded && MathTooltipComp" :is="MathTooltipComp" />
 </template>
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue'
-import { renderBlockHtml, getBlockRanges, getChangedSegIndices, getSegIndexAtLine } from '../utils/markdownPreview'
+import { renderBlockHtml, renderFootnoteHtml, getBlockRanges, getChangedSegIndices, getSegIndexAtLine } from '../utils/markdownPreview'
 import type { ContentBlock } from '../utils/markdownPreview'
 import { debounce } from '../utils/debounce'
 import { usePreview } from '../composables/usePreview'
@@ -67,6 +69,7 @@ function blockMemo(b: ContentBlock): string {
 
 const blocks = ref<KeyedBlock[]>([])
 const activeBlockIndex = ref(-1)
+const footnoteHtml = ref('')
 
 // ── Incremental update ───────────────────────────────────
 
@@ -74,6 +77,7 @@ const updateBlocks = debounce(() => {
   try {
     // Build ContentBlocks from markdown tokens + render each block to HTML
     const raw = renderBlockHtml(props.markdown)
+    footnoteHtml.value = renderFootnoteHtml(props.markdown)
     const prev = blocks.value
     const ranges = getBlockRanges(props.markdown)
     const range = props.changeRange

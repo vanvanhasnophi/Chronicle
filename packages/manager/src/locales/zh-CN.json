@@ -25,7 +25,8 @@
     },
     "quickActions": "快捷菜单",
     "welcome": "欢迎页",
-    "editor": "编辑器"
+    "editor": "编辑器",
+    "theme": "主题"
   },
   "inblog": {
     "toc-title": "目录",
@@ -769,7 +770,9 @@
   "theme": {
     "lightFull": "浅色模式",
     "darkFull": "深色模式",
+    "followFull": "跟随系统",
     "light": "浅色",
-    "dark": "深色"
+    "dark": "深色",
+    "follow": "跟随系统"
   }
 }

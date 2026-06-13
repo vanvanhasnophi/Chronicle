@@ -6,6 +6,7 @@
 
     .post-content {
       margin: 0 max(20px,min((6vw - 10px), 60px));
+      padding-bottom: 30vh;
     }
 
     .post-detail-container {

@@ -25,7 +25,8 @@
     },
     "quickActions": "Quick Actions",
     "welcome": "Landing Page",
-    "editor": "Editor"
+    "editor": "Editor",
+    "theme": "Theme"
   },
   "inblog": {
     "toc-title": "Table of Contents",
@@ -770,7 +771,9 @@
   "theme": {
     "lightFull": "Light Mode",
     "darkFull": "Dark Mode",
+    "followFull": "Follow System",
     "light": "Light",
-    "dark": "Dark"
+    "dark": "Dark",
+    "follow": "Follow"
   }
 }

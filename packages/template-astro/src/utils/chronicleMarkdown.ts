@@ -9,6 +9,7 @@
  */
 
 import MarkdownIt from 'markdown-it';
+import markdownItFootnote from 'markdown-it-footnote';
 import hljs from 'highlight.js';
 import katex from 'katex';
 import { Icons } from './icons';
@@ -31,6 +32,24 @@ const md = new MarkdownIt({
   typographer: true,
   breaks: false,
 });
+
+md.use(markdownItFootnote);
+
+// Strip brackets from footnote refs: [1] → 1
+md.renderer.rules.footnote_caption = (tokens: any, idx: number) => {
+  let n = (Number(tokens[idx].meta.id) + 1).toString()
+  if (tokens[idx].meta.subId > 0) n += ':' + tokens[idx].meta.subId
+  return n
+}
+
+// Use <a> directly — capsule styling is on the link itself
+md.renderer.rules.footnote_ref = (tokens: any, idx: number, options: any, env: any, slf: any) => {
+  const id = slf.rules.footnote_anchor_name(tokens, idx, options, env, slf)
+  const caption = slf.rules.footnote_caption(tokens, idx, options, env, slf)
+  let refid = id
+  if (tokens[idx].meta.subId > 0) refid += ':' + tokens[idx].meta.subId
+  return `<a class="footnote-ref" id="fnref${refid}" href="#fn${id}">${caption}</a>`
+}
 
 // ── Tiny =WxH image-size plugin ──────────────────────────
 
@@ -207,6 +226,36 @@ md.inline.ruler.before('link', 'chronicle_file_card', (state: any, silent: boole
   state.pos = i;
   return true;
 });
+
+// ── GFM Task list checkbox (inline rule) ───────────────
+// Intercepts [ ] / [x] at the start of inline content.
+// Registered after chronicle_file_card, before 'link'.
+md.inline.ruler.before('link', 'task_list_checkbox', (state: any, silent: boolean) => {
+  const start = state.pos
+  if (state.pending.trim().length > 0) return false
+
+  const src = state.src
+  if (src.charCodeAt(start) !== 0x5B /* [ */) return false
+  if (start + 2 >= state.posMax) return false
+
+  const ch = src.charCodeAt(start + 1)
+  if (ch !== 0x20 && ch !== 0x78 && ch !== 0x58) return false
+  if (src.charCodeAt(start + 2) !== 0x5D /* ] */) return false
+
+  if (!silent) {
+    const checked = ch !== 0x20
+    const token = state.push('checkbox_input', '', 0)
+    token.attrSet('checked', checked ? 'true' : 'false')
+  }
+
+  state.pos = start + 3
+  return true
+})
+
+md.renderer.rules.checkbox_input = (tokens: any, idx: number) => {
+  const checked = tokens[idx].attrGet('checked') === 'true'
+  return `<input type="checkbox" class="md-task-checkbox" disabled${checked ? ' checked' : ''}>`
+}
 
 // ═══════════════════════════════════════════════════════════
 //  Helpers

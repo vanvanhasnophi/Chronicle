@@ -839,53 +839,188 @@
    ═══════════════════════════════════════════════════════════ */
 
 /* Core token classes produced by syntaxHighlight.ts */
-.chronicle-markdown .syntax-highlight .keyword       { color: var(--code-keyword); font-weight: bold; }
-.chronicle-markdown .syntax-highlight .string        { color: var(--code-string); }
-.chronicle-markdown .syntax-highlight .comment       { color: var(--code-comment); font-style: italic; }
-.chronicle-markdown .syntax-highlight .number        { color: var(--code-number); }
-.chronicle-markdown .syntax-highlight .boolean       { color: var(--code-boolean); }
-.chronicle-markdown .syntax-highlight .operator      { color: var(--code-operator); }
-.chronicle-markdown .syntax-highlight .bracket       { color: var(--featured); }
-.chronicle-markdown .syntax-highlight .tag           { color: var(--code-tag); }
-.chronicle-markdown .syntax-highlight .attribute     { color: var(--code-attribute); }
-.chronicle-markdown .syntax-highlight .property      { color: var(--code-property); }
-.chronicle-markdown .syntax-highlight .selector      { color: var(--code-selector); }
-.chronicle-markdown .syntax-highlight .type          { color: var(--code-type); }
-.chronicle-markdown .syntax-highlight .variable      { color: var(--code-variable); }
-.chronicle-markdown .syntax-highlight .cmdlet        { color: var(--code-cmdlet); font-weight: bold; }
-.chronicle-markdown .syntax-highlight .color         { color: var(--code-color); font-weight: bold; }
-.chronicle-markdown .syntax-highlight .section       { color: var(--code-section); font-weight: bold; }
-.chronicle-markdown .syntax-highlight .quote         { color: var(--code-quote); font-style: italic; }
-.chronicle-markdown .syntax-highlight .header        { color: var(--code-header); font-weight: bold; }
-.chronicle-markdown .syntax-highlight .bold          { font-weight: bold; color: var(--text-primary); }
-.chronicle-markdown .syntax-highlight .italic        { font-style: italic; color: var(--component-text-primary); }
-.chronicle-markdown .syntax-highlight .inline-code   { background: var(--component-bg-hover); color: var(--code-inline); padding: 0.2rem 0.4rem; border-radius: 3px; }
-.chronicle-markdown .syntax-highlight .link          { color: var(--code-link); }
-.chronicle-markdown .syntax-highlight .list          { color: var(--featured); }
+/* ═══════════════════════════════════════════════════════════
+   Syntax Highlighting — hljs Token Colors
+   Single source of truth for all code highlighting across
+   SSG output, CMS preview, and editor overlay.
+   ═══════════════════════════════════════════════════════════ */
 
-/* KaTeX-specific token classes */
-.chronicle-markdown .syntax-highlight .katexcommand  { color: var(--code-katexcommand); }
-.chronicle-markdown .syntax-highlight .katexnumber   { color: var(--code-number); }
-.chronicle-markdown .syntax-highlight .katexoperator { color: var(--component-text-secondary); }
-.chronicle-markdown .syntax-highlight .katexbracket  { color: var(--component-text-secondary); }
+/* ── hljs Code Tokens ────────────────────────────────
+   Shared between SSG output + CMS preview (.syntax-highlight)
+   and CMS editor (.cm-editor-host).  Single source of truth
+   for hljs-* → --code-* color mapping.
 
-/* hljs pre-rendered token classes (Astro SSG build-time highlighting) */
-.chronicle-markdown .syntax-highlight .hljs-keyword    { color: var(--code-keyword); font-weight: bold; }
-.chronicle-markdown .syntax-highlight .hljs-string     { color: var(--code-string); }
-.chronicle-markdown .syntax-highlight .hljs-comment    { color: var(--code-comment); font-style: italic; }
-.chronicle-markdown .syntax-highlight .hljs-number     { color: var(--code-number); }
-.chronicle-markdown .syntax-highlight .hljs-literal    { color: var(--code-boolean); }
-.chronicle-markdown .syntax-highlight .hljs-built_in   { color: var(--code-keyword); }
-.chronicle-markdown .syntax-highlight .hljs-type       { color: var(--code-type); }
-.chronicle-markdown .syntax-highlight .hljs-title      { color: var(--code-header); font-weight: bold; }
-.chronicle-markdown .syntax-highlight .hljs-attr       { color: var(--code-attribute); }
-.chronicle-markdown .syntax-highlight .hljs-params     { color: var(--code-variable); }
-.chronicle-markdown .syntax-highlight .hljs-meta       { color: var(--code-keyword); }
-.chronicle-markdown .syntax-highlight .hljs-selector-class { color: var(--code-selector); }
-.chronicle-markdown .syntax-highlight .hljs-selector-tag   { color: var(--code-tag); }
-.chronicle-markdown .syntax-highlight .hljs-function   { color: var(--code-header); }
-.chronicle-markdown .syntax-highlight .hljs-variable    { color: var(--code-variable); }
-.chronicle-markdown .syntax-highlight .hljs-punctuation { color: var(--code-operator); }
+   Inheritance chain:
+     CSS Variable (theme-aware, defined in :root / [data-theme])
+       └── .syntax-highlight .hljs-*  ← published blog pages
+       └── .cm-editor-host  .hljs-*  ← CMS CodeMirror editor
+       Both contexts see the same color.  Editor markdown-
+       structure classes (cm-md-*) live in CmEditor.vue.
+
+   To add a new code color: define --code-xxx in :root sections,
+   then add a rule here — both contexts pick it up automatically.
+*/
+
+/* ── Keywords ─────────────────────────────────────── */
+.hljs-keyword    { color: var(--code-keyword); font-weight: bold; }
+
+.hljs-modifier   { color: var(--code-keyword); }
+
+/* ── Literals ─────────────────────────────────────── */
+.hljs-string     { color: var(--code-string); }
+
+.hljs-number     { color: var(--code-number); }
+
+.hljs-literal    { color: var(--code-boolean); }
+
+.hljs-char       { color: var(--code-string); }
+
+.hljs-char.escape_ { color: var(--code-operator); }
+
+/* ── Comments ─────────────────────────────────────── */
+.hljs-comment    { color: var(--code-comment); font-style: italic; }
+
+/* ── Identifiers & types ──────────────────────────── */
+.hljs-variable   { color: var(--code-variable); }
+
+.hljs-type       { color: var(--code-type); }
+
+.hljs-title            { color: var(--code-type); }
+
+.hljs-title.function_  { color: var(--code-type); }
+
+.hljs-title.class_     { color: var(--code-type); font-weight: bold; }
+
+.hljs-symbol     { color: var(--code-number); }
+
+.hljs-built_in   { color: var(--code-cmdlet); font-weight: bold; }
+
+.hljs-params     { color: var(--code-parameter); }
+
+.hljs-name             { color: var(--code-tag); }
+
+/* ── Objects & markup ─────────────────────────────── */
+.hljs-attr       { color: var(--code-attribute); }
+
+.hljs-property   { color: var(--code-property); }
+
+.hljs-tag        { color: var(--code-tag); }
+
+.hljs-selector-tag { color: var(--code-selector); }
+
+.hljs-section    { color: var(--code-section); font-weight: bold; }
+
+/* ── Operators & punctuation ──────────────────────── */
+.hljs-operator   { color: var(--code-operator); }
+
+.hljs-punctuation { color: var(--featured); }
+
+.hljs-bullet     { color: var(--featured); }
+
+/* ── Regex & special ──────────────────────────────── */
+.hljs-regexp     { color: var(--code-string); }
+
+.hljs-invalid    { color: var(--status-warning); text-decoration: underline wavy; }
+
+/* ── Meta / directives ────────────────────────────── */
+.hljs-meta       { color: var(--code-directive); }
+
+.hljs-preprocessor { color: var(--code-preprocessor); font-weight: bold; }
+
+.hljs-doctag     { color: var(--code-comment); font-weight: bold; }
+
+/* ── Misc ─────────────────────────────────────────── */
+.hljs-subst      { color: var(--code-variable); }
+
+.hljs-formula    { color: var(--code-keyword); }
+
+.hljs-addition   { color: var(--code-string); background: rgba(0,255,0,0.1); }
+
+.hljs-deletion   { color: var(--code-string); background: rgba(255,0,0,0.1); }
+
+.hljs-template-variable { color: var(--code-variable); }
+
+.hljs-template-tag     { color: var(--code-keyword); }
+
+/* ── KaTeX (math rendering) ────────────────────────── */
+.katexcommand    { color: var(--code-katexcommand); }
+
+.katexnumber     { color: var(--code-number); }
+
+.katexbracket    { color: var(--component-text-secondary); }
+
+/* ── highlight.js formatting tokens ────────────────
+   Used by SSG output (hljs) for emphasis/code/links
+   inside highlighted code blocks.  Some language grammars
+   emit these for doc comments, format strings, etc.
+   CmEditor emits cm-md-* for markdown-prose equivalents,
+   so these hljs-* rules apply to fenced-block content only. */
+
+.hljs-strong     { font-weight: bold; color: var(--text-primary); }
+
+.hljs-emphasis   { font-style: italic; color: var(--component-text-primary); }
+
+.hljs-code       { background: var(--component-bg-hover); color: var(--code-inline); padding: 0.2rem 0.4rem; border-radius: 3px; }
+
+.hljs-link       { color: var(--code-link); }
+
+.hljs-quote      { color: var(--code-quote); font-style: italic; border-left: 4px solid var(--code-quote); padding-left: 0.5rem; margin-left: 0.5rem; }
+
+/* ── GFM Task list checkbox ──────────────────────────
+   Rendered by markdown-it inline rule (chronicleMarkdown.ts /
+   markdownPreview.ts) as <input class="md-task-checkbox">.
+   Editor uses .cm-task-marker (CmEditor.vue taskMarkerPlugin). */
+.md-task-checkbox {
+  accent-color: var(--accent-color);
+  width: 1.25em;
+  height: 1.25em;
+  margin: 0 0.25em 0 0;
+  vertical-align: middle;
+  transform: translateY(-1px);
+  pointer-events: none;  /* readonly — matches GFM disabled behavior */
+}
+
+/* ── Footnotes (markdown-it-footnote) ───────────────── */
+.chronicle-markdown a.footnote-ref {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.4em;
+  height: 1.4em;
+  padding: 2px;
+  border-radius: 1em;
+  background: var(--component-bg-active);
+  color: var(--component-text-primary);
+  font-size: 0.7em;
+  line-height: 1;
+  margin: 0 0.1em;
+  transform: translateY(-2px);
+  text-decoration: none;
+}
+
+.chronicle-markdown .footnotes-sep {
+  border: none;
+  border-top: 1px solid var(--border-color);
+  margin: 5rem 0 1rem;
+}
+
+.chronicle-markdown .footnotes {
+  font-size: 0.9em;
+  color: var(--text-secondary);
+}
+
+.chronicle-markdown .footnotes-list {
+  padding-left: 1.5rem;
+}
+
+.chronicle-markdown .footnote-item {
+  margin: 0.4rem 0;
+}
+
+.chronicle-markdown .footnote-backref {
+  text-decoration: none;
+  margin-left: 0.25em;
+}
 
 /* ═══════════════════════════════════════════════════════════
    15. Font Variants

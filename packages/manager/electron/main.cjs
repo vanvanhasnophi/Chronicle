@@ -80,11 +80,13 @@ function createChildWindow(url) {
       const parsed = new URL(url)
       // If the URL already has a hash (e.g. "#/editor?id=..."), use it.
       if (parsed.hash && parsed.hash.startsWith('#/')) {
-        routePath = parsed.hash.slice(1)
+        routePath = parsed.hash.slice(2)
       } else {
         // pathname is /path/to/dist/editor — take everything after /dist/
         const pathAfterDist = parsed.pathname.split('/dist/')[1] || ''
-        routePath = pathAfterDist + parsed.search
+        routePath = pathAfterDist
+          ? pathAfterDist + parsed.search
+          : parsed.pathname.replace(/^\//, '') + parsed.search
       }
     } catch (_) {
       routePath = url
@@ -103,7 +105,29 @@ function createChildWindow(url) {
   const winUrl = isDev
     ? `${DEV_URL}/${routePath}`
     : `file:///${getDistIndex().replace(/\\/g, '/')}#/${routePath}`;
-  newWin.loadURL(winUrl);
+
+  // Electron BrowserWindows don't reliably share localStorage for file:// origins.
+  // Read the auth token from the main window and pass it to the child via URL,
+  // then the preload script extracts it into localStorage before Vue boots.
+  loadChildWithAuth(newWin, winUrl);
+  return newWin;
+}
+
+async function loadChildWithAuth(newWin, winUrl) {
+  try {
+    const token = await (mainWindow?.webContents?.executeJavaScript(
+      'localStorage.getItem("chronicle_auth")',
+    ));
+    if (token) {
+      const sep = winUrl.includes('?') ? '&' : '?';
+      newWin.loadURL(`${winUrl}${sep}_auth=${encodeURIComponent(token)}`);
+    } else {
+      newWin.loadURL(winUrl);
+    }
+  } catch (_) {
+    newWin.loadURL(winUrl);
+  }
+}
   return newWin;
 }
 

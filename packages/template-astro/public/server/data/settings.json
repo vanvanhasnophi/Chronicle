@@ -1,15 +1,19 @@
 {
-  "featureFlags": {
-    "friendsPage": true,
-    "traffic": true
-  },
+  "collectionPage": true,
+  "aboutPage": true,
+  "friendsPage": true,
+  "rss": true,
+  "sitemap": false,
+  "searchSuggestions": false,
+  "relatedPosts": false,
+  "traffic": true,
   "frontendLocale": "follow",
-  "backendLocale": "en",
+  "backendLocale": "zh-CN",
   "frontendFont": "sans",
   "backendFont": "sans",
   "frontendTheme": "follow",
   "frontendAccent": "#2ea367",
-  "backendTheme": "dark",
+  "backendTheme": "follow",
   "frontendBackground": {
     "url": "/server/data/branding/chr_f_bg-Kaltsit-95dfb467eb.webp",
     "path": "chr_f_bg-Kaltsit-95dfb467eb.webp",
@@ -41,18 +45,18 @@
   "scheduledBuildInterval": "daily",
   "frontendUrl": "http://localhost:4323",
   "siteName": "Chronicle 2.0",
+  "siteDescription": "An extraorninary leap of Chronicle",
   "homepageMode": "split",
   "frontendBackgroundMeta": "{\"url\":\"/server/data/upload/pic/Kaltsit.jpg\",\"sourcePath\":\"pic/Kaltsit.jpg\",\"sourceName\":\"Kaltsit.jpg\",\"mode\":\"cover\",\"posX\":50,\"posY\":50,\"size\":100,\"blur\":24,\"overlayLightColor\":\"#ffffff\",\"overlayLightOpacity\":78,\"overlayDarkColor\":\"#000000\",\"overlayDarkOpacity\":81,\"overlayColor\":\"#000000\",\"overlayOpacity\":81,\"compressionFactor\":15.552,\"compression\":15.552,\"bgCompression\":15.552}",
   "frontendBackgroundCompression": 15.552,
-  "rss": true,
-  "sitemap": false,
-  "friends": true,
   "gaMeasurementId": "",
-  "name": "Cyf",
-  "avatar": "http://localhost:3000/server/data/upload/pic/Kaltsit.jpg",
-  "bio": "aa",
-  "location": "",
-  "links": [],
   "defaultPerformanceMode": "auto",
-  "backendAccent": "#2ea336"
+  "backendAccent": "#2ea336",
+  "singleColumnHomepage": false,
+  "cardVisibility": {
+    "author": true,
+    "taxonomy": true,
+    "activity": true
+  },
+  "icpNumber": "京ICP备2025153813号-1"
 }

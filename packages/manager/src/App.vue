@@ -528,8 +528,10 @@ async function getSettings() {
     try { const session = JSON.parse(auth); if (!session.expiry || Date.now() > session.expiry) return {} } catch { return {} }
   } catch { return {} }
 
-  // Fire-and-forget: sync schemas in background (don't block the page)
-  syncSchemas()
+  // Fire-and-forget: sync schemas in background (don't block the page).
+  // Skip on editor pages — no settings UI, no schema needed.
+  const onEditorPage = typeof window !== 'undefined' && window.location.pathname.startsWith('/editor')
+  if (!onEditorPage) syncSchemas()
 
   // syncSettings handles throttle, dedup, and localStorage persistence
   return await syncSettings()
@@ -1166,7 +1168,7 @@ async function rebuildFrontend() {
               <div class="quick-section">
                 <button @click="cycleAndSaveTheme()" class="quick-theme-toggle">
                   <span class="icon-svg" v-html="theme === 'light' ? ShellIcons.sun : theme === 'dark' ? ShellIcons.moon : ShellIcons.monitor"></span>
-                  <span>Theme · {{ theme === 'light' ? 'Light' : theme === 'dark' ? 'Dark' : 'Follow' }}</span>
+                  <span>{{ t('nav.theme') }} · {{ theme === 'light' ? t('theme.light') : theme === 'dark' ? t('theme.dark') : t('theme.follow') }}</span>
                 </button>
               </div>
               <div class="quick-sep"></div>

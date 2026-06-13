@@ -9,6 +9,7 @@
  */
 
 import MarkdownIt from 'markdown-it';
+import markdownItFootnote from 'markdown-it-footnote';
 import { Icons } from './icons';
 import DOMPurify from 'dompurify';
 import { SANITIZE_CONFIG } from '@chronicle/shared/utils';
@@ -23,6 +24,24 @@ const md = new MarkdownIt({
   typographer: true,
   breaks: false,
 });
+
+md.use(markdownItFootnote);
+
+// Strip brackets from footnote refs: [1] → 1
+md.renderer.rules.footnote_caption = (tokens: any, idx: number) => {
+  let n = (Number(tokens[idx].meta.id) + 1).toString()
+  if (tokens[idx].meta.subId > 0) n += ':' + tokens[idx].meta.subId
+  return n
+}
+
+// Use <a> directly — capsule styling is on the link itself
+md.renderer.rules.footnote_ref = (tokens: any, idx: number, options: any, env: any, slf: any) => {
+  const id = slf.rules.footnote_anchor_name(tokens, idx, options, env, slf)
+  const caption = slf.rules.footnote_caption(tokens, idx, options, env, slf)
+  let refid = id
+  if (tokens[idx].meta.subId > 0) refid += ':' + tokens[idx].meta.subId
+  return `<a class="footnote-ref" id="fnref${refid}" href="#fn${id}">${caption}</a>`
+}
 
 // ── Tiny =WxH image-size plugin ──────────────────────────
 // Based on markdown-it-imsize but without Node.js autofill deps.
@@ -226,6 +245,37 @@ md.inline.ruler.before('link', 'chronicle_file_card', (state, silent) => {
   state.pos = i;
   return true;
 });
+
+// ── GFM Task list checkbox (inline rule) ───────────────
+// Intercepts [ ] / [x] at the start of inline content.
+// Registered after chronicle_file_card, before 'link'.
+// [ ] → unchecked, [x]/[X] → checked.
+md.inline.ruler.before('link', 'task_list_checkbox', (state, silent) => {
+  const start = state.pos
+  if (state.pending.trim().length > 0) return false
+
+  const src = state.src
+  if (src.charCodeAt(start) !== 0x5B /* [ */) return false
+  if (start + 2 >= state.posMax) return false
+
+  const ch = src.charCodeAt(start + 1)
+  if (ch !== 0x20 && ch !== 0x78 && ch !== 0x58) return false
+  if (src.charCodeAt(start + 2) !== 0x5D /* ] */) return false
+
+  if (!silent) {
+    const checked = ch !== 0x20
+    const token = state.push('checkbox_input', '', 0)
+    token.attrSet('checked', checked ? 'true' : 'false')
+  }
+
+  state.pos = start + 3
+  return true
+})
+
+md.renderer.rules.checkbox_input = (tokens, idx) => {
+  const checked = tokens[idx].attrGet('checked') === 'true'
+  return `<input type="checkbox" class="md-task-checkbox" disabled${checked ? ' checked' : ''}>`
+}
 
 // ═══════════════════════════════════════════════════════════
 //  Helpers
@@ -595,18 +645,30 @@ export function renderBlockHtml(markdown: string): ContentBlock[] {
 
     // ── Paragraph ──
     if (t.type === 'paragraph_open') {
-      const raw = md.renderer.render(tokens.slice(i, i + 3), md.options, {})
+      let depth = 1, j = i + 1
+      while (j < tokens.length && depth > 0) {
+        if (tokens[j].type === 'paragraph_open') depth++
+        else if (tokens[j].type === 'paragraph_close') depth--
+        j++
+      }
+      const raw = md.renderer.render(tokens.slice(i, j), md.options, {})
       // Inline post-processing: images only (file cards handled by inline rule)
       const html = postProcessInlineBlocks(restoreMathBlock(raw, mathBlocks))
       blocks.push({ type: 'html', content: html })
-      i += 3; continue
+      i = j; continue
     }
 
     // ── Heading ──
     if (t.type === 'heading_open') {
-      const raw = md.renderer.render(tokens.slice(i, i + 3), md.options, {})
+      let depth = 1, j = i + 1
+      while (j < tokens.length && depth > 0) {
+        if (tokens[j].type === 'heading_open') depth++
+        else if (tokens[j].type === 'heading_close') depth--
+        j++
+      }
+      const raw = md.renderer.render(tokens.slice(i, j), md.options, {})
       blocks.push({ type: 'html', content: restoreMathBlock(raw, mathBlocks) })
-      i += 3; continue
+      i = j; continue
     }
 
     // ── Bullet / ordered list ──
@@ -649,6 +711,18 @@ export function renderBlockHtml(markdown: string): ContentBlock[] {
       i = j; continue
     }
 
+    // ── Footnote block (markdown-it-footnote) ──
+    // Skip in main content — rendered separately via renderFootnoteHtml
+    if (t.type === 'footnote_block_open') {
+      let depth = 1, j = i + 1
+      while (j < tokens.length && depth > 0) {
+        if (tokens[j].type === 'footnote_block_open') depth++
+        else if (tokens[j].type === 'footnote_block_close') depth--
+        j++
+      }
+      i = j; continue
+    }
+
     // ── Standalone HTML / math placeholder ──
     if (t.type === 'html_block' || t.type === 'inline') {
       const raw = t.type === 'inline' ? md.renderer.render([t], md.options, {}) : t.content
@@ -660,6 +734,24 @@ export function renderBlockHtml(markdown: string): ContentBlock[] {
   }
 
   return blocks
+}
+
+/** Render only the footnote section HTML, or empty string if none. */
+export function renderFootnoteHtml(markdown: string): string {
+  const { text, mathBlocks } = protectMath(markdown)
+  const tokens = md.parse(text, {})
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokens[i].type === 'footnote_block_open') {
+      let depth = 1, j = i + 1
+      while (j < tokens.length && depth > 0) {
+        if (tokens[j].type === 'footnote_block_open') depth++
+        else if (tokens[j].type === 'footnote_block_close') depth--
+        j++
+      }
+      return restoreMathBlock(md.renderer.render(tokens.slice(i, j), md.options, {}), mathBlocks)
+    }
+  }
+  return ''
 }
 
 /** Restore math placeholders in a block's rendered HTML. */
@@ -706,10 +798,22 @@ export function getBlockRanges(markdown: string): BlockRange[] {
     // Only process opening block tokens (they carry .map)
     if (t.type === 'paragraph_open') {
       if (t.map) ranges.push({ segIndex: segIndex++, startLine: t.map[0] + 1, endLine: t.map[1] })
-      i += 2 // skip inline + close
+      let depth = 1; i++
+      while (i < tokens.length && depth > 0) {
+        if (tokens[i].type === 'paragraph_open') depth++
+        else if (tokens[i].type === 'paragraph_close') depth--
+        i++
+      }
+      i--
     } else if (t.type === 'heading_open') {
       if (t.map) ranges.push({ segIndex: segIndex++, startLine: t.map[0] + 1, endLine: t.map[1] })
-      i += 2
+      let depth = 1; i++
+      while (i < tokens.length && depth > 0) {
+        if (tokens[i].type === 'heading_open') depth++
+        else if (tokens[i].type === 'heading_close') depth--
+        i++
+      }
+      i--
     } else if (t.type === 'fence' || t.type === 'code_block') {
       if (t.map) ranges.push({ segIndex: segIndex++, startLine: t.map[0] + 1, endLine: t.map[1] })
     } else if (t.type === 'bullet_list_open' || t.type === 'ordered_list_open') {
@@ -741,6 +845,15 @@ export function getBlockRanges(markdown: string): BlockRange[] {
       i--
     } else if (t.type === 'hr') {
       if (t.map) ranges.push({ segIndex: segIndex++, startLine: t.map[0] + 1, endLine: t.map[0] + 1 })
+    } else if (t.type === 'footnote_block_open') {
+      // Skip footnote block — rendered separately, not part of main content
+      let depth = 1; i++
+      while (i < tokens.length && depth > 0) {
+        if (tokens[i].type === 'footnote_block_open') depth++
+        else if (tokens[i].type === 'footnote_block_close') depth--
+        i++
+      }
+      i--
     }
     // html_block, math placeholder, etc. → skip
   }

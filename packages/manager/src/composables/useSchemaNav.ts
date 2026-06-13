@@ -98,11 +98,10 @@ function buildNavTree(schemas: Record<string, any>): NavGroup[] {
 export function useSchemaNav() {
   const navTree = ref<NavGroup[]>(buildNavTree({ ...LOCAL_SCHEMAS, ...schemaStore.value }))
 
-  // Only sync schemas on non-auth pages. Auth pages (/, /login, /setup, /recover, /editor)
-  // should not make any server requests.
+  // Skip schema sync on auth pages and editor — no settings UI needed there.
   const path = typeof window !== 'undefined' ? window.location.pathname : ''
-  const isAuthPage = path === '/' || path === '/login' || path === '/setup' || path === '/recover' || path === '/editor'
-  if (!isAuthPage) {
+  const skip = path === '/' || path === '/login' || path === '/setup' || path === '/recover' || path.startsWith('/editor')
+  if (!skip) {
     setTimeout(() => syncSchemas(), 100)
   }
 

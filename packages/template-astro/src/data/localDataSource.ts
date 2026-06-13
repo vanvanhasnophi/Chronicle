@@ -475,6 +475,7 @@ export function getPublicSettings(): LocalSettings {
         cardVisibility: raw.cardVisibility || {},
         frontendBackgroundCompression: raw.frontendBackgroundCompression,
         gaMeasurementId: raw.gaMeasurementId,
+        icpNumber: raw.icpNumber || '',
     };
 }
 
