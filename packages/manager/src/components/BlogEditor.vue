@@ -2888,6 +2888,12 @@ async function openMediaModal() {
     activeModal.value = 'media'
 }
 
+/** Encode spaces, CJK, and other special chars in a URL for safe markdown link syntax.
+ *  Uses decodeURI+encodeURI round-trip to avoid double-encoding already-encoded URLs. */
+function encodeMarkdownUrl(url: string): string {
+    try { return encodeURI(decodeURI(url)) } catch { return url }
+}
+
 // ... inside handleFileSelect ...
 function insertMediaMarkdown(name: string, path: string, category?: string) {
     const editor = (editorRef.value as any)
@@ -2901,9 +2907,9 @@ function insertMediaMarkdown(name: string, path: string, category?: string) {
         ? path : `${CDN_BASE_URL}${path}`
 
     if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) {
-        insertText = `\n![${name}](${markdownPath})\n`
+        insertText = `\n![${name}](${encodeMarkdownUrl(markdownPath)})\n`
     } else {
-        insertText = `\n[${name}](${markdownPath})\n`
+        insertText = `\n[${name}](${encodeMarkdownUrl(markdownPath)})\n`
     }
 
     editor.insertAtCursor(insertText)
@@ -3132,14 +3138,20 @@ async function resolveLocalFileUrls(markdown: string): Promise<Record<string, st
     const mapping: Record<string, string> = {}
 
     for (const fullUrl of urls) {
-        // Strip type prefix to get the raw blob/file URL
-        const rawUrl = fullUrl.replace(/^(audio|video|document|text|file):/, '')
+        // Strip the type prefix to get the raw blob:/file:// URL.
+        // CRITICAL: file:/// is a URL scheme, NOT a type prefix.
+        // The regex must NOT match "file:" when it is part of "file:///".
+        const rawUrl = fullUrl
+            .replace(/^(audio|video|document|text):/, '')       // unambiguous prefixes
+            .replace(/^file:(?=blob:|file:\/\/\/)/, '')          // file: type prefix only
         const file = await getFileFromUrl(rawUrl)
-        if (!file) continue
+        if (!file) { console.warn('[resolveLocalFileUrls] getFileFromUrl returned null for', fullUrl, '→ rawUrl:', rawUrl); continue }
         try {
             const cloudUrl = await uploadMediaFile(file)
             if (cloudUrl) {
-                mapping[fullUrl] = cloudUrl
+                // Preserve the type prefix so file-card rendering works
+                const prefix = fullUrl.match(/^(audio|video|document|text|file):/)?.[0] || ''
+                mapping[fullUrl] = prefix ? prefix + cloudUrl : cloudUrl
                 fileMap.delete(rawUrl)
             } else {
                 showToast(`Upload failed: ${file.name}`, { status: 'error', duration: 3000 })

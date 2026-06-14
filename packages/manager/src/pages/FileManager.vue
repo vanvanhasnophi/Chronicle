@@ -524,7 +524,9 @@ function openPreview(file: any) {
 // ── File actions ─────────────────────────────────────────────────────
 
 function copyLink(file: any) {
-    const url = file.url || `/server/data/upload/${file.path}`
+    let url = file.url || `/server/data/upload/${file.path}`
+    // Encode spaces, CJK, and other special chars for valid markdown link syntax
+    try { url = encodeURI(decodeURI(url)) } catch {}
     navigator.clipboard.writeText(`![](${url})`)
 }
 
