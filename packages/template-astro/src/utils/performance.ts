@@ -14,16 +14,20 @@ const STORAGE_KEY = 'chronicle_performance_mode';
 
 export type PerfMode = 'auto' | 'full' | 'reduced';
 
+/** Resolved effective mode — 'auto' has been resolved to 'full' or 'reduced' */
+type ResolvedMode = 'full' | 'reduced';
+
 /** Read the user's explicit override from localStorage (if any) */
-function getUserOverride(): PerfMode | null {
+function getUserOverride(): ResolvedMode | null {
   if (typeof localStorage === 'undefined') return null;
   const stored = localStorage.getItem(STORAGE_KEY);
   if (stored === 'full' || stored === 'reduced') return stored;
   return null; // "auto" or absent → no override
 }
 
-/** Save the user's explicit choice */
-export function setUserOverride(mode: PerfMode): void {
+/** Save the user's explicit choice. 'auto' is not a valid override —
+ *  use clearUserOverride() to revert to auto-detect. */
+export function setUserOverride(mode: ResolvedMode): void {
   if (typeof localStorage === 'undefined') return;
   localStorage.setItem(STORAGE_KEY, mode);
   applyMode(resolveEffectiveMode());
@@ -54,7 +58,7 @@ function detectLowEnd(): boolean {
 }
 
 /** Resolve the effective mode: user override > default setting > auto-detect */
-function resolveEffectiveMode(defaultMode: PerfMode = 'auto'): 'full' | 'reduced' {
+function resolveEffectiveMode(defaultMode: PerfMode = 'auto'): ResolvedMode {
   const override = getUserOverride();
   if (override) return override;
 
@@ -66,7 +70,7 @@ function resolveEffectiveMode(defaultMode: PerfMode = 'auto'): 'full' | 'reduced
 }
 
 /** Apply the mode to the DOM via data-perf attribute + CSS custom properties */
-export function applyMode(mode: 'full' | 'reduced'): void {
+export function applyMode(mode: ResolvedMode): void {
   if (typeof document === 'undefined') return;
   document.documentElement.setAttribute('data-perf', mode);
 }
@@ -84,14 +88,14 @@ export function initPerformanceMode(defaultMode: PerfMode = 'auto'): void {
  * Toggle between full and reduced (for the user-facing switch).
  * Returns the new effective mode.
  */
-export function togglePerformanceMode(defaultMode: PerfMode = 'auto'): 'full' | 'reduced' {
+export function togglePerformanceMode(defaultMode: PerfMode = 'auto'): ResolvedMode {
   const current = resolveEffectiveMode(defaultMode);
-  const next: PerfMode = current === 'full' ? 'reduced' : 'full';
+  const next: ResolvedMode = current === 'full' ? 'reduced' : 'full';
   setUserOverride(next);
   return next;
 }
 
 /** Get current mode (for the toggle UI to display correct state) */
-export function getCurrentMode(defaultMode: PerfMode = 'auto'): 'full' | 'reduced' {
+export function getCurrentMode(defaultMode: PerfMode = 'auto'): ResolvedMode {
   return resolveEffectiveMode(defaultMode);
 }

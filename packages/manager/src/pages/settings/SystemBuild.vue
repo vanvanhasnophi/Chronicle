@@ -650,7 +650,7 @@ onMounted(async () => {
 
 .schema-version-chip .ver {
   color: var(--accent-color);
-  font-family: monospace;
+  font-family: var(--app-font-stack-mono);
 }
 
 .small {

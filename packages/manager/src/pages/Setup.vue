@@ -136,12 +136,12 @@ h2 { margin:0 0 .5rem; text-align:center; }
 .hint { color:var(--text-secondary); font-size:.9em; text-align:center; margin-bottom:1.5rem; }
 .input-group { margin:1rem 0; text-align:left; }
 label { display:block; margin-bottom:.5rem; color:var(--text-secondary); font-size:0.95rem; }
-.token-input { text-align:center; letter-spacing:2px; font-family:monospace; font-size:1.1em; }
+.token-input { text-align:center; letter-spacing:2px; font-family: var(--app-font-stack-mono); font-size:1.1em; }
 .small { font-size:.8em; margin-top:.3rem; }
 .muted { color:var(--text-secondary); }
 .primary-btn { width:100%; padding:.8rem; background:var(--accent-color); color:var(--text-on-accent); border:none; border-radius:6px; cursor:pointer; font-weight:bold; font-size:1.05em; margin-top:.5rem; }
 .primary-btn:disabled { opacity:.6; cursor:not-allowed; }
 .error { color:var(--code-text); margin-top:1rem; text-align:center; }
 .codes-grid { display:grid; grid-template-columns:1fr 1fr; gap:.5rem; margin:1rem 0; }
-.codes-grid code { display:block; padding:.5rem; background:var(--bg-primary); border:1px solid var(--border-color); border-radius:4px; font-family:monospace; font-size:1em; letter-spacing:1px; text-align:center; }
+.codes-grid code { display:block; padding:.5rem; background:var(--bg-primary); border:1px solid var(--border-color); border-radius:4px; font-family: var(--app-font-stack-mono); font-size:1em; letter-spacing:1px; text-align:center; }
 </style>

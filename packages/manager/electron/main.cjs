@@ -29,8 +29,31 @@ function stripOrigin(win) {
 }
 
 function setupUnsavedGuard(win) {
-  win.webContents.on('will-prevent-unload', (event) => {
+  // Use the BrowserWindow 'close' event (not webContents 'will-prevent-unload')
+  // because 'close' fires FIRST and is the only reliable way to prevent the
+  // window from closing.  'will-prevent-unload' fires after the close has
+  // already started and cannot stop a BrowserWindow.close() in progress.
+  win.on('close', async (event) => {
     event.preventDefault();
+
+    let isDirty = false;
+    try {
+      // 3 s timeout: prevents the window from being permanently
+      // uncloseable if the renderer process is hung.
+      isDirty = !!(await Promise.race([
+        win.webContents.executeJavaScript('window.__chronicleDirty'),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
+      ]));
+    } catch (_) {
+      // Renderer not available or timed out — close immediately
+    }
+
+    if (!isDirty) {
+      // No unsaved changes, allow close
+      if (!win.isDestroyed()) win.destroy();
+      return;
+    }
+
     const choice = dialog.showMessageBoxSync(win, {
       type: 'question',
       buttons: ['Leave', 'Stay'],
@@ -39,9 +62,11 @@ function setupUnsavedGuard(win) {
       message: 'You have unsaved changes. Leave anyway?',
     });
     if (choice === 0) {
-      win.webContents.removeAllListeners('will-prevent-unload');
-      win.close();
+      // User chose Leave — destroy the window (bypasses the close guard)
+      if (!win.isDestroyed()) win.destroy();
     }
+    // If choice === 1 (Stay): close was already prevented via event.preventDefault(),
+    // just let the user continue editing.
   });
 }
 
@@ -351,8 +376,8 @@ app.on('web-contents-created', (event, contents) => {
       responseHeaders: {
         ...details.responseHeaders,
         'Content-Security-Policy': isDev
-          ? ["default-src 'self' http://localhost:* ws://localhost:*; style-src 'self' 'unsafe-inline' http://localhost:*; script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:*; img-src 'self' data: blob: http://localhost:* https:; font-src 'self' http://localhost:*; connect-src 'self' http://localhost:* ws://localhost:* https:"]
-          : ["default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https://*"],
+          ? ["default-src 'self' http://localhost:* ws://localhost:*; style-src 'self' 'unsafe-inline' http://localhost:*; script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:*; img-src 'self' data: blob: file: http://localhost:* https:; font-src 'self' http://localhost:*; connect-src 'self' file: http://localhost:* ws://localhost:* https:"]
+          : ["default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; img-src 'self' data: blob: file: https:; font-src 'self'; connect-src 'self' file: https://*"],
       },
     });
   });

@@ -2261,9 +2261,11 @@ function redo() {
 }
 
 function handleBeforeUnload(e: BeforeUnloadEvent) {
-    // Show confirmation dialog
-    e.preventDefault()
-    e.returnValue = ''
+    // Only prevent unload when there are actual unsaved changes
+    if (isDirty.value) {
+        e.preventDefault()
+        e.returnValue = ''
+    }
 }
 
 onMounted(() => {
@@ -2285,6 +2287,15 @@ onMounted(() => {
     window.addEventListener('beforeunload', handleBeforeUnload)
     window.addEventListener('keydown', onKeydown)
 
+    // Sync isDirty to a global flag so Electron's main process can check
+    // whether to show the "Leave/Stay" dialog before closing the window.
+    // Using a plain window property (not contextBridge) so that
+    // webContents.executeJavaScript() can read it directly.
+    ;(window as any).__chronicleDirty = isDirty.value
+    watch(isDirty, (val) => {
+        ;(window as any).__chronicleDirty = val
+    })
+
     // Capture-phase: intercept paste/drop before CodeMirror handles them
     const blogEl = document.querySelector('.blog-editor')
     if (blogEl) {
@@ -2295,6 +2306,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+    ;(window as any).__chronicleDirty = false
     window.removeEventListener('beforeunload', handleBeforeUnload)
     window.removeEventListener('keydown', onKeydown)
     const blogEl = document.querySelector('.blog-editor')
@@ -2634,7 +2646,7 @@ function buildStandalonePrintHtml(title: string, renderedHtml: string, lang: str
   th,td{border:1px solid #e5e7eb;padding:8px 12px;text-align:left}
   th{background:#f3f4f6;font-weight:600}
   pre{background:#f5f5f5;border:1px solid #e5e7eb;border-radius:6px;padding:14px 18px;overflow-x:auto;font-size:13.5px;line-height:1.55;margin:14px 0}
-  code{font-family:'SF Mono','Cascadia Code','Fira Code',Consolas,monospace;font-size:.875em}
+  code{font-family:var(--app-font-stack-mono);font-size:.875em}
   p code,li code{background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:.85em}
   pre code{background:none;padding:0;font-size:inherit}
   img{max-width:100%;height:auto;border-radius:4px}
@@ -3570,7 +3582,7 @@ const fontClass = computed(() => {
     position: absolute;
     inset: 0;
     padding: 16px 16px 50vh 16px;
-    font-family: 'Consolas', monospace;
+    font-family: var(--app-font-stack-mono);
     font-size: 14px;
     line-height: 1.5;
     white-space: pre-wrap;
@@ -3590,7 +3602,7 @@ const fontClass = computed(() => {
     color: var(--text-primary);
     border: none;
     padding: 16px 16px 50vh 16px;
-    font-family: 'Consolas', monospace;
+    font-family: var(--app-font-stack-mono);
     font-size: 14px;
     line-height: 1.5;
     resize: none;
@@ -4483,7 +4495,7 @@ button:disabled {
 .stat-value {
     color: var(--accent-color);
     font-weight: bold;
-    font-family: monospace;
+    font-family: var(--app-font-stack-mono);
     font-size: 1.2em;
 }
 

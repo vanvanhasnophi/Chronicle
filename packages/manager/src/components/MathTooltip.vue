@@ -204,7 +204,7 @@ onUnmounted(() => {
 .math-tooltip {
   min-width: 400px;
   width: 400px;
-  font-family: monospace;
+  font-family: var(--app-font-stack-mono);
   background: var(--component-bg-blur);
   backdrop-filter: blur(10px);
 }

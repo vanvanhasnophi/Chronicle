@@ -442,7 +442,7 @@ const projectUsed = computed(() => {
 .path-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .65rem; }
 .path-list li { display: grid; gap: .35rem; padding: .7rem .85rem; border: 1px solid var(--border-color); border-radius: 10px; background: var(--component-bg); }
 .path-list span { color: var(--component-text-secondary); font-size: .85rem; }
-.path-list code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace; font-size: .82rem; word-break: break-all; }
+.path-list code { font-family: var(--app-font-stack-mono); font-size: .82rem; word-break: break-all; }
 @media (max-width: 1100px) { .summary-grid, .two-col { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 720px) { .summary-grid, .two-col { grid-template-columns: 1fr; } .bar-row { grid-template-columns: 44px 1fr 32px; } }
 

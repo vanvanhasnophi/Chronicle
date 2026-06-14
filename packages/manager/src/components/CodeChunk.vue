@@ -836,7 +836,7 @@ watch(() => props.language, (n) => {
   background: var(--component-bg-blur-alt);
   border: 1px solid var(--border-color);
   color: var(--app-text-primary);
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-family: var(--app-font-stack-mono);
   border-radius: 8px;
   overflow: hidden;
 }

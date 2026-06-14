@@ -529,7 +529,7 @@ defineExpose({
   color: var(--app-text-primary);
   font-size: .9rem;
   height: 100%;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-family: var(--app-font-stack-mono);
 }
 
 .cm-editor-host .cm-editor .cm-scroller {

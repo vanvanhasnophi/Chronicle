@@ -659,7 +659,7 @@ hr {
   padding: 8px;
   padding-bottom: 24px;
   min-height: 48px; /* Should match wrapper min-height roughly */
-  font-family: 'Consolas', 'Monaco', monospace;
+  font-family: var(--app-font-stack-mono);
   font-size: 13.5px;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -680,7 +680,7 @@ hr {
   padding: 8px;
   padding-bottom: 20px;
   border: none;
-  font-family: 'Consolas', 'Monaco', monospace;
+  font-family: var(--app-font-stack-mono);
   font-size: 13.5px;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -707,7 +707,7 @@ hr {
 }
 
 .math-tooltip-editor .code-textarea {
-  font-family: 'Consolas', 'Monaco', monospace; /* Force monospace */
+  font-family: var(--app-font-stack-mono); /* Force monospace */
   font-size: 13.5px;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -739,7 +739,7 @@ hr {
   pointer-events: none;
   background: transparent;
   width: 100%;
-  font-family: 'Consolas', 'Monaco', monospace; /* Force monospace */
+  font-family: var(--app-font-stack-mono); /* Force monospace */
   font-size: 13.5px;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -830,7 +830,7 @@ hr {
   content: '';
 }
 .md-quote-block .backslash {
-  font-family: 'Consolas', 'Menlo', 'Monaco', monospace;
+  font-family: var(--app-font-stack-mono);
   color: var(--component-text-secondary);
   padding: 0 0.1em;
 }
@@ -841,7 +841,7 @@ code {
   border-radius: 5px;
   padding: 0.2em 0.5em;
   font-size: 0.85em;
-  font-family: 'Consolas', 'Menlo', 'Monaco', monospace;
+  font-family: var(--app-font-stack-mono);
   font-weight: 500;
   vertical-align: middle;
 }

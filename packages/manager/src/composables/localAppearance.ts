@@ -36,8 +36,7 @@ export function applyLocalAppearance() {
   if (typeof document === 'undefined') return
   const root = document.documentElement
   root.style.setProperty('--backend-font-stack',
-    localFont.get() === 'serif' ? "'Noto Serif SC', serif"
-    : localFont.get() === 'mono' ? 'ui-monospace, monospace'
+    localFont.get() === 'serif' ? "var(--app-font-stack-serif)"
     : 'var(--app-font-stack-inter)'
   )
   root.style.setProperty('--accent-color', localAccent.get())
