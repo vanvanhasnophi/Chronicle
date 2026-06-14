@@ -525,8 +525,10 @@ function openPreview(file: any) {
 
 function copyLink(file: any) {
     let url = file.url || `/server/data/upload/${file.path}`
-    // Encode spaces, CJK, and other special chars for valid markdown link syntax
-    try { url = encodeURI(decodeURI(url)) } catch {}
+    // Encode spaces and control chars that break markdown link syntax.
+    // CJK is left as-is — browsers handle it and encoding would desync
+    // from server-side filenames.
+    url = url.replace(/[\s\x00-\x1f]/g, (c: string) => encodeURIComponent(c))
     navigator.clipboard.writeText(`![](${url})`)
 }
 

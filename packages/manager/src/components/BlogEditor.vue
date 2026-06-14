@@ -2888,10 +2888,12 @@ async function openMediaModal() {
     activeModal.value = 'media'
 }
 
-/** Encode spaces, CJK, and other special chars in a URL for safe markdown link syntax.
- *  Uses decodeURI+encodeURI round-trip to avoid double-encoding already-encoded URLs. */
+/** Encode only characters that break markdown link syntax (spaces, control chars).
+ *  CJK and other non-ASCII is left as-is — browsers handle it, and encoding it
+ *  would desync from server-side filenames in the cloud file list. */
 function encodeMarkdownUrl(url: string): string {
-    try { return encodeURI(decodeURI(url)) } catch { return url }
+    // Encode spaces and ASCII control characters that terminate markdown links
+    return url.replace(/[\s\x00-\x1f]/g, (c) => encodeURIComponent(c))
 }
 
 // ... inside handleFileSelect ...
