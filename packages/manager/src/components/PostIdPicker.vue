@@ -62,8 +62,8 @@
       <ul v-else class="picker-list">
         <li v-for="post in filteredPosts" :key="post.id">
           <button type="button" class="post-option" @click="selectPost(post)">
-            <span class="post-title">{{ post.title || post.id }}</span>
-            <span class="post-id">{{ post.id }}</span>
+            <span class="picker-post-title">{{ post.title || post.id }}</span>
+            <span class="picker-post-id">{{ post.id }}</span>
           </button>
         </li>
       </ul>
@@ -474,12 +474,15 @@ onBeforeUnmount(() => {
   border-color: var(--border-color);
 }
 
-.post-title {
-  font-weight: 600;
+.picker-post-title {
+  font-size: 1rem;
+  font-weight: 500;
+  font-variation-settings: 'wght' 500;
+  color: var(--text-primary);
   line-height: 1.3;
 }
 
-.post-id {
+.picker-post-id {
   font-size: 12px;
   color: var(--text-secondary);
   line-height: 1.2;
