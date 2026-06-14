@@ -10,6 +10,7 @@
   --backend-font-stack: var(--app-font-stack-inter);
 
   --app-font-stack-serif: "Noto Serif SC", serif;
+  --app-font-stack-mono: 'Consolas','SF Mono', 'Menlo', 'Monaco', 'Ubuntu Mono', 'Courier New', monospace, var(--app-font-stack-inter);
 
   font-family: var(--app-font-stack);
   line-height: 1.5;
@@ -862,7 +863,7 @@ html.is-mobile .toc-float {
 }
 
 .font-mono {
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace !important;
+  font-family: var(--app-font-stack-mono) !important;
 }
 
 .font-sans {
