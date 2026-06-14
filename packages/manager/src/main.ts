@@ -41,6 +41,14 @@ if (typeof window !== 'undefined') {
 				newInit.headers = headers;
 				return originalFetch(`${apiBaseUrl}${requestUrl}`, newInit)
 			}
+			// In Electron (file:// protocol) and standalone deployments without a
+			// Vite dev proxy, root-relative URLs (e.g. /server/data/…) must be
+			// resolved against the configured API server to avoid resolving against
+			// file:/// which 404s.
+			if (requestUrl.startsWith('/')) {
+				const apiBaseUrl = getApiBaseUrl()
+				if (apiBaseUrl) return originalFetch(`${apiBaseUrl}${requestUrl}`, init)
+			}
 			return originalFetch(input, init)
 		}) as typeof fetch
 }

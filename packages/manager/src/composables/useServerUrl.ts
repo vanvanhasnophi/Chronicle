@@ -16,6 +16,7 @@ import { ref } from 'vue'
 
 const STORAGE_KEY = 'chronicle_api_url'
 const ERROR_KEY = 'chronicle_api_error'
+const MEDIA_URL_KEY = 'chronicle_media_url'
 
 export const buildApiUrl = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '')
 export const needsServerUrl = !buildApiUrl && !!(typeof window !== 'undefined' && (window as any).chronicleElectron?.isElectron)
@@ -47,6 +48,32 @@ export function apiUrl(path: string): string {
   return base ? `${base}${path}` : path
 }
 
+// ── Media base URL ──────────────────────────────────────────
+// The server declares its media domain in the /api/admin/status response.
+// We cache it so the Electron client can resolve relative media URLs
+// (background images, file previews, etc.) without guessing.
+
+function getSavedMediaUrl(): string {
+  try { return (localStorage.getItem(MEDIA_URL_KEY) || '').replace(/\/$/, '') } catch { return '' }
+}
+
+function saveMediaUrl(url: string): void {
+  try { localStorage.setItem(MEDIA_URL_KEY, url.replace(/\/$/, '')) } catch {}
+}
+
+/**
+ * Get the server-declared media base URL.
+ * Priority: server-declared (status response) > build-time env > empty.
+ */
+export function getMediaBaseUrl(): string {
+  const saved = getSavedMediaUrl()
+  if (saved) return saved
+  const buildMediaUrl = String(import.meta.env.VITE_CDN_BASE_URL || import.meta.env.VITE_MEDIA_DOMAIN || '').trim().replace(/\/$/, '')
+  return buildMediaUrl
+}
+
+// ── Shared reactive state ───────────────────────────────────
+
 // Shared reactive state — all callers see the same URL / status.
 const saved = getSavedServerUrl()
 const url = ref(saved)
@@ -55,6 +82,7 @@ const confirmedUrl = ref(saved)
 const checking = ref(false)
 const error = ref(getSavedError())
 const webauthnBaseUrl = ref('')
+const mediaBaseUrl = ref(getSavedMediaUrl())
 
 export function getWebauthnBaseUrl(): string {
   return webauthnBaseUrl.value || ''
@@ -88,6 +116,17 @@ export function useServerUrl() {
       // browser flows always perform the ceremony on the correct domain.
       if (json.data && json.data.webauthnBaseUrl) {
         webauthnBaseUrl.value = json.data.webauthnBaseUrl.replace(/\/$/, '')
+      }
+      // Cache the server-declared media base URL so relative media paths
+      // (/server/data/…) resolve correctly in Electron without guessing.
+      if (json.data && json.data.mediaBaseUrl) {
+        const m = json.data.mediaBaseUrl.replace(/\/$/, '')
+        mediaBaseUrl.value = m
+        saveMediaUrl(m)
+        // Expose globally so backgroundSettings.ts etc. can read it
+        if (typeof window !== 'undefined') {
+          (window as any).__CHRONICLE_MEDIA_BASE_URL__ = m
+        }
       }
       confirmed.value = true
       return true

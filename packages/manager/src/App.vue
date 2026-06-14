@@ -6,7 +6,7 @@ import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { ShellIcons } from './utils/shellIcons'
 import { ensureNotoLoaded } from './utils/fontLoader'
 import { hexToRgbString } from './utils/colorUtils'
-import { resolveBackgroundCompression, resolveBackgroundUrl } from './utils/backgroundSettings'
+import { resolveBackgroundCompression, resolveBackgroundUrl, buildApiFallbackUrl } from './utils/backgroundSettings'
 import { useSchemaNav, type NavGroup } from './composables/useSchemaNav'
 import { syncSchemas } from './composables/schemaApi'
 import { syncSettings, settingsStore } from './composables/settingsApi'
@@ -193,22 +193,33 @@ function ensureBackgroundImagePrepared(url: string): Promise<{ ok: boolean; prep
 
     // (quiet) start preparing background image
     const p = (async () => {
-      // Prefer fully downloaded blob url to avoid progressive display artifacts.
-      try {
-        const resp = await fetchWithAuth(normalizedUrl, { cache: 'force-cache' })
-        if (resp.ok) {
-          const blob = await resp.blob()
-          if (blob && blob.size > 0) {
-            const objUrl = URL.createObjectURL(blob)
-            try { backgroundObjectUrls.add(objUrl) } catch (e) { }
-            const okBlob = await preloadBackgroundImage(objUrl)
-            if (okBlob) return { ok: true, preparedUrl: objUrl }
-          }
-        }
-      } catch (e) { }
+      const urlsToTry = [normalizedUrl]
+      // If the primary URL uses the media CDN domain (not the API server),
+      // prepare a fallback against the API server which also serves
+      // /server/data/… static files. Only try once if the URLs are identical.
+      const fallbackUrl = buildApiFallbackUrl(normalizedUrl)
+      if (fallbackUrl && fallbackUrl !== normalizedUrl) urlsToTry.push(fallbackUrl)
 
-      const ok = await preloadBackgroundImage(normalizedUrl)
-      return { ok, preparedUrl: ok ? normalizedUrl : '' }
+      for (const tryUrl of urlsToTry) {
+        // Prefer fully downloaded blob url to avoid progressive display artifacts.
+        try {
+          const resp = await fetchWithAuth(tryUrl, { cache: 'force-cache' })
+          if (resp.ok) {
+            const blob = await resp.blob()
+            if (blob && blob.size > 0) {
+              const objUrl = URL.createObjectURL(blob)
+              try { backgroundObjectUrls.add(objUrl) } catch (e) { }
+              const okBlob = await preloadBackgroundImage(objUrl)
+              if (okBlob) return { ok: true, preparedUrl: objUrl }
+            }
+          }
+        } catch (e) { }
+
+        const ok = await preloadBackgroundImage(tryUrl)
+        if (ok) return { ok: true, preparedUrl: tryUrl }
+      }
+
+      return { ok: false, preparedUrl: '' }
     })().then((result) => {
       if (result && result.ok) {
         try { console.info('[bg] image-loaded', normalizedUrl) } catch (e) { }
@@ -658,50 +669,43 @@ function applySettingsFromStore(s: Record<string, any>) {
 
 
       // Apply background with staged reveal: overlay/blur first, media source after load.
+      // Only the backend (CMS) background is managed here — the frontend (Astro site)
+      // background is handled separately by the template-astro build and the
+      // schema-driven settings page (SystemAppearance) when the user edits it.
       try {
-        const fb = s.frontendBackground
         const bb = s.backendBackground
-        const frontendBgUrl = resolveBackgroundUrl(fb, 'frontend')
         const backendBgUrl = resolveBackgroundUrl(bb, 'backend')
 
         // Preload in advance so reveal can happen immediately once LCP is also ready.
         try {
-          if (frontendBgUrl) void ensureBackgroundImagePrepared(frontendBgUrl)
           if (backendBgUrl) void ensureBackgroundImagePrepared(backendBgUrl)
         } catch (e) { }
 
         // Disable pseudo-element media rendering path; we render media only in #chronicle-bg-layer.
         try {
-          document.documentElement.style.setProperty('--frontend-bg-image', 'none')
           document.documentElement.style.setProperty('--backend-bg-image', 'none')
-          document.documentElement.style.setProperty('--frontend-bg-opacity', '0')
           document.documentElement.style.setProperty('--backend-bg-opacity', '0')
         } catch (e) { }
 
         if (!isCustomBackgroundReady.value) {
           try {
-            document.documentElement.style.setProperty('--frontend-bg-overlay', 'transparent')
             document.documentElement.style.setProperty('--backend-bg-overlay', 'transparent')
           } catch (e) { }
         } else {
           try { ensureBackgroundLayer() } catch (e) { }
 
-          const fm = parseBackgroundMeta(s.frontendBackgroundMeta)
           const bm = parseBackgroundMeta(s.backendBackgroundMeta)
 
-          try { writeBackgroundMetaVars('frontend', fm) } catch (e) { }
           try { writeBackgroundMetaVars('backend', bm) } catch (e) { }
 
-          const activeUrl = String(isBackend.value ? backendBgUrl : frontendBgUrl)
+          const activeUrl = backendBgUrl
 
           let activeOverlay = 'transparent'
           try {
-            const overlayVar = isBackend.value ? '--backend-bg-overlay' : '--frontend-bg-overlay'
-            const v = getComputedStyle(document.documentElement).getPropertyValue(overlayVar) || ''
+            const v = getComputedStyle(document.documentElement).getPropertyValue('--backend-bg-overlay') || ''
             activeOverlay = (v && v.trim()) ? v : 'transparent'
           } catch (e) { }
 
-          const activeMeta = isBackend.value ? bm : fm
           // Logout clears the background — force re-stage on next login
           if ((window as any).__chronicleBgNeedsReset) {
             currentBackgroundUrl = ''
@@ -711,7 +715,7 @@ function applySettingsFromStore(s: Record<string, any>) {
           try {
             if (!backgroundSuspended && String(activeUrl || '').trim() && String(activeUrl || '').trim() !== currentBackgroundUrl) {
               // Do not await; let background render asynchronously and be cancellable by bgRenderVersion.
-              void stageBackgroundLayer(activeUrl, activeMeta, activeOverlay)
+              void stageBackgroundLayer(activeUrl, bm, activeOverlay)
             }
           } catch (e) { }
         }

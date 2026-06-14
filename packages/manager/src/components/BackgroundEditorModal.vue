@@ -107,6 +107,7 @@ import { Icons } from '../utils/icons';
 import { hexToRgbString } from '../utils/colorUtils'
 import { useI18n } from 'vue-i18n'
 import FilePicker from './FilePicker.vue'
+import { resolveMediaUrl } from '../utils/backgroundSettings'
 const { t } = useI18n()
 const props = defineProps<{ 
   url: string; 
@@ -216,7 +217,8 @@ function handleFilePickerCancel() {
 }
 
 const previewInnerStyle = computed(() => {
-  const url = currentUrl.value ? `url(${currentUrl.value})` : 'none'
+  const displayUrl = resolveMediaUrl(currentUrl.value)
+  const url = displayUrl ? `url(${displayUrl})` : 'none'
   const pos = `${meta.posX}% ${meta.posY}%`
   const size = `${meta.size}%`
   const blur = `${meta.blur}px`

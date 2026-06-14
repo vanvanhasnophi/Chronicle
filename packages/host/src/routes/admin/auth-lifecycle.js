@@ -20,6 +20,10 @@ const isDev = process.argv.includes('--dev');
 const WEBAUTHN_BASE_URL = isDev
   ? (process.env.VITE_DEV_URL || 'http://localhost:5173')
   : `https://${process.env.BACKEND_DOMAIN || DEFAULT_MANAGER_DOMAIN}`;
+// MEDIA_DOMAIN is set by the deploy script (chronicle-deploy.sh / install.sh).
+// When present it points to the CDN / file server domain; when absent the
+// manager falls back to using the API server URL for media.
+const MEDIA_BASE_URL = (process.env.MEDIA_DOMAIN && process.env.MEDIA_DOMAIN.replace(/\/$/, '')) || '';
 
 // ── Rate Limiters ───────────────────────────────────────
 const setupLimiter = rateLimit({
@@ -44,7 +48,7 @@ const recoverLimiter = rateLimit({
 router.get('/status', (req, res) => {
   try {
     const phase = authService.getAuthPhase();
-    return success(res, { phase, webauthnBaseUrl: WEBAUTHN_BASE_URL });
+    return success(res, { phase, webauthnBaseUrl: WEBAUTHN_BASE_URL, mediaBaseUrl: MEDIA_BASE_URL });
   } catch (e) {
     return fail(res, 'Failed to determine auth status');
   }

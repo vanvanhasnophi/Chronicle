@@ -29,6 +29,23 @@ and uses [Semantic Versioning](https://semver.org/).
 ### Internal
 - All packages bumped to `2.0.5`.
 
+## [2.0.6] - 2026-06-15
+
+### Fixed
+- **Electron background images failed with relative URLs**: `backgroundRelToUrl()` fell back to `window.location.origin` (`file://`) in Electron when `chronicle_api_url` was not set; CSS `background-image` and `<img src>` with `/server/data/…` paths resolved against `file:///` → 404. Fixed by:
+  - `main.ts` fetch interceptor now rewrites all root-relative URLs (not just `/api/`) against the API server base.
+  - `backgroundRelToUrl()` uses the same fallback chain as `getApiBaseUrl()` (`chronicle_api_url` → `VITE_API_BASE_URL` → `http://localhost:3000`) instead of `window.location.origin`.
+  - New `resolveMediaUrl()` for CSS/image display paths that bypass `fetch()`; used by `BackgroundEditorField` and `BackgroundEditorModal`.
+- **Manager automatically loaded frontend background**: `App.vue` `applySettingsFromStore()` resolved and preloaded the Astro site's frontend background alongside the CMS backend background. Frontend background is now only loaded on-demand by the schema-driven settings page.
+
+### Added
+- **`/api/admin/status` now returns `mediaBaseUrl`**: The server declares its `MEDIA_DOMAIN` (set by deploy scripts) in the status response, same as `webauthnBaseUrl`. The Electron manager caches this and uses it for resolving relative media URLs — no more guessing or hardcoding CDN domains.
+- **Media URL fallback to API server**: `ensureBackgroundImagePrepared()` now automatically retries against the API server origin if the primary URL (CDN/media domain) fails to load, via `buildApiFallbackUrl()`.
+- **`getMediaOrigin()` priority chain**: resolves media URLs in order: server-declared `chronicle_media_url` → build-time `VITE_CDN_BASE_URL` → user-configured `chronicle_api_url` → build-time `VITE_API_BASE_URL` → `http://localhost:3000` (Electron default).
+
+### Internal
+- All packages bumped to `2.0.6`.
+
 ## [2.0.4] - 2026-06-14
 
 ### Fixed

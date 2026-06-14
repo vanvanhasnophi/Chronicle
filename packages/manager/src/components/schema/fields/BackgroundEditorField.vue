@@ -23,6 +23,7 @@
 import { ref, computed, watch } from 'vue'
 import BackgroundEditorModal from '../../BackgroundEditorModal.vue'
 import { useI18n } from 'vue-i18n'
+import { resolveMediaUrl } from '../../../utils/backgroundSettings'
 
 const { t }= useI18n()
 
@@ -63,13 +64,7 @@ const backgroundMeta = computed(() => internalMeta.value)
 const backgroundSourcePath = computed(() => internalSourcePath.value)
 const backgroundSourceName = computed(() => internalSourceName.value)
 
-const previewUrl = computed(() => {
-  const url = internalUrl.value
-  if (!url) return ''
-  // Normalize: if it's a relative path, make it absolute
-  if (url.startsWith('/server/data/')) return url
-  return url
-})
+const previewUrl = computed(() => resolveMediaUrl(internalUrl.value))
 
 function openEditor() { bgEditorOpen.value = true }
 

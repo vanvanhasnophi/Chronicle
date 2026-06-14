@@ -58,8 +58,13 @@ export function backgroundRelToUrl(rel: any) {
   const normalized = normalizeUploadRelPath(rel)
   if (!normalized) return ''
   const isElec = typeof window !== 'undefined' && !!(window as any).chronicleElectron?.isElectron
-  const storedUrl = (() => { try { return localStorage.getItem('chronicle_api_url') || '' } catch { return '' } })()
-  const origin = isElec && storedUrl ? storedUrl.replace(/\/$/, '') : (typeof window !== 'undefined' && window.location ? window.location.origin : '')
+  // In Electron (file:// protocol), resolve against the media origin
+  // (server-declared via /api/admin/status) or API server URL.
+  // In browser deployments, use window.location.origin — the Vite dev proxy
+  // or same-origin server handles relative URLs natively.
+  const origin = isElec
+    ? getMediaOrigin()
+    : (typeof window !== 'undefined' && window.location ? window.location.origin : '')
   const fileName = normalized.split('/').pop() || '';
   // chr_b_bg-* → manager-background (CMS), chr_f_bg-* → branding (frontend)
   if (/^chr_b_bg-/i.test(fileName) || normalized.startsWith('manager-background/')) {
@@ -70,6 +75,60 @@ export function backgroundRelToUrl(rel: any) {
     ? '/server/data/branding/'
     : '/server/data/upload/'
   return origin ? `${origin}${base}${normalized}` : `${base}${normalized}`
+}
+
+/**
+ * Resolve a root-relative media URL (e.g. /server/data/…) against the API server
+ * when running in Electron (file:// protocol) or standalone mode. In browser
+ * deployments, relative URLs are returned as-is — the Vite dev proxy or same-origin
+ * server handles them.
+ *
+ * Use this for CSS background-image, <img src>, and other display paths that go
+ * through the browser's resource loader (NOT through fetch()).
+ */
+export function resolveMediaUrl(url: string): string {
+  if (!url || /^https?:\/\//i.test(url)) return url
+  if (!url.startsWith('/')) return url
+  const isElec = typeof window !== 'undefined' && !!(window as any).chronicleElectron?.isElectron
+  if (!isElec) return url
+  const baseUrl = getMediaOrigin()
+  return baseUrl ? `${baseUrl}${url}` : url
+}
+
+/**
+ * Resolve the media origin (scheme + host) for resolving relative media URLs.
+ *
+ * Priority:
+ * 1. chronicle_media_url — server-declared via /api/admin/status (useServerUrl)
+ * 2. __CHRONICLE_MEDIA_BASE_URL__ — build-time VITE_CDN_BASE_URL / VITE_MEDIA_DOMAIN
+ * 3. chronicle_api_url — user-configured API server (also serves static files)
+ * 4. VITE_API_BASE_URL — build-time API base URL
+ * 5. http://localhost:3000 — Electron default (user hasn't configured anything yet)
+ */
+export function getMediaOrigin(): string {
+  // 1. Server-declared media domain (from useServerUrl.verify() → localStorage)
+  const mediaUrl = (() => { try { return localStorage.getItem('chronicle_media_url') || '' } catch { return '' } })()
+  if (mediaUrl) return mediaUrl.replace(/\/$/, '')
+
+  // 2. Build-time CDN / media domain
+  try {
+    const globalMedia = (window as any).__CHRONICLE_MEDIA_BASE_URL__
+    if (globalMedia && typeof globalMedia === 'string') return globalMedia.replace(/\/$/, '')
+  } catch (e) { }
+
+  // 3. User-configured API server (also serves /server/data/… static files)
+  const apiUrl = (() => { try { return localStorage.getItem('chronicle_api_url') || '' } catch { return '' } })()
+  if (apiUrl) return apiUrl.replace(/\/$/, '')
+
+  // 4. Build-time API base URL
+  const buildApiUrl = String(import.meta.env.VITE_API_BASE_URL || '').trim()
+  if (buildApiUrl) return buildApiUrl
+
+  // 5. Electron default (no URL configured yet)
+  const isElec = typeof window !== 'undefined' && !!(window as any).chronicleElectron?.isElectron
+  if (isElec) return 'http://localhost:3000'
+
+  return ''
 }
 
 export function isBackgroundGeneratedRel(rel: any, scope: BackgroundScope) {
@@ -144,6 +203,28 @@ export function resolveBackgroundSourcePath(raw: any, scope: BackgroundScope) {
 
 export function resolveBackgroundSourceName(raw: any, scope: BackgroundScope) {
   return normalizeBackgroundRecord(raw, scope)?.sourceName || ''
+}
+
+/**
+ * Build a fallback URL for the same path against the API server origin.
+ * Used when the primary URL (e.g. media CDN) fails to load — retry against
+ * the API server which also serves /server/data/… static files.
+ *
+ * Returns empty string if the URL is already pointing to the API server
+ * (no point falling back to the same origin), or if no API server URL is known.
+ */
+export function buildApiFallbackUrl(mediaUrl: string): string {
+  if (!mediaUrl || !/^https?:\/\//i.test(mediaUrl)) return ''
+  try {
+    const u = new URL(mediaUrl)
+    const apiUrl = (() => { try { return localStorage.getItem('chronicle_api_url') || '' } catch { return '' } })()
+    if (!apiUrl) return ''
+    const apiOrigin = apiUrl.replace(/\/$/, '')
+    // If the URL is already on the API server origin, no fallback needed
+    if (u.origin === new URL(apiOrigin).origin) return ''
+    // Same path, different origin
+    return `${apiOrigin}${u.pathname}${u.search}${u.hash}`
+  } catch (e) { return '' }
 }
 
 export function resolveBackgroundCompression(raw: any, scope: BackgroundScope) {
