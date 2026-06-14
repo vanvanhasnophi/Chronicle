@@ -705,7 +705,7 @@ function getTypePrefixForFile(file: File): string {
     if (mime.startsWith('video/') || ['mp4','webm','mov','mkv','avi'].includes(ext)) return 'video'
     if (mime === 'application/pdf' || ['pdf','doc','docx','ppt','pptx','xls','xlsx'].includes(ext)) return 'document'
     if (mime.startsWith('text/') || ['txt','md','js','ts','json','css','html','log','csv','xml','yaml','yml'].includes(ext)) return 'text'
-    return 'file'
+    return 'attach'
 }
 const editorQueryId = computed(() => {
     const id = route.query.id
@@ -2903,7 +2903,7 @@ function insertMediaMarkdown(name: string, path: string, category?: string) {
     const ext = name.split('.').pop()?.toLowerCase() || ''
     let insertText = ''
 
-    const markdownPath = /^(https?:|blob:|data:|file:|\/|(?:audio|video|document|text):)/i.test(path)
+    const markdownPath = /^(https?:|blob:|data:|file:|\/|(?:audio|video|document|text|other):)/i.test(path)
         ? path : `${CDN_BASE_URL}${path}`
 
     if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) {
@@ -3093,7 +3093,7 @@ async function uploadMediaFile(file: File) {
 /** Find blob: and file:// URLs in markdown (with or without type prefix) */
 function extractLocalUrls(markdown: string): string[] {
     // Match: blob:http://... or file:///... possibly with audio:/video:/document:/text:/file: prefix
-    const pattern = /(?:(?:audio|video|document|text|file):)?(?:blob:https?:\/\/[^)\s\]]+|file:\/\/\/[^)\s\]]+)/gi
+    const pattern = /(?:(?:audio|video|document|text|other):)?(?:blob:https?:\/\/[^)\s\]]+|file:\/\/\/[^)\s\]]+)/gi
     const matches = markdown.match(pattern)
     return matches ? [...new Set(matches)] : []
 }
@@ -3138,20 +3138,20 @@ async function resolveLocalFileUrls(markdown: string): Promise<Record<string, st
     const mapping: Record<string, string> = {}
 
     for (const fullUrl of urls) {
-        // Strip the type prefix to get the raw blob:/file:// URL.
-        // CRITICAL: file:/// is a URL scheme, NOT a type prefix.
-        // The regex must NOT match "file:" when it is part of "file:///".
-        const rawUrl = fullUrl
-            .replace(/^(audio|video|document|text):/, '')       // unambiguous prefixes
-            .replace(/^file:(?=blob:|file:\/\/\/)/, '')          // file: type prefix only
+        // Strip the type prefix (audio:/video:/document:/text:/attach:) to get
+        // the raw blob:/file:// URL.  file:/// is a URL scheme — now that the
+        // generic type prefix is "attach:" instead of "file:", there is no ambiguity.
+        const rawUrl = fullUrl.replace(/^(audio|video|document|text|other):/, '')
         const file = await getFileFromUrl(rawUrl)
         if (!file) { console.warn('[resolveLocalFileUrls] getFileFromUrl returned null for', fullUrl, '→ rawUrl:', rawUrl); continue }
         try {
             const cloudUrl = await uploadMediaFile(file)
             if (cloudUrl) {
                 // Preserve the type prefix so file-card rendering works
-                const prefix = fullUrl.match(/^(audio|video|document|text|file):/)?.[0] || ''
-                mapping[fullUrl] = prefix ? prefix + cloudUrl : cloudUrl
+                const prefix = fullUrl.match(/^(audio|video|document|text|other):/)?.[0] || ''
+                // Encode spaces/CJK in the cloud URL for valid markdown link syntax
+                const safeUrl = encodeMarkdownUrl(cloudUrl)
+                mapping[fullUrl] = prefix ? prefix + safeUrl : safeUrl
                 fileMap.delete(rawUrl)
             } else {
                 showToast(`Upload failed: ${file.name}`, { status: 'error', duration: 3000 })

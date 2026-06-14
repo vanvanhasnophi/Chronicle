@@ -146,7 +146,7 @@ const TYPE_PREFIXES: [string, string, string][] = [
   ['archive:',  'Archive',   'archive'],
   ['link:',     'Link',      'link'],
   ['mailto:',   'Email',     'person'],
-  ['file:',     'File',      'link'],
+  ['attach:',   'File',      'link'],
 ];
 
 function getPrefixIcon(key: string): string {
