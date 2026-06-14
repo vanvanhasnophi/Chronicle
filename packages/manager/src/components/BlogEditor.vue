@@ -3168,8 +3168,8 @@ async function handleMediaPicked(entry: any) {
                 continue
             }
 
-            // Cloud file with server URL (cloud editing)
-            if (ent.uploadedUrl && isCloudEditing.value) {
+            // Cloud file with server URL — works in both cloud and local editing modes
+            if (ent.uploadedUrl) {
                 insertMediaMarkdown(name, ent.uploadedUrl)
                 continue
             }
