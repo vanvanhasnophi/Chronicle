@@ -662,12 +662,13 @@ const isElectron = !!(typeof window !== 'undefined' && (window as any).chronicle
 /** Create a renderable URL for a File: blob:// in browser, file:// in Electron */
 async function fileToUrl(file: File): Promise<string> {
     if (isElectron) {
-        // Resolve the absolute filesystem path, then encode as a valid file:// URI.
-        // encodeURI handles spaces, CJK, and other special chars in the path.
+        // Resolve the absolute filesystem path as a file:// URI.
+        // Only encode chars that break markdown links (spaces, control chars).
+        // CJK stays as-is — same as encodeMarkdownUrl, keeps cloud file list in sync.
         const toFileUri = (raw: string) => {
             const normalized = raw.replace(/\\/g, '/')
             const absolute = normalized.startsWith('/') ? normalized : '/' + normalized
-            return 'file://' + encodeURI(absolute)
+            return 'file://' + absolute.replace(/[\s\x00-\x1f]/g, (c) => encodeURIComponent(c))
         }
         // 1. Sync: try legacy .path property (drag-drop, <input type="file">)
         const p = (file as any).path as string | undefined
