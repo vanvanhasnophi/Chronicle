@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and uses [Semantic Versioning](https://semver.org/).
 
+## [2.0.5] - 2026-06-14
+
+### Fixed
+- **Electron close-guard dialog**: replaced `will-prevent-unload` (fires after close starts, can't stop it) with `BrowserWindow.close` event as the primary guard. `BlogEditor` syncs `isDirty` to `window.__chronicleDirty` so the main process can check dirty state before showing the Leave/Stay dialog. 3 s timeout prevents permanent uncloseability if the renderer hangs.
+- **Electron CSP — inline event handlers dropped**: production `script-src` was missing `'unsafe-inline'`. The image wrapper's `onload`/`onerror` handlers (which add `.loaded` for `opacity:0→1` and `data-error` for broken images) were silently stripped by CSP, causing all images in the editor preview to stay permanently invisible behind the "Loading..." placeholder. They loaded correctly (full-screen preview proved it) but CSS never revealed them.
+- **Electron CSP — local file images blocked**: `img-src` and `connect-src` were missing `file:` scheme. `<img src="file:///...">` and `fetch('file:///...')` (for upload) were both blocked.
+- **DOMPurify stripped `file:///` URLs**: `SANITIZE_CONFIG` lacked `ALLOWED_URI_REGEXP`; DOMPurify's default whitelist (http/https/data/blob) cleared `file:///` from `src` attributes. Images rendered as bare `<img src="">`.
+- **FilePicker cloud URL in local editing**: `handleMediaPicked` required `isCloudEditing` to match `uploadedUrl` entries. Selecting a cloud file in local/Electron mode silently did nothing — all three branches failed to match.
+- **FilePicker dialog inserted blob URLs instead of `file:///`**: `ent.preview` (a blob URL for thumbnails) short-circuited `fileToUrl()` in the local-file branch. Dialog insertion now calls `fileToUrl()` directly, same pipeline as drag-and-drop/paste.
+- **Preview modal showed thumbnails instead of originals**: URL resolution for cloud files preferred `file.preview` (often `item.thumb`) over `file.uploadedUrl`/`file.url`. Reordered to `uploadedUrl → url → preview`.
+- **`performance.ts` type error**: `setUserOverride` accepted `PerfMode` which includes `'auto'` — but `'auto'` is not a valid override (saving it is dead data). Extracted `ResolvedMode = 'full' | 'reduced'` type; `setUserOverride` now only accepts resolved modes. `togglePerformanceMode` return type fixed to `ResolvedMode`.
+
+### Changed
+- **FilePicker selected chips**: replaced comma-separated text (`"a.jpg, b.pdf"`) with styled dismissible chips. Each chip shows filename + × button; click filename to preview (reuses the same `usePreview` imperative API as cloud file grid items). Multi-select chips wrap with flexbox.
+- **Unified preview pipeline**: deleted `useImagePreview.ts` and `ImagePreviewModal.vue` (dead code, zero imports). All file/image previews now go through a single imperative path: `usePreview.ts` (module-level reactive singleton) → `FilePreviewModal.vue` (global mount in App.vue). Electron multi-window is safe — each window has its own JS context, so singleton state is naturally scoped per window.
+
+### Internal
+- All packages bumped to `2.0.5`.
+
 ## [2.0.4] - 2026-06-14
 
 ### Fixed

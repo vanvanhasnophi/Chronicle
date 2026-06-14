@@ -480,7 +480,11 @@ function isFileTypeAllowed(filename: string, mimeType?: string): boolean {
 }
 
 function triggerLocalPicker() {
-    if ((window as any).showOpenFilePicker) {
+    // Electron: use <input type="file"> which preserves file.path for
+    // file:/// URL generation. showOpenFilePicker creates in-memory Files
+    // that lose the filesystem path, breaking fileToUrl().
+    const isElectron = !!(window as any).chronicleElectron?.isElectron
+    if ((window as any).showOpenFilePicker && !isElectron) {
         const options: any = { multiple: allowMultiple }
         if (restrictedTypes && restrictedTypes.length > 0) {
             const accept: Record<string, string[]> = {}
