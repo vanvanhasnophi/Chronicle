@@ -367,6 +367,23 @@ ipcMain.handle('open-print-in-browser', async (event, html, title) => {
   shell.openPath(filePath);
 });
 
+// IPC: read a local file by absolute path → base64.
+// Used by the editor to recover File objects from file:/// URLs
+// when fileMap is empty (page refresh). Bypasses fetch('file:///...')
+// which fails in dev mode (http→file SOP) and may fail in production.
+ipcMain.handle('read-file-by-path', async (event, absPath) => {
+  if (typeof absPath !== 'string' || !absPath) return null;
+  try {
+    // Security: only allow absolute paths, reject protocol-style paths
+    if (!path.isAbsolute(absPath)) return null;
+    // Reject paths larger than 4KB (not a real path)
+    if (absPath.length > 4096) return null;
+    // Read and return as base64 — renderer decodes back to Blob → File
+    const buf = fs.readFileSync(absPath);
+    return buf.toString('base64');
+  } catch { return null; }
+});
+
 // ── Content Security Policy ────────────────────────────────────
 // Restrict what the renderer can load and execute. The CSP is
 // applied to all file:// and internal pages.

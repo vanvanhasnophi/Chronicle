@@ -36,6 +36,11 @@ contextBridge.exposeInMainWorld('chronicleElectron', {
   // Falls back to empty string for non-backed files (in-memory blobs, etc.).
   getPathForFile: (file) => webUtils.getPathForFile(file),
 
+  // Read a file from disk by absolute path → base64 string.
+  // Used as fallback when fileMap is empty (page refresh) and
+  // fetch('file:///...') is blocked by CSP or SOP.
+  readFileByPath: (absPath) => ipcRenderer.invoke('read-file-by-path', absPath),
+
   // Window controls (frameless window)
   windowMinimize: () => ipcRenderer.send('window-minimize'),
   windowMaximize: () => ipcRenderer.send('window-maximize'),

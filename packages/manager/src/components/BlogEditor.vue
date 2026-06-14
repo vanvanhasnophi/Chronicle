@@ -662,19 +662,20 @@ const isElectron = !!(typeof window !== 'undefined' && (window as any).chronicle
 /** Create a renderable URL for a File: blob:// in browser, file:// in Electron */
 async function fileToUrl(file: File): Promise<string> {
     if (isElectron) {
+        // Resolve the absolute filesystem path, then encode as a valid file:// URI.
+        // encodeURI handles spaces, CJK, and other special chars in the path.
+        const toFileUri = (raw: string) => {
+            const normalized = raw.replace(/\\/g, '/')
+            const absolute = normalized.startsWith('/') ? normalized : '/' + normalized
+            return 'file://' + encodeURI(absolute)
+        }
         // 1. Sync: try legacy .path property (drag-drop, <input type="file">)
         const p = (file as any).path as string | undefined
-        if (p) {
-            return p.startsWith('/') ? `file://${p}` : `file:///${p.replace(/\\/g, '/')}`
-        }
+        if (p) return toFileUri(p)
         // 2. Async: webUtils.getPathForFile (Electron 32+) — covers clipboard paste
         try {
             const resolved = await ((window as any).chronicleElectron?.getPathForFile?.(file))
-            if (resolved) {
-                return resolved.startsWith('/')
-                    ? `file://${resolved}`
-                    : `file:///${resolved.replace(/\\/g, '/')}`
-            }
+            if (resolved) return toFileUri(resolved)
         } catch {}
     }
     // 3. Fallback: in-memory blob (browser, or Electron with no disk backing)
@@ -3097,15 +3098,24 @@ async function getFileFromUrl(rawUrl: string): Promise<File | null> {
     const cached = fileMap.get(rawUrl)
     if (cached) return cached
 
-    // Electron: read from disk when fileMap is gone (e.g. after refresh)
+    // Electron: read from disk when fileMap is gone (e.g. after refresh).
+    // Uses preload IPC instead of fetch('file:///...') which is blocked
+    // by SOP in dev mode (http→file) and may fail in production.
     if (isElectron && rawUrl.startsWith('file://')) {
         try {
-            const res = await fetch(rawUrl)
-            if (!res.ok) return null
-            const blob = await res.blob()
+            // file:///home/photo.jpg  →  /home/photo.jpg
+            // file:///C:/Users/x.jpg  →  C:/Users/x.jpg (Windows)
+            let filePath = rawUrl.replace(/^file:\/\//, '')
+            if (/^\/[A-Za-z]:/.test(filePath)) filePath = filePath.slice(1)
+            filePath = decodeURI(filePath)
+            const base64 = await ((window as any).chronicleElectron?.readFileByPath?.(filePath))
+            if (!base64) return null
+            const binary = atob(base64)
+            const bytes = new Uint8Array(binary.length)
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+            const blob = new Blob([bytes])
             const filename = rawUrl.split('/').pop() || 'file'
-            const type = blob.type || 'application/octet-stream'
-            return new File([blob], filename, { type })
+            return new File([blob], filename, { type: blob.type || 'application/octet-stream' })
         } catch {
             return null
         }
