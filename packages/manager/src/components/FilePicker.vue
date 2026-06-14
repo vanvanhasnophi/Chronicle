@@ -90,7 +90,7 @@
                                     </svg></button>
                             </div>
                             <button type="button" class="file-op-btn icon-label-btn narrow"
-                                @click="refreshCloudFiles"><span class="icon-svg" v-html="Icons.sync"></span></button>
+                                @click="refreshCloudFiles"><span class="icon-svg" v-html="Icons.refresh"></span></button>
                             <template v-if="allowUpload">
                                 <button type="button" class="file-op-btn icon-label-btn"
                                     @click="triggerUploadInput"><svg xmlns="http://www.w3.org/2000/svg" width="24"
@@ -918,7 +918,8 @@ watch(() => props.selectionMode, () => {
     color: var(--component-text-primary-hover);
 }
 
-.file-op-btn svg {
+.file-op-btn :deep(svg),
+.file-op-btn .icon-svg {
     width: 16px;
     height: 16px;
 }

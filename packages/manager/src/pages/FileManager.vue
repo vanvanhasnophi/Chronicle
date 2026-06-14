@@ -84,7 +84,7 @@
                         <!-- Refresh -->
                         <button type="button" class="icon-label-btn chronicle-fb-btn narrow" @click="refresh"
                             :title="$t('file.refresh')">
-                            <span class="icon-svg" v-html="Icons.sync"></span>
+                            <span class="icon-svg" v-html="Icons.refresh"></span>
                         </button>
 
                         <!-- Upload -->
@@ -665,10 +665,11 @@ onUnmounted(() => {
 /* Toolbar buttons (refresh, upload) */
 :deep(.chronicle-fb-btn) {
     font-size: 0.9rem;
-    padding: 0.45rem 0.7rem;
+    padding: 0.55rem 0.7rem;
 }
 
-:deep(.chronicle-fb-btn svg) {
+:deep(.chronicle-fb-btn svg),
+:deep(.chronicle-fb-btn .icon-svg) {
     width: 18px;
     height: 18px;
 }
