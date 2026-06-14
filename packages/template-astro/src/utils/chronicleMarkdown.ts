@@ -33,6 +33,9 @@ const md = new MarkdownIt({
   breaks: false,
 });
 
+// Allow file:/// URLs for Electron local images (default validateLink blocks file:)
+md.validateLink = (url: string) => /^(https?:|file:|mailto:|\/|#|[a-zA-Z][a-zA-Z0-9+.-]*:)/i.test(String(url));
+
 md.use(markdownItFootnote);
 
 // Strip brackets from footnote refs: [1] → 1
