@@ -233,7 +233,7 @@ function createWindow() {
 if (Menu) {
   const viewSubmenu = isDev
     ? [{ role: 'reload' }, { role: 'forceReload' }, { role: 'toggleDevTools' }, { type: 'separator' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { role: 'resetZoom' }]
-    : [{ role: 'zoomIn' }, { role: 'zoomOut' }, { role: 'resetZoom' }];
+    : [{ role: 'reload' }, { role: 'forceReload' }, { type: 'separator' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { role: 'resetZoom' }];
 
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { label: 'File', submenu: [{ role: 'quit', label: 'Quit Chronicle' }] },

@@ -1194,7 +1194,7 @@ async function rebuildFrontend() {
               <div class="quick-section">
                 <button @click="quickOpen = false; rebuildFrontend()" :disabled="!isAvailable"
                   :class="{ inprogress: isRebuilding }">
-                  <span class="icon-svg" v-html="ShellIcons.refresh"></span>
+                  <span class="icon-svg" v-html="ShellIcons.sync"></span>
                   {{isRebuilding? t('settings.building') : t('nav.buildNow')}}
                 </button>
                 <button @click="quickOpen = false; openFrontend()">

@@ -86,7 +86,7 @@ import { useI18n } from 'vue-i18n'
 import useToast from '../../composables/useToast.ts'
 import BackgroundEditorModal from '../../components/BackgroundEditorModal.vue'
 import { hexToRgbString } from '../../utils/colorUtils.ts'
-import { normalizeBackgroundRecord, normalizeUploadRelPath, resolveBackgroundSourceName, resolveBackgroundSourcePath, resolveBackgroundUrl } from '../../utils/backgroundSettings.ts'
+import { normalizeBackgroundRecord, normalizeUploadRelPath, resolveBackgroundSourceName, resolveBackgroundSourcePath, resolveBackgroundUrl, resolveMediaUrl } from '../../utils/backgroundSettings.ts'
 
 const { locale } = useI18n()
 const uiBackendLocale = ref('follow')
@@ -158,7 +158,7 @@ onMounted(() => { loadSettingsFromServer() })
 
 // Apply backend background CSS vars on mount
 try {
-  if (uiBackendBackground.value) document.documentElement.style.setProperty('--backend-bg-image', `url(${uiBackendBackground.value})`)
+  if (uiBackendBackground.value) document.documentElement.style.setProperty('--backend-bg-image', `url(${resolveMediaUrl(uiBackendBackground.value)})`)
   else document.documentElement.style.setProperty('--backend-bg-image', 'none')
   try {
     if (uiBackendBackgroundMeta.value) {
@@ -181,7 +181,7 @@ try {
         if (layer) {
           const imgEl = layer.querySelector('.bg-image') as HTMLElement | null
           const overlayEl = layer.querySelector('.bg-overlay') as HTMLElement | null
-          if (imgEl) imgEl.style.backgroundImage = uiBackendBackground.value ? `url(${uiBackendBackground.value})` : 'none'
+          if (imgEl) imgEl.style.backgroundImage = uiBackendBackground.value ? `url(${resolveMediaUrl(uiBackendBackground.value)})` : 'none'
           if (overlayEl) overlayEl.style.background = (overlay === 'transparent') ? 'transparent' : `rgba(${hexToRgbString(overlay)}, ${opa})`
         }
       } catch (e) { }
@@ -194,15 +194,15 @@ function getBackgroundPreviewUrl() {
   const sourcePath = uiBackendBackgroundSourcePath.value
 
   if (displayUrl && displayUrl.includes('/server/data/')) {
-    return displayUrl
+    return resolveMediaUrl(displayUrl)
   }
 
   let candidate = sourcePath ? normalizeUploadRelPath(sourcePath) : normalizeUploadRelPath(displayUrl)
   if (candidate) {
-    const origin = typeof window !== 'undefined' && window.location ? window.location.origin : ''
-    return `${origin}/server/data/upload/.thumbs/${candidate}`
+
+    return resolveMediaUrl(`/server/data/upload/.thumbs/${candidate}`)
   }
-  return displayUrl
+  return resolveMediaUrl(displayUrl)
 }
 
 function handleEditBackground() {
@@ -305,7 +305,7 @@ function applyBackgroundToDom() {
   const backgroundMeta = uiBackendBackgroundMeta.value
 
   try {
-    if (backgroundUrl) document.documentElement.style.setProperty('--backend-bg-image', `url(${backgroundUrl})`)
+    if (backgroundUrl) document.documentElement.style.setProperty('--backend-bg-image', `url(${resolveMediaUrl(backgroundUrl)})`)
     else document.documentElement.style.setProperty('--backend-bg-image', 'none')
 
     if (!backgroundMeta) return
@@ -346,7 +346,7 @@ function applyBackgroundToDom() {
     const surfaceEl = layer.querySelector('.bg-surface') as HTMLElement | null
     const overlayEl = layer.querySelector('.bg-overlay') as HTMLElement | null
     if (imgEl) {
-      imgEl.style.backgroundImage = backgroundUrl ? `url(${backgroundUrl})` : 'none'
+      imgEl.style.backgroundImage = backgroundUrl ? `url(${resolveMediaUrl(backgroundUrl)})` : 'none'
       imgEl.style.backgroundPosition = `${m.posX || 50}% ${m.posY || 50}%`
       imgEl.style.backgroundSize = `${m.size || 100}%`
       imgEl.style.filter = `blur(${m.blur || 0}px)`
@@ -464,13 +464,11 @@ function reset() {
   margin-bottom: 12px;
 }
 
-
 .appearance-controls {
   display: flex;
   flex-direction: column;
   gap: 24px;
 }
-
 
 .form-row {
   margin-bottom: 10px;
@@ -482,7 +480,6 @@ function reset() {
 .form-row:last-child {
   margin-bottom: 0;
 }
-
 
 .settings-card h3 {
   margin-top: 5px;
