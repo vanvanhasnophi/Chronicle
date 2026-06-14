@@ -393,8 +393,8 @@ app.on('web-contents-created', (event, contents) => {
       responseHeaders: {
         ...details.responseHeaders,
         'Content-Security-Policy': isDev
-          ? ["default-src 'self' http://localhost:* ws://localhost:*; style-src 'self' 'unsafe-inline' http://localhost:*; script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:*; img-src 'self' data: blob: file: http://localhost:* https:; font-src 'self' http://localhost:*; connect-src 'self' file: http://localhost:* ws://localhost:* https:"]
-          : ["default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; img-src 'self' data: blob: file: https:; font-src 'self'; connect-src 'self' file: https://*"],
+          ? ["default-src 'self' http://localhost:* ws://localhost:*; style-src 'self' 'unsafe-inline' http://localhost:*; script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:*; img-src 'self' data: blob: file: http://localhost:* https:; media-src 'self' file: http://localhost:* https:; object-src 'self' file: https:; frame-src 'self' https:; font-src 'self' http://localhost:*; connect-src 'self' file: http://localhost:* ws://localhost:* https:"]
+          : ["default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; img-src 'self' data: blob: file: https:; media-src 'self' file: https:; object-src 'self' file: https:; frame-src 'self' https:; font-src 'self'; connect-src 'self' file: https://*"],
       },
     });
   });
