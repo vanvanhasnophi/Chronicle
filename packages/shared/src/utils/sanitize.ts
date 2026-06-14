@@ -62,5 +62,8 @@ export const SANITIZE_CONFIG = {
   ALLOWED_ATTR,
   // Keep safe data-* attributes used by Chronicle file cards, image wrapper, etc.
   ALLOW_DATA_ATTR: true,
+  // Extend the default URI regex to allow file:/// URLs (Electron local images).
+  // DOMPurify's default allows http/https/ftp/mailto/tel/data/blob but not file:.
+  ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|file|mailto|tel|callto|sms|cid|xmpp|data|blob):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-]|$))/i,
   // We use DOMPurify's built-in RETURN_TRUSTED_TYPE off; just return a string.
 }

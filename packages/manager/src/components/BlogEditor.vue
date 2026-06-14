@@ -3160,7 +3160,7 @@ async function handleMediaPicked(entry: any) {
 
             // Local file, local editing: type-prefixed blobURL/fileURL + fileMap
             if (ent.file && !isCloudEditing.value) {
-                const rawUrl = ent.uploadedUrl || ent.preview || await fileToUrl(ent.file)
+                const rawUrl = await fileToUrl(ent.file)
                 const prefix = getTypePrefixForFile(ent.file)
                 const markdownUrl = prefix ? `${prefix}:${rawUrl}` : rawUrl
                 fileMap.set(rawUrl, ent.file)

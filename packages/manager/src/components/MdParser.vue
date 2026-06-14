@@ -306,24 +306,7 @@ function scheduleRenderMath() {
 }
 
 // Inline TOC logic moved to page-level (BlogPost.vue)
-
-// Removed local preview states as we now use global composables
-
-function handleImgWheel(e: WheelEvent) {
-  // Logic moved to useImagePreview
-}
-
-function handleImgMouseDown(e: MouseEvent) {
-  // Logic moved to useImagePreview
-}
-
-function handleImgMouseMove(e: MouseEvent) { 
-  // Logic moved to useImagePreview
-}
-
-function handleImgMouseUp() {
-  // Logic moved to useImagePreview
-}
+// Image zoom/pan is handled by FilePreviewModal (usePreview composable)
 
 function renderBlockHtml(block: ContentBlock): string {
   let html = convertToHtml(block)

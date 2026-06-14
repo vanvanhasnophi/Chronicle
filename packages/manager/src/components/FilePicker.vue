@@ -178,9 +178,13 @@
         <div class="selected-list">
             <h4>{{ t('filePicker.selectedTitle') || '已选择' }}</h4>
             <div class="selected-items">
-                <span v-if="selectedEntries.length > 0" class="selected-text">
-                    {{selectedEntries.map((item) => item.displayname || item.name).join(', ')}}
-                </span>
+                <div v-if="selectedEntries.length > 0" class="selected-chips">
+                    <span v-for="(item, idx) in selectedEntries" :key="item.key" class="selected-chip"
+                        @click="openChipPreview(item)" title="点击预览">
+                        <span class="chip-name">{{ item.displayname || item.name }}</span>
+                        <button class="chip-remove" @click.stop="removeSelected(idx)" :title="t('filePicker.deselect') || '取消选择'"><span class="icon-svg" v-html="Icons.close"></span></button>
+                    </span>
+                </div>
                 <div v-else class="empty" style="text-align: center; color: var(--component-text-secondary)">{{
                     t('filePicker.selectedNone') || '暂无选择' }}</div>
             </div>
@@ -580,16 +584,27 @@ const isImage = (name: string) => /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)$/i.test
 
 
 const openPreview = async (file: any) => {
-    const url = file.url || `/server/data/upload/${file.path}`
+    // Resolve URL: server original → local blob → upload path → File blob
+    // Note: file.preview may be a thumbnail for cloud files, so prefer
+    // uploadedUrl/url (the original) first.
+    const url = file.uploadedUrl || file.url || file.preview
+        || (file.path ? `/server/data/upload/${file.path}` : '')
+        || (file.file ? fileToBlobUrl(file.file) : '')
+    if (!url) return
     if (isImage(file.name)) {
         openImagePreview(url)
     } else {
         openGlobalPreview({
-            name: file.name, // 必须使用原文件名
+            name: file.name,
             path: url,
             type: getFileType(file.name)
         })
     }
+}
+
+/** Preview a chip entry — reuse the same imperative preview as cloud files */
+function openChipPreview(item: any) {
+    openPreview(item)
 }
 
 async function toFileEntry(file: File) {
@@ -1026,7 +1041,7 @@ watch(() => props.selectionMode, () => {
     overflow-x: hidden;
     background: transparent;
     border: none;
-    padding: .5rem;
+    padding: .5rem 1rem .5rem .5rem;
     display: flex;
     flex-direction: column;
     gap: .5rem
@@ -1199,11 +1214,60 @@ watch(() => props.selectionMode, () => {
     min-height: 1.5rem
 }
 
-.selected-text {
-    display: block;
-    white-space: normal;
-    word-break: break-word;
-    line-height: 1.5
+.selected-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+    justify-content: center;
+}
+
+.selected-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .2rem .5rem;
+    background: var(--component-bg-blur);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: .85rem;
+    max-width: 100%;
+    transition: all 0.15s ease;
+}
+
+.selected-chip:hover{
+    background: var(--component-bg-hover);
+    border-color: var(--component-text-primary);
+}
+
+.chip-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.chip-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background .15s, color .15s;
+}
+
+.chip-remove :deep(svg), .chip-remove .icon-svg {
+    width: 18px;
+    height: 18px;
+}
+
+.chip-remove:hover {
+    color: var(--text-primary);
 }
 
 .picker-actions {
