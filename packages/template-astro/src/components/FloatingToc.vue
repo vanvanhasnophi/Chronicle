@@ -246,7 +246,7 @@ function onFloatMouseLeave() {
 .toc-float { 
     right: calc(10px + 2vw); 
     position: fixed; 
-    top: calc(10px + 20vh); 
+    top: calc(30px + 10vh); 
     /* remove fixed bottom so height can shrink to content; constrain via max-height */
     z-index: 1199; 
     overflow-x: hidden;
@@ -266,7 +266,7 @@ function onFloatMouseLeave() {
 .toc-float.collapsed ul {padding: 0;}
 
 .toc-float li { display: flex; align-items: center; transition: justify-content 0.3s ease; min-height: 20px; position: relative; }
-.toc-float.collapsed li { justify-content: center; margin: 0; }
+.toc-float.collapsed li { justify-content: center; margin: 0; min-height: 18px;}
 .toc-float:not(.collapsed) li { justify-content: flex-start; }
 
 .toc-link {
