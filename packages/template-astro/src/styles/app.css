@@ -82,7 +82,7 @@ html.is-mobile .app-title{
 .app-title {
   color: var(--text-primary);
   margin: 0;
-  font-size: 1.6rem;
+  font-size: 1.5rem;
 }
 
 .reading-title {
