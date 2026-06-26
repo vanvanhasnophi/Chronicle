@@ -16,7 +16,8 @@ html.is-mobile .nav-header {
 }
 
 html.is-mobile .app-title{
-  font-size: 1.3rem;
+  font-size: 1.2rem;
+  transform: translateY(.1rem);
   vertical-align: middle;
 }
 
@@ -50,6 +51,10 @@ html.is-mobile .app-title{
   height: 100%;
   max-width: 1200px;
   margin: 0 auto;
+}
+
+html.is-mobile .nav-content {
+  padding: 0 1.5rem;
 }
 
 

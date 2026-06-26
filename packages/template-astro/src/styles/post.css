@@ -124,15 +124,13 @@
       margin-bottom: 24px;
     }
 
-    .markdown-toc>summary {
-      list-style: none;
-    }
-
-    .markdown-toc>summary::-webkit-details-marker {
-      display: none;
-    }
-
     .markdown-toc .toc-summary {
+      width: 100%;
+      padding: 0;
+      border: none;
+      background: transparent;
+      color: inherit;
+      font: inherit;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -157,16 +155,31 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      font-size: 0.85rem;
-      line-height: 1;
     }
 
-    .markdown-toc[open] .toc-toggle-icon {
+    .markdown-toc.open .toc-toggle-icon {
       transform: rotate(0deg);
     }
 
-    .markdown-toc .toc-body {
+    /* Grid 展开动画 */
+    .markdown-toc .toc-body-wrap {
+      display: grid;
+      grid-template-rows: 0fr;
+      padding-top: 0;
+      transition: grid-template-rows 0.25s ease, padding-top 0.25s ease;
+    }
+    .markdown-toc.open .toc-body-wrap {
+      grid-template-rows: 1fr;
       padding-top: 8px;
+    }
+    .markdown-toc .toc-body {
+      overflow: hidden;
+      min-height: 0;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+    }
+    .markdown-toc.open .toc-body {
+      opacity: 1;
     }
 
     .markdown-toc .toc-list {

@@ -102,7 +102,7 @@ try {
       color: inherit;
     }
     .post-card.collection-card {
-      padding: 16px;
+      padding: 0;
       background: var(--component-bg-blur-alt);
       border: 1px solid var(--border-color-blur);
       border-radius: 8px;
@@ -114,6 +114,9 @@ try {
     .post-card.collection-card:hover {
       transform: translateY(-2px);
       border-color: var(--component-text-primary-highlight);
+    }
+    .collection-card-content{
+      padding: 14px 16px;
     }
     .collection-card-title {
       font-size: 1.1em;
@@ -470,20 +473,25 @@ try {
             if (c.cover) {
               const coverWrapper = document.createElement("div");
               coverWrapper.className = "collection-card-cover";
+              coverWrapper.style.width = "100%";
+              coverWrapper.style.height = "140px";
 
               const coverImg = document.createElement("img");
               coverImg.src = c.cover;
               coverImg.alt = formatCollectionName(c.name);
               coverImg.loading = "lazy";
               coverImg.style.width = "100%";
-              coverImg.style.height = "120px";
+              coverImg.style.height = "100%";
               coverImg.style.objectFit = "cover";
               coverImg.style.borderRadius = "6px";
-              coverImg.style.marginBottom = "12px";
 
               coverWrapper.appendChild(coverImg);
               card.appendChild(coverWrapper);
             }
+
+            const contentWrapper = document.createElement("div");
+            contentWrapper.className = "collection-card-content";
+            card.appendChild(contentWrapper);
 
             const title = document.createElement("h3");
             title.className = "collection-card-title";
@@ -493,8 +501,8 @@ try {
             desc.className = "collection-card-desc";
             desc.textContent = c.description || "";
 
-            card.appendChild(title);
-            card.appendChild(desc);
+            contentWrapper.appendChild(title);
+            contentWrapper.appendChild(desc);
             link.appendChild(card);
             gridEl.appendChild(link);
           });

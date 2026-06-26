@@ -4,11 +4,9 @@
     <div class="collection-nav-header">
       <div class="collection-nav-title">
         <span class="collection-title-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">
-            <path d="M12 11 Q16 13 20 16 Q16 19 12 21 Q8 19 4 16 Q8 13 12 11 Z" stroke="currentColor" stroke-width="1.5"
-              stroke-linejoin="round" stroke-linecap="round" fill="none" />
-            <path d="M12 5 Q16 7 20 10 Q16 13 12 15 Q8 13 4 10 Q8 7 12 5 Z" :fill="'var(--component-bg-blur)'"
-              stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" />
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-hidden="true">
+            <path d="M 12 2 L 21 8 L 12 14 L 3 8 Z" />
+            <path d="M 18 14 L 21 16 L 12 22 L 3 16 L 6 14" />
           </svg>
         </span>
         <select v-if="matchedCollections.length > 1" v-model="activeIndex" class="collection-switcher" @change="onSwitchCollection">
@@ -462,14 +460,13 @@ onBeforeUnmount(() => {
 }
 
 .collection-nav .collection-title-icon {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: var(--component-text-secondary);
-  flex: 0 0 20px;
-  transform: translateY(-1px);
+  flex: 0 0 18px;
 }
 
 .collection-nav .collection-title-icon svg {
