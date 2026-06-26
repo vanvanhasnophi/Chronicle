@@ -1,6 +1,6 @@
 <template>
   <div class="post-manager">
-    <section class="main-content">
+    <section class="post-manager-container">
       <!-- Toolbar -->
       <div class="chronicle-fb-toolbar">
         <!-- Status filter select — always visible, replaces sidebar -->
@@ -158,6 +158,10 @@ import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { sortTags } from '../utils/tagUtils'
 import useToast from '../composables/useToast'
+import { getNotificationCenter } from '../composables/useNotificationCenter'
+import { settingsStore } from '../composables/settingsApi'
+
+const nc = getNotificationCenter()
 
 interface Post {
   id: string
@@ -460,6 +464,38 @@ async function republishAll() {
     showToast(`${t('post.republishToastTitle')}：${html}${buildStatus ? ` <span class="republish-build-note">(${escapeHtml(buildStatus)}${buildMessage ? ` ${escapeHtml(buildMessage)}` : ''})</span>` : ''}`, {
       status: toastStatus, position: 'bottom-center', shape: 'capsule', duration: 6000, rich: true,
     })
+
+    // Auto-build：host 不再在 republish-all 中自动构建，前端检查设置并触发
+    const settings = settingsStore.value as Record<string, any> | null
+    if (settings?.autoBuildOnPublish && successCount > 0) {
+      const bt = nc.startBuild(`${t('settings.building')} · ${t('notification.source.batchRepublish')}`)
+      if (bt) {
+        const detailLabels = { id: t('notification.detailId') as string, trigger: t('notification.detailTrigger') as string, time: t('notification.detailTime') as string }
+        nc.update(bt.nid, { message: nc.buildDetail(detailLabels, bt.clientBuildId, t('notification.source.batchRepublish') as string) })
+        try {
+          const res = await fetchWithAuth(`/api/admin/build/astro?t=${Date.now()}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clientBuildId: bt.clientBuildId, source: 'republish-all', reason: 'republish' }),
+          })
+          if (res.ok) {
+            const result = await res.json().catch(() => ({}))
+            const baseMsg = nc.buildDetail(detailLabels, bt.clientBuildId, t('notification.source.batchRepublish') as string)
+            if (result.status === 'timeout') {
+              nc.update(bt.nid, { state: 'completed', level: 'warning', title: t('settings.buildTimeout') as string, message: baseMsg })
+            } else {
+              nc.update(bt.nid, { state: 'completed', level: 'success', title: t('settings.buildCompleted') as string, message: baseMsg })
+            }
+          } else {
+            const msg = await res.json().then(d => d?.message).catch(() => '')
+            nc.update(bt.nid, { state: 'failed', level: 'error', title: t('settings.buildFailed') as string, message: `${nc.buildDetail(detailLabels, bt.clientBuildId, t('notification.source.batchRepublish') as string)}\n${t('notification.detailError')}: ${msg}`, actions: [{ label: t('nav.buildNow') as string, handler: 'retry-build' }] })
+          }
+        } catch (e: any) {
+          nc.update(bt.nid, { state: 'failed', level: 'error', title: t('settings.buildFailed') as string, message: `${nc.buildDetail(detailLabels, bt.clientBuildId, t('notification.source.batchRepublish') as string)}\n${t('notification.detailError')}: ${e?.message || ''}` })
+        }
+      }
+    }
+
     await loadPosts()
   } catch (error: any) {
     showToast(error?.message || t('post.republishAllFailed'), { status: 'error', position: 'bottom-center', shape: 'capsule', duration: 4000 })
@@ -518,13 +554,14 @@ onUnmounted(() => {
   color: var(--text-primary);
 }
 
-/* ── Main content ──────────────────────────────────────────────────── */
+/* ── Container ─────────────────────────────────────────────────────── */
 
-.main-content {
+.post-manager-container {
   flex: 1;
   display: flex;
   flex-direction: column;
   padding: 1.5rem 1.75rem;
+  bottom: 0;
   overflow-y: auto;
   min-width: 0;
 }

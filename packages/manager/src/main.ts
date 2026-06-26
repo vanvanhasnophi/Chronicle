@@ -62,7 +62,7 @@ const saved = localStorage.getItem('locale')
 const browser = (typeof navigator !== 'undefined' && navigator.language) ? navigator.language : 'en'
 const defaultLocale = saved || (browser.startsWith('zh') ? 'zh-CN' : 'en')
 
-const i18n = createI18n({
+export const i18n = createI18n({
 	legacy: false,
 	locale: defaultLocale,
 	fallbackLocale: 'en',

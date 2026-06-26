@@ -212,6 +212,7 @@ function normalizeBuildGranularity(value) {
 }
 
 let activeAstroBuild = null;
+let lastBuildResult = null;  // { buildId, status, startedAt, finishedAt, duration, error }
 
 function getActiveAstroBuild() {
   return activeAstroBuild;
@@ -237,9 +238,21 @@ function beginAstroBuild(context) {
   return activeAstroBuild;
 }
 
-function endAstroBuild(buildId) {
+function endAstroBuild(buildId, result = null) {
   if (!activeAstroBuild) return;
   if (buildId && activeAstroBuild.buildId !== buildId) return;
+  const finishedAt = Date.now();
+  if (result) {
+    lastBuildResult = {
+      buildId: activeAstroBuild.buildId,
+      status: result.status || 'failed',
+      startedAt: activeAstroBuild.startedAt,
+      finishedAt,
+      duration: Math.round((finishedAt - activeAstroBuild.startedAt) / 1000),
+      error: result.error || null,
+      granularity: activeAstroBuild.granularity || 'full',
+    };
+  }
   activeAstroBuild = null;
 }
 
@@ -260,12 +273,20 @@ function getBuildStatusMessage(status) {
  */
 function spawnGenBuild(settings, options = {}) {
   return new Promise((resolve, reject) => {
-    const buildId = Date.now();
+    const buildId = options.clientBuildId || Date.now();
     const granularity = normalizeBuildGranularity(options.granularity);
     const codeDir = path.resolve(settings.frontendCodeDir || DEFAULT_BUILD_SETTINGS.frontendCodeDir);
     const targetDir = path.resolve(settings.frontendBuildTargetDir || `/var/www/${settings.frontendUrl || DEFAULT_BUILD_SETTINGS.frontendUrl}`);
     const dataDir = fs.realpathSync(DATA_DIR); // resolve symlink → canonical path (/opt/Chronicle/data)
     const repoRoot = path.resolve(__dirname, '..', '..', '..');
+
+    // 互斥锁 — 无论谁触发构建，都走同一个入口
+    try {
+      beginAstroBuild({ buildId, granularity });
+    } catch (e) {
+      reject(e);
+      return;
+    }
 
 
     const args = [
@@ -300,12 +321,13 @@ function spawnGenBuild(settings, options = {}) {
     child.on('close', (code) => {
       if (settled) return;
       settled = true;
-      endAstroBuild(buildId);
       if (code === 0) {
+        endAstroBuild(buildId, { status: 'success' });
         console.log(`[Build ${buildId}] Completed (exit 0)`);
         resolve({ buildId, status: 'success', result: { codeDir, targetDir, granularity }, error: null, message: getBuildStatusMessage('success') });
       } else {
         const errMsg = stderr.trim() || stdout.slice(-500) || `exit code ${code}`;
+        endAstroBuild(buildId, { status: 'failed', error: errMsg });
         console.error(`[Build ${buildId}] Failed:`, errMsg);
         const failure = new Error(errMsg);
         failure.status = 'failed';
@@ -318,7 +340,7 @@ function spawnGenBuild(settings, options = {}) {
     child.on('error', (err) => {
       if (settled) return;
       settled = true;
-      endAstroBuild(buildId);
+      endAstroBuild(buildId, { status: 'failed', error: err.message });
       console.error(`[Build ${buildId}] Spawn error:`, err.message);
       reject(err);
     });
@@ -328,7 +350,7 @@ function spawnGenBuild(settings, options = {}) {
     setTimeout(() => {
       if (settled) return;
       settled = true;
-      endAstroBuild(buildId);
+      endAstroBuild(buildId, { status: 'timeout' });
       child.unref();
       console.log(`[Build ${buildId}] Timeout after 2min — gen continues in background`);
       resolve({ buildId, status: 'timeout', result: null, error: null, message: getBuildStatusMessage('timeout') });
@@ -1355,20 +1377,36 @@ router.get('/system/storage', (req, res) => {
 
 // ── Build Routes ──────────────────────────────────────────
 
+// 前端分配构建 ID，携带 ID 发起构建请求，全程可追踪
+router.post('/build/allocate-id', (req, res) => {
+  if (!requireAdminToken(req, res)) return;
+  const buildId = Date.now();
+  res.json({ buildId });
+});
+
+router.get('/build/status', (req, res) => {
+  const active = getActiveAstroBuild();
+  res.json({
+    active: !!active,
+    current: active ? {
+      buildId: active.buildId,
+      startedAt: active.startedAt ? new Date(active.startedAt).toISOString() : null,
+      granularity: active.granularity || 'full',
+    } : null,
+    last: lastBuildResult ? {
+      buildId: lastBuildResult.buildId,
+      status: lastBuildResult.status,
+      startedAt: lastBuildResult.startedAt ? new Date(lastBuildResult.startedAt).toISOString() : null,
+      finishedAt: lastBuildResult.finishedAt ? new Date(lastBuildResult.finishedAt).toISOString() : null,
+      duration: lastBuildResult.duration,
+      error: lastBuildResult.error,
+    } : null,
+  });
+});
+
 router.post('/build/astro', buildLimiter, async (req, res) => {
   try {
     if (!requireAdminToken(req, res)) return;
-
-    const activeBuild = getActiveAstroBuild();
-    if (activeBuild) {
-      const startedAt = activeBuild.startedAt ? new Date(activeBuild.startedAt).toISOString() : '';
-      return res.status(409).json({
-        success: false,
-        message: startedAt
-          ? `Build already in progress（buildId=${activeBuild.buildId}, startedAt=${startedAt}）`
-          : `Build already in progress（buildId=${activeBuild.buildId}）`,
-      });
-    }
 
     // Reject builds when free memory is critically low to avoid OOM on
     // small (2 GB) servers. The build process (Astro + Vite + sharp) can
@@ -1386,14 +1424,18 @@ router.post('/build/astro', buildLimiter, async (req, res) => {
     console.log('[Build] Starting Astro build with 2min timeout...');
 
     const settings = getBuildSettings();
-    const buildResult = await spawnGenBuild(settings, {
-      granularity: req.body && req.body.granularity,
-    });
+    const buildOptions = {
+      granularity: (req.body && req.body.granularity),
+      clientBuildId: (req.body && req.body.clientBuildId) || undefined,
+      source: (req.body && req.body.source) || undefined,
+    };
+    const buildResult = await spawnGenBuild(settings, buildOptions);
 
     const responseBody = {
       success: buildResult.status === 'success',
       message: buildResult.message,
       buildId: buildResult.buildId,
+      clientBuildId: buildOptions.clientBuildId || buildResult.buildId,
       status: buildResult.status,
       error: buildResult.error
     };
@@ -1407,6 +1449,14 @@ router.post('/build/astro', buildLimiter, async (req, res) => {
     return res.status(httpStatus).json(responseBody);
 
   } catch (e) {
+    // 互斥锁冲突 — spawnGenBuild → beginAstroBuild 抛出 ASTRO_BUILD_BUSY
+    if (e && e.code === 'ASTRO_BUILD_BUSY') {
+      return res.status(409).json({
+        success: false,
+        message: e.message,
+        status: 'busy',
+      });
+    }
     console.error('[Build] Astro build initialization failed', e);
     const message = e && e.message ? e.message : 'Build initialization failed';
     const status = e && e.status === 'timeout' ? 202 : 500;
@@ -1423,17 +1473,6 @@ router.post('/build/astro', buildLimiter, async (req, res) => {
 router.post('/posts/republish-all', async (req, res) => {
   try {
     if (!requireAdminToken(req, res)) return;
-
-    const activeBuild = getActiveAstroBuild();
-    if (activeBuild) {
-      const startedAt = activeBuild.startedAt ? new Date(activeBuild.startedAt).toISOString() : '';
-      return res.status(409).json({
-        success: false,
-        message: startedAt
-          ? `Build already in progress（buildId=${activeBuild.buildId}, startedAt=${startedAt}）`
-          : `Build already in progress（buildId=${activeBuild.buildId}）`,
-      });
-    }
 
     let posts = [];
     try {
@@ -1464,8 +1503,10 @@ router.post('/posts/republish-all', async (req, res) => {
     let buildResult = null;
     const settings = getBuildSettings();
     if (settings && settings.autoBuildOnPublish && publishedPosts.length > 0) {
-      console.log('[Republish] Auto-build enabled, triggering one full build after batch republish');
-      buildResult = await spawnGenBuild(settings, { granularity: 'full' });
+      // 自动构建不再由 host 直接触发 — 前端在收到 republish 响应后
+      // 检查 autoBuildOnPublish 并调用 POST /build/astro，携带 clientBuildId。
+      // 此处仅返回 autoBuildSuggested 标志供前端参考。
+      buildResult = { status: 'suggested', message: 'Auto-build suggested — client should trigger', autoBuildSuggested: true };
     }
 
     return res.json({

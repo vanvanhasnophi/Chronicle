@@ -4,7 +4,11 @@
  * - Attaches x-chronicle-auth header automatically
  * - Rewrites legacy /api/* → /api/admin/*
  * - Auto-unwraps Chronicle API envelope { code, data, message } → data
+ * - Emits status notifications for 401/503 via notification center
  */
+
+import { getNotificationCenter } from '../composables/useNotificationCenter'
+import { i18n } from '../main'
 
 export interface ChronicleResponse extends Response {
   json(): Promise<any>
@@ -42,6 +46,16 @@ export const fetchWithAuth = async (
       currentPath === p || (p !== '/' && currentPath.startsWith(p))
     )
     if (!isExempt) {
+      try {
+        const t = i18n.global.t as any
+        getNotificationCenter().dispatch({
+          kind: 'status',
+          level: 'warning',
+          title: t('notification.sessionExpired'),
+          message: t('notification.sessionExpiredMsg'),
+          _key: 'session-expired',
+        })
+      } catch { /* notification center may not be ready */ }
       localStorage.removeItem('chronicle_auth')
       // Electron (file:// protocol) must use hash-based routing, otherwise
       // `/login` resolves to a non-existent `file:///C:/login` filesystem path.
@@ -52,6 +66,20 @@ export const fetchWithAuth = async (
       window.location.href = loginUrl
       throw new Error('Session expired — redirecting to login')
     }
+  }
+
+  // 503 guard: server unavailable — notify but don't redirect
+  if (response.status === 503) {
+    try {
+      const t = i18n.global.t as any
+      getNotificationCenter().dispatch({
+        kind: 'status',
+        level: 'warning',
+        title: t('notification.serverUnavailable'),
+        message: t('notification.serverUnavailableMsg'),
+        _key: 'server-unavailable',
+      })
+    } catch { /* notification center may not be ready */ }
   }
 
   // Patch .json() to auto-unwrap { code, data, message } envelope

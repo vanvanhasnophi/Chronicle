@@ -1,70 +1,70 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import tocController from '../utils/tocController';
+import CornerButton from './CornerButton.vue';
+import MobileCollectionNav from './MobileCollectionNav.vue';
+import type { CornerAction } from './CornerButton.vue';
+import type { TocItem } from '../utils/toc';
 
-const props = withDefaults(defineProps<{ hasToc?: boolean }>(), {
-  hasToc: true,
+const props = withDefaults(defineProps<{
+  toc?: TocItem[];
+  closeOnBackdrop?: boolean;
+  collections?: any[];
+  postTitles?: Record<string, string>;
+  postId?: string;
+}>(), {
+  toc: () => [],
+  closeOnBackdrop: true,
+  collections: () => [],
+  postTitles: () => ({}),
+  postId: undefined,
 });
-
-const root = ref<HTMLElement | null>(null);
-let handleAstroPageLoad: (() => void) | null = null;
-const showBackToTop = computed(() => tocController.state.showBackToTop);
-
-function openMobile() {
-  window.dispatchEvent(new CustomEvent('open-mobile-toc'));
-}
 
 function backToTop() {
   tocController.backToTop();
 }
 
-function moveToBody() {
-  const el = root.value;
-  if (!el) return;
-  if (el.parentElement !== document.body) {
-    document.body.appendChild(el);
-  }
+const isMobile = ref(false);
+function checkMobile() {
+  isMobile.value = typeof document !== 'undefined' && document.documentElement.classList.contains('is-mobile');
 }
+onMounted(() => { checkMobile(); });
 
-onMounted(() => {
-  moveToBody();
-  handleAstroPageLoad = () => moveToBody();
-  document.addEventListener('astro:page-load', handleAstroPageLoad);
-});
-
-onBeforeUnmount(() => {
-  if (handleAstroPageLoad) {
-    document.removeEventListener('astro:page-load', handleAstroPageLoad);
-    handleAstroPageLoad = null;
+// Check if current post actually belongs to any collection
+function nodeContains(nodes: any[] | undefined, postId: string): boolean {
+  if (!Array.isArray(nodes)) return false;
+  for (const node of nodes) {
+    if (node?.type === 'post' && String(node.id) === postId) return true;
+    if (node?.children?.length && nodeContains(node.children, postId)) return true;
   }
+  return false;
+}
+const postInCollection = computed(() => {
+  if (!props.postId || !props.collections.length) return false;
+  return props.collections.some((c: any) => nodeContains(c.nodes, props.postId!));
 });
+
+const leftActions = computed<CornerAction[]>(() => {
+  const list: CornerAction[] = [];
+  if (props.toc.length > 0) {
+    list.push({ id: 'toc', icon: 'menu', menu: props.toc, label: '目录' });
+  }
+  if (postInCollection.value) {
+    list.push({ id: 'collection', icon: 'book', menu: [], label: '合集' });
+  }
+  return list;
+});
+
+const bttAction = (): CornerAction[] => [
+  { id: 'btt', icon: 'arrow-up', label: '回到顶部', onClick: backToTop },
+];
 </script>
 
 <template>
-  <div ref="root" class="corner-actions" data-corner-actions="true">
-    <button v-if="props.hasToc" class="corner-button primary mobile-toggle" id="mobile-toc-trigger" @click="openMobile" title="目录"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
-    <button class="corner-button btt" :class="{ visible: showBackToTop }" id="back-to-top" @click="backToTop" title="回到顶部"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg></button>
-  </div>
+  <CornerButton v-if="isMobile && leftActions.length" :actions="leftActions" side="left" primary :closeOnBackdrop="closeOnBackdrop">
+    <template v-if="postInCollection" #collectionPanel>
+      <MobileCollectionNav :postId="postId" :collections="collections" :postTitles="postTitles" />
+    </template>
+  </CornerButton>
+  <CornerButton :actions="bttAction()" side="right" />
 </template>
-
-<style scoped>
-.corner-actions { position: static; }
-
-.corner-actions :global(.corner-button) {
-  bottom: 30px;
-}
-
-.corner-actions :global(.corner-button.mobile-toggle) {
-  left: 30px;
-  right: auto;
-  display: inline-flex;
-}
-
-.corner-actions :global(.corner-button.btt) {
-  right: 30px;
-  left: auto;
-  display: inline-flex;
-}
-
-
-</style>

@@ -113,7 +113,7 @@ import { useI18n } from 'vue-i18n'
 import { usePreferences } from '../composables/usePreferences'
 import { needsServerUrl, useServerUrl, buildApiUrl } from '../composables/useServerUrl'
 import { Icons } from '../utils/icons'
-import SafeTeleport from './SafeTeleport.vue'
+import SafeTeleport from './ui/SafeTeleport.vue'
 
 const isElectron = !!(window as any).chronicleElectron?.isElectron
 

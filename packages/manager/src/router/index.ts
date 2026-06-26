@@ -45,6 +45,7 @@ const Dashboard = () => import(/* webpackChunkName: "dashboard" */ '../pages/Das
 const Settings = () => import(/* webpackChunkName: "settings" */ '../pages/Settings.vue')
 const TextEditorLazy = () => import(/* webpackChunkName: "text-editor" */ '../pages/TextEditor.vue')
 const EditorPrintPreview = () => import(/* webpackChunkName: "editor-print-preview" */ '../pages/EditorPrintPreview.vue')
+const Playground = () => import(/* webpackChunkName: "playground" */ '../pages/Playground.vue')
 // Schema-driven settings: single generic page that renders any schema
 const SchemaSettingsPage = () => import(/* webpackChunkName: "schema-settings" */ '../pages/SchemaSettingsPage.vue')
 const SystemAppearance = () => import(/* webpackChunkName: "system-appearance" */ '../pages/settings/SystemAppearance.vue')
@@ -52,37 +53,37 @@ const SystemBuild = () => import(/* webpackChunkName: "system-build" */ '../page
 const SystemSecurity = () => import(/* webpackChunkName: "system-security" */ '../pages/settings/SystemSecurity.vue')
 
 const routes = [
-  { path: '/', name: 'Welcome', component: Welcome, meta: { title: 'welcome.title' } },
+  { path: '/', name: 'Welcome', component: Welcome, meta: { layout: 'blank', title: 'welcome.title' } },
   {
     path: '/login',
     name: 'Login',
     component: Login,
-    meta: { title: 'login.title' }
+    meta: { layout: 'blank', title: 'login.title' }
   },
   {
     path: '/setup',
     name: 'Setup',
     component: Setup,
-    meta: { title: 'setup.title' }
+    meta: { layout: 'blank', title: 'setup.title' }
   },
   {
     path: '/recover',
     name: 'Recover',
     component: Recover,
-    meta: { title: 'recover.title' }
+    meta: { layout: 'blank', title: 'recover.title' }
   },
   {
     path: '/dashboard',
     name: 'Dashboard',
     component: Dashboard,
-    meta: { requiresAuth: true, title: 'nav.dashboard' }
+    meta: { layout: 'manager', requiresAuth: true, title: 'nav.dashboard' }
   },
   // /traffic route hidden — server-side analytics not meaningful for static Astro blogs
   {
     path: '/settings',
     name: 'Settings',
     component: Settings,
-    meta: { requiresAuth: true, title: 'settings.home' },
+    meta: { layout: 'manager', requiresAuth: true, title: 'settings.home' },
     children: [
       // ═══════════════════════════════════════════════
       // Schema-driven settings (replaces old hand-coded pages)
@@ -132,25 +133,31 @@ const routes = [
     path: '/manage',
     name: 'PostManager',
     component: PostManager,
-    meta: { requiresAuth: true, title: 'post.manageTitle' }
+    meta: { layout: 'manager', requiresAuth: true, title: 'post.manageTitle' }
+  },
+  {
+    path: '/playground',
+    name: 'Playground',
+    component: Playground,
+    meta: { layout: 'blank', title: 'Playground' }
   },
   {
     path: '/editor',
     name: 'TextEditor',
     component: TextEditorLazy,
-    meta: { title: 'editor.createNewPost' }
+    meta: { layout: 'blank', title: 'editor.createNewPost' }
   },
   {
     path: '/editor/print',
     name: 'EditorPrintPreview',
     component: EditorPrintPreview,
-    meta: { title: 'editor.print' }
+    meta: { layout: 'blank', title: 'editor.print' }
   },
   {
     path: '/files',
     name: 'FileManager',
     component: FileManager,
-    meta: { requiresAuth: true, title: 'file.library' }
+    meta: { layout: 'manager', requiresAuth: true, title: 'file.library' }
   },
   { path: '/search', redirect: '/login' },
   { path: '/friends', redirect: '/login' }

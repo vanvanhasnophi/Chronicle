@@ -184,9 +184,9 @@
 
           <div class="form-row inline-actions"
             style="display: flex; gap: 8px; align-items: center; flex-direction: row; margin-top: 8px;">
-            <button class="primary" @click="triggerBuild" :disabled="building">{{ $t('settings.buildNow') }}</button>
-            <button class="secondary" @click="triggerClean" :disabled="building">{{ $t('settings.cleanNow') }}</button>
-            <span v-if="building" class="small muted">{{ $t('settings.building') }}</span>
+            <button class="primary" @click="triggerBuild" :disabled="building || nc.isBuilding.value">{{ $t('settings.buildNow') }}</button>
+            <button class="secondary" @click="triggerClean" :disabled="building || nc.isBuilding.value">{{ $t('settings.cleanNow') }}</button>
+            <span v-if="building || nc.isBuilding.value" class="small muted">{{ $t('settings.building') }}</span>
           </div>
         </div>
 
@@ -217,9 +217,11 @@ import { useI18n } from 'vue-i18n'
 import CheckRow from '../../components/ui/CheckRow.vue'
 import useToast from '../../composables/useToast.ts'
 import { syncSchemas, schemaStore } from '../../composables/schemaApi.ts'
+import { getNotificationCenter } from '../../composables/useNotificationCenter'
 
 const { t } = useI18n()
 const { show } = useToast()
+const nc = getNotificationCenter()
 
 const DEFAULT_FRONTEND_DOMAIN = 'blog.eightyfor.top'
 const DEFAULT_FRONTEND_CODE_DIR = '/opt/Chronicle/packages/template-astro'
@@ -395,11 +397,12 @@ function formResetAll() {
 }
 
 async function triggerBuild() {
-  if (building.value) return
+  const bt = nc.startBuild(`${t('settings.building')} · ${t('notification.source.settings')}`)
+  if (!bt) return
+  const { nid, clientBuildId } = bt
+  const detailLabels = { id: t('notification.detailId') as string, trigger: t('notification.detailTrigger') as string, time: t('notification.detailTime') as string }
+  nc.update(nid, { message: nc.buildDetail(detailLabels, clientBuildId, t('notification.source.settings') as string) })
   building.value = true
-
-  // 与侧边栏构建按钮一致的反馈
-  show(t('settings.buildTriggering') as string, { status: 'info', position: 'bottom-center', shape: 'capsule', duration: 2500 })
 
   try {
     const res = await fetchWithAuth(`/api/admin/build/astro?t=${Date.now()}`, {
@@ -408,34 +411,36 @@ async function triggerBuild() {
       body: JSON.stringify({
         reason: 'manual',
         granularity: build.value.granularity,
+        clientBuildId,
+        source: 'settings',
       })
     })
 
     if (res.ok) {
       const result = await res.json()
 
-      // 根据构建状态显示不同的反馈
+      const baseMsg = nc.buildDetail(detailLabels, clientBuildId, t('notification.source.settings') as string)
       if (result.status === 'success') {
-        show(t('settings.buildCompleted') as string, { status: 'success', position: 'bottom-center', shape: 'capsule' })
+        nc.update(nid, { state: 'completed', level: 'success', title: t('settings.buildCompleted') as string, message: baseMsg })
       } else if (result.status === 'timeout') {
-        show(t('settings.buildTimeout') as string, { status: 'warning', position: 'bottom-center', shape: 'capsule' })
+        nc.update(nid, { state: 'completed', level: 'warning', title: t('settings.buildTimeout') as string, message: baseMsg })
       } else if (result.status === 'failed') {
         const rawMessage = result.error || result.message || t('settings.buildFailed') as string
-        show(`${t('settings.buildErrorPrefix') as string}${rawMessage}`, { status: 'error', position: 'bottom-center', shape: 'capsule' })
+        nc.update(nid, { state: 'failed', level: 'error', title: t('settings.buildFailed') as string, message: `${baseMsg}\n${t('notification.detailError')}: ${rawMessage}`, actions: [{ label: t('nav.buildNow') as string, handler: 'retry-build' }] })
       } else {
-        show(t('settings.buildTriggered') as string, { status: 'success', position: 'bottom-center', shape: 'capsule' })
+        nc.update(nid, { state: 'completed', level: 'success', title: t('settings.buildCompleted') as string, message: baseMsg })
       }
     } else {
       const message = await readApiErrorMessage(res, t('settings.buildFailed') as string)
-      show(`${t('settings.buildErrorPrefix') as string}${message}`, { status: 'error', position: 'bottom-center', shape: 'capsule' })
+      nc.update(nid, { state: 'failed', level: 'error', title: t('settings.buildFailed') as string, message: `${nc.buildDetail(detailLabels, clientBuildId, t('notification.source.settings') as string)}\n${t('notification.detailError')}: ${message}`, actions: [{ label: t('nav.buildNow') as string, handler: 'retry-build' }] })
     }
   } catch (e) {
-    show(t('settings.buildFailed') as string, { status: 'error', position: 'bottom-center', shape: 'capsule' })
+    nc.update(nid, { state: 'failed', level: 'error', title: t('settings.buildFailed') as string, message: `${nc.buildDetail(detailLabels, clientBuildId, t('notification.source.settings') as string)}\n${t('notification.detailError')}: ${(e as Error).message}`, actions: [{ label: t('nav.buildNow') as string, handler: 'retry-build' }] })
   } finally { building.value = false }
 }
 
 async function triggerClean() {
-  if (building.value) return
+  if (building.value || nc.isBuilding.value) return
   building.value = true
 
   // Clear操作只清空目录，不构建
@@ -526,6 +531,7 @@ onMounted(async () => {
   fetchTemplateInfo()
   // Populate schemas on load (syncSchemas handles throttle internally)
   syncSchemas()
+  nc.registerAction('retry-build', () => { triggerBuild() })
 })
 </script>
 

@@ -23,7 +23,8 @@
       "template": "Template",
       "system": "System"
     },
-    "quickActions": "Quick Actions",
+    "quickActions": "Actions",
+    "notifications": "Notifications",
     "welcome": "Landing Page",
     "editor": "Editor",
     "theme": "Theme"
@@ -71,7 +72,7 @@
     "topTags": "Top Tags",
     "monthlyPosts": "Posts by Month",
     "trafficSnapshot": "Traffic Snapshot",
-    "spaceContribution": "Space Contribution",
+    "spaceUsage": "Space Usage",
     "frontendUsage": "Content Page Usage",
     "backendUsage": "Manager Page Usage",
     "apiUsage": "API & Source Usage",
@@ -775,5 +776,34 @@
     "light": "Light",
     "dark": "Dark",
     "follow": "Follow"
+  },
+  "time": {
+    "justNow": "just now",
+    "minutesAgo": "{n}min ago",
+    "elapsedSec": "{s}s elapsed",
+    "elapsedMin": "{m}m{rs}s elapsed"
+  },
+  "notification": {
+    "drawer":{
+      "title": "Notification Center",
+      "clearAll": "Clear All",
+      "noNotifications": "No notifications"
+    },
+    "source": {
+      "sidebar": "Sidebar",
+      "settings": "Settings",
+      "publish": "Publish",
+      "aboutPublish": "About Publish",
+      "batchRepublish": "Batch Republish"
+    },
+    "sessionExpired": "Session expired",
+    "sessionExpiredMsg": "Please log in again to continue",
+    "serverUnavailable": "Service unavailable",
+    "serverUnavailableMsg": "Server resources are tight, please retry later",
+    "detailId": "ID",
+    "detailTrigger": "Trigger",
+    "detailTime": "Time",
+    "detailDuration": "Duration",
+    "detailError": "Error"
   }
 }

@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and uses [Semantic Versioning](https://semver.org/).
 
+## [2.1.0] - 2026-06-27
+
+### Added
+- **Mobile corner button system (`CornerButton`)**: Unified component that auto-switches between single circular button and capsule (pill) shape based on action count (2+ = capsule). Supports multiple menus via `activeActionId` panel switching. Icon layer and content layer are always stacked, cross-fading via opacity.
+- **Mobile TOC morph animation**: Menu expands from the trigger button's exact position into a full panel (CSS transitions on width, max-height, border-radius, background, etc.), and collapses back on close. Separate timing curves for open vs close.
+- **Mobile CollectionNav integration**: Collection nav folded into the bottom-left capsule alongside TOC. New `MobileCollectionNav` lightweight component shares data source and tree-search / navigation logic with the desktop `CollectionNav`, with mobile-adapted spacing and font sizes.
+- **Unified collection icon**: Desktop CollectionNav, NavHeader, and CornerButton all use a new stacked-diamond icon (upper complete diamond + lower notched diamond for depth effect).
+- **CMS Notification Center**: New `NotificationDrawer`, `NotificationItem` components and `useNotificationCenter` composable. New `ProgressBar` and `SafeTeleport` UI components. Shared `notification.ts` types.
+- **CornerButton playground page** (`/playground/corner-button`): Demonstrates single-button, capsule, and menu-expansion variants.
+
+### Changed
+- **CornerActions refactor**: Mobile left side renders independent `CornerButton` instances (TOC + Collection); right side renders back-to-top. Desktop renders only BTT (TOC covered by FloatingToc, Collection by standalone CollectionNav).
+- **Button color scheme**: Primary buttons (TOC, Collection) use accent colors; non-primary (BTT) uses neutral. Hover (desktop `html:not(.is-mobile)`) and active (mobile `html.is-mobile`) effects match the original `.corner-button` style.
+- **Mobile CollectionNav hidden on desktop**: Added `html.is-mobile .collection-nav { display: none !important }` to prevent the desktop CollectionNav from loading on mobile.
+- **Inline TOC animation**: Improved expand/collapse transition; fixed `aria-expanded` TypeScript type error.
+- **NavHeader mobile menu visual polish**.
+- **Astro title bar & floating TOC layout improvements**.
+- **Build queue fix** (`admin/index.js`): Prevent duplicate build triggers.
+
+### Fixed
+- **Menu close height snap (critical)**: `activeActionId` was cleared immediately on close, removing the `v-if`-rendered content from layout before the `max-height` transition could run. Deferred to `transitionend` so content stays in flow during the entire shrink animation.
+- **Close transition broken by simultaneous overflow change**: JS now sets inline `overflow: hidden` before removing `.open`, so the `max-height` transition runs without a simultaneous discrete overflow switch.
+- **`height` property interfering with `max-height` transition**: Removed `height` from the transition list entirely — it is always `auto !important` in both states.
+- **Post page `aiGenerated` field not mapped**: The field was missing from the `localPost` → `post` object spread, so the AI-generated badge never appeared. Also added the missing `author` field mapping.
+- **Inline script `this` implicit any type**: Replaced with arrow function capturing the outer variable.
+
+### Removed
+- **`MobileTocPanel.vue`**: Fully replaced by the `CornerButton` menu variant.
+- **`global.css` dead styles**: Removed ~50 lines of duplicate/obsolete mobile-toc-panel CSS.
+
+### Internal
+- `CornerButton.vue`: Self-contained corner button component; all styles are scoped.
+- `CornerActions.vue`: Thin orchestration layer composing CornerButton instances.
+- `MobileCollectionNav.vue`: Lightweight mobile collection tree using v-html rendering; shares data source and logic with CollectionNav.
+
 ## [2.0.5] - 2026-06-14
 
 ### Fixed

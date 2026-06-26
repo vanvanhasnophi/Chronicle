@@ -334,10 +334,10 @@ const projectUsed = computed(() => {
       <section class="section-grid two-col">
         <article class="panel panel-full">
           <div class="panel-header">
-            <h3>{{ t('dashboard.spaceContribution') }}</h3>
+            <h3>{{ t('dashboard.spaceUsage') }}</h3>
           </div>
           <div class="space-contrib">
-            <div class="contrib-bar" role="img" :aria-label="t('dashboard.spaceContribution')">
+            <div class="contrib-bar" role="img" :aria-label="t('dashboard.spaceUsage')">
               <span
                 v-for="segment in usedSpaceSegments"
                 :key="segment.key"

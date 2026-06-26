@@ -47,7 +47,8 @@
   --component-bg-blur: rgba(34, 34, 34, 0.9);
   --component-bg-blur-alt: rgba(72, 72, 72, 0.5);
   --component-bg-accent: color-mix(in srgb, var(--accent-color) 40%, transparent);
-  --component-bg-accent-blur: color-mix(in srgb, var(--accent-color) 22%, transparent);
+  --component-bg-accent-blur: color-mix(in srgb, var(--accent-color) 25%, transparent);
+  --component-bg-accent-ghost: color-mix(in srgb, var(--accent-color) 35%, #0008);
 
   /* Background highlight states */
   --app-bg-primary-hover: rgba(255, 255, 255, 0.04);
@@ -77,6 +78,7 @@
   --component-text-secondary-highlight: var(--app-text-secondary);
   --component-text-accent-hover: #ffffff;
   --component-text-accent-active: #ffffff;
+  --component-text-accent-ghost: color-mix(in srgb, var(--component-text-primary) 60%, var(--accent-color));
 
   --border-color: color-mix(in srgb, var(--app-text-secondary) 20%, transparent);
   --border-color-blur: rgba(113, 113, 113, 0.2);
@@ -208,6 +210,7 @@
   --component-bg-blur-alt: rgba(232, 232, 232, 0.5);
   --component-bg-accent: color-mix(in srgb, var(--accent-color) 30%, #fffb);
   --component-bg-accent-blur: color-mix(in srgb, var(--accent-color) 35%, #fffb);
+  --component-bg-accent-ghost: color-mix(in srgb, var(--accent-color) 45%, #fff7);
 
   --app-bg-primary-hover: rgba(0, 0, 0, 0.03);
   --app-bg-primary-active: rgba(0, 0, 0, 0.06);
@@ -234,6 +237,7 @@
   --component-text-secondary-highlight: color-mix(in srgb, var(--accent-color) 75%, #555);
   --component-text-accent-hover: #ffffff;
   --component-text-accent-active: #ffffff;
+  --component-text-accent-ghost: color-mix(in srgb, var(--component-text-primary) 75%, var(--accent-color));
 
   --featured: #c58f00;
   --featured-bg: rgba(242, 234, 212, 0.9);
@@ -251,9 +255,9 @@
   --text-primary: var(--app-text-primary);
   --text-secondary: var(--app-text-secondary);
   --text-inactive: var(--app-text-secondary);
-  --shadow-elev-1: 0 4px 12px rgba(28, 28, 28, 0.12);
-  --shadow-elev-2: 0 4px 12px rgba(28, 28, 28, 0.14);
-  --shadow-elev-3: 0 10px 30px rgba(28, 28, 28, 0.16);
+  --shadow-elev-1: 0 4px 12px rgba(0, 0, 0, 0.2);
+  --shadow-elev-2: 0 4px 12px rgba(0, 0, 0, 0.16);
+  --shadow-elev-3: 0 10px 30px rgba(0, 0, 0, 0.25);
   --toc-divider-color: rgba(28, 28, 28, 0.08);
 }
 
@@ -272,6 +276,7 @@
     --component-bg-blur-alt: rgba(232, 232, 232, 0.5);
     --component-bg-accent: color-mix(in srgb, var(--accent-color) 30%, #fffb);
     --component-bg-accent-blur: color-mix(in srgb, var(--accent-color) 35%, #fffb);
+    --component-bg-accent-ghost: color-mix(in srgb, var(--accent-color) 45%, #fff7);
     --app-bg-primary-hover: rgba(0, 0, 0, 0.03);
     --app-bg-primary-active: rgba(0, 0, 0, 0.06);
     --app-bg-secondary-hover: rgba(0, 0, 0, 0.05);
@@ -303,9 +308,9 @@
     --text-primary: var(--app-text-primary);
     --text-secondary: var(--app-text-secondary);
     --text-inactive: var(--app-text-secondary);
-    --shadow-elev-1: 0 4px 12px rgba(28, 28, 28, 0.12);
-    --shadow-elev-2: 0 4px 12px rgba(28, 28, 28, 0.14);
-    --shadow-elev-3: 0 10px 30px rgba(28, 28, 28, 0.16);
+    --shadow-elev-1: 0 4px 12px rgba(0, 0, 0, 0.2);
+    --shadow-elev-2: 0 4px 12px rgba(0, 0, 0, 0.16);
+    --shadow-elev-3: 0 10px 30px rgba(0, 0, 0, 0.25);
     --toc-divider-color: rgba(28, 28, 28, 0.08);
   }
 }
@@ -529,91 +534,6 @@ button.secondary {
 }
 
 
-/* Corner buttons (used by back-to-top and mobile TOC) */
-.corner-button {
-  position: fixed;
-  bottom: 30px;
-  right: 30px;
-  width: 50px !important;
-  height: 50px !important;
-  border-radius: 50%;
-  background: var(--component-bg-blur-alt);
-  border: 1px solid var(--border-color-blur);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-  color: var(--component-text-primary);
-  padding: 0;
-  cursor: pointer;
-  box-shadow: var(--shadow-elev-1);
-  opacity: 0;
-  pointer-events: none;
-  transition: all 0.15s ease-out;
-  transform: translateY(20px);
-  z-index: 200;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 0;
-}
-
-.corner-button span {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.corner-button.visible {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateY(0);
-}
-
-/* Hover only when the app root is NOT in mobile mode (global class 'is-mobile') */
-html:not(.is-mobile) .corner-button:hover {
-  background: var(--component-bg-hover);
-  transform: scale(1.1);
-  border-color: var(--border-color-blur);
-  filter: brightness(1.2);
-}
-
-html.is-mobile .corner-button:active {
-  background: var(--component-bg-active);
-  transform: scale(1.3);
-  border-color: var(--border-color-blur);
-  filter: brightness(3);
-}
-
-/* Primary variant (used for mobile TOC button): semi-transparent accent background */
-.corner-button.primary {
-  background: var(--component-bg-accent-blur);
-  border: 1px solid var(--component-bg-accent);
-  color: var(--component-text-primary);
-}
-
-/* Pressed state visual for primary (works on mobile via :active) */
-html.is-mobile .corner-button.primary:active {
-  transform: scale(1.3);
-  border-color: var(--component-bg-accent-blur);
-  background: var(--component-bg-accent-blur);
-}
-
-html:not(.is-mobile) .corner-button.primary:hover {
-  transform: scale(1.1);
-  background: var(--component-bg-accent-hover);
-  border-color: var(--component-bg-accent-hover);
-  color: var(--component-text-accent-hover);
-}
-
-/* When running in mobile mode, ensure the primary corner button is visible on the left */
-html.is-mobile .corner-button.primary {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateY(0);
-  left: 30px;
-  right: auto;
-  z-index: 300;
-}
-
 /* Hide desktop inline/floating TOC on mobile (app has html.is-mobile) */
 html.is-mobile .markdown-toc {
   display: none !important;
@@ -624,47 +544,6 @@ html.is-mobile .toc-float {
 }
 
 
-/* Mobile TOC fly-in animation and fixed header */
-.mobile-toc-panel {
-  transform-origin: left bottom;
-  opacity: 0;
-  transform: translateY(10px) scale(0.96);
-  transition: opacity 220ms ease, transform 260ms cubic-bezier(.22, .9, .36, 1);
-}
-
-.mobile-toc-panel.open {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-  /* ensure panel is above corner button */
-  z-index: 1400;
-}
-
-.mobile-toc-panel.open {
-  animation: mobileTocFlyIn 140ms ease-out both;
-}
-
-@keyframes mobileTocFlyIn {
-  from {
-    opacity: 0;
-    transform: translateY(18px) scale(0.5);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-/* Make header sticky inside the panel so it stays visible while the list scrolls */
-.mobile-toc-panel-inner {
-  padding: 0;
-}
-
-.mobile-toc-panel .mobile-toc-list {
-  padding: 8px;
-  max-height: calc(60vh - 56px);
-  overflow: auto;
-}
 
 .card {
   padding: 2em;
@@ -701,66 +580,6 @@ html.is-mobile .toc-float {
   box-shadow: var(--shadow-elev-2);
   border-color: var(--accent-color);
 }
-
-/* Mobile TOC panel styles (moved from component) */
-.mobile-toc-panel {
-  position: fixed;
-  left: 12px;
-  right: 12px;
-  bottom: 80px;
-  z-index: 1400;
-  background: var(--component-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  max-height: 60vh;
-  overflow: auto;
-  box-shadow: var(--shadow-elev-3);
-}
-
-.mobile-toc-panel-inner {
-  padding: 8px
-}
-
-.mobile-toc-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--toc-divider-color)
-}
-
-.mobile-toc-title {
-  font-weight: 600
-}
-
-.mobile-toc-close {
-  background: transparent;
-  border: none;
-  color: inherit;
-  padding: 6px
-}
-
-.mobile-toc-list {
-  list-style: none;
-  margin: 0;
-  padding: 6px
-}
-
-.mobile-toc-list li {
-  padding: 6px 4px;
-  border-radius: 6px
-}
-
-.mobile-toc-list li.active {
-  background: var(--component-bg-hover);
-}
-
-.mobile-toc-list li a {
-  color: inherit;
-  text-decoration: none;
-  display: block
-}
-
 /* Hide native IE arrow */
 .modern-select::-ms-expand {
   display: none;

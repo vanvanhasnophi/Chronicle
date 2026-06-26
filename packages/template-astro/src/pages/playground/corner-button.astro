@@ -1,0 +1,74 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CornerButton from '../../components/CornerButton.vue';
+import type { CornerAction } from '../../components/CornerButton.vue';
+
+const demoToc: any[] = [
+  { id: 'h1', text: '第一节 简介', level: 1 },
+  { id: 'h2', text: '1.1 背景', level: 2 },
+  { id: 'h3', text: '1.2 目标', level: 2 },
+  { id: 'h4', text: '第二节 实现', level: 1 },
+  { id: 'h5', text: '2.1 架构', level: 2 },
+  { id: 'h6', text: '2.2 组件', level: 2 },
+];
+
+function backToTop() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
+---
+
+<Layout title="CornerButton Playground" description="演示 CornerButton 的各种变体">
+  <style>
+    .playground { max-width: 800px; margin: 0 auto; padding: 40px 20px; }
+    .playground h1 { font-size: 1.5rem; margin-bottom: 8px; }
+    .playground h2 { font-size: 1.1rem; margin: 32px 0 12px; color: var(--text-secondary); }
+    .playground .label { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 4px; }
+    .playground .spacer { height: 200vh; }
+  </style>
+
+  <div class="playground">
+    <h1>CornerButton Playground</h1>
+    <p>这个页面演示 CornerButton 组件的各种形态。按钮会出现在屏幕角落。</p>
+
+    <h2>1. 左侧单按钮 — TOC 菜单（展开变体）</h2>
+    <p class="label">单个 action + menu 属性 → 50px 圆圈，点击 morph 为面板</p>
+
+    <h2>2. 右侧单按钮 — 回到顶部</h2>
+    <p class="label">单个 action + onClick → 50px 圆圈，点击执行回调。滚动页面后可见。</p>
+
+    <h2>3. 胶囊（多动作）</h2>
+    <p class="label">2+ actions → 自动变为胶囊 pill，包含分隔线和多个图标</p>
+
+    <h2>4. 胶囊 + 菜单展开</h2>
+    <p class="label">胶囊中含有 menu action，点击展开为完整面板</p>
+
+    <div class="spacer"></div>
+    <p style="text-align:center;color:var(--text-secondary)">← 向下滚动可看到"回到顶部"按钮出现 →</p>
+  </div>
+
+  <!-- 1. Left: TOC menu button -->
+  <CornerButton
+    client:idle
+    side="left"
+    :actions="[{ id: 'toc', icon: 'menu', menu: demoToc, label: '目录' }]"
+    :closeOnBackdrop="true"
+  />
+
+  <!-- 2. Right: Back to top -->
+  <CornerButton
+    client:idle
+    side="right"
+    :actions="[{ id: 'btt', icon: 'arrow-up', label: '回到顶部', onClick: backToTop }]"
+  />
+
+  <!-- 3 & 4. Capsule (shown as separate demo - uncomment to test) -->
+  <!--
+  <CornerButton
+    client:idle
+    side="right"
+    :actions="[
+      { id: 'toc', icon: 'menu', menu: demoToc, label: '目录' },
+      { id: 'btt', icon: 'arrow-up', label: '回到顶部', onClick: backToTop },
+    ]"
+    :closeOnBackdrop="true"
+  />
+  -->
+</Layout>

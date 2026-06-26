@@ -12,7 +12,7 @@
         </aside>
 
         <!-- Main content area -->
-        <section class="main-content">
+        <section class="chronicle-fb-container">
             <!-- Toolbar (matches FilePicker cloud-toolbar) -->
             <div class="chronicle-fb-toolbar">
                 <h3 class="toolbar-title">{{ currentCategoryLabel }}</h3>
@@ -589,9 +589,9 @@ onUnmounted(() => {
     padding: 0.55rem 0.9rem;
 }
 
-/* ── Main content ──────────────────────────────────────────────────── */
+/* ── Container ─────────────────────────────────────────────────────── */
 
-.main-content {
+.chronicle-fb-container {
     flex: 1;
     display: flex;
     flex-direction: column;

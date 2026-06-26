@@ -649,6 +649,7 @@ import CmEditor from './CmEditor.vue'
 import { formatDate as formatDateUtil, formatDateTime } from '../utils/dateUtils'
 import QuarterCircleSpinner from './ui/QuarterCircleSpinner.vue'
 import useToast from '../composables/useToast'
+import { getNotificationCenter } from '../composables/useNotificationCenter'
 import { serializeFrontmatter, parseFrontmatter } from '../composables/useFrontmatter'
 
 const route = useRoute()
@@ -795,6 +796,7 @@ const postUpdated = ref<string>('')
 const isSaving = ref(false)
 const isBuilding = ref(false)
 const activeModal = ref('none')
+const nc = getNotificationCenter()
 const tempTitle = ref('')
 const pendingConflictDetail = ref<any>(null)
 const pendingConflictDraft = ref('')
@@ -1575,13 +1577,22 @@ function getAdminAuthToken() {
 }
 
 async function triggerAstroBuild(postId: string) {
-    const token = getAdminAuthToken()
-    if (!token) {
-        throw new Error('Missing auth token')
-    }
-
+    const source = postId === '__about__'
+      ? (t('notification.source.aboutPublish') as string)
+      : (t('notification.source.publish') as string)
+    const bt = nc.startBuild(`${t('settings.building')} · ${source}`)
+    if (!bt) return
+    const { nid, clientBuildId } = bt
+    const detailLabels = { id: t('notification.detailId') as string, trigger: t('notification.detailTrigger') as string, time: t('notification.detailTime') as string }
+    nc.update(nid, { message: nc.buildDetail(detailLabels, clientBuildId, source) })
     isBuilding.value = true
+
     try {
+        const token = getAdminAuthToken()
+        if (!token) {
+            throw new Error('Missing auth token')
+        }
+
         const res = await fetchWithAuth(`/api/admin/build/astro?t=${Date.now()}`, {
             method: 'POST',
             headers: {
@@ -1591,6 +1602,8 @@ async function triggerAstroBuild(postId: string) {
             body: JSON.stringify({
                 postId,
                 reason: 'publish',
+                clientBuildId,
+                source,
             }),
         })
 
@@ -1599,11 +1612,17 @@ async function triggerAstroBuild(postId: string) {
         }
 
         const data = await res.json().catch(() => ({}))
+        const baseMsg = nc.buildDetail(detailLabels, clientBuildId, source)
         if (data.status === 'timeout') {
-            showToast((data.message || t('settings.buildTimeout')) as string, { status: 'warning', position: 'bottom-center', shape: 'capsule' })
+            nc.update(nid, { state: 'completed', level: 'warning', title: t('settings.buildTimeout') as string, message: baseMsg })
+        } else {
+            nc.update(nid, { state: 'completed', level: 'success', title: t('settings.buildCompleted') as string, message: baseMsg })
         }
 
         postStatus.value = 'published'
+    } catch (e: any) {
+        nc.update(nid, { state: 'failed', level: 'error', title: t('settings.buildFailed') as string, message: `${nc.buildDetail(detailLabels, clientBuildId, source)}\n${t('notification.detailError')}: ${e?.message || ''}`, actions: [{ label: t('nav.buildNow') as string, handler: 'retry-build' }] })
+        throw e
     } finally {
         isBuilding.value = false
     }
@@ -2273,6 +2292,9 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
 onMounted(() => {
     // Attempt to load from cloud to sync latest state
     initLoad()
+    nc.registerAction('retry-build', () => {
+      triggerAstroBuild(postId.value || '')
+    })
     void nextTick(() => {
         refreshPreviewSearchSource()
         applyPreviewSearchHighlights()

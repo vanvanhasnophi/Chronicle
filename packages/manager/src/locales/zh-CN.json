@@ -24,6 +24,7 @@
       "system": "系统"
     },
     "quickActions": "快捷菜单",
+    "notifications": "通知中心",
     "welcome": "欢迎页",
     "editor": "编辑器",
     "theme": "主题"
@@ -71,7 +72,7 @@
     "topTags": "热门标签",
     "monthlyPosts": "月度文章",
     "trafficSnapshot": "流量快照",
-    "spaceContribution": "空间占用",
+    "spaceUsage": "空间占用",
     "frontendUsage": "前台空间占用",
     "backendUsage": "后台空间占用",
     "apiUsage": "API和源码占用",
@@ -774,5 +775,34 @@
     "light": "浅色",
     "dark": "深色",
     "follow": "跟随系统"
+  },
+  "time": {
+    "justNow": "刚刚",
+    "minutesAgo": "{n}分钟前",
+    "elapsedSec": "已用 {s}s",
+    "elapsedMin": "已用 {m}m{rs}s"
+  },
+  "notification": {
+    "drawer":{
+      "title": "通知中心",
+      "clearAll": "清除全部",
+      "noNotifications": "暂无通知"
+    },
+    "source": {
+      "sidebar": "侧边栏",
+      "settings": "设置页",
+      "publish": "发布文章",
+      "aboutPublish": "发布关于页",
+      "batchRepublish": "批量再发布"
+    },
+    "sessionExpired": "登录凭据已过期",
+    "sessionExpiredMsg": "请重新登录以继续操作",
+    "serverUnavailable": "服务暂时不可用",
+    "serverUnavailableMsg": "服务器资源紧张，请稍后重试",
+    "detailId": "ID",
+    "detailTrigger": "触发",
+    "detailTime": "时间",
+    "detailDuration": "耗时",
+    "detailError": "错误"
   }
 }

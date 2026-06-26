@@ -34,7 +34,7 @@ const showCollection = featureFlags?.collectionPage !== false;
 const navCollapsedIcons = {
   home: `<svg xmlns="http://www.w3.org/2000/svg"  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"></path><path d="M5 10.5V20h14v-9.5"></path><path d="M9 20v-6h6v6"></path></svg>`,
   blogs: `<svg xmlns="http://www.w3.org/2000/svg"  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="8" y1="13" x2="16" y2="13"></line><line x1="8" y1="17" x2="16" y2="17"></line></svg>`,
-  collection: `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true" data-v-8b94f1a6=""><path d="M12 11 Q16 13 20 16 Q16 19 12 21 Q8 19 4 16 Q8 13 12 11 Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" fill="none" data-v-8b94f1a6=""></path><path d="M12 5 Q16 7 20 10 Q16 13 12 15 Q8 13 4 10 Q8 7 12 5 Z" fill="var(--component-bg-blur)" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" data-v-8b94f1a6=""></path></svg>`,
+  collection: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M 12 2 L 21 8 L 12 14 L 3 8 Z"/><path d="M 18 14 L 21 16 L 12 22 L 3 16 L 6 14"/></svg>`,
   friends: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path><circle cx="10" cy="7" r="3"></circle><path d="M21 21v-2a3 3 0 0 0-2.25-2.9"></path><path d="M16 4.2a3 3 0 0 1 0 5.6"></path></svg>`,
 };
 
@@ -832,14 +832,15 @@ const isActive = (path: string) => {
       left: 0;
       right: 0;
       bottom: 0;
+      opacity: 0;
       height: 100dvh;
-      background: var(--app-bg-secondary);
+      background: transparent;
       flex-direction: column;
       justify-content: center;
       align-items: center;
       overflow: auto;
       transform: translateY(-100%);
-      transition: transform 0.3s ease;
+      transition: opacity 0.2s ease, transform 1s ease;
       z-index: 101;
       gap: 30px;
     }
@@ -847,7 +848,14 @@ const isActive = (path: string) => {
 
     .nav-links.mobile-open {
       transform: translateY(0);
-      z-index: 999;
+      position: fixed;
+      inset: 0;
+      z-index: 10001;
+      border-radius: 0;
+      margin: 0;
+      opacity: 1;
+      transition: opacity 0.8s ease, transform 0.4s ease;
+      border: none;
     }
 
     .nav-links .nav-close {
@@ -861,6 +869,20 @@ const isActive = (path: string) => {
     .nav-setting-btn {
       z-index: 102;
     }
+  }
+
+  :global(.mobile-menu-overlay) {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: color-mix(in srgb, var(--app-bg-primary) 85%, transparent);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    opacity: 1;
+    transition: opacity 0.3s ease;
+  }
+  :global(.mobile-menu-overlay.fade-out) {
+    opacity: 0;
   }
 
   @media (min-width: 769px) {
@@ -897,33 +919,81 @@ const isActive = (path: string) => {
     const menuToggle = document.getElementById("menu-toggle");
     const navLinks = document.getElementById("nav-links");
     const navClose = document.getElementById("nav-close");
+    const navHeader = document.getElementById("main-nav");
 
     if (!menuToggle || !navLinks) return;
 
-    // Toggle menu
-    menuToggle.addEventListener("click", () => {
-      const isOpen = navLinks.classList.contains("mobile-open");
-      navLinks.classList.toggle("mobile-open", !isOpen);
-      menuToggle.classList.toggle("active", !isOpen);
-    });
+    // Overlay backdrop for full-screen menu
+    const overlay = document.createElement('div');
+    overlay.className = 'mobile-menu-overlay';
+    overlay.setAttribute('aria-hidden', 'true');
 
-    // Close menu when clicking close button
-    if (navClose) {
-      navClose.addEventListener("click", () => {
-        navLinks.classList.remove("mobile-open");
-        menuToggle.classList.remove("active");
+    function openMenu() {
+      if (!navLinks || !menuToggle) return;
+      // Move to body to escape nav-header stacking context
+      if (navLinks.parentNode !== document.body) {
+        (navLinks as any)._originalParent = navLinks.parentNode;
+        (navLinks as any)._originalNext = navLinks.nextSibling;
+        document.body.appendChild(navLinks);
+      }
+      overlay.style.opacity = '0';
+      document.body.appendChild(overlay);
+      overlay.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+      menuToggle.classList.add('active');
+      // Force layout so browser registers initial states before animate
+      navLinks.getBoundingClientRect();
+      overlay.getBoundingClientRect();
+      requestAnimationFrame(() => {
+        navLinks.classList.add("mobile-open");
+        overlay.style.opacity = '';
       });
     }
 
-    // Close menu when clicking nav links (use event delegation so removal/addition of links won't break handlers)
-    navLinks.addEventListener("click", (e) => {
+    function closeMenu() {
+      if (!navLinks || !menuToggle) return;
+      navLinks.classList.remove("mobile-open");
+      menuToggle.classList.remove("active");
+      overlay.setAttribute('aria-hidden', 'true');
+      overlay.classList.add('fade-out');
+      document.body.style.overflow = '';
+      // Move back to original parent after transition
+      setTimeout(() => {
+        if (!navLinks) return;
+        if (navLinks.classList.contains("mobile-open")) return;
+        overlay.remove();
+        overlay.classList.remove('fade-out');
+        const el = navLinks as any;
+        if (el._originalParent) {
+          const parent = el._originalParent;
+          const next = el._originalNext;
+          if (next && next.parentNode === parent) {
+            parent.insertBefore(navLinks, next);
+          } else {
+            parent.appendChild(navLinks);
+          }
+        }
+      }, 350);
+    }
+
+    menuToggle.addEventListener("click", () => {
+      const isOpen = navLinks.classList.contains("mobile-open");
+      isOpen ? closeMenu() : openMenu();
+    });
+
+    if (navClose) {
+      navClose.addEventListener("click", closeMenu);
+    }
+
+    // Close when clicking overlay
+    overlay.addEventListener("click", closeMenu);
+
+    // Close when clicking nav links
+    navLinks!.addEventListener("click", (e) => {
       const target = e.target;
       // @ts-ignore
       const link = target && target.closest && target.closest('.nav-link');
-      if (link) {
-        navLinks.classList.remove("mobile-open");
-        menuToggle.classList.remove("active");
-      }
+      if (link) closeMenu();
     });
   }
 

@@ -7,7 +7,6 @@ import { buildTocItems, injectHeadingIds } from '../../../utils/toc';
 import { renderCodeBlockStatsHtml, renderCodeBlockLangLabelsHtml } from '../../../utils/markdownParser';
 import { escapeHtmlText, decodeHtmlEntities, getFileExt, getMediaIcon, toMediaCard, rewriteMediaLinks, hydrateLegacyKatexPlaceholders, wrapRenderedKatex } from '../../../utils/contentUtils';
 import DesktopFloatingToc from '../../../components/FloatingToc.vue';
-import MobileTocPanel from '../../../components/MobileTocPanel.vue';
 import CornerActions from '../../../components/CornerActions.vue';
 import CollectionNav from '../../../components/CollectionNav.vue';
 import 'katex/dist/katex.min.css';
@@ -63,6 +62,8 @@ if (localPost) {
     collectionPath: localPost.collectionPath,
     font: localPost.font,
     status: localPost.status,
+    aiGenerated: localPost.aiGenerated,
+    author: localPost.author,
   };
 }
 settings = getPublicSettings() as Record<string, any>;
@@ -291,25 +292,36 @@ const metaDescription = buildMetaDescription(post, locale);
         </header>
 
         {tocItems.length > 0 && (
-          <details class="markdown-toc">
-            <summary class="toc-summary" aria-label={t('inblog.toc-title')}>
+          <div class="markdown-toc" id="inline-toc">
+            <button class="toc-summary" aria-label={t('inblog.toc-title')} aria-expanded="false">
               <span class="toc-title">{t('inblog.toc-title')}</span>
               <svg class="toc-toggle-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="6 9 12 15 18 9"></polyline>
               </svg>
-            </summary>
-            <div class="toc-body">
-              <ul class="toc-list">
-                {tocItems.map((item) => (
-                  <li class={`toc-level-${item.level}`}>
-                    <a href={`#${item.id}`}>
-                      <span class="toc-text">{item.text}</span>
-                    </a>
-                  </li>
-                ))}
-              </ul>
+            </button>
+            <div class="toc-body-wrap">
+              <div class="toc-body">
+                <ul class="toc-list">
+                  {tocItems.map((item) => (
+                    <li class={`toc-level-${item.level}`}>
+                      <a href={`#${item.id}`}>
+                        <span class="toc-text">{item.text}</span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
-          </details>
+          </div>
+          <script>
+            const summary = document.getElementById('inline-toc')?.querySelector('.toc-summary');
+            summary?.addEventListener('click', () => {
+              const toc = document.getElementById('inline-toc');
+              if(!toc) return;
+              const open = toc.classList.toggle('open');
+              summary.setAttribute('aria-expanded', String(open));
+            });
+          </script>
         )}
 
         <div class="post-body">
@@ -321,24 +333,26 @@ const metaDescription = buildMetaDescription(post, locale);
   <div class="scroll-blank"/>
 
   {tocItems.length > 0 && (
-    <>
-      <DesktopFloatingToc
-        client:idle
-        toc={tocItems}
-        navLabel={t('inblog.toc-title')}
-        mountToBody={true}
-      />
-      <MobileTocPanel client:idle toc={tocItems} />
-    </>
+    <DesktopFloatingToc
+      client:idle
+      toc={tocItems}
+      navLabel={t('inblog.toc-title')}
+      mountToBody={true}
+    />
   )}
+
+  <CornerActions client:idle toc={tocItems} postId={post?.id || id} collections={embeddedCollections} postTitles={embeddedPostTitles} />
 
   {post?.collection && (
-    <CollectionNav client:idle postId={post?.id || id} collections={embeddedCollections} postTitles={embeddedPostTitles} />
+    <CollectionNav client:media="(min-width: 768px)" postId={post?.id || id} collections={embeddedCollections} postTitles={embeddedPostTitles} />
   )}
 
-  <CornerActions client:idle hasToc={tocItems.length > 0} />
-
   <style is:global>
+    /* Hide desktop CollectionNav on mobile (768px breakpoint, matches html.is-mobile) */
+    html.is-mobile .collection-nav {
+      display: none !important;
+    }
+
     @media (max-width: 768px) {
       .post-detail-container {
         padding: 1rem 0.5rem;
@@ -354,7 +368,7 @@ const metaDescription = buildMetaDescription(post, locale);
       }
 
       .post-nav {
-        margin-bottom: 0;
+        margin-bottom: .5rem;
       }
 
       .scroll-blank {
