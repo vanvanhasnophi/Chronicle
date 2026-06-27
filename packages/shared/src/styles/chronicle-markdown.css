@@ -720,7 +720,8 @@
    ═══════════════════════════════════════════════════════════ */
 
 .math-tooltip {
-  position: fixed;
+  position: fixed !important;
+  opacity: 1;
   z-index: 1200;
   min-width: 400px;
   width: 400px;
@@ -736,10 +737,13 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
 }
 
 .math-tooltip.is-hidden {
-  display: none;
+  opacity: 0;
+  transform: translateY(-10px);
+  pointer-events: none;
 }
 
 .math-tooltip-panel {

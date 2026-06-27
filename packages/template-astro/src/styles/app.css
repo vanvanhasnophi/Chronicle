@@ -58,6 +58,13 @@ html.is-mobile .nav-content {
 }
 
 
+.math-tooltip{
+  display: none;
+  visibility: hidden;
+}
+
+
+
 /* Mobile title back button (left of app title) */
 .mobile-title-back {
   background: transparent;

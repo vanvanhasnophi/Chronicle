@@ -775,5 +775,14 @@ try {
       console.info(`%c📦 Chronicle %c数据源: ${isLocalMode ? '%c本地文件系统 (localDataSource)' : '%c远程 API (host)'}%c | 构建模式: ${isLocalMode ? 'lite/static' : 'API'}`,
         'font-weight:bold', '', isLocalMode ? 'color:#2ea35f;font-weight:bold' : 'color:#e06c75;font-weight:bold', '');
     </script>
+
+    <!-- Global scroll controller: one passive listener for all scroll-dependent
+         features (BTT visibility, TOC active heading, hash navigation).
+         Static import so it loads synchronously — no hydration race.
+         Vite deduplicates this into the shared tocController chunk. -->
+    <script>
+      import { initController } from '../utils/tocController';
+      initController();
+    </script>
   </body>
 </html>

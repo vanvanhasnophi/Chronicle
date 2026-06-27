@@ -177,8 +177,9 @@ function showTooltip(trigger: HTMLElement) {
   root.classList.remove('is-hidden')
   root.classList.toggle('is-block', state.displayMode)
   root.setAttribute('aria-hidden', 'false')
+  // visibility:hidden prevents a flash of unpositioned content; display is
+  // handled purely by CSS (global.css → none, chronicle-markdown.css → flex).
   root.style.visibility = 'hidden'
-  root.style.display = 'block'
 
   updateContent()
   requestAnimationFrame(() => {
@@ -194,10 +195,20 @@ function hideTooltip() {
   if (!root) return
   root.classList.add('is-hidden')
   root.setAttribute('aria-hidden', 'true')
-  root.style.visibility = 'hidden'
+  root.style.visibility = ''
+}
+
+function isMathPage() {
+  // Post: /zh/post/xxx, /en/post/xxx, /post/xxx
+  // About: /zh/about, /en/about, /about
+  const pathname = window.location.pathname;
+  return /\/post\//.test(pathname) || /\/([a-z]{2}\/)?about/.test(pathname);
 }
 
 function onDocumentPointerDown(event: PointerEvent) {
+  // Only active on pages that render math content
+  if (!isMathPage()) return;
+
   const target = event.target as HTMLElement | null
   if (!target) return
 
@@ -236,6 +247,10 @@ function onKeyDown(event: KeyboardEvent) {
   if (event.key === 'Escape') hideTooltip()
 }
 
+function onBeforeSwap() {
+  hideTooltip();
+}
+
 export function initMathTooltip(container: ParentNode | null = document) {
   if (typeof window === 'undefined' || typeof document === 'undefined') return
   const host = container instanceof HTMLElement ? container : document.body
@@ -247,13 +262,16 @@ export function initMathTooltip(container: ParentNode | null = document) {
   window.removeEventListener('resize', onWindowChange)
   window.removeEventListener('scroll', onWindowChange, true)
   document.removeEventListener('keydown', onKeyDown)
+  document.removeEventListener('astro:before-swap', onBeforeSwap)
   window.addEventListener('resize', onWindowChange)
   window.addEventListener('scroll', onWindowChange, true)
   document.addEventListener('keydown', onKeyDown)
+  document.addEventListener('astro:before-swap', onBeforeSwap)
 }
 
 export function destroyMathTooltip() {
   document.removeEventListener('pointerdown', onDocumentPointerDown, true)
+  document.removeEventListener('astro:before-swap', onBeforeSwap)
   window.removeEventListener('resize', onWindowChange)
   window.removeEventListener('scroll', onWindowChange, true)
   document.removeEventListener('keydown', onKeyDown)
