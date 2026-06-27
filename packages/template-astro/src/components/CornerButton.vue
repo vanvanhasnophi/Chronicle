@@ -63,8 +63,16 @@ function moveToBody() {
 }
 
 // ---- Morph animation ----
-const SAFETY_TIMEOUT = 500;
+/** Safety net in case transitionend fails to fire.
+    Respects --transition-duration so debugging slow-mo doesn't cause early cutoff. */
+function getSafetyTimeout(): number {
+  if (typeof document === 'undefined') return 1000;
+  const td = getComputedStyle(document.documentElement).getPropertyValue('--transition-duration').trim();
+  return 1000 * (parseFloat(td) || 1);
+}
 let safetyTimer: ReturnType<typeof setTimeout> | null = null;
+/** Stored ref to the current transitionend handler — needed so we can detach it on interrupt. */
+let finishHandler: ((e: TransitionEvent) => void) | null = null;
 function clearTimers() {
   if (safetyTimer !== null) { clearTimeout(safetyTimer); safetyTimer = null; }
 }
@@ -80,12 +88,19 @@ function animateOpen() {
   const onFinish = () => {
     clearTimers();
     animating.value = false;
-    el.removeEventListener('transitionend', onFinish);
+    finishHandler = null;
+    el.removeEventListener('transitionend', onTransitionEnd);
     tocController.computeLiveActiveFromBaseline();
     ensureActiveItemVisible();
   };
-  el.addEventListener('transitionend', onFinish, { once: true });
-  safetyTimer = setTimeout(() => { safetyTimer = null; onFinish(); }, SAFETY_TIMEOUT);
+  // Wait for max-height, not transform (0.15s) — otherwise onFinish fires
+  // long before the morph completes and display:none kills the layout mid-animation.
+  function onTransitionEnd(e: TransitionEvent) {
+    if (e.propertyName === 'max-height') onFinish();
+  }
+  finishHandler = onTransitionEnd;
+  el.addEventListener('transitionend', onTransitionEnd);
+  safetyTimer = setTimeout(() => { safetyTimer = null; onFinish(); }, getSafetyTimeout());
 }
 
 function animateClose() {
@@ -100,20 +115,47 @@ function animateClose() {
     clearTimers();
     activeActionId.value = ''; // clear AFTER animation, so content stays in layout during shrink
     animating.value = false;
+    finishHandler = null;
     el.style.overflow = '';
-    el.removeEventListener('transitionend', onFinish);
+    el.removeEventListener('transitionend', onTransitionEnd);
   };
-  el.addEventListener('transitionend', onFinish, { once: true });
-  safetyTimer = setTimeout(() => { safetyTimer = null; onFinish(); }, SAFETY_TIMEOUT);
+  function onTransitionEnd(e: TransitionEvent) {
+    if (e.propertyName === 'max-height') onFinish();
+  }
+  finishHandler = onTransitionEnd;
+  el.addEventListener('transitionend', onTransitionEnd);
+  safetyTimer = setTimeout(() => { safetyTimer = null; onFinish(); }, getSafetyTimeout());
+}
+
+/** Cancel any in-flight morph animation, clean up listeners/timers, and swap content immediately. */
+function interruptAndSwap(nextActionId: string) {
+  const el = menuRef.value;
+  if (el && finishHandler) {
+    el.removeEventListener('transitionend', finishHandler);
+    finishHandler = null;
+    el.style.transition = '';
+    el.style.overflow = '';
+  }
+  clearTimers();
+  animating.value = false;
+  activeActionId.value = nextActionId;
+  open.value = true;
 }
 
 // ---- Interaction ----
 function onSlotClick(action: CornerAction, event: MouseEvent) {
-  if (animating.value) return;
   if (action.menu) {
     if (open.value && activeActionId.value === action.id) {
+      // Toggle close — same menu
       animateClose();
+    } else if (animating.value) {
+      // Interrupt in-flight animation: another menu wants to open (or same menu
+      // was clicked while closing → cancel the close). Swap content immediately
+      // and reverse the morph direction from wherever it is.
+      event.stopPropagation();
+      interruptAndSwap(action.id);
     } else {
+      // Normal open
       event.stopPropagation();
       activeActionId.value = action.id;
       if (!open.value) animateOpen();
@@ -124,7 +166,15 @@ function onSlotClick(action: CornerAction, event: MouseEvent) {
 }
 
 function onMenuClick(event: MouseEvent) {
-  if (animating.value) return;
+  if (animating.value) {
+    // Mid-open → close; mid-close → reverse to open
+    if (open.value) {
+      animateClose();
+    } else {
+      interruptAndSwap(activeActionId.value);
+    }
+    return;
+  }
   if (!open.value) {
     event.stopPropagation();
     animateOpen();
@@ -132,8 +182,7 @@ function onMenuClick(event: MouseEvent) {
 }
 
 function onBackdropClick() {
-  if (animating.value) return;
-  if (!open.value) return;
+  if (!open.value) return; // closed or mid-close — nothing to do
   if (!props.closeOnBackdrop) return;
   animateClose();
 }
@@ -174,6 +223,10 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   clearTimers();
+  if (menuRef.value && finishHandler) {
+    menuRef.value.removeEventListener('transitionend', finishHandler);
+    finishHandler = null;
+  }
   if (handleAstroPageLoad) {
     document.removeEventListener('astro:page-load', handleAstroPageLoad);
     handleAstroPageLoad = null;
@@ -246,9 +299,10 @@ function iconSvg(name: string) {
         </template>
       </div>
 
-      <!-- Layer 2: Content face (absolute, fades in when open) -->
-      <div v-if="hasMenu" class="cb-content" @click="onContentClick">
-        <ul v-if="activeActionId === 'toc'" ref="listRef" class="cb-menu-list">
+      <!-- Layer 2: Content face — always in DOM (v-show, not v-if) so height:auto
+           resolves to a stable value and content switches don't cause layout jumps. -->
+      <div v-show="hasMenu" class="cb-content" @click="onContentClick">
+        <ul v-show="activeActionId === 'toc'" ref="listRef" class="cb-menu-list">
           <li
             v-for="item in tocItems"
             :key="item.id"
@@ -259,7 +313,9 @@ function iconSvg(name: string) {
             </a>
           </li>
         </ul>
-        <slot v-else-if="activeActionId === 'collection'" name="collectionPanel" />
+        <div v-show="activeActionId === 'collection'">
+          <slot name="collectionPanel" />
+        </div>
       </div>
     </div>
   </div>
@@ -274,6 +330,7 @@ function iconSvg(name: string) {
   background: transparent;
   pointer-events: auto;
 }
+
 
 
 /* ---- Base: single circle button (matches old .corner-button, non-primary) ---- */
@@ -298,26 +355,31 @@ function iconSvg(name: string) {
   justify-content: center;
   opacity: 1;
   pointer-events: auto;
-  transform: none;
+  transform: translateZ(0);
   line-height: normal;
   text-align: left;
   height: auto !important;
   min-height: 50px;
+  /* GPU layer promotion: translateZ(0) creates a compositor layer so
+     backdrop-filter runs on the GPU instead of forcing CPU repaints.
+     contain: layout style isolates layout changes to this subtree —
+     when width/height morph, the browser doesn't re-layout the whole page. */
+  will-change: transform;
+  contain: layout style;
   /* Morph transition */
-  transition: left 700ms cubic-bezier(0.22, 0.9, 0.36, 1),
-              bottom 600ms cubic-bezier(0.22, 0.9, 0.36, 1),
-              width 200ms cubic-bezier(0.22, 0.6, 0.36, 1),
-              height 360ms cubic-bezier(0.02, 0.9, 0.18, 1),
-              max-height 300ms cubic-bezier(0.22, 0.9, 0.36, 1),
-              border-radius 300ms cubic-bezier(0.1, 0.2, 0.36, 1),
-              background 360ms cubic-bezier(0.22, 0.9, 0.36, 1),
-              border-color 700ms cubic-bezier(0.22, 0.9, 0.36, 1),
-              box-shadow 700ms cubic-bezier(0.22, 0.9, 0.36, 1),
+  transition: left calc(700ms * var(--transition-duration)) cubic-bezier(0.22, 0.9, 0.36, 1),
+              bottom calc(600ms * var(--transition-duration)) cubic-bezier(0.22, 0.9, 0.36, 1),
+              width calc(300ms * var(--transition-duration)) cubic-bezier(0.12, 0.9, 0.24, 1),
+              height calc(200ms * var(--transition-duration)) cubic-bezier(0.22, 0.9, 0.36, 1),
+              max-height calc(200ms * var(--transition-duration)) cubic-bezier(0.22, 0.9, 0.36, 1),
+              border-radius calc(300ms * var(--transition-duration)) cubic-bezier(0.1, 0.2, 0.36, 1),
+              background calc(360ms * var(--transition-duration)) cubic-bezier(0.22, 0.9, 0.36, 1),
+              border-color calc(700ms * var(--transition-duration)) cubic-bezier(0.22, 0.9, 0.36, 1),
               transform 0.15s ease-out;
   display: block;
   overflow: hidden;
   max-height: 50px;
-  
+
 }
 
 .corner-button.side-left  { left: 30px; right: auto; }
@@ -356,7 +418,6 @@ html.is-mobile .corner-button.is-primary:not(.open):active {
   bottom: 90px;
   width: calc(100vw - 60px) !important;
   max-height: 60vh;
-  height: auto !important;
   border-radius: 12px;
   background: var(--component-bg-blur);
   border-color: var(--border-color);
@@ -366,15 +427,14 @@ html.is-mobile .corner-button.is-primary:not(.open):active {
   cursor: default;
   overflow: auto;
   /* Morph transition (open) */
-  transition: left 700ms cubic-bezier(0.22, 0.9, 0.36, 1),
-              bottom 600ms cubic-bezier(0.22, 0.9, 0.36, 1),
-              width 360ms cubic-bezier(0.22, 0.3, 0.36, 1),
-              height 360ms cubic-bezier(0.02, 0.9, 0.18, 1),
-              max-height 700ms cubic-bezier(0.22, 0.9, 0.36, 1),
-              border-radius 360ms cubic-bezier(0.1, 0.9, 0.36, 1),
-              background 360ms cubic-bezier(0.22, 0.9, 0.36, 1),
-              border-color 700ms cubic-bezier(0.22, 0.9, 0.36, 1),
-              box-shadow 700ms cubic-bezier(0.22, 0.9, 0.36, 1),
+  transition: left calc(700ms * var(--transition-duration)) cubic-bezier(0.22, 0.9, 0.36, 1),
+              bottom calc(600ms * var(--transition-duration)) cubic-bezier(0.22, 0.9, 0.36, 1),
+              width calc(360ms * var(--transition-duration)) cubic-bezier(0.22, 0.3, 0.36, 1),
+              height calc(500ms * var(--transition-duration)) cubic-bezier(0.22, 0.9, 0.36, 1),
+              max-height calc(500ms * var(--transition-duration)) cubic-bezier(0.22, 0.9, 0.36, 1),
+              border-radius calc(360ms * var(--transition-duration)) cubic-bezier(0.1, 0.9, 0.36, 1),
+              background calc(360ms * var(--transition-duration)) cubic-bezier(0.22, 0.9, 0.36, 1),
+              border-color calc(700ms * var(--transition-duration)) cubic-bezier(0.22, 0.9, 0.36, 1),
               transform 0.15s ease-out;
 
 }
@@ -442,7 +502,7 @@ html:not(.is-mobile) .corner-button.is-capsule:not(.open):hover{
   justify-content: center;
   opacity: 1;
   pointer-events: auto;
-  transition: opacity 150ms ease;
+  transition: opacity calc(200ms * var(--transition-duration))  ease;
   z-index: 1;
 }
 .corner-button.open .cb-icons {
@@ -455,14 +515,14 @@ html:not(.is-mobile) .corner-button.is-capsule:not(.open):hover{
   position: relative;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 300ms ease;
+  transition: opacity calc(120ms * var(--transition-duration)) ease;
   padding: 8px;
   z-index: 0;
 }
 .corner-button.open .cb-content {
   opacity: 1;
   pointer-events: auto;
-  transition: opacity 600ms ease;
+  transition: opacity calc(600ms * var(--transition-duration)) ease;
 }
 
 /* Capsule: icon row always fills container (absolute), content drives height (relative).

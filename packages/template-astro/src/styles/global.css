@@ -20,6 +20,9 @@
 
   color-scheme: dark;
 
+  /* 动画速率 */
+  --transition-duration: 1;
+
   /* Core brand */
   --accent-color-default: #2ea35f;
   --accent-color: var(--accent-color-default);

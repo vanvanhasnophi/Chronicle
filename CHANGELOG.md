@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and uses [Semantic Versioning](https://semver.org/).
 
+## [2.1.1] - 2026-06-27
+
+### Fixed
+- **Mobile menu disappeared abruptly when closing**: Content was hidden mid-animation, causing the panel to vanish instead of shrinking smoothly. Content now stays visible until the collapse animation fully completes.
+- **Menu closed prematurely**: Slowed-down animations (via `--transition-duration`) caused the safety timer to fire too early, killing the animation midway. The safety timer now scales with the animation speed.
+- **TOC anchors broken for headings with special characters**: Headings containing `&`, `%`, `+`, `@`, or `#` produced mismatched anchor IDs, silently breaking TOC navigation. These characters are now converted to readable slugs (`and`, `pct`, `plus`, `at`, `hash`) that match the injected heading IDs.
+- **Math tooltip leaked onto non-article pages**: After navigating from a post to the homepage or blog listing, tapping a math expression would still show the tooltip. The tooltip now only responds on post and about pages.
+
+### Changed
+- **Unified back-to-top button**: The homepage and blogs listing back-to-top button now uses the same rounded corner button as post pages, with consistent animation and behavior.
+- **Centralized scroll listening**: TOC active heading tracking, back-to-top visibility, and other scroll-dependent features now share a single scroll listener instead of each attaching their own.
+- **Mobile menu animation performance**: Enabled GPU hardware acceleration for the corner button morph, shortened transition durations on mobile, and removed expensive box-shadow animation — noticeably smoother on lower-end devices.
+- **Nav settings menu animation**: The theme and locale menu now have transition, fading with a smooth opacity transition.
+
+### Internal
+- Consolidated heading anchor generation to use a single entity-decoding path, eliminating mismatches between TOC building and heading ID injection.
+
 ## [2.1.0] - 2026-06-27
 
 ### Added
@@ -24,9 +41,6 @@ and uses [Semantic Versioning](https://semver.org/).
 - **Build queue fix** (`admin/index.js`): Prevent duplicate build triggers.
 
 ### Fixed
-- **Menu close height snap (critical)**: `activeActionId` was cleared immediately on close, removing the `v-if`-rendered content from layout before the `max-height` transition could run. Deferred to `transitionend` so content stays in flow during the entire shrink animation.
-- **Close transition broken by simultaneous overflow change**: JS now sets inline `overflow: hidden` before removing `.open`, so the `max-height` transition runs without a simultaneous discrete overflow switch.
-- **`height` property interfering with `max-height` transition**: Removed `height` from the transition list entirely — it is always `auto !important` in both states.
 - **Post page `aiGenerated` field not mapped**: The field was missing from the `localPost` → `post` object spread, so the AI-generated badge never appeared. Also added the missing `author` field mapping.
 - **Inline script `this` implicit any type**: Replaced with arrow function capturing the outer variable.
 
@@ -38,6 +52,25 @@ and uses [Semantic Versioning](https://semver.org/).
 - `CornerButton.vue`: Self-contained corner button component; all styles are scoped.
 - `CornerActions.vue`: Thin orchestration layer composing CornerButton instances.
 - `MobileCollectionNav.vue`: Lightweight mobile collection tree using v-html rendering; shares data source and logic with CollectionNav.
+
+
+## [2.0.6] - 2026-06-15
+
+### Fixed
+- **Electron background images failed with relative URLs**: `backgroundRelToUrl()` fell back to `window.location.origin` (`file://`) in Electron when `chronicle_api_url` was not set; CSS `background-image` and `<img src>` with `/server/data/…` paths resolved against `file:///` → 404. Fixed by:
+  - `main.ts` fetch interceptor now rewrites all root-relative URLs (not just `/api/`) against the API server base.
+  - `backgroundRelToUrl()` uses the same fallback chain as `getApiBaseUrl()` (`chronicle_api_url` → `VITE_API_BASE_URL` → `http://localhost:3000`) instead of `window.location.origin`.
+  - New `resolveMediaUrl()` for CSS/image display paths that bypass `fetch()`; used by `BackgroundEditorField` and `BackgroundEditorModal`.
+- **Manager automatically loaded frontend background**: `App.vue` `applySettingsFromStore()` resolved and preloaded the Astro site's frontend background alongside the CMS backend background. Frontend background is now only loaded on-demand by the schema-driven settings page.
+
+### Added
+- **`/api/admin/status` now returns `mediaBaseUrl`**: The server declares its `MEDIA_DOMAIN` (set by deploy scripts) in the status response, same as `webauthnBaseUrl`. The Electron manager caches this and uses it for resolving relative media URLs — no more guessing or hardcoding CDN domains.
+- **Media URL fallback to API server**: `ensureBackgroundImagePrepared()` now automatically retries against the API server origin if the primary URL (CDN/media domain) fails to load, via `buildApiFallbackUrl()`.
+- **`getMediaOrigin()` priority chain**: resolves media URLs in order: server-declared `chronicle_media_url` → build-time `VITE_CDN_BASE_URL` → user-configured `chronicle_api_url` → build-time `VITE_API_BASE_URL` → `http://localhost:3000` (Electron default).
+
+### Internal
+- All packages bumped to `2.0.6`.
+
 
 ## [2.0.5] - 2026-06-14
 
@@ -63,23 +96,6 @@ and uses [Semantic Versioning](https://semver.org/).
 
 ### Internal
 - All packages bumped to `2.0.5`.
-
-## [2.0.6] - 2026-06-15
-
-### Fixed
-- **Electron background images failed with relative URLs**: `backgroundRelToUrl()` fell back to `window.location.origin` (`file://`) in Electron when `chronicle_api_url` was not set; CSS `background-image` and `<img src>` with `/server/data/…` paths resolved against `file:///` → 404. Fixed by:
-  - `main.ts` fetch interceptor now rewrites all root-relative URLs (not just `/api/`) against the API server base.
-  - `backgroundRelToUrl()` uses the same fallback chain as `getApiBaseUrl()` (`chronicle_api_url` → `VITE_API_BASE_URL` → `http://localhost:3000`) instead of `window.location.origin`.
-  - New `resolveMediaUrl()` for CSS/image display paths that bypass `fetch()`; used by `BackgroundEditorField` and `BackgroundEditorModal`.
-- **Manager automatically loaded frontend background**: `App.vue` `applySettingsFromStore()` resolved and preloaded the Astro site's frontend background alongside the CMS backend background. Frontend background is now only loaded on-demand by the schema-driven settings page.
-
-### Added
-- **`/api/admin/status` now returns `mediaBaseUrl`**: The server declares its `MEDIA_DOMAIN` (set by deploy scripts) in the status response, same as `webauthnBaseUrl`. The Electron manager caches this and uses it for resolving relative media URLs — no more guessing or hardcoding CDN domains.
-- **Media URL fallback to API server**: `ensureBackgroundImagePrepared()` now automatically retries against the API server origin if the primary URL (CDN/media domain) fails to load, via `buildApiFallbackUrl()`.
-- **`getMediaOrigin()` priority chain**: resolves media URLs in order: server-declared `chronicle_media_url` → build-time `VITE_CDN_BASE_URL` → user-configured `chronicle_api_url` → build-time `VITE_API_BASE_URL` → `http://localhost:3000` (Electron default).
-
-### Internal
-- All packages bumped to `2.0.6`.
 
 ## [2.0.4] - 2026-06-14
 

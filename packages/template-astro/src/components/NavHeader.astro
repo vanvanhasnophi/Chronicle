@@ -228,7 +228,7 @@ const isActive = (path: string) => {
       </button>
 
       <!-- Settings Menu -->
-      <div class="nav-settings-menu" id="settings-menu" style="display:none;">
+      <div class="nav-settings-menu" id="settings-menu">
         <!-- Theme controls (top) -->
         <button class="popup-item" data-theme="follow">
           <span class="popup-label"
@@ -657,7 +657,16 @@ const isActive = (path: string) => {
     padding: 6px;
     z-index: 10000;
     font-size: 0.9rem;
-    transition: opacity 0.2s ease, transform 0.2s ease;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-4px);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+  }
+
+  .nav-settings-menu.is-open {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
   }
 
   .popup-item {
@@ -1172,9 +1181,9 @@ const isActive = (path: string) => {
       if (!settingBtn || !settingsMenu) return;
       const rect = settingBtn.getBoundingClientRect();
 
-      // Show menu to measure it
+      // Show menu (invisible) to measure it
+      settingsMenu.classList.add('is-open');
       settingsMenu.style.visibility = "hidden";
-      settingsMenu.style.display = "block";
 
       const menuWidth = settingsMenu.offsetWidth;
       const top = rect.bottom + 8;
@@ -1191,9 +1200,9 @@ const isActive = (path: string) => {
     // Toggle menu
     settingBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      const isVisible = settingsMenu.style.display !== "none";
+      const isVisible = settingsMenu.classList.contains('is-open');
       if (isVisible) {
-        settingsMenu.style.display = "none";
+        settingsMenu.classList.remove('is-open');
       } else {
         updateMenuState();
         // if (maybePromptLocaleMismatch()) return;
@@ -1204,7 +1213,7 @@ const isActive = (path: string) => {
     // Close menu when clicking outside
     document.addEventListener("click", (e) => {
       if (!settingsMenu.contains(e.target as Node) && e.target !== settingBtn) {
-        settingsMenu.style.display = "none";
+        settingsMenu.classList.remove('is-open');
       }
     });
 
@@ -1232,7 +1241,7 @@ const isActive = (path: string) => {
         }
 
         updateMenuState();
-        settingsMenu.style.display = "none";
+        settingsMenu.classList.remove('is-open');
       });
     });
 
@@ -1260,7 +1269,7 @@ const isActive = (path: string) => {
     const aboutLink = settingsMenu.querySelector(".popup-item-link");
     if (aboutLink) {
       aboutLink.addEventListener("click", () => {
-        settingsMenu.style.display = "none";
+        settingsMenu.classList.remove('is-open');
       });
     }
 

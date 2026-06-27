@@ -14,12 +14,24 @@ type TocSourceItem = Partial<TocItem> & {
 
 function decodeHtmlEntities(text: string) {
   return text
+    // numeric entities (decimal and hex)
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
+    // named entities
     .replace(/&nbsp;/g, ' ')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&');
+    .replace(/&amp;/g, '&')
+    .replace(/&ldquo;/g, '\u201C')
+    .replace(/&rdquo;/g, '\u201D')
+    .replace(/&lsquo;/g, '\u2018')
+    .replace(/&rsquo;/g, '\u2019')
+    .replace(/&ndash;/g, '\u2013')
+    .replace(/&mdash;/g, '\u2014')
+    .replace(/&hellip;/g, '\u2026');
 }
 
 function stripHtml(text: string) {
@@ -30,9 +42,18 @@ export function slugifyHeading(text: string) {
   const cleaned = stripHtml(text).trim().replace(/\s+/g, ' ');
   if (!cleaned) return 'heading';
 
-  // Use a readable, hyphen-separated slug instead of percent-encoding.
-  // This avoids client-side percent-encoding differences and keeps ids stable.
-  return cleaned.replace(/\s+/g, '-').replace(/[^\w\-\u4E00-\u9FFF]/g, '');
+  // Hyphen-slug: semantic replacements for chars that affect URL parsing,
+  // then strip anything left that isn't word / CJK / hyphen.
+  return cleaned
+    .replace(/&/g, 'and')
+    .replace(/%/g, 'pct')
+    .replace(/\+/g, 'plus')
+    .replace(/@/g, 'at')
+    .replace(/#/g, 'hash')
+    .replace(/\s+/g, '-')
+    .replace(/[^\w\-\u4E00-\u9FFF]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
 }
 
 export function normalizeTocItems(toc: unknown): TocItem[] {
@@ -170,10 +191,11 @@ export function buildTocItems(content: string, isHtml = false, toc?: unknown) {
 
 export function injectHeadingIds(html: string, toc: TocItem[]): string {
   if (!toc.length) return html;
-  // Build a map from heading text → id, in TOC order (first occurrence wins)
+  // Build a map from heading text → id, in TOC order (first occurrence wins).
+  // Must decode entities here to match what buildTocFromHtml / slugifyHeading produce.
   const idMap = new Map<string, string>();
   for (const item of toc) {
-    const key = item.text.toLowerCase();
+    const key = stripHtml(item.text).trim().toLowerCase();
     if (!idMap.has(key)) idMap.set(key, item.id);
   }
 
@@ -182,9 +204,9 @@ export function injectHeadingIds(html: string, toc: TocItem[]): string {
   return html.replace(/<h([1-6])\b([^>]*)>([\s\S]*?)<\/h\1>/gi, (match, level, attrs, inner) => {
     // Skip if already has an id
     if (/\sid\s*=/.test(attrs)) return match;
-    const text = inner.replace(/<[^>]+>/g, '').trim();
+    const text = stripHtml(inner).trim();
     if (!text) return match;
-    const id = idMap.get(text.toLowerCase()) || idMap.get(text) || `heading-${idx++}`;
+    const id = idMap.get(text.toLowerCase()) || `heading-${idx++}`;
     return `<h${level} id="${id}"${attrs}>${inner}</h${level}>`;
   });
 }

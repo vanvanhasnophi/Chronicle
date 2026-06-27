@@ -270,3 +270,9 @@ const metaDescription = profile?.bio
   }
 }
 </style>
+
+<script>
+  import('../../utils/mathTooltip').then(({ initMathTooltip }) => {
+    initMathTooltip(document.querySelector('.chronicle-markdown'));
+  }).catch(() => {});
+</script>
