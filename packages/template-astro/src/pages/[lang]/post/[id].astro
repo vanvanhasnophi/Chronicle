@@ -9,6 +9,7 @@ import { escapeHtmlText, decodeHtmlEntities, getFileExt, getMediaIcon, toMediaCa
 import DesktopFloatingToc from '../../../components/FloatingToc.vue';
 import CornerActions from '../../../components/CornerActions.vue';
 import CollectionNav from '../../../components/CollectionNav.vue';
+import Slideshow from '../../../components/Slideshow.astro';
 import 'katex/dist/katex.min.css';
 import '../../../styles/post.css';
 import '@chronicle/shared/src/styles/chronicle-markdown.css';
@@ -64,6 +65,8 @@ if (localPost) {
     status: localPost.status,
     aiGenerated: localPost.aiGenerated,
     author: localPost.author,
+    type: localPost.type,
+    slideshow: localPost.slideshow,
   };
 }
 settings = getPublicSettings() as Record<string, any>;
@@ -202,9 +205,13 @@ if (renderedPostContent) {
   }
 }
 
+const isSlidesView = post?.type === 'slides' || !!post?.slideshow;
 const metaDescription = buildMetaDescription(post, locale);
 ---
 
+{isSlidesView && post ? (
+  <Slideshow content={Buffer.from(post.content || rawPostMarkdown, 'utf-8').toString('base64')} config={post.slideshow || {}} />
+) : (
 <Layout title={pageTitle} settings={settings} locale={locale} navTitle={post?.title} navBackHref={backToBlogs} navBackLabel={t('inblog.backToBlogs')} meta={{ description: metaDescription, type: 'article' }}>
   <div class="post-detail-container" id="post-top">
     {error ? (
@@ -841,3 +848,4 @@ const metaDescription = buildMetaDescription(post, locale);
   <script src="../../../utils/filePreviewLazy.js"></script>
 
 </Layout>
+)}

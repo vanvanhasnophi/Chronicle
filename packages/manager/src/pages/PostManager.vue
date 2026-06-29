@@ -108,7 +108,7 @@
                   @keyup.enter="saveRename(post)" @keyup.esc="cancelRename" class="rename-input" />
               </div>
               <div v-else class="post-title" :title="$t('post.renameHint')">
-                {{ post.title }}
+                <span v-if="post.type === 'slides'" class="slides-icon" title="Slideshow" v-html="Icons.slideshow"></span> {{ post.title }}
               </div>
 
               <!-- Tags -->
@@ -160,6 +160,7 @@ import { sortTags } from '../utils/tagUtils'
 import useToast from '../composables/useToast'
 import { getNotificationCenter } from '../composables/useNotificationCenter'
 import { settingsStore } from '../composables/settingsApi'
+import { Icons } from '../utils/icons'
 
 const nc = getNotificationCenter()
 
@@ -868,21 +869,20 @@ onUnmounted(() => {
 }
 
 .status-badge.draft {
-  background: var(--component-bg-secondary);
   color: var(--component-text-secondary);
-  border: 1px solid var(--border-color);
+  background: var(--component-bg-hover);
 }
 
 .status-badge.published {
-  background: var(--component-bg-hover);
-  color: var(--accent-color);
-  border: 1px solid var(--accent-color);
+  color: var(--status-success);
+  background: var(--status-success-bg);
+  border: 1px solid var(--status-success);
 }
 
 .status-badge.modifying {
-  background: var(--component-bg-hover);
-  color: var(--featured, #f59e0b);
-  border: 1px solid var(--featured, #f59e0b);
+  color: var(--status-warning);
+  background: var(--status-warning-bg);
+  border: 1px solid var(--status-warning);
 }
 
 /* ── Post actions ──────────────────────────────────────────────────── */
@@ -1022,5 +1022,19 @@ onUnmounted(() => {
     width: 18px;
     height: 18px;
   }
+}
+
+.slides-icon {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  margin-right: 4px;
+  vertical-align: text-bottom;
+  opacity: 0.5;
+}
+
+.slides-icon :deep(svg) {
+  width: 18px;
+  height: 18px;
 }
 </style>

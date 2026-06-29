@@ -1,0 +1,77 @@
+---
+// Chronicle Slideshow — client-side Marp rendering
+// Avoids SSR encoding issues. Marp renders in browser just like the CMS preview.
+
+interface Props { content: string; config?: { theme?: string; ratio?: string; footer?: string } }
+const { content, config = {} } = Astro.props as Props
+const ratio = config.ratio || '16:9'
+// Base64 transport avoids SSR string encoding corruption
+const md = Buffer.from(content, 'base64').toString('utf-8')
+
+import marpCore from '@marp-team/marp-core'
+const Marp = (marpCore as any).default || marpCore
+const marp = new Marp({ html: true })
+let slideHTML = ''; let slideCSS = ''; let totalSlides = 0
+try {
+  const r = marp.render(md)
+  slideHTML = r.html; slideCSS = r.css; totalSlides = slideHTML.split('</section>').length
+} catch { slideHTML = `<section><pre>${md}</pre></section>` }
+---
+
+<div class="chronicle-slideshow" id="chronicle-slideshow" data-total={totalSlides}>
+  <style set:html={slideCSS} />
+  <div class="slides-container">
+    <div class="slides-viewport" id="slides-viewport" style={`aspect-ratio:${ratio.replace(':','/')}`}>
+      <div class="marp-slides" set:html={slideHTML} />
+    </div>
+    <div class="slides-controls" id="slides-controls">
+      <button id="slide-prev">←</button>
+      <span class="slide-counter" id="slide-counter">1 / {totalSlides}</span>
+      <button id="slide-next">→</button>
+      <button id="slide-view-single" style="margin-left:12px" title="Single">📄</button>
+      <button id="slide-view-all" class="active" title="All">📜</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const total = parseInt(document.getElementById('chronicle-slideshow')?.dataset.total || '0')
+  let current = 0
+  let viewMode: 'single' | 'all' = 'all'
+  function updateView() {
+    const vp = document.getElementById('slides-viewport')!
+    const svgs = vp.querySelectorAll('[data-marpit-svg]')
+    if (viewMode === 'single') {
+      svgs.forEach((s: any, i) => { s.style.display = i === current ? '' : 'none' })
+    } else {
+      svgs.forEach((s: any) => { s.style.display = '' })
+    }
+    document.getElementById('slide-view-single')?.classList.toggle('active', viewMode === 'single')
+    document.getElementById('slide-view-all')?.classList.toggle('active', viewMode === 'all')
+    document.getElementById('slide-counter')!.textContent = `${current+1} / ${total}`
+  }
+  function next() { if (current < total-1) { current++; updateView() } }
+  function prev() { if (current > 0) { current--; updateView() } }
+  document.addEventListener('keydown', (e) => {
+    if ((e.target as HTMLElement)?.closest('input,textarea')) return
+    switch(e.key){
+      case 'ArrowRight': case 'PageDown': case ' ': e.preventDefault(); next(); break
+      case 'ArrowLeft': case 'PageUp': e.preventDefault(); prev(); break
+      case 'Home': e.preventDefault(); current=0; updateView(); break
+      case 'End': e.preventDefault(); current=total-1; updateView(); break
+    }
+  })
+  let tx=0; document.addEventListener('touchstart',e=>{tx=e.touches[0].clientX})
+  document.addEventListener('touchend',e=>{ const dx=e.changedTouches[0].clientX-tx; if(Math.abs(dx)>50) dx>0?prev():next() })
+  document.getElementById('slide-prev')?.addEventListener('click',prev)
+  document.getElementById('slide-next')?.addEventListener('click',next)
+  document.getElementById('slide-view-single')?.addEventListener('click', ()=>{ viewMode='single'; updateView() })
+  document.getElementById('slide-view-all')?.addEventListener('click', ()=>{ viewMode='all'; updateView() })
+  const h = parseInt(location.hash.slice(1)); if(h>=1&&h<=total){current=h-1}
+  viewMode = (localStorage.getItem('chronicle-slides-view') as 'single'|'all') || 'all'
+  updateView()
+</script>
+
+<style>
+  @import '@chronicle/shared/src/styles/chronicle-slides.css';
+</style>

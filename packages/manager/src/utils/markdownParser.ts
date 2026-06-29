@@ -37,9 +37,9 @@ function protectMath(content: string): { text: string; blocks: string[] } {
 
 function escapeAttr(s: string) {
   return s.replace(/&/g, '&amp;')
-          .replace(/"/g, '&quot;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;');
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 function escapeTextNode(text: string) {
@@ -125,14 +125,14 @@ export function processEmphasis(text: string, isHeading = false): string {
   const PLACEHOLDER_ESCAPED_DOLLAR = '___ESCAPED_DOLLAR___'
   const PLACEHOLDER_ESCAPED_LBRACKET = '___ESCAPED_LBRACKET___'
   const PLACEHOLDER_ESCAPED_RBRACKET = '___ESCAPED_RBRACKET___'
-  
+
   const htmlTagMatches: string[] = []
-  
+
   // Protect HTML tags from markdown processing (e.g. underscores in attributes)
   processed = processed.replace(/<[^>]+>/g, (match) => {
-      const id = htmlTagMatches.length.toString()
-      htmlTagMatches.push(match)
-      return PLACEHOLDER_HTML_TAG(id)
+    const id = htmlTagMatches.length.toString()
+    htmlTagMatches.push(match)
+    return PLACEHOLDER_HTML_TAG(id)
   })
 
   processed = processed.replace(/\\\$/g, PLACEHOLDER_ESCAPED_DOLLAR)
@@ -163,7 +163,7 @@ export function processEmphasis(text: string, isHeading = false): string {
     const uniqueId = `math-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     return `<span class="katex-placeholder katex-interactive" data-tex="${escapeAttr(tex)}" data-type="inline" data-unique-id="${uniqueId}"></span>`
   })
-  
+
   // 5. Restore escaped dollars and brackets
   processed = processed.replace(new RegExp(PLACEHOLDER_ESCAPED_DOLLAR, 'g'), '$')
   processed = processed.replace(new RegExp(PLACEHOLDER_ESCAPED_LBRACKET, 'g'), '\\[')
@@ -171,37 +171,37 @@ export function processEmphasis(text: string, isHeading = false): string {
 
   // Restore HTML tags BEFORE markdown link/image processing? 
   // No, actually if we restore HTML tags now, subsequent regex (like Bold/Italic) might mess them up if we didn't disable _ for italic.
-  
+
   // Wait, I already disabled _ for italic in the previous tool call. 
   // But strictly speaking, we generally want to restore HTML *after* markdown processing so that markdown regex doesn't match inside HTML attributes.
   // HOWEVER, for things like Images/Links, sometimes people put HTML inside?
-  
+
   // Let's restore at the VERY END.
-  
+
   if (!isHeading) {
     // 图片 ![alt](url)
     processed = processed.replace(/!\[([^\]]*?)\]\((.*?)\)/g, (_match, alt, url) => {
-        return renderImagePlaceholder(alt, url)
+      return renderImagePlaceholder(alt, url)
     })
 
     // 正在输入的图片语法 ![alt] (且后面没有跟着左括号)
     processed = processed.replace(/!\[([^\]]*?)\](?!\()/g, (_match, alt) => {
-         return renderImagePlaceholder(alt, '')
+      return renderImagePlaceholder(alt, '')
     })
-    
+
     // 链接 [text](url) -> 智能转换为文件卡片
     // 识别常见文件后缀与特殊协议，如果是媒体/文档/邮件/强制链接则渲染为卡片，否则保留默认链接样式
     processed = processed.replace(/\[([^\]]+?)\]\((.*?)\)/g, (match, text, url) => {
       const { cleanUrl, scheme, payload } = getLinkKind(url)
-        let extMatch = cleanUrl.match(/\.([0-9a-z]+)($|\?)/i)
-        let ext = extMatch ? extMatch[1].toLowerCase() : ''
-        // Fallback: blob/file URLs have no extension — use link text extension
-        if (!ext && (cleanUrl.startsWith('blob:') || cleanUrl.startsWith('file://'))) {
-            const textExtMatch = text.match(/\.([0-9a-z]+)$/i)
-            if (textExtMatch) ext = textExtMatch[1].toLowerCase()
-        }
+      let extMatch = cleanUrl.match(/\.([0-9a-z]+)($|\?)/i)
+      let ext = extMatch ? extMatch[1].toLowerCase() : ''
+      // Fallback: blob/file URLs have no extension — use link text extension
+      if (!ext && (cleanUrl.startsWith('blob:') || cleanUrl.startsWith('file://'))) {
+        const textExtMatch = text.match(/\.([0-9a-z]+)$/i)
+        if (textExtMatch) ext = textExtMatch[1].toLowerCase()
+      }
 
-        // Define types
+      // Define types
       let type = '', icon = '', targetUrl = cleanUrl, displayType = ''
 
       if (scheme === 'mailto') {
@@ -237,60 +237,60 @@ export function processEmphasis(text: string, isHeading = false): string {
         icon = Icons.link
         targetUrl = payload || cleanUrl
       }
-        
-        // Audio
-      if (!type && ['mp3','wav','ogg','m4a','flac','aac'].includes(ext)) {
-            type = 'Audio'; icon = Icons.audio
-        }
-        // Video
-      else if (!type && ['mp4','webm','mkv','mov','avi'].includes(ext)) {
-            type = 'Video'; icon = Icons.video
-        }
-        // Doc
-      else if (!type && ['pdf','doc','docx','ppt','pptx','xls','xlsx'].includes(ext)) {
-            type = 'Document'; icon = Icons.document
-        }
-        // Code/Text
-      else if (!type && ['txt','md','js','ts','json','c','cpp','py','java','html','css','vue','log','xml','yaml'].includes(ext)) {
-            type = 'Code/Text'; icon = Icons.codeText
-        }
-        // Archive/Other (only if extension exists and it's likely a file link)
-      else if (!type && ['zip','rar','7z','tar','gz'].includes(ext)) {
-            type = 'Archive'; icon = Icons.archive
-        }
-        
-        if (type) {
-         const safeName = escapeAttr(text)
-         const safeUrl = escapeAttr(targetUrl)
-         const safeDisplayType = escapeAttr(displayType || type)
-         // For mailto and explicit 'link' scheme, render as an anchor so default link behavior applies
-         if (String(type).toLowerCase() === 'email') {
-           return `<a class="file-card" href="${safeUrl}" data-name="${safeName}" data-type="${safeDisplayType}">
-                     <div class="file-card-icon">${icon}</div>
-                     <div class="file-card-info">
-                       <div class="file-card-title">${safeName}</div>
-                       <div class="file-card-subtitle">${safeDisplayType}</div>
-                     </div>
-                   </a>`
-         }
-         if (String(type).toLowerCase() === 'link') {
-           return `<a class="file-card" href="${safeUrl}" target="_blank" rel="noopener noreferrer" data-name="${safeName}" data-type="${safeDisplayType}">
-                     <div class="file-card-icon">${icon}</div>
-                     <div class="file-card-info">
-                       <div class="file-card-title">${safeName}</div>
-                       <div class="file-card-subtitle">${safeDisplayType}</div>
-                     </div>
-                   </a>`
-         }
 
-         return `<div class="file-card" data-url="${safeUrl}" data-name="${safeName}" data-type="${safeDisplayType}">
+      // Audio
+      if (!type && ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac'].includes(ext)) {
+        type = 'Audio'; icon = Icons.audio
+      }
+      // Video
+      else if (!type && ['mp4', 'webm', 'mkv', 'mov', 'avi'].includes(ext)) {
+        type = 'Video'; icon = Icons.video
+      }
+      // Doc
+      else if (!type && ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'].includes(ext)) {
+        type = 'Document'; icon = Icons.document
+      }
+      // Code/Text
+      else if (!type && ['txt', 'md', 'js', 'ts', 'json', 'c', 'cpp', 'py', 'java', 'html', 'css', 'vue', 'log', 'xml', 'yaml'].includes(ext)) {
+        type = 'Code/Text'; icon = Icons.codeText
+      }
+      // Archive/Other (only if extension exists and it's likely a file link)
+      else if (!type && ['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
+        type = 'Archive'; icon = Icons.archive
+      }
+
+      if (type) {
+        const safeName = escapeAttr(text)
+        const safeUrl = escapeAttr(targetUrl)
+        const safeDisplayType = escapeAttr(displayType || type)
+        // For mailto and explicit 'link' scheme, render as an anchor so default link behavior applies
+        if (String(type).toLowerCase() === 'email') {
+          return `<a class="file-card" href="${safeUrl}" data-name="${safeName}" data-type="${safeDisplayType}">
+                     <div class="file-card-icon">${icon}</div>
+                     <div class="file-card-info">
+                       <div class="file-card-title">${safeName}</div>
+                       <div class="file-card-subtitle">${safeDisplayType}</div>
+                     </div>
+                   </a>`
+        }
+        if (String(type).toLowerCase() === 'link') {
+          return `<a class="file-card" href="${safeUrl}" target="_blank" rel="noopener noreferrer" data-name="${safeName}" data-type="${safeDisplayType}">
+                     <div class="file-card-icon">${icon}</div>
+                     <div class="file-card-info">
+                       <div class="file-card-title">${safeName}</div>
+                       <div class="file-card-subtitle">${safeDisplayType}</div>
+                     </div>
+                   </a>`
+        }
+
+        return `<div class="file-card" data-url="${safeUrl}" data-name="${safeName}" data-type="${safeDisplayType}">
                        <div class="file-card-icon">${icon}</div>
                        <div class="file-card-info">
                           <div class="file-card-title">${safeName}</div>
                 <div class="file-card-subtitle">${safeDisplayType}</div>
                        </div>
                     </div>`
-        }
+      }
 
       const safeHref = escapeAttr(cleanUrl)
       return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="md-link">${escapeTextNode(text)}</a>`
@@ -308,17 +308,17 @@ export function processEmphasis(text: string, isHeading = false): string {
   // *斜体*
   processed = processed.replace(/\*(.+?)\*/g, '<i>$1</i>')
   // processed = processed.replace(/_(.+?)_/g, '<i>$1</i>')
-  
+
   // 6. Restore HTML tags
   htmlTagMatches.forEach((tag, index) => {
-      processed = processed.replace(PLACEHOLDER_HTML_TAG(index.toString()), sanitizeHtmlTag(tag))
+    processed = processed.replace(PLACEHOLDER_HTML_TAG(index.toString()), sanitizeHtmlTag(tag))
   })
 
   return processed
 }
 
-export function parseTableMarkdown(text: string): Array<{header: string[], body: string[][], raw: string, start: number, end: number}> {
-  const results: Array<{header: string[], body: string[][], raw: string, start: number, end: number}> = [];
+export function parseTableMarkdown(text: string): Array<{ header: string[], body: string[][], raw: string, start: number, end: number }> {
+  const results: Array<{ header: string[], body: string[][], raw: string, start: number, end: number }> = [];
   const tableRegex = /((?:^\s*\|.*\|\s*\n)+)\s*([| :]*)\-+([| :\-]*)\n((?:\s*\|.*\|\s*\n?)*)/gm;
   let match;
   while ((match = tableRegex.exec(text)) !== null) {
@@ -328,7 +328,7 @@ export function parseTableMarkdown(text: string): Array<{header: string[], body:
     const body = bodyRows.split(/\n/).filter((row: string) => row.trim()).map((row: string) => {
       return row.trim().replace(/^\||\|$/g, '').split('|').map((cell: string) => cell.trim());
     });
-    results.push({header, body, raw, start: match.index, end: match.index + raw.length});
+    results.push({ header, body, raw, start: match.index, end: match.index + raw.length });
   }
   return results;
 }
@@ -376,17 +376,17 @@ export function parseMarkdown(content: string, cacheKey?: number): Array<Content
     let pendingHref = '';
     for (const c of t.children) {
       switch (c.type) {
-        case 'text':        out += c.content; break;
+        case 'text': out += c.content; break;
         case 'code_inline': out += '`' + c.content + '`'; break;
         case 'strong_open': out += '**'; break;
-        case 'strong_close':out += '**'; break;
-        case 'em_open':     out += '*'; break;
-        case 'em_close':    out += '*'; break;
-        case 'link_open':   out += '['; pendingHref = c.attrGet('href') || ''; break;
-        case 'link_close':  out += '](' + pendingHref + ')'; pendingHref = ''; break;
-        case 'image':       out += '![' + c.content + '](' + (c.attrGet('src') || '') + ')'; break;
-        case 'hardbreak':   out += '<br>'; break;
-        case 'softbreak':   out += ' '; break;
+        case 'strong_close': out += '**'; break;
+        case 'em_open': out += '*'; break;
+        case 'em_close': out += '*'; break;
+        case 'link_open': out += '['; pendingHref = c.attrGet('href') || ''; break;
+        case 'link_close': out += '](' + pendingHref + ')'; pendingHref = ''; break;
+        case 'image': out += '![' + c.content + '](' + (c.attrGet('src') || '') + ')'; break;
+        case 'hardbreak': out += '<br>'; break;
+        case 'softbreak': out += ' '; break;
         default: out += c.content || ''; break;
       }
     }
@@ -631,7 +631,7 @@ interface Token {
 
 // 用自定义控件占位符替换表格，后续由TextEditor渲染MarkdownTable组件
 export function convertToHtml(text: any, options?: { wrapBlocks?: boolean, locale?: string }): string {
-    // 渲染每个段落
+  // 渲染每个段落
   // 新的段落换行与反斜杠处理逻辑
   function renderParaBlock(block: string) {
     if (/^\s{0,3}(?:-{3,}|\*{3,}|_{3,})\s*$/.test(block)) {
@@ -716,7 +716,7 @@ export function convertToHtml(text: any, options?: { wrapBlocks?: boolean, local
           const indent = match[1].replace(/\t/g, '    ').length
           const content = processEmphasis(match[3])
           let subItems = []
-          let j = i+1
+          let j = i + 1
           while (j < lines.length) {
             const next = lines[j]
             const nextMatch = next.match(/^([ \t]*)([-*]|\d+\.) (.*)$/)
@@ -733,7 +733,7 @@ export function convertToHtml(text: any, options?: { wrapBlocks?: boolean, local
           }
           let subHtml = ''
           if (subItems.length) {
-            subHtml = renderList(subItems, level+1)
+            subHtml = renderList(subItems, level + 1)
           }
           html += `<li>${content}${subHtml}</li>`
           i = j
@@ -788,7 +788,7 @@ export function convertToHtml(text: any, options?: { wrapBlocks?: boolean, local
             <div class="toolbar">
               <button class="icon-btn copy-btn" title="Copy" data-code="${escapeAttr(codeRaw)}">
                 <svg class="copy-icon" width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="7" y="7" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.5"></rect><rect x="4" y="4" width="9" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"></rect></svg>
-                <svg class="success-icon" width="18" height="18" viewBox="0 0 20 20" fill="none" style="display: none;"><path d="M4 10l3 3 9-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                <svg class="success-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
               </button>
             </div>
           </div>
@@ -809,7 +809,7 @@ export function convertToHtml(text: any, options?: { wrapBlocks?: boolean, local
       // If header/body provided, render semantic table
       if (block.header && Array.isArray(block.header)) {
         const th = block.header.map((h: string) => `<th>${escapeAttr(String(h))}</th>`).join('')
-        const rows = (block.body || []).map((r: string[]) => `\n<tr>${r.map((c: string)=>`<td>${escapeAttr(String(c))}</td>`).join('')}</tr>`).join('')
+        const rows = (block.body || []).map((r: string[]) => `\n<tr>${r.map((c: string) => `<td>${escapeAttr(String(c))}</td>`).join('')}</tr>`).join('')
         return `<table class="md-table"><thead><tr>${th}</tr></thead><tbody>${rows}</tbody></table>`
       }
       // Fallback: output raw content escaped
@@ -851,7 +851,7 @@ export function convertToHtml(text: any, options?: { wrapBlocks?: boolean, local
 }
 
 // Inject heading ids into an HTML string using a precomputed TOC.
-export function injectHeadingIds(html: string, toc: Array<{id: string, text: string, level: number}>): string {
+export function injectHeadingIds(html: string, toc: Array<{ id: string, text: string, level: number }>): string {
   if (!html || !Array.isArray(toc) || toc.length === 0) return html
   let i = 0
   return html.replace(/<h([1-6])>([\s\S]*?)<\/h\1>/g, (match, level, inner) => {
@@ -893,7 +893,7 @@ export async function hydrateKatexIn(container: HTMLElement | null) {
       wrapper.setAttribute('data-type', type)
       wrapper.innerHTML = html
       ph.replaceWith(wrapper)
-    } catch (e) {}
+    } catch (e) { }
   }
 }
 
@@ -921,7 +921,7 @@ export function blocksToMarkdown(blocks: ContentBlock[]): string {
         // 优先用header/body还原标准表格
         if (block.header && block.body) {
           const headerLine = '| ' + block.header.join(' | ') + ' |';
-          const sepLine = '| ' + block.header.map(()=>'---').join(' | ') + ' |'; // separator line
+          const sepLine = '| ' + block.header.map(() => '---').join(' | ') + ' |'; // separator line
           const bodyLines = block.body.map(row => '| ' + row.join(' | ') + ' |');
           md += [headerLine, sepLine, ...bodyLines].join('\n') + '\n\n';
         } else {
@@ -941,10 +941,10 @@ export function blocksToMarkdown(blocks: ContentBlock[]): string {
         text = text.replace(/<b>(.*?)<\/b>/g, '**$1**');
         text = text.replace(/<em>(.*?)<\/em>/g, '*$1*');
         text = text.replace(/<i>(.*?)<\/i>/g, '*$1*');
-        
+
         // Split on <br> and reconstruct Markdown: within a content-block
         // <br> -> '\n', and separate content-blocks with '\n\n'.
-        const parts = text.split(/<br\s*\/?\s*>/gi).map(s => s.replace(/\s+$/,''))
+        const parts = text.split(/<br\s*\/?\s*>/gi).map(s => s.replace(/\s+$/, ''))
         const reconstructed = parts.map(p => unescapeHtmlEntities(p)).join('\n')
         md += reconstructed + '\n\n'
         break;
@@ -961,13 +961,13 @@ export function blocksToMarkdown(blocks: ContentBlock[]): string {
         if (Array.isArray(block.content)) {
           const quoteMd = blocksToMarkdown(block.content as ContentBlock[])
             .split('\n')
-            .map(l => l ? '> ' + l +'\n': '')
+            .map(l => l ? '> ' + l + '\n' : '')
             .join('');
-          md += quoteMd; 
+          md += quoteMd;
         } else {
           md += block.content || '';
         }
-        md = md.trimEnd() + '\n\n'; 
+        md = md.trimEnd() + '\n\n';
         break;
       }
       case 'text': {
@@ -980,7 +980,7 @@ export function blocksToMarkdown(blocks: ContentBlock[]): string {
         text = text.replace(/<b>(.*?)<\/b>/g, '**$1**');
         text = text.replace(/<em>(.*?)<\/em>/g, '*$1*');
         text = text.replace(/<i>(.*?)<\/i>/g, '*$1*');
-        
+
         text = text.replace(/<p>(.*?)<\/p>/g, '$1\n');
         text = text.replace(/<br\s*\/?>(\n)?/g, '\n');
         text = text.replace(/<[^>]+>/g, '');
@@ -1006,39 +1006,39 @@ export function unescapeMarkdownCell(cell: string) {
 export { stripMarkdown, extractExcerpt }
 
 export function getStats(md: string) {
-    const plain = stripMarkdown(md)
+  const plain = stripMarkdown(md)
 
-    // 1. Character Count (with spaces)
-    const charCount = plain.length
+  // 1. Character Count (with spaces)
+  const charCount = plain.length
 
-    // 2. Character Count (no spaces)
-    const charCountNoSpaces = plain.replace(/\s/g, '').length
+  // 2. Character Count (no spaces)
+  const charCountNoSpaces = plain.replace(/\s/g, '').length
 
-    // 3. Word Count \u2014 CJK characters each count as 1 word
-    const cjkRegex = /[\u4e00-\u9fa5\uf900-\ufa2d\u3040-\u309f\u30a0-\u30ff]/g
-    const cjkMatches = plain.match(cjkRegex) || []
-    const cjkCount = cjkMatches.length
+  // 3. Word Count \u2014 CJK characters each count as 1 word
+  const cjkRegex = /[\u4e00-\u9fa5\uf900-\ufa2d\u3040-\u309f\u30a0-\u30ff]/g
+  const cjkMatches = plain.match(cjkRegex) || []
+  const cjkCount = cjkMatches.length
 
-    const nonCjk = plain.replace(cjkRegex, ' ')
-    const westernWordCount = nonCjk.split(/\s+/).filter(w => w.length > 0).length
+  const nonCjk = plain.replace(cjkRegex, ' ')
+  const westernWordCount = nonCjk.split(/\s+/).filter(w => w.length > 0).length
 
-    const wordCount = westernWordCount + cjkCount
+  const wordCount = westernWordCount + cjkCount
 
-    // 4. Non-Western Count
-    const nonWesternCount = cjkCount
+  // 4. Non-Western Count
+  const nonWesternCount = cjkCount
 
-    // 5. Markdown Count
-    const markdownCount = md.length
+  // 5. Markdown Count
+  const markdownCount = md.length
 
-    // 6. Summary \u2014 use shared extractExcerpt
-    const summary = extractExcerpt(md, 150)
+  // 6. Summary \u2014 use shared extractExcerpt
+  const summary = extractExcerpt(md, 150)
 
-    return {
-        charCount,
-        charCountNoSpaces,
-        wordCount,
-        nonWesternCount,
-        markdownCount,
-        summary
-    }
+  return {
+    charCount,
+    charCountNoSpaces,
+    wordCount,
+    nonWesternCount,
+    markdownCount,
+    summary
+  }
 }

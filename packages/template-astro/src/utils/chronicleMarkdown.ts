@@ -420,10 +420,10 @@ function renderCodeChunkHtml(code: string, lang: string): string {
         <div class="toolbar-divider"></div>
         <div class="mermaid-group">
           <button class="icon-btn mermaid-split-btn active" title="Split">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="8" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="3" y="13" width="18" height="8" rx="1" stroke="currentColor" stroke-width="1.5"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="7" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="3" y="14" width="18" height="7" rx="1" stroke="currentColor" stroke-width="1.5"/></svg>
           </button>
           <button class="icon-btn mermaid-code-btn" title="Code">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M16 18l6-6-6-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 6l-6 6 6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 7 2 12 7 17"/><line x1="14" y1="5" x2="10" y2="19"/><polyline points="17 7 22 12 17 17"/></svg>
           </button>
           <button class="icon-btn mermaid-preview-btn" title="Preview">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -448,7 +448,7 @@ function renderCodeChunkHtml(code: string, lang: string): string {
       ${mermaidToolbar}
       <button class="icon-btn copy-btn" title="Copy" data-code="${escapeAttr(code)}">
         <svg class="copy-icon" width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="7" y="7" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.5"></rect><rect x="4" y="4" width="9" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"></rect></svg>
-        <svg class="success-icon" width="18" height="18" viewBox="0 0 20 20" fill="none" style="display: none;"><path d="M4 10l3 3 9-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        <svg class="success-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
       </button>
     </div>
   </div>

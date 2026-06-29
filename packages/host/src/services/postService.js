@@ -50,15 +50,24 @@ function parseFrontMatter(content) {
 }
 
 function stringifyFrontMatter(attributes, body) {
+    const cleanBody = body.replace(/^---\n[\s\S]*?\n---\n?/, '')
     let fm = '---\n';
-    if (attributes.title) fm += `title: ${attributes.title}\n`;
-    if (attributes.date) fm += `date: ${attributes.date}\n`;
-    if (attributes.font) fm += `font: ${attributes.font}\n`;
-    if (attributes.author) fm += `author: ${attributes.author}\n`;
-    if (typeof attributes.aiGenerated === 'boolean') fm += `aiGenerated: ${attributes.aiGenerated}\n`;
-    if (attributes.tags) fm += `tags: ${JSON.stringify(attributes.tags)}\n`;
+    fm += `title: ${attributes.title || ''}\n`;
+    fm += `date: ${attributes.date || ''}\n`;
+    fm += `tags: ${JSON.stringify(attributes.tags || [])}\n`;
+    if (attributes.type !== 'slides') fm += `font: ${attributes.font || 'sans'}\n`;
+    fm += `author: ${attributes.author || ''}\n`;
+    fm += `aiGenerated: ${!!attributes.aiGenerated}\n`;
+    if (attributes.type === 'slides') {
+        fm += `marp: true\n`;
+        let ss = {};
+        try { ss = typeof attributes.slideshow === 'string' ? JSON.parse(attributes.slideshow) : (attributes.slideshow || {}) } catch {}
+        if (ss.theme) fm += `theme: ${ss.theme}\n`;
+        if (ss.ratio) fm += `size: ${ss.ratio}\n`;
+        if (ss.footer) fm += `footer: "${ss.footer}"\n`;
+    }
     fm += '---\n';
-    return fm + body;
+    return fm + cleanBody.replace(/^\n+/, '');
 }
 
 // Helper: get directory path for a post (supports legacy filename)
@@ -135,24 +144,14 @@ function readPostContentFromDisk(post) {
 }
 
 function writePostContentToDisk(post, content, options = {}) {
-    // options: { draft: boolean }
     const dir = getPostDir(post)
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
     const id = post.id
     if (!isValidId(id)) throw new Error('Invalid post id')
     const filename = options.draft ? `${id}-draft.md` : `${id}-content.md`
-    const full = stringifyFrontMatter({
-        title: post.title, date: post.date, updatedAt: post.updatedAt,
-        tags: post.tags || [], font: post.font || 'sans',
-        author: post.author || '', aiGenerated: !!post.aiGenerated
-    }, content || '')
-    const isDraft = options.draft || post.status === 'draft'
     const target = path.join(dir, filename)
-    if (isDraft) {
-        fs.writeFileSync(target, encrypt(full))
-    } else {
-        fs.writeFileSync(target, full)  // plaintext for published posts
-    }
+    // Manager sends fully-built content (frontmatter + body); write as-is
+    fs.writeFileSync(target, content || '')
 }
 
 

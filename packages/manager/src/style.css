@@ -8,6 +8,12 @@
   }
 }
 
+@keyframes shimmer {
+  0%   { opacity: 0.35; }
+  50%  { opacity: 0.85; }
+  100% { opacity: 0.35; }
+}
+
 :root {
   /* 可用视口高度：浏览器 = 100dvh，Electron = 100dvh - 40px（避让 TitleBar） */
   --app-height: 100dvh;
@@ -46,9 +52,14 @@
   --code-bg: rgba(255, 0, 0, 0.12);
   --code-text: #ff8585;
 
+  --status-warning: var(--featured);
+  --status-warning-bg: var(--featured-bg);
   --status-error: #d9534f;
+  --status-error-bg: color-mix(in srgb, var(--status-error) 15%, transparent);
   --status-success: #5cb85c;
+  --status-success-bg: color-mix(in srgb, var(--status-success) 15%, transparent);
   --status-progress: #06b6d4;
+  --status-progress-bg: color-mix(in srgb, var(--status-progress) 15%, transparent);
 
   /* Background hierarchy */
   --app-bg-primary: #141414;
@@ -154,6 +165,7 @@
 [data-theme="light"] {
   --code-keyword: #0000ff;
   --code-string: #a31515;
+  --code-subst: #cf222e;
   --code-comment: #008000;
   --code-katexcommand: #8a6f2f;
   --code-number: #098658;
@@ -161,11 +173,11 @@
   --code-operator: #333333;
   --code-tag: #800000;
   --code-attribute: #795e26;
-  --code-property: #001080;
+  --code-property: #0366d6;
   --code-selector: #800000;
   --code-type: #267f99;
-  --code-variable: #001080;
-  --code-parameter: #001080;
+  --code-variable: #0366d6;
+  --code-parameter: #0366d6;
   --code-cmdlet: #0000ff;
   --code-directive: #0451a5;
   --code-preprocessor: #0451a5;

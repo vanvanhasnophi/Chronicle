@@ -143,9 +143,21 @@ const routes = [
   },
   {
     path: '/editor',
-    name: 'TextEditor',
+    name: 'TextEditorRoot',
     component: TextEditorLazy,
-    meta: { layout: 'blank', title: 'editor.createNewPost' }
+    meta: { layout: 'blank', title: 'editor.createNewArticle' }
+  },
+  {
+    path: '/editor/article',
+    name: 'TextEditorDocument',
+    component: TextEditorLazy,
+    meta: { layout: 'blank', title: 'editor.createNewArticle' }
+  },
+  {
+    path: '/editor/slides',
+    name: 'TextEditorSlides',
+    component: TextEditorLazy,
+    meta: { layout: 'blank', title: 'editor.createNewSlides' }
   },
   {
     path: '/editor/print',
@@ -153,6 +165,7 @@ const routes = [
     component: EditorPrintPreview,
     meta: { layout: 'blank', title: 'editor.print' }
   },
+  { path: '/editor/:pathMatch(.*)*', redirect: '/editor' },
   {
     path: '/files',
     name: 'FileManager',

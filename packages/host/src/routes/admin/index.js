@@ -1713,9 +1713,10 @@ router.get('/post', (req, res) => {
 
     if (!post) return fail(res, 'Post not found', 404);
 
-    const content = postService.readPostContentFromDisk(post);
-    // hasHtml indicates the post has content available for rendering
-    // (markdown rendering happens in template-astro or CMS editor, not in host)
+    // For slides: return full file content (frontmatter + body) so Marp fields are preserved
+    const content = post.type === 'slides'
+      ? (fs.readFileSync(path.join(postService.getPostDir(post), `${post.id}-content.md`), 'utf-8'))
+      : postService.readPostContentFromDisk(post);
     const hasHtml = !!(content && content.length > 0);
 
     // mode=edit: prefer draft content for editing
@@ -1725,8 +1726,16 @@ router.get('/post', (req, res) => {
       if (fs.existsSync(draftPath)) {
         let raw = fs.readFileSync(draftPath, 'utf-8');
         try { raw = decrypt(raw); } catch (e) { /* not encrypted */ }
-        const { body } = postService.parseFrontMatter(raw);
-        return success(res, { ...postService.normalizePostForResponse(post), content: body, hasHtml, toc: [] });
+        const { attributes, body } = postService.parseFrontMatter(raw);
+        // For slides: preserve Marp styling fields in the returned content
+        const chronicleKeys = new Set(['title','date','updatedAt','tags','font','author','aiGenerated','marp','type','slideshow'])
+        const styleLines = Object.entries(attributes)
+          .filter(([k]) => !chronicleKeys.has(k))
+          .map(([k, v]) => typeof v === 'boolean' ? `${k}: ${v}` : `${k}: ${v}`)
+        // Always include marp:true so Marp recognizes it as slideshow
+        if (!styleLines.some(l => l.startsWith('marp:'))) styleLines.unshift('marp: true')
+        const frontmatter = styleLines.length > 0 ? `---\n${styleLines.join('\n')}\n---\n\n` : `---\nmarp: true\n---\n\n`
+        return success(res, { ...postService.normalizePostForResponse(post), content: frontmatter + body, hasHtml, toc: [] });
       }
     }
 
@@ -1808,6 +1817,8 @@ router.post('/post', (req, res) => {
         }
         if (data.tags) post.tags = sortTags(data.tags || []);
         if (data.font) post.font = data.font;
+        if (data.type) post.type = data.type;
+        if (data.slideshow !== undefined) post.slideshow = data.slideshow;
         post.updatedAt = now;
         if (!post.dir) post.dir = post.id;
       } else {
@@ -1824,6 +1835,8 @@ router.post('/post', (req, res) => {
           font: data.font || 'sans',
           author: String(data.author || '').trim(),
           aiGenerated: !!data.aiGenerated,
+          type: data.type || undefined,
+          slideshow: data.slideshow || undefined,
           status: status || 'draft'
         };
         posts.push(post);

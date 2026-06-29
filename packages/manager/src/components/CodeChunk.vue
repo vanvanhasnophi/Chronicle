@@ -57,11 +57,11 @@
           <div class="mermaid-group">
             <button class="icon-btn" :class="{active: mermaidMode === 'split'}" @click="mermaidMode = 'split'" :title="t('editor.mermaidSplit')">
               <!-- split icon: stacked panes -->
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="8" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="3" y="13" width="18" height="8" rx="1" stroke="currentColor" stroke-width="1.5"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="7" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="3" y="14" width="18" height="7" rx="1" stroke="currentColor" stroke-width="1.5"/></svg>
             </button>
             <button class="icon-btn" :class="{active: mermaidMode === 'code'}" @click="mermaidMode = 'code'" :title="t('editor.mermaidCode')">
               <!-- code icon -->
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M16 18l6-6-6-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 6l-6 6 6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 7 2 12 7 17"/><line x1="14" y1="5" x2="10" y2="19"/><polyline points="17 7 22 12 17 17"/></svg>
             </button>
             <button class="icon-btn" :class="{active: mermaidMode === 'preview'}" @click="mermaidMode = 'preview'" :title="t('editor.mermaidPreview')">
               <!-- preview / eye icon -->
@@ -80,7 +80,7 @@
           </template>
           <template v-else>
             <!-- check icon -->
-            <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M4 10l3 3 9-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
           </template>
         </button>
         <button v-if="!readonly" class="icon-btn clear-btn" @click="clearContent" :title="t('editor.clearContent')">

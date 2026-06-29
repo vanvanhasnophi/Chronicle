@@ -1,0 +1,152 @@
+/* ═══════════════════════════════════════════════════════
+   Chronicle Slides — Base Styles (Chronicle default theme)
+   ═══════════════════════════════════════════════════════ */
+
+
+
+.chronicle-slideshow {
+  --slide-ratio: 1.777; /* 16:9 default */
+  --slide-bg: var(--bg-primary, #fff);
+  --slide-fg: var(--text-primary, #111);
+  --slide-accent: var(--accent-color, #2563eb);
+}
+
+/* ── Container ─────────────────────────────────── */
+.slides-container {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  overflow: hidden;
+}
+
+.slides-viewport {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 16px;
+}
+
+.slide-canvas {
+  position: relative;
+  width: 100%;
+  max-width: min(96vw, calc(96vh * var(--slide-ratio)));
+  aspect-ratio: var(--slide-ratio);
+  background: var(--slide-bg);
+  color: var(--slide-fg);
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(0,0,0,.3);
+}
+
+.slide-canvas[data-ratio="4:3"]  { --slide-ratio: 1.333; }
+.slide-canvas[data-ratio="21:9"] { --slide-ratio: 2.333; }
+.slide-canvas[data-ratio="2:1"]  { --slide-ratio: 2; }
+
+.slide-content {
+  font-family: var(--app-font-stack);
+  position: absolute;
+  inset: 0;
+  padding: clamp(24px, 5%, 64px) clamp(32px, 6%, 80px);
+  overflow-y: auto;
+  font-size: clamp(16px, 2vw, 24px);
+  line-height: 1.6;
+}
+
+.slide-content h1 { font-size: 2em; margin-bottom: .3em; }
+.slide-content h2 { font-size: 1.5em; margin-bottom: .25em; }
+.slide-content h3 { font-size: 1.2em; margin-bottom: .2em; }
+.slide-content p  { margin-bottom: .5em; }
+.slide-content ul, .slide-content ol { padding-left: 1.5em; margin-bottom: .5em; }
+.slide-content li { margin-bottom: .3em; }
+.slide-content pre { font-size: .75em; margin: .5em 0; }
+.slide-content code { font-size: .85em; }
+.slide-content img { max-width: 100%; max-height: 60vh; }
+.slide-content blockquote { border-left: 3px solid var(--slide-accent); padding-left: 1em; margin: .5em 0; opacity: .85; }
+
+/* ── Controls bar ──────────────────────────────── */
+.slides-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 8px 16px;
+  background: rgba(0,0,0,.6);
+  color: #fff;
+  font-size: 14px;
+}
+
+.slides-controls button {
+  background: rgba(255,255,255,.1);
+  border: 1px solid rgba(255,255,255,.2);
+  color: #fff;
+  cursor: pointer;
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-size: 14px;
+}
+.slides-controls button:hover { background: rgba(255,255,255,.2); }
+.slides-controls button:disabled { opacity: .3; cursor: not-allowed; }
+
+.slide-counter {
+  font-variant-numeric: tabular-nums;
+  min-width: 60px;
+  text-align: center;
+}
+
+/* ── Speaker notes ─────────────────────────────── */
+.speaker-notes {
+  padding: 8px 16px;
+  background: rgba(0,0,0,.5);
+  color: #aaa;
+  font-size: 13px;
+  max-height: 60px;
+  overflow-y: auto;
+  border-top: 1px solid rgba(255,255,255,.1);
+}
+
+.speaker-notes-toggle {
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+/* ── View toggle floating bar ──────────────────── */
+.slides-view-bar {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  background: var(--component-bg-blur, rgba(255,255,255,.9));
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 8px;
+  padding: 4px;
+  z-index: 80;
+  box-shadow: 0 2px 12px rgba(0,0,0,.1);
+}
+
+.slides-view-bar button {
+  background: transparent;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary, #111);
+}
+.slides-view-bar button:hover { background: var(--component-bg-hover, #f0f0f0); }
+.slides-view-bar button.active { background: var(--component-bg-accent-blur, #e0e7ff); font-weight: 600; }
+
+/* ── Dark mode ─────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  .slide-canvas { --slide-bg: #1a1a2e; --slide-fg: #e5e7eb; }
+}

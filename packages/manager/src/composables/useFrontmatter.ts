@@ -54,12 +54,12 @@ export function parseFrontmatter(raw: string): { meta: PostFrontmatter; content:
  * Serialize metadata + content into a markdown string with YAML frontmatter.
  */
 export function serializeFrontmatter(meta: PostFrontmatter, content: string): string {
-  const entries = Object.entries(meta).filter(([, v]) => v !== undefined && v !== null && v !== '')
+  const entries = Object.entries(meta).filter(([, v]) => v !== undefined && v !== null)
   if (entries.length === 0) return content
 
   const yaml = entries.map(([k, v]) => {
     if (Array.isArray(v)) {
-      return `${k}: [${v.join(', ')}]`
+      return `${k}: ${JSON.stringify(v)}`
     }
     if (typeof v === 'boolean') {
       return `${k}: ${v}`
@@ -67,7 +67,7 @@ export function serializeFrontmatter(meta: PostFrontmatter, content: string): st
     return `${k}: ${String(v)}`
   }).join('\n')
 
-  return `---\n${yaml}\n---\n\n${content}`
+  return `---\n${yaml}\n---\n\n${content.replace(/^\n+/, '')}`
 }
 
 // ── Minimal YAML parser (handles the subset we need) ────────────────

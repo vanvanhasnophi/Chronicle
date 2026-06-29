@@ -15,6 +15,7 @@ import Toast from './Toast.vue'
 import NotificationDrawer from './NotificationDrawer.vue'
 import useToast from '../composables/useToast'
 import { getNotificationCenter, registerToastEmitter } from '../composables/useNotificationCenter'
+import { triggerBuild } from '../composables/useAstroBuild'
 import { usePreferences } from '../composables/usePreferences'
 import { useI18n } from 'vue-i18n'
 
@@ -997,44 +998,16 @@ function openEditor() {
 }
 
 async function rebuildFrontend() {
-  const build = nc.startBuild(`${t('settings.building')} · ${t('notification.source.sidebar')}`)
-  if (!build) return
-  const { nid, clientBuildId } = build
-  const detailLabels = { id: t('notification.detailId') as string, trigger: t('notification.detailTrigger') as string, time: t('notification.detailTime') as string }
-  nc.update(nid, { message: nc.buildDetail(detailLabels, clientBuildId, t('notification.source.sidebar') as string) })
   isRebuilding.value = true
   isAvailable.value = false
   try {
-    const authToken = (() => {
-      try {
-        const raw = localStorage.getItem('chronicle_auth')
-        if (!raw) return ''
-        const parsed = JSON.parse(raw)
-        return typeof parsed?.token === 'string' ? parsed.token : ''
-      } catch (e) { return '' }
-    })()
-
-    const res = await fetchWithAuth(`/api/admin/build/astro?t=${Date.now()}`, {
-      method: 'POST',
-      headers: authToken
-        ? { 'Content-Type': 'application/json', 'X-Chronicle-Auth': authToken }
-        : { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clientBuildId, source: 'sidebar' }),
+    await triggerBuild({
+      source: t('notification.source.sidebar') as string,
+      reason: 'sidebar',
+      t: (k: string) => t(k) as string,
     })
-    if (res.ok) {
-      const result = await res.json().catch(() => ({}))
-      const baseMsg = nc.buildDetail(detailLabels, clientBuildId, t('notification.source.sidebar') as string)
-      if (result.status === 'timeout') {
-        nc.update(nid, { state: 'completed', level: 'warning', title: t('settings.buildTimeout'), message: baseMsg })
-      } else {
-        nc.update(nid, { state: 'completed', level: 'success', title: t('settings.buildCompleted'), message: baseMsg })
-      }
-    } else {
-      const errMsg = await readApiErrorMessage(res, t('settings.buildFailed'))
-      nc.update(nid, { state: 'failed', level: 'error', title: t('settings.buildFailed'), message: `${nc.buildDetail(detailLabels, clientBuildId, t('notification.source.sidebar') as string)}\n${t('notification.detailError')}: ${errMsg}`, actions: [{ label: t('nav.buildNow'), handler: 'retry-build' }] })
-    }
-  } catch (e) {
-    nc.update(nid, { state: 'failed', level: 'error', title: t('settings.buildFailed'), message: `${nc.buildDetail(detailLabels, clientBuildId, t('notification.source.sidebar') as string)}\n${t('notification.detailError')}: ${(e as Error).message}`, actions: [{ label: t('nav.buildNow'), handler: 'retry-build' }] })
+  } catch {
+    // notification already updated by triggerBuild
   } finally {
     isRebuilding.value = false
     isAvailable.value = true

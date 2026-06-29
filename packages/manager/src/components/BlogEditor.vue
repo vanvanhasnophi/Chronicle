@@ -1,202 +1,166 @@
 <template>
     <div class="blog-editor" :class="[`layout-${layout}`, { 'is-mobile': isMobile }]" @dragover.prevent>
-        <div class="editor-toolbar">
-            <!-- ROW 1: Meta & Main Actions -->
-            <div class="toolbar-row row-meta">
-                <div class="meta-left">
-                    <h4 class="post-title-display">{{ postTitle }}</h4>
-                    <span v-if="!isAboutMode" :class="['status-chip', postStatus]">{{ $t('status.' + (postStatus || 'published')) }}</span>
-                    <span v-if="isBuilding" class="build-hint">
-                        <QuarterCircleSpinner :size="18" />{{ t('editor.building') }}
-                    </span>
-                    <div class="meta-dates">
-                        <span class="date-item" v-if="postUpdated" title="Last Edited">
-                            <span class="icon-svg tiny" v-html="Icons.edit"></span>
-                            {{ formatDateTime(postUpdated, locale, 'relative', 'show-weekday', 'hide-seconds', '24h', t)
-                            }}
-                        </span>
-                        <span class="date-item faded" v-if="postDate" title="Created On">
-                            <span class="icon-svg tiny" v-html="Icons.clock"></span>
-                            {{ formatDateTime(postDate, locale, 'relative', 'show-weekday', 'hide-seconds', '24h', t) }}
-                        </span>
+        <!-- ═══ Ribbon Toolbar ═══ -->
+        <div class="editor-ribbon">
+            <!-- Hamburger menu (far left) -->
+            <div class="ribbon-more ribbon-more--left">
+                <button class="ribbon-btn icon-label-btn" @click="showMoreMenu = !showMoreMenu" title="Menu">
+                    <span class="icon-svg" v-html="Icons.menu"></span> <span class="label ribbon-btn-label"
+                        style="font-size: 13px">{{ t('editor.menu') }}</span>
+                </button>
+                <div v-if="showMoreMenu" class="more-dropdown" @click.self="showMoreMenu = false">
+                    <button @click="openFileMenu(); showMoreMenu = false">
+                        <span class="icon-svg more-icon" v-html="Icons.file"></span> {{ t('editor.fileLabel') }}
+                    </button>
+                    <button @click="openMetaModal(); showMoreMenu = false">
+                        <span class="icon-svg more-icon" v-html="Icons.edit"></span> {{ t('editor.meta') || 'Properties'
+                        }}
+                    </button>
+                    <button v-if="postStatus === 'modifying'" @click="restorePost(); showMoreMenu = false">
+                        <span class="icon-svg more-icon" v-html="Icons.undo"></span> {{ t('editor.restore') }}
+                    </button>
+                    <hr>
+                    <button :class="{ active: editorTheme === 'dark' }"
+                        @click="editorTheme = 'dark'; showMoreMenu = false">
+                        <span class="icon-svg more-icon" v-html="Icons.themeDark"></span> {{t('theme.dark')}}
+                    </button>
+                    <button :class="{ active: editorTheme === 'light' }"
+                        @click="editorTheme = 'light'; showMoreMenu = false">
+                        <span class="icon-svg more-icon" v-html="Icons.themeLight"></span> {{t('theme.light')}}
+                    </button>
+                    <hr>
+                    <div class="more-locale-row">
+                        <span class="icon-svg more-icon" v-html="Icons.globe"></span>
+                        <select v-model="editorLocale" class="locale-select" @change="showMoreMenu = false">
+                            <option value="en">English</option>
+                            <option value="zh-CN">简体中文</option>
+                        </select>
                     </div>
                 </div>
-                <div class="actions-right">
-                    <button v-if="postStatus === 'modifying' && !isAboutMode" class="toolbar-btn danger-btn" @click="restorePost"
-                        :disabled="isSaving" :title="t('editor.restore')">
-                        <span class="icon-svg" v-html="Icons.undo"></span>
-                        <span v-if="!isMobile" class="btn-label">{{ t('editor.restore') }}</span>
-                    </button>
+            </div>
+            <span class="ribbon-sep"></span>
 
-
-                    <button class="toolbar-btn" @click="() => openPrintPreview()" :title="t('editor.print')">
-                        <span class="icon-svg" v-html="Icons.print"></span>
-                        <span v-if="!isMobile" class="btn-label">{{ t('editor.print') }}</span>
-                    </button>
-
-                    <button v-if="!isAboutMode" class="toolbar-btn" @click="() => handleTopRightSave('draft')" :disabled="isSaving">
-                        <span class="icon-svg" v-html="Icons.save"></span>
-                        <span v-if="!isMobile" class="btn-label">{{ isCloudEditing ? t('editor.draft') :
-                            t('editor.save') }}</span>
-                    </button>
-
-                    <button v-if="!isAboutMode" class="toolbar-btn primary-action" @click="openSaveModal('publish')" :disabled="isSaving">
-                        <span class="icon-svg" v-html="Icons.publish"></span>
-                        <span v-if="!isMobile" class="btn-label">{{ isCloudEditing ? t('editor.publish') :
-                            t('editor.upload') }}</span>
-                    </button>
-                    <button v-else class="toolbar-btn primary-action" @click="openSaveModal('publish')" :disabled="isSaving">
-                        <span class="icon-svg" v-html="Icons.publish"></span>
-                        <span v-if="!isMobile" class="btn-label">{{ t('editor.save') }}</span>
-                    </button>
-                </div>
+            <!-- QAT: Quick Access Toolbar -->
+            <div class="ribbon-qat">
+                <button class="ribbon-btn qat-btn" @click="undo" :disabled="!canUndo" title="Undo (Ctrl+Z)">
+                    <span class="icon-svg" v-html="Icons.undo"></span>
+                </button>
+                <button class="ribbon-btn qat-btn" @click="redo" :disabled="!canRedo" title="Redo (Ctrl+Y)">
+                    <span class="icon-svg" v-html="Icons.redo"></span>
+                </button>
+                <span class="ribbon-sep"></span>
+                <button class="ribbon-btn qat-btn qat-save" @click="() => handleTopRightSave('draft')"
+                    :disabled="isSaving" title="Save (Ctrl+S)">
+                    <span class="icon-svg" v-html="Icons.save"></span>
+                </button>
             </div>
 
-            <!-- ROW 2: Editing Tools -->
-            <div class="toolbar-row row-tools">
-                <div class="tool-group">
-                    <button v-if="!isAboutMode" class="toolbar-btn" @click="openFileMenu" :title="t('editor.fileLabel')">
-                        <span class="icon-svg" v-html="Icons.file"></span>
-                        <span>{{ t('editor.fileLabel') }}</span>
+            <!-- Tab bar (responsive, config-driven) -->
+            <div class="ribbon-tabs" ref="tabsRef" :data-overflow="tabsOverflow">
+                <template v-if="!tabsOverflow">
+                    <button v-for="tab in ribbonTabs" :key="tab.id" class="ribbon-tab"
+                        :class="{ active: activeTab === tab.id }" @click="activeTab = tab.id">
+                        <span class="icon-svg tab-icon" v-html="tab.icon"></span> {{ tab.label }} 
                     </button>
-                    <button v-if="!isAboutMode" class="toolbar-btn" @click="openMetaModal" :title="t('editor.meta') || 'Properties'">
-                        <span class="icon-svg">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                        </span>
-                        <span>{{ t('editor.meta') || 'Properties' }}</span>
-                    </button>
-                    <span class="divider"></span>
-
-                    <button class="toolbar-btn" @click="undo" :title="t('editor.undo')">
-                        <span class="icon-svg" v-html="Icons.undo"></span>
-                    </button>
-                    <button class="toolbar-btn" @click="redo"
-                        :title="t('editor.redo')">
-                        <span class="icon-svg" v-html="Icons.redo"></span>
-                    </button>
-                    <span class="divider"></span>
-                    <button class="toolbar-btn" @click="openMediaModal" :title="t('editor.media')">
-                        <span class="icon-svg" v-html="Icons.media"></span>
-                        <span>{{ t('editor.media') }}</span>
-                    </button>
-                    <button class="toolbar-btn" @click="openLinkModal" :title="t('editor.link')">
-                        <span class="icon-svg" v-html="Icons.link"></span>
-                        <span>{{ t('editor.link') }}</span>
-                    </button>
-                    <button class="toolbar-btn" @click="openTableModal" :title="t('editor.table')">
-                        <span class="icon-svg" v-html="Icons.table"></span>
-                        <span>{{ t('editor.table') }}</span>
-                    </button>
-
-                    <span class="divider"></span>
-
-                    <template v-if="!isAboutMode">
-                        <button v-for="font in fontOptions" :key="font.value" class="toolbar-btn"
-                            :class="{ active: postFont === font.value, ['font-' + font.value]: true }"
-                            @click="postFont = font.value" :title="font.label">
-                            <span class="icon-svg" v-html="font.icon"></span>
+                </template>
+                <template v-else>
+                    <div class="ribbon-more">
+                        <button class="ribbon-tab active" @click="tabMenuOpen = !tabMenuOpen">
+                            <span class="icon-svg tab-icon" v-html="activeTabDef?.icon"></span> {{ activeTabDef?.label
+                            }}
+                        <span class="icon-svg ribbon-tab-chevron" v-html="Icons.chevron"></span>
                         </button>
+                        <div v-if="tabMenuOpen" class="more-dropdown" @click.self="tabMenuOpen = false">
+                            <button v-for="tab in ribbonTabs" :key="tab.id" :class="{ active: activeTab === tab.id }"
+                                @click="activeTab = tab.id; tabMenuOpen = false">
+                                <span class="icon-svg more-icon" v-html="tab.icon"></span> {{ tab.label }}
+                            </button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Right controls -->
+            <div class="ribbon-right">
+                <!-- Title inline -->
+                <div class="ribbon-title-area">
+                    <input v-model="postTitle" class="ribbon-title-input" :placeholder="t('editor.untitled')"
+                        spellcheck="false" />
+                    <span v-if="!isAboutMode" :class="['ribbon-status', postStatus]">{{ $t('status.' + (postStatus ||
+                        'published'))
+                    }}</span>
+                    <span class="ribbon-save-status" :class="{ building: isBuilding, saving: isSaving, dirty: isDirty || isNewAndClean }"
+                        @click="showStatusPopover = !showStatusPopover" @blur="showStatusPopover = false" tabindex="0">
+                        <span class="icon-svg"
+                            v-html="isBuilding ? Icons.sync : isSaving ? Icons.save : (isNewAndClean || isDirty) ? Icons.dot : Icons.check"></span>
+                    </span>
+                    <div v-if="showStatusPopover" class="status-popover" @click.self="showStatusPopover = false">
+                        <div class="status-popover-row"><span class="status-popover-label">{{ t("editor.statusLabel") }}</span> <span>{{
+                            statusLabel
+                        }}</span></div>
+                        <div v-if="postDate" class="status-popover-row"><span
+                                class="status-popover-label">{{ t("editor.createdLabel") }}</span> <span>{{
+                                    formatDateTime(postDate, locale, 'absolute', 'show-weekday', 'hide-seconds', '24h', t)
+                                }}</span>
+                        </div>
+                        <div v-if="lastSavedTime" class="status-popover-row"><span class="status-popover-label">Last
+                                saved</span>
+                            <span>{{ formatDateTime(lastSavedTime, locale, 'relative', 'show-weekday', 'hide-seconds',
+                                '24h', t)
+                            }}</span>
+                        </div>
+                        <div v-if="postUpdated" class="status-popover-row"><span class="status-popover-label">Last
+                                published</span>
+                            <span>{{ formatDateTime(postUpdated, locale, 'relative', 'show-weekday', 'hide-seconds',
+                                '24h', t)
+                            }}</span>
+                        </div>
+                    </div>
+                </div>
+                <span class="ribbon-sep"></span>
+                <button class="ribbon-btn" @click="openPrintPreview()" title="Print (Ctrl+P)">
+                    <span class="icon-svg" v-html="Icons.print"></span>
+                </button>
+                <button v-if="!isAboutMode" class="ribbon-btn ribbon-btn-primary icon-label-btn"
+                    @click="openSaveModal('publish')" :disabled="isSaving" title="Publish">
+                    <span class="icon-svg" v-html="Icons.publish"></span>
+                    <span class="btn-label label">{{ isCloudEditing ? t('editor.publish') : t('editor.upload') }}</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- ═══ Ribbon Content (tab-specific) ═══ -->
+        <div class="ribbon-content">
+            <template v-for="tab in ribbonTabs" :key="tab.id">
+                <div v-show="activeTab === tab.id" class="ribbon-group-row">
+                    <template v-for="(group, gi) in tab.groups" :key="gi">
+                        <div class="ribbon-group">
+                            <template v-for="tool in group.tools" :key="tool.id">
+                                <span v-if="tool.type === 'spacer'" class="ribbon-spacer"></span>
+                                <button v-else-if="tool.isStats" class="ribbon-btn ribbon-btn-wordcount"
+                                    @click="activeModal = 'stats'">{{ wordCountLabel }}</button>
+                                <button v-else class="ribbon-btn ribbon-btn-lg"
+                                    :class="{ active: tool.action ? isToolActive(tool.action) : false }"
+                                    @click="handleToolAction(tool.action || '')" :title="tool.label">
+                                    <span v-if="tool.icon" class="icon-svg" v-html="tool.icon"></span>
+                                    <span class="ribbon-btn-label">{{ t('editor.tool.' + tool.id) || tool.label }}</span>
+                                </button>
+                            </template>
+                        </div>
+                        <span v-if="gi < tab.groups.length - 1" class="ribbon-sep ribbon-sep--large"></span>
                     </template>
                 </div>
-                <button class="stats-display" @click="activeModal = 'stats'">
-                    {{ wordCountLabel }}
-                </button>
-            </div>
-
-            <!-- ROW 3: View + Theme + Locale -->
-            <div class="toolbar-row row-view">
-                <div class="tool-group">
-                    <button v-for="mode in displayModes" :key="mode.value" class="toolbar-btn"
-                        :class="{ active: layout === mode.value }" @click="layout = mode.value" :title="mode.label">
-                        <span class="icon-svg" v-html="mode.icon"></span>
-                    </button>
-                    <span class="divider"></span>
-                    <button class="toolbar-btn" :class="{ active: editorTheme === 'dark' }" @click="editorTheme = 'dark'" title="Dark">
-                        <span class="icon-svg" v-html="Icons.themeDark"></span>
-                    </button>
-                    <button class="toolbar-btn" :class="{ active: editorTheme === 'light' }" @click="editorTheme = 'light'" title="Light">
-                        <span class="icon-svg" v-html="Icons.themeLight"></span>
-                    </button>
-                    <span class="divider"></span>
-                    <select v-model="editorLocale" class="toolbar-btn locale-select" title="Language">
-                        <option value="en">EN</option>
-                        <option value="zh-CN">ZH-CN</option>
-                    </select>
-                </div>
-            </div>
+            </template>
         </div>
 
-        <div class="editor-workspace">
-            <!-- Editor Pane -->
-            <div v-show="showEditor" class="pane editor-pane">
-                <CmEditor ref="editorRef" v-model="localValue" :placeholder="t('editor.placeholder')" :fontClass="fontClass" @mouseover="activeScroll = 'editor'" @cursorChange="onCursorChange" @changeRange="onChangeRange" @editorScroll="onEditorScroll" />
-            </div>
-
-            <!-- Preview Pane -->
-            <div v-show="showPreview" class="pane preview-pane" :class="fontClass" ref="previewRef" tabindex="0"
-                @scroll="syncScroll('preview')" @mouseover="activeScroll = 'preview'" @focus="activeScroll = 'preview'">
-                <!-- Preview: markdown-it renderer — matches template-astro published output exactly -->
-                <!-- Pipeline A (MdParser interactive preview) disabled for now; code preserved in markdownParser.ts + MdParser.vue -->
-                <MarkdownItPreview :markdown="localValue" :cursorLine="cursorLine" :changeRange="changeRange" class="preview-content" />
-            </div>
-        </div>
-
-        <div v-if="editorSearchOpen" class="search-float search-float--editor"
-            @keydown.esc.prevent="closeSearchOverlay('editor')">
-            <div class="search-float-header">
-                <span class="search-float-title">Editor Search</span>
-                <button class="search-close-btn" @click="closeSearchOverlay('editor')">
-                    <span class="icon-svg" v-html="Icons.close"></span>
-                </button>
-            </div>
-            <div class="search-float-body">
-                <input ref="editorSearchInputRef" v-model="editorSearchQuery" class="search-input"
-                    placeholder="Find in post"
-                    @keydown.enter.prevent="jumpToSearchMatch('editor', $event.shiftKey ? -1 : 1)"
-                    @keydown.esc.prevent="closeSearchOverlay('editor')" />
-                <div class="search-float-actions">
-                    <span class="search-counter">{{ editorSearchMatchLabel }}</span>
-                    <div class="search-nav-buttons">
-                        <button class="search-nav-btn" :disabled="!editorSearchMatchCount"
-                            @click="jumpToSearchMatch('editor', -1)">
-                            ↑
-                        </button>
-                        <button class="search-nav-btn" :disabled="!editorSearchMatchCount"
-                            @click="jumpToSearchMatch('editor', 1)">
-                            ↓
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div v-if="previewSearchOpen" class="search-float search-float--preview"
-            @keydown.esc.prevent="closeSearchOverlay('preview')">
-            <div class="search-float-header">
-                <span class="search-float-title">Preview Search</span>
-                <button class="search-close-btn" @click="closeSearchOverlay('preview')">
-                    <span class="icon-svg" v-html="Icons.close"></span>
-                </button>
-            </div>
-            <div class="search-float-body">
-                <input ref="previewSearchInputRef" v-model="previewSearchQuery" class="search-input"
-                    placeholder="Find in preview"
-                    @keydown.enter.prevent="jumpToSearchMatch('preview', $event.shiftKey ? -1 : 1)"
-                    @keydown.esc.prevent="closeSearchOverlay('preview')" />
-                <div class="search-float-actions">
-                    <span class="search-counter">{{ previewSearchMatchLabel }}</span>
-                    <div class="search-nav-buttons">
-                        <button class="search-nav-btn" :disabled="!previewSearchMatchCount"
-                            @click="jumpToSearchMatch('preview', -1)">
-                            ↑
-                        </button>
-                        <button class="search-nav-btn" :disabled="!previewSearchMatchCount"
-                            @click="jumpToSearchMatch('preview', 1)">
-                            ↓
-                        </button>
-                    </div>
-                </div>
-            </div>
+        <!-- Editor Body: dynamic by route type -->
+        <div class="editor-body-wrapper">
+          <EditorArticleBody v-if="editorType === 'article'" :key="'article-' + bodyKey" ref="editorBodyRef" v-model="localValue"
+            :disabled="!dataReady" :font-class="fontClass"
+            :placeholder="t('editor.placeholder')" :layout-mode="(layout as any)" />
+          <EditorSlidesBody v-else :key="'slides-' + bodyKey" ref="editorBodyRef" v-model="localValue"
+            :disabled="!dataReady" :font-class="fontClass"
+            :placeholder="t('editor.placeholder')" :layout-mode="(layout as any)" />
         </div>
 
         <!-- Group 1: File Menu Modal -->
@@ -224,17 +188,23 @@
                     </div>
 
                     <div class="content-body">
-                        <!-- New Post -->
+                        <!-- New Article / Slides -->
                         <div v-if="fileTab === 'new'" class="tab-pane">
                             <p>{{ t('editor.file.createNew') }}</p>
-                            <div class="warning-box">
-                                {{ t('editor.file.createOnlineHint') }}
+                            <div class="new-doc-grid">
+                                <div class="new-doc-col">
+                                    <span class="new-doc-label">{{ t('editor.file.local') }}</span>
+                                    <button class="primary-btn" @click="createLocalNew('article')">{{ t('editor.createNewArticle') }}</button>
+                                    <button class="primary-btn" @click="createLocalNew('slides')">{{ t('editor.createNewSlides') }}</button>
+                                </div>
+                                <div class="new-doc-col">
+                                    <span class="new-doc-label">{{ t('editor.file.cloud') }}</span>
+                                    <button class="secondary-btn" @click="createCloudNew('article')">{{ t('editor.file.newArticleCloud') }}</button>
+                                    <button class="secondary-btn" @click="createCloudNew('slides')">{{ t('editor.file.newSlidesCloud') }}</button>
+                                </div>
                             </div>
-                            <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
-                                <button class="primary-btn" @click="createLocalNewPost">{{ t('editor.createNewPost')
-                                }}</button>
-                                <button class="secondary-btn" @click="createOnlinePost">{{
-                                    t('editor.file.createOnlinePost') }}</button>
+                            <div class="warning-box" style="margin-top:8px;">
+                                {{ t('editor.file.createOnlineHint') }}
                             </div>
                         </div>
 
@@ -257,8 +227,9 @@
                                         @click="openRecentProject(r)">
                                         <span class="post-title">{{ r.title }}</span>
                                         <span class="post-status status-chip"
-                                            :class="r.cloud ? 'published' : 'local'">{{ r.cloud ? t('editor.file.cloud')
-                                                : t('editor.file.local') }}</span>
+                                            :class="r.cloud ? 'published' : 'local'">{{
+                                                r.cloud ? t('editor.file.cloud')
+                                                    : t('editor.file.local') }}</span>
                                         <span class="post-date">{{ new Date(r.ts).toLocaleString() }}</span>
                                     </div>
                                 </div>
@@ -323,7 +294,8 @@
 
                 <!-- Media Body -->
                 <div v-if="activeModal === 'media'" class="modal-body media-manager-layout">
-                    <FilePicker selectionMode="multiple" :allowLocalPick="!isCloudEditing" :allowUpload="isCloudAuthenticated()"
+                    <FilePicker selectionMode="multiple" :allowLocalPick="!isCloudEditing"
+                        :allowUpload="isCloudAuthenticated()"
                         :initialFiles="displayedFiles.map(f => ({ name: f.name, uploadedUrl: f.url, preview: f.thumb || f.url }))"
                         @select="handleMediaPicked" @cancel="activeModal = 'none'" />
                 </div>
@@ -442,51 +414,53 @@
                 </template>
                 <!-- Normal mode: full form -->
                 <template v-else>
-                <div class="form-group">
-                    <label>{{ t('editor.postTitle') }}</label>
-                    <input v-model="tempTitle" class="modal-input" :placeholder="t('editor.titlePlaceholder')"
-                        @keyup.enter="doSave()" autofocus />
-                </div>
+                    <div class="form-group">
+                        <label>{{ t('editor.postTitle') }}</label>
+                        <input v-model="tempTitle" class="modal-input" :placeholder="t('editor.titlePlaceholder')"
+                            @keyup.enter="doSave()" autofocus />
+                    </div>
 
-                <div v-if="activeModal === 'publish' && !isCloudAuthenticated()"
-                    class="login-placeholder upload-login-placeholder">
-                    <p>{{ t('editor.file.loginRequired') }}</p>
-                    <button class="primary-btn" @click="goToLogin('publish-post')">{{ t('editor.file.login') }}</button>
-                </div>
+                    <div v-if="activeModal === 'publish' && !isCloudAuthenticated()"
+                        class="login-placeholder upload-login-placeholder">
+                        <p>{{ t('editor.file.loginRequired') }}</p>
+                        <button class="primary-btn" @click="goToLogin('publish-post')">{{ t('editor.file.login')
+                        }}</button>
+                    </div>
 
-                <div v-if="activeModal === 'publish' && isCloudAuthenticated()" class="form-group">
-                    <label>{{ t('editor.tagsLabel') }}</label>
-                    <div class="tags-input-container">
-                        <div class="tags-list">
-                            <span class="tag-badge" v-for="tag in sortTags(postTags)" :key="tag"
-                                :class="{ featured: tag === 'featured' }">
-                                {{ tag === 'featured' ? $t('tag.featured') : tag }}
-                                <button class="tag-remove" @click="removeTag(tag)">
-                                    <span class="icon-svg" v-html="Icons.close"></span>
-                                </button>
-                            </span>
-                        </div>
-                        <div class="tag-controls">
-                            <input v-model="tagInput" class="modal-input small-input"
-                                :placeholder="t('editor.addTagPlaceholder')" @keyup.enter="addTag" />
-                            <button class="secondary-btn small-btn" @click="addTag">{{ t('editor.addTag')
+                    <div v-if="activeModal === 'publish' && isCloudAuthenticated()" class="form-group">
+                        <label>{{ t('editor.tagsLabel') }}</label>
+                        <div class="tags-input-container">
+                            <div class="tags-list">
+                                <span class="tag-badge" v-for="tag in sortTags(postTags)" :key="tag"
+                                    :class="{ featured: tag === 'featured' }">
+                                    {{ tag === 'featured' ? $t('tag.featured') : tag }}
+                                    <button class="tag-remove" @click="removeTag(tag)">
+                                        <span class="icon-svg" v-html="Icons.close"></span>
+                                    </button>
+                                </span>
+                            </div>
+                            <div class="tag-controls">
+                                <input v-model="tagInput" class="modal-input small-input"
+                                    :placeholder="t('editor.addTagPlaceholder')" @keyup.enter="addTag" />
+                                <button class="secondary-btn small-btn" @click="addTag">{{ t('editor.addTag')
                                 }}</button>
-                            <button class="secondary-btn small-btn" :class="{ active: postTags.includes('featured') }"
-                                @click="toggleFeatured" :title="$t('tag.featured')">
-                                {{ $t('tag.featured') }}
-                            </button>
+                                <button class="secondary-btn small-btn"
+                                    :class="{ active: postTags.includes('featured') }" @click="toggleFeatured"
+                                    :title="$t('tag.featured')">
+                                    {{ $t('tag.featured') }}
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <div v-if="activeModal === 'publish' && isCloudAuthenticated()" class="form-group">
-                    <label>{{ t('editor.authorLabel') }}</label>
-                    <input v-model="postAuthor" class="modal-input" :placeholder="t('editor.authorPlaceholder')" />
-                </div>
+                    <div v-if="activeModal === 'publish' && isCloudAuthenticated()" class="form-group">
+                        <label>{{ t('editor.authorLabel') }}</label>
+                        <input v-model="postAuthor" class="modal-input" :placeholder="t('editor.authorPlaceholder')" />
+                    </div>
 
-                <div v-if="activeModal === 'publish' && isCloudAuthenticated()" class="form-group">
-                    <CheckRow v-model="postAIGenerated" :title="$t('editor.aiGeneratedLabel')" />
-                </div>
+                    <div v-if="activeModal === 'publish' && isCloudAuthenticated()" class="form-group">
+                        <CheckRow v-model="postAIGenerated" :title="$t('editor.aiGeneratedLabel')" />
+                    </div>
                 </template>
 
                 <div class="modal-actions">
@@ -517,13 +491,16 @@
             <div class="modal-body">
                 <p style="margin-top:6px;">{{ t('editor.textFileChoiceHint') || 'How would you like to insert this file?' }}</p>
                 <div class="modal-actions" style="flex-wrap:wrap;">
-                    <button class="secondary-btn" @click="doInsertTextFile(textFileChoice!); textFileChoice = null; flushPendingFiles()">
+                    <button class="secondary-btn"
+                        @click="doInsertTextFile(textFileChoice!); textFileChoice = null; flushPendingFiles()">
                         {{ t('editor.insertAsText') || 'Insert as text' }}
                     </button>
-                    <button class="secondary-btn" @click="doInsertCodeBlock(textFileChoice!); textFileChoice = null; flushPendingFiles()">
+                    <button class="secondary-btn"
+                        @click="doInsertCodeBlock(textFileChoice!); textFileChoice = null; flushPendingFiles()">
                         {{ t('editor.insertAsCode') || 'Insert as code' }}
                     </button>
-                    <button class="primary-btn" @click="doInsertFileCard(textFileChoice!); textFileChoice = null; flushPendingFiles()">
+                    <button class="primary-btn"
+                        @click="doInsertFileCard(textFileChoice!); textFileChoice = null; flushPendingFiles()">
                         {{ t('editor.insertAsFile') || 'Insert as a file' }}
                     </button>
                 </div>
@@ -611,7 +588,36 @@
             </div>
         </div>
     </div>
-    <!-- Upload Toast -->
+
+    <!-- Math Formula Modal -->
+    <div v-if="activeModal === 'math'" class="modal-overlay">
+        <div class="modal-content small-modal">
+            <div class="header">
+                <h3>{{ t('editor.mathTitle') }}</h3>
+                <button class="close-btn" @click="activeModal = 'none'"><span class="icon-svg"
+                        v-html="Icons.close"></span></button>
+            </div>
+            <div class="modal-body math-modal-body">
+                <textarea v-model="mathInput" class="modern-textarea modal-math-textarea" rows="4"
+                    placeholder="E = mc^2"></textarea>
+                <div class="math-options">
+                    <label><input type="radio" v-model="mathMode" value="inline" /> {{ t("editor.mathInline") }}</label>
+                    <label><input type="radio" v-model="mathMode" value="block" /> {{ t("editor.mathBlock") }}</label>
+                </div>
+                <div class="math-preview" >
+                    <span class="math-preview-render" ref="mathPreviewRef"></span>
+                </div>
+                <div class="modal-actions">
+                    <button class="secondary-btn" @click="activeModal = 'none'">{{ t('editor.cancel') }}</button>
+                    <button class="primary-btn" @click="insertMath">{{ t('editor.insert') }}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+<!-- Upload Toast -->
     <div v-if="uploadState.show" class="upload-toast" :class="uploadState.status">
         <div class="toast-content">
             <div class="toast-header-row">
@@ -625,6 +631,7 @@
                 <div class="toast-progress-bar" :style="{ width: uploadState.progress + '%' }"></div>
             </div>
         </div>
+
     </div>
 </template>
 
@@ -632,11 +639,12 @@
 import { fetchWithAuth } from '../utils/fetchWithAuth';
 import { settingsStore } from '../composables/settingsApi';
 import { readApiErrorMessage } from '../utils/apiError'
-import { ref, computed, watch, onMounted, onUnmounted, nextTick, reactive } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick, reactive, provide } from 'vue'
 import { useRoute, useRouter, onBeforeRouteUpdate, onBeforeRouteLeave } from 'vue-router'
 // Pipeline A disabled — keep import for future re-enablement
 // import MdParser from './MdParser.vue'
-import MarkdownItPreview from './MarkdownItPreview.vue'
+import EditorArticleBody from './EditorArticleBody.vue'
+import EditorSlidesBody from './EditorSlidesBody.vue'
 import { debounce } from '../utils/debounce'
 import { Icons } from '../utils/icons'
 import { convertToHtml, injectHeadingIds, getStats } from '../utils/markdownParser'
@@ -645,11 +653,10 @@ import { sortTags } from '../utils/tagUtils'
 import { useI18n } from 'vue-i18n'
 import CheckRow from './ui/CheckRow.vue';
 import FilePicker from './FilePicker.vue'
-import CmEditor from './CmEditor.vue'
 import { formatDate as formatDateUtil, formatDateTime } from '../utils/dateUtils'
-import QuarterCircleSpinner from './ui/QuarterCircleSpinner.vue'
 import useToast from '../composables/useToast'
 import { getNotificationCenter } from '../composables/useNotificationCenter'
+import { triggerBuild } from '../composables/useAstroBuild'
 import { serializeFrontmatter, parseFrontmatter } from '../composables/useFrontmatter'
 
 const route = useRoute()
@@ -678,7 +685,7 @@ async function fileToUrl(file: File): Promise<string> {
         try {
             const resolved = await ((window as any).chronicleElectron?.getPathForFile?.(file))
             if (resolved) return toFileUri(resolved)
-        } catch {}
+        } catch { }
     }
     // 3. Fallback: in-memory blob (browser, or Electron with no disk backing)
     return URL.createObjectURL(file)
@@ -702,11 +709,11 @@ function getTypePrefixForFile(file: File): string {
     const ext = name.split('.').pop()?.toLowerCase() || ''
     const mime = (file.type || '').toLowerCase()
 
-    if (mime.startsWith('image/') || ['jpg','jpeg','png','gif','webp','svg','bmp'].includes(ext)) return ''
-    if (mime.startsWith('audio/') || ['mp3','wav','ogg','flac','m4a','aac'].includes(ext)) return 'audio'
-    if (mime.startsWith('video/') || ['mp4','webm','mov','mkv','avi'].includes(ext)) return 'video'
-    if (mime === 'application/pdf' || ['pdf','doc','docx','ppt','pptx','xls','xlsx'].includes(ext)) return 'document'
-    if (mime.startsWith('text/') || ['txt','md','js','ts','json','css','html','log','csv','xml','yaml','yml'].includes(ext)) return 'text'
+    if (mime.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) return ''
+    if (mime.startsWith('audio/') || ['mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac'].includes(ext)) return 'audio'
+    if (mime.startsWith('video/') || ['mp4', 'webm', 'mov', 'mkv', 'avi'].includes(ext)) return 'video'
+    if (mime === 'application/pdf' || ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'].includes(ext)) return 'document'
+    if (mime.startsWith('text/') || ['txt', 'md', 'js', 'ts', 'json', 'css', 'html', 'log', 'csv', 'xml', 'yaml', 'yml'].includes(ext)) return 'text'
     return 'attach'
 }
 const editorQueryId = computed(() => {
@@ -716,6 +723,13 @@ const editorQueryId = computed(() => {
 
 const isCloudEditing = computed(() => !!editorQueryId.value)
 const isAboutMode = computed(() => editorQueryId.value === '__about__')
+
+// Editor type — initialised from route, may be updated by API response.
+// Uses a ref (not computed) so type correction can update it without
+// triggering a router navigation / component remount.
+const editorType = ref<'article' | 'slides'>(
+  route.path.startsWith('/editor/slides') ? 'slides' : 'article'
+)
 
 function createOnlineDraftId() {
     return (typeof crypto !== 'undefined' && (crypto as any).randomUUID)
@@ -736,6 +750,17 @@ function getCloudAuthSession() {
 
 const cloudAuthSession = ref(getCloudAuthSession())
 
+// ── Skeleton & data-ready state ──────────────────────
+const dataReady = ref(false)
+const bodyKey = ref(0)  // bumped on type switch to force body recreation
+const skeletonStatus = ref('editor.skeletonLoading')
+const skeletonShowDirectEntry = ref(false)
+let skeletonTimer: ReturnType<typeof setTimeout> | null = null
+
+// Provide skeleton state to parent (TextEditor) for page-level overlay
+provide('skeletonStatus', skeletonStatus)
+provide('skeletonShowDirectEntry', skeletonShowDirectEntry)
+
 function refreshCloudAuthState() {
     cloudAuthSession.value = getCloudAuthSession()
     return !!cloudAuthSession.value
@@ -749,7 +774,7 @@ function goToLogin(action: string) {
     router.push({
         path: '/login',
         query: {
-            next: route.fullPath || '/editor',
+            next: route.fullPath || '/editor/article',
             source: 'editor',
             action,
         } as any,
@@ -771,7 +796,11 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
     (e: 'update:modelValue', value: string): void
+    (e: 'ready'): void
 }>()
+
+// Notify parent (TextEditor) when data is ready to dismiss skeleton
+watch(dataReady, (val) => { if (val) emit('ready') })
 
 const localValue = ref(props.modelValue)
 const assetMap = ref<Record<string, string>>({})
@@ -787,7 +816,8 @@ const postId = ref<string | null>(null)
 const postStatus = ref<'local' | 'draft' | 'published' | 'modifying' | 'building'>('local')
 const postTags = ref<string[]>([])
 const postFont = ref<string>('sans')
-const postAuthor = ref<string>('') // æ–°å¢žä½œè€…å­—æ®µ
+const postAuthor = ref<string>('')
+const slideshowConfig = ref<Record<string, any>>({}) // æ–°å¢žä½œè€…å­—æ®µ
 const postAIGenerated = ref<boolean>(false) // æ–°å¢žAIç”Ÿæˆå­—æ®µ
 const postDate = ref<string>('')
 const postUpdated = ref<string>('')
@@ -796,6 +826,61 @@ const postUpdated = ref<string>('')
 const isSaving = ref(false)
 const isBuilding = ref(false)
 const activeModal = ref('none')
+
+// Math modal
+const mathInput = ref('')
+const mathMode = ref<'inline' | 'block'>('inline')
+const mathPreviewRef = ref<HTMLElement | null>(null)
+
+let _katex: any = null
+function loadKatex() {
+  if (_katex) return Promise.resolve(_katex)
+  return import('katex').then(m => { _katex = m.default || m; return _katex })
+}
+
+watch(mathInput, (val) => {
+  void nextTick(async () => {
+    const el = mathPreviewRef.value
+    if (!el || !val.trim()) { if (el) el.innerHTML = ''; return }
+    try {
+      const katex = await loadKatex()
+      katex.render(val, el, { throwOnError: false, displayMode: false })
+    } catch { el.textContent = val }
+  })
+})
+
+function insertMath() {
+    if (!mathInput.value.trim()) return
+    const formula = mathInput.value.trim()
+    // Slides use $/$ delimiters (Marp/KaTeX), articles use \(/\[ delimiters
+    const isSlides = editorType.value === 'slides'
+    const md = mathMode.value === 'inline'
+      ? (isSlides ? `$${formula}$` : `\\(${formula}\\)`)
+      : (isSlides ? `\n$$\n${formula}\n$$\n` : `\n\\[\n${formula}\n\\]\n`)
+    editorBodyRef.value?.insertAtCursor(md)
+    mathInput.value = ''
+    activeModal.value = 'none'
+}
+
+// Footnote modal
+
+function insertFootnote() {
+    const ref = `[^${Date.now().toString(36)}]`
+    const body = editorBodyRef.value as any
+    const view = body?.editorRef?.getEditor?.()
+    if (!view) return
+    const sel = view.state.selection.main
+    const selText = sel.from !== sel.to ? view.state.sliceDoc(sel.from, sel.to) : ''
+    // Insert ref after selection (or at cursor if no selection)
+    view.dispatch({ changes: { from: sel.to, insert: ref } })
+    // Find paragraph end and insert definition
+    const doc = view.state.doc.toString()
+    const pos = sel.to + ref.length
+    const after = doc.slice(pos)
+    const m = after.match(/\n\s*\n|$/)
+    const insertAt = m?.index != null ? pos + m.index : doc.length
+    view.dispatch({ changes: { from: insertAt, insert: `\n\n${ref}: ${selText}` } })
+}
 const nc = getNotificationCenter()
 const tempTitle = ref('')
 const pendingConflictDetail = ref<any>(null)
@@ -988,7 +1073,7 @@ function clearCurrentLocalDocument() {
     postAIGenerated.value = false
     localValue.value = ''
     savedContent.value = ''
-    savedTitle.value = t('editor.untitled')
+    savedFm.value = buildSavedFm()
     history.value = ['']
     historyIndex.value = 0
 }
@@ -1028,25 +1113,55 @@ async function executeFileAction() {
     }
 }
 
-// Apply a file's raw text: parse frontmatter → meta + content
-function applyOpenedFile(text: string, filename: string) {
-    const { meta, content } = parseFrontmatter(text)
-    localValue.value = content
-    // Hydrate metadata from frontmatter, falling back to filename for title
-    postTitle.value = meta.title || filename.replace(/\.[^/.]+$/, '')
-    postTags.value = Array.isArray(meta.tags) ? meta.tags : []
-    postAuthor.value = typeof meta.author === 'string' ? meta.author : ''
-    if (meta.font && ['sans', 'serif', 'mono'].includes(meta.font)) postFont.value = meta.font
-    postAIGenerated.value = meta.aiGenerated === true
-    postDate.value = typeof meta.date === 'string' ? meta.date : ''
-    postId.value = null
-    postStatus.value = 'local'
-    savedContent.value = content
-    savedTitle.value = postTitle.value
-    history.value = [content]
-    historyIndex.value = 0
-    pushRecentProject({ title: postTitle.value, path: filename, cloud: false })
-    activeModal.value = 'none'
+  // ── Shared FM helpers ─────────────────────────────
+  const CHRONICLE_FM_KEYS = new Set(['title','date','updatedAt','tags','font','author','aiGenerated','marp','type','slideshow'])
+  function isSlidesMeta(meta: Record<string, any>) { return meta.type === 'slides' || meta.marp === true || ['marp','theme','size','paginate','header','class','backgroundColor','backgroundImage','color'].some((k: string) => meta[k] !== undefined) }
+  function buildLocalDetail(meta: Record<string, any>, content: string, filename: string, type: 'article' | 'slides') { return { id: null, title: meta.title || filename.replace(/\.[^/.]+$/, ''), date: meta.date || '', updatedAt: '', status: 'local' as const, tags: meta.tags || [], font: meta.font || 'sans', author: meta.author || '', aiGenerated: meta.aiGenerated || false, type, content } }
+
+/**
+ * Unified editor update — all open / create-new operations.
+ * Detects type switch, bumps bodyKey, then dispatches to the right action.
+ */
+function updateEditor(targetType: 'article' | 'slides', action: {
+  mode: 'local-new'
+} | {
+  mode: 'cloud-new'
+} | {
+  mode: 'file'; text: string; filename: string; handle?: any
+}) {
+  const typeChanged = editorType.value !== targetType
+  if (typeChanged) { editorType.value = targetType; bodyKey.value++ }
+  const path = targetType === 'slides' ? '/editor/slides' : '/editor/article'
+
+  if (action.mode === 'local-new') {
+    clearCurrentLocalDocument()
+    if (!typeChanged) bodyKey.value++  // same-type new → force body reset
+    router.push(path)
+  } else if (action.mode === 'cloud-new') {
+    router.push({ path, query: { id: 'new' } })
+  } else if (action.mode === 'file') {
+    const { meta, content } = parseFrontmatter(action.text)
+    if (typeChanged) {
+      // Cross-type: defer to initLoad via module variable
+      pendingLocalFile = { text: action.text, filename: action.filename, handle: action.handle }
+      router.push(path)
+    } else {
+      // Same-type: load directly
+      const detail = buildLocalDetail(meta, action.text, action.filename, targetType)
+      applyLoadedPost(detail, content, null, false)
+      if (action.handle) { currentFileHandle.value = action.handle; currentFilePath.value = action.handle.name || action.filename }
+      else currentFilePath.value = action.filename
+      postId.value = null; postStatus.value = 'local'
+      pushRecentProject({ title: detail.title, path: action.filename, cloud: false })
+    }
+  }
+  activeModal.value = 'none'
+}
+
+// Apply a file's raw text: parse frontmatter, detect type → updateEditor
+function applyOpenedFile(text: string, filename: string, handle?: any) {
+  const { meta } = parseFrontmatter(text)
+  updateEditor(isSlidesMeta(meta) ? 'slides' : 'article', { mode: 'file', text, filename, handle })
 }
 
 // File system helpers (browser FS API with fallback)
@@ -1054,6 +1169,7 @@ async function openLocalFilePicker() {
     try {
         if ((window as any).showOpenFilePicker) {
             const [handle] = await (window as any).showOpenFilePicker({
+                mode: 'readwrite',
                 multiple: false,
                 types: [{
                     description: 'Markdown',
@@ -1062,9 +1178,7 @@ async function openLocalFilePicker() {
             })
             const file = await handle.getFile()
             const text = await file.text()
-            currentFileHandle.value = handle
-            currentFilePath.value = handle.name || file.name
-            applyOpenedFile(text, file.name)
+            applyOpenedFile(text, file.name, handle)
             return
         }
         // Fallback: use hidden input
@@ -1112,27 +1226,20 @@ function requestOpenLocalFile() {
     else doOpen()
 }
 
-function createLocalNewPost() {
-    const doNew = () => {
-        clearCurrentLocalDocument()
-        resetEditor()
-        activeModal.value = 'none'
-    }
+function createLocalNew(type: 'article' | 'slides') {
+    const doNew = () => updateEditor(type, { mode: 'local-new' })
     if (isDirty.value) handleUnsavedCheck(doNew)
     else doNew()
 }
 
-function createOnlinePost() {
-    const doOnline = () => {
-        activeModal.value = 'none'
-        router.push({ path: '/editor', query: { id: createOnlineDraftId() } })
-    }
+function createCloudNew(type: 'article' | 'slides') {
     if (!isCloudAuthenticated()) {
         goToLogin('create-cloud-post')
         return
     }
-    if (isDirty.value) handleUnsavedCheck(doOnline)
-    else doOnline()
+    const doCloud = () => updateEditor(type, { mode: 'cloud-new' })
+    if (isDirty.value) handleUnsavedCheck(doCloud)
+    else doCloud()
 }
 
 async function writeFileHandle(handle: any, contents: string) {
@@ -1156,23 +1263,56 @@ async function writeFileHandle(handle: any, contents: string) {
 
 /** Build the full file content: frontmatter + markdown body. */
 function buildFileContent(): string {
-    return serializeFrontmatter({
-        title: postTitle.value || undefined,
-        tags: postTags.value.length ? postTags.value : undefined,
-        author: postAuthor.value || undefined,
-        font: postFont.value !== 'sans' ? postFont.value : undefined,
-        aiGenerated: postAIGenerated.value || undefined,
-    }, localValue.value)
+    const now = new Date().toISOString()
+    const fm: Record<string, any> = {
+        title: postTitle.value || '',
+        date: postDate.value || now,
+        tags: postTags.value.length ? postTags.value : [],
+        author: postAuthor.value || '',
+        aiGenerated: postAIGenerated.value || false,
+    }
+    if (editorType.value !== 'slides') {
+        fm.font = postFont.value || 'sans'
+    }
+    let body = localValue.value
+    if (editorType.value === 'slides') {
+        // Detect Marp frontmatter in body and merge it into Chronicle frontmatter
+        const fmMatch = body.match(/^---\n([\s\S]*?)\n---\n?/)
+        if (fmMatch) {
+            const rawFm = fmMatch[1]
+            const isMarp = /^(marp|theme|size|footer|paginate|header|class|backgroundColor|backgroundImage|color):/m.test(rawFm)
+            if (isMarp) {
+                body = body.slice(fmMatch[0].length)
+                rawFm.split('\n').forEach(line => {
+                    const c = line.indexOf(':')
+                    if (c < 0) return
+                    const k = line.slice(0, c).trim()
+                    const v = line.slice(c + 1).trim().replace(/^"(.*)"$/, '$1')
+                    if (k && !CHRONICLE_FM_KEYS.has(k)) {
+                        fm[k] = v === 'true' ? true : v === 'false' ? false : v
+                    }
+                })
+            }
+        }
+        fm.marp = true
+        // Also pull from slideshow config if set in properties panel
+        const ss = slideshowConfig.value || {}
+        if (ss.theme && !fm.theme) fm.theme = ss.theme
+        if (ss.ratio && !fm.size) fm.size = ss.ratio
+        if (ss.footer && !fm.footer) fm.footer = ss.footer
+    }
+    return serializeFrontmatter(fm, body)
 }
 
 async function saveFile() {
     try {
         if (currentFileHandle.value) {
+            if (!postDate.value) postDate.value = new Date().toISOString()
             const contents = buildFileContent()
             const ok = await writeFileHandle(currentFileHandle.value, contents)
             if (ok) {
                 savedContent.value = localValue.value
-                savedTitle.value = postTitle.value
+                savedFm.value = buildSavedFm()
                 pushRecentProject({ title: postTitle.value, path: currentFilePath.value || undefined, cloud: false })
                 showToast(t('editor.file.savedToFile') as string)
                 activeModal.value = 'none'
@@ -1187,45 +1327,42 @@ async function saveFile() {
 }
 
 async function saveAs() {
-    try {
-        const contents = buildFileContent()
-        if ((window as any).showSaveFilePicker) {
-            const handle = await (window as any).showSaveFilePicker({
-                suggestedName: `${(postTitle.value || 'untitled').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.md`,
-                types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }]
-            })
-            const ok = await writeFileHandle(handle, contents)
-            if (ok) {
-                currentFileHandle.value = handle
-                currentFilePath.value = (handle.name || null)
-                savedContent.value = localValue.value
-                savedTitle.value = postTitle.value
-                pushRecentProject({ title: postTitle.value, path: currentFilePath.value || undefined, cloud: false })
-                showToast(t('editor.file.savedToFile') as string)
-                activeModal.value = 'none'
-                return true
-            }
+    if (!postDate.value) postDate.value = new Date().toISOString()
+    const contents = buildFileContent()
+    let saved = false
+    // Try File System Access API first
+    if ((window as any).showSaveFilePicker) {
+      try {
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName: `${(postTitle.value || 'untitled').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.md`,
+          types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }]
+        })
+        const ok = await writeFileHandle(handle, contents)
+        if (ok) {
+          currentFileHandle.value = handle
+          currentFilePath.value = handle.name || null
+          savedContent.value = localValue.value
+          savedFm.value = buildSavedFm()
+          pushRecentProject({ title: postTitle.value, path: currentFilePath.value || undefined, cloud: false })
+          showToast(t('editor.file.savedToFile') as string)
+          activeModal.value = 'none'
+          return true
         }
-        // Fallback: trigger download
-        const blob = new Blob([contents], { type: 'text/markdown;charset=utf-8' })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        const filename = `${(postTitle.value || 'untitled').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.md`
-        a.href = url
-        a.download = filename
-        a.click()
-        URL.revokeObjectURL(url)
-        currentFileHandle.value = null
-        currentFilePath.value = filename
-        savedContent.value = localValue.value
-        savedTitle.value = postTitle.value
-        pushRecentProject({ title: postTitle.value, path: filename, cloud: false })
-        activeModal.value = 'none'
-        return true
-    } catch (e) {
-        console.error('saveAs failed', e)
-        return false
+      } catch (e) {
+        // User cancelled or API unavailable — fall through to Blob download
+        console.error('saveAs: File System API failed, falling back to download', e)
+      }
     }
+    // Blob download fallback — always works, no file handle to track
+    const blob = new Blob([contents], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    const filename = `${(postTitle.value || 'untitled').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.md`
+    a.href = url; a.download = filename
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    showToast(t('editor.file.savedToFile') as string)
+    return true
 }
 
 async function exportAsHTML() {
@@ -1275,7 +1412,6 @@ function clearVersionConflictState() {
 
 function applyLoadedPost(detail: any, content: string, sessionHistory: string | null, syncLocalCache = false) {
     if (!detail) return
-
     postId.value = detail.id
     postTitle.value = detail.title
     isDefaultTitle.value = false
@@ -1283,13 +1419,56 @@ function applyLoadedPost(detail: any, content: string, sessionHistory: string | 
     postDate.value = detail.date || ''
     postUpdated.value = detail.updatedAt || detail.date || ''
     postTags.value = detail.tags || []
-    postFont.value = detail.font || 'sans'
+    postFont.value = detail.type === 'slides' ? 'sans' : (detail.font || 'sans')
     postAuthor.value = readAuthorFromDetail(detail)
     postAIGenerated.value = readAiGeneratedFromDetail(detail)
-    localValue.value = content
-
-    savedContent.value = content
-    savedTitle.value = detail.title
+    try { slideshowConfig.value = typeof detail.slideshow === 'object' ? detail.slideshow : JSON.parse(detail.slideshow || '{}') } catch { slideshowConfig.value = {} }
+    // For slides: reconstruct Marp style frontmatter from content and prepend to editor
+    const postType = detail.type || detail.meta?.type
+    if (postType === 'slides') {
+      const fmMatch = content.match(/^---\n([\s\S]*?)\n---\n?/)
+      if (fmMatch) {
+        const styleLines: string[] = []
+        fmMatch[1].split('\n').forEach(line => {
+          const c = line.indexOf(':')
+          if (c < 0) return
+          const k = line.slice(0, c).trim()
+          if (!CHRONICLE_FM_KEYS.has(k)) styleLines.push(line)
+        })
+        if (styleLines.length > 0) {
+          const body = content.slice(fmMatch[0].length)
+          localValue.value = `---\n${styleLines.join('\n')}\n---\n\n${body}`
+        } else {
+          localValue.value = content
+        }
+      } else {
+        localValue.value = content
+      }
+    } else {
+      localValue.value = content
+    }
+    // Baseline from editor content — guarantees same-source comparison.
+    // Slides: keep full content (Marp FM is part of the body).
+    // Documents: strip Chronicle FM, compare body only.
+    savedContent.value = postType === 'slides' ? localValue.value : normalizeBody(localValue.value)
+    // Parse slideshow the same way as slideshowConfig to keep comparisons consistent
+    let parsedSlideshow: Record<string, any> | undefined = undefined
+    if (postType === 'slides') {
+      try {
+        parsedSlideshow = typeof detail.slideshow === 'object'
+          ? detail.slideshow
+          : JSON.parse(detail.slideshow || '{}')
+      } catch { parsedSlideshow = {} }
+    }
+    savedFm.value = {
+      title: detail.title,
+      date: detail.date || '',
+      tags: detail.tags || [],
+      author: readAuthorFromDetail(detail),
+      aiGenerated: readAiGeneratedFromDetail(detail),
+      font: postType === 'slides' ? undefined : (detail.font || 'sans'),
+      slideshow: parsedSlideshow,
+    }
 
     if (sessionHistory) {
         try {
@@ -1305,6 +1484,7 @@ function applyLoadedPost(detail: any, content: string, sessionHistory: string | 
         historyIndex.value = 0
     }
 
+
     if (syncLocalCache) {
         localStorage.setItem(`chronicle_draft_${detail.id}`, content)
         sessionStorage.setItem(`chronicle_history_${detail.id}`, JSON.stringify({
@@ -1312,6 +1492,10 @@ function applyLoadedPost(detail: any, content: string, sessionHistory: string | 
             index: historyIndex.value,
         }))
     }
+    dataReady.value = true
+    void nextTick(() => {
+      editorBodyRef.value?.initContent?.(localValue.value)
+    })
 }
 
 function resolveVersionConflict(choice: 'cloud' | 'local') {
@@ -1332,23 +1516,49 @@ function resolveVersionConflict(choice: 'cloud' | 'local') {
 }
 
 function resetEditor() {
-    router.push({ path: '/editor' })
+    const basePath = editorType.value === 'slides' ? '/editor/slides' : '/editor/article'
+    router.push({ path: basePath })
 }
 
 function loadPost(id: string) {
     if (id === postId.value) return
     router.push({ query: { id } })
 }
+/** Normalized body baseline (frontmatter stripped, line-end trimmed). */
 const savedContent = ref('')
-const savedTitle = ref('')
+/** Baseline frontmatter fields for dirty checking. */
+const savedFm = ref<SavedFm>({
+  title: '', date: '', tags: [], author: '', aiGenerated: false
+})
+watch(savedContent, (val) => { if (val) lastSavedTime.value = new Date().toISOString() })
 // Maps type-prefix keys ("document:report.pdf") → original File objects
 const fileMap = new Map<string, File>()
 const pendingRoute = ref<any>(null) // To store where user wanted to go
-const isDirty = computed(() => {
-    // Only dirty if we have a valid post loaded/initialized
-    // and content differs
-    return localValue.value !== savedContent.value || postTitle.value !== savedTitle.value
+const fmChanged = computed(() => {
+  const s = savedFm.value
+  const isSlides = editorType.value === 'slides'
+  return (
+    postTitle.value !== s.title ||
+    postDate.value !== s.date ||
+    JSON.stringify(postTags.value.slice().sort()) !== JSON.stringify((s.tags || []).slice().sort()) ||
+    postAuthor.value !== s.author ||
+    postAIGenerated.value !== s.aiGenerated ||
+    (!isSlides && postFont.value !== (s.font || 'sans')) ||
+    (isSlides && JSON.stringify(slideshowConfig.value || {}) !== JSON.stringify(s.slideshow || {}))
+  )
 })
+
+const bodyChanged = computed(() => {
+  if (editorType.value === 'slides') return localValue.value !== savedContent.value
+  return normalizeBody(localValue.value) !== savedContent.value
+})
+
+const isDirty = computed(() => fmChanged.value || bodyChanged.value)
+const isNewAndClean = computed(() =>
+  !isDirty.value && !isSaving.value && !isBuilding.value &&
+  (postStatus.value === 'local' || postStatus.value === 'draft') &&
+  !localValue.value.trim()
+)
 
 // Undo/Redo History (CodeMirror owns undo/redo; these remain for session persistence only)
 const history = ref<string[]>([''])
@@ -1356,12 +1566,12 @@ const historyIndex = ref(0)
 const isTimeTraveling = ref(false)
 const MAX_HISTORY = 50
 function pushHistory(val: string) {
-  if (isTimeTraveling.value) return
-  if (historyIndex.value >= 0 && history.value[historyIndex.value] === val) return
-  if (historyIndex.value < history.value.length - 1) history.value = history.value.slice(0, historyIndex.value + 1)
-  history.value.push(val)
-  if (history.value.length > MAX_HISTORY) { history.value.shift(); historyIndex.value-- }
-  historyIndex.value = history.value.length - 1
+    if (isTimeTraveling.value) return
+    if (historyIndex.value >= 0 && history.value[historyIndex.value] === val) return
+    if (historyIndex.value < history.value.length - 1) history.value = history.value.slice(0, historyIndex.value + 1)
+    history.value.push(val)
+    if (history.value.length > MAX_HISTORY) { history.value.shift(); historyIndex.value-- }
+    historyIndex.value = history.value.length - 1
 }
 const debouncedPush = debounce(pushHistory, 500)
 
@@ -1578,51 +1788,14 @@ function getAdminAuthToken() {
 
 async function triggerAstroBuild(postId: string) {
     const source = postId === '__about__'
-      ? (t('notification.source.aboutPublish') as string)
-      : (t('notification.source.publish') as string)
-    const bt = nc.startBuild(`${t('settings.building')} · ${source}`)
-    if (!bt) return
-    const { nid, clientBuildId } = bt
-    const detailLabels = { id: t('notification.detailId') as string, trigger: t('notification.detailTrigger') as string, time: t('notification.detailTime') as string }
-    nc.update(nid, { message: nc.buildDetail(detailLabels, clientBuildId, source) })
+        ? (t('notification.source.aboutPublish') as string)
+        : (t('notification.source.publish') as string)
     isBuilding.value = true
-
     try {
-        const token = getAdminAuthToken()
-        if (!token) {
-            throw new Error('Missing auth token')
-        }
-
-        const res = await fetchWithAuth(`/api/admin/build/astro?t=${Date.now()}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Chronicle-Auth': token,
-            },
-            body: JSON.stringify({
-                postId,
-                reason: 'publish',
-                clientBuildId,
-                source,
-            }),
-        })
-
-        if (!res.ok) {
-            throw new Error(await readApiErrorMessage(res, `HTTP ${res.status}`))
-        }
-
-        const data = await res.json().catch(() => ({}))
-        const baseMsg = nc.buildDetail(detailLabels, clientBuildId, source)
-        if (data.status === 'timeout') {
-            nc.update(nid, { state: 'completed', level: 'warning', title: t('settings.buildTimeout') as string, message: baseMsg })
-        } else {
-            nc.update(nid, { state: 'completed', level: 'success', title: t('settings.buildCompleted') as string, message: baseMsg })
-        }
-
+        await triggerBuild({ source, postId, t: (k: string) => t(k) as string })
         postStatus.value = 'published'
-    } catch (e: any) {
-        nc.update(nid, { state: 'failed', level: 'error', title: t('settings.buildFailed') as string, message: `${nc.buildDetail(detailLabels, clientBuildId, source)}\n${t('notification.detailError')}: ${e?.message || ''}`, actions: [{ label: t('nav.buildNow') as string, handler: 'retry-build' }] })
-        throw e
+    } catch {
+        // notification already updated by triggerBuild
     } finally {
         isBuilding.value = false
     }
@@ -1644,7 +1817,7 @@ async function doSave(action?: 'local' | 'draft' | 'publish' | 'upload' | 'unsav
             showToast(t('editor.saved') as string, { status: 'success', position: 'bottom-center', shape: 'capsule' })
             const settings = settingsStore.value
             if (settings?.autoBuildOnPublish) {
-                try { await triggerAstroBuild('__about__') } catch {}
+                try { await triggerAstroBuild('__about__') } catch { }
             }
         } catch (e: any) {
             showToast((e?.message || t('editor.saveFailed')) as string, { status: 'error', position: 'bottom-center', shape: 'capsule' })
@@ -1668,7 +1841,7 @@ async function doSave(action?: 'local' | 'draft' | 'publish' | 'upload' | 'unsav
         postUpdated.value = now
         if (!postDate.value) postDate.value = now
         savedContent.value = localValue.value
-        savedTitle.value = titleToKeep
+        savedFm.value = buildSavedFm()
         activeModal.value = 'none'
         await saveFile()
         return
@@ -1695,6 +1868,8 @@ async function doSave(action?: 'local' | 'draft' | 'publish' | 'upload' | 'unsav
                         font: postFont.value,
                         author: postAuthor.value,
                         aiGenerated: postAIGenerated.value,
+                        type: editorType.value,
+                        slideshow: editorType.value === 'slides' ? slideshowConfig.value : undefined,
                     }))
                     sessionStorage.setItem(`chronicle_history_${newId}`, JSON.stringify({
                         stack: history.value,
@@ -1702,9 +1877,10 @@ async function doSave(action?: 'local' | 'draft' | 'publish' | 'upload' | 'unsav
                     }))
 
                     // 自动保存
-                    savedContent.value = localValue.value 
-                    savedTitle.value = postTitle.value
-                    router.replace({ path: '/editor', query: { id: `new-${newId}` } })
+                    savedContent.value = localValue.value
+                    savedFm.value = buildSavedFm()
+                    const editorPath = editorType.value === 'slides' ? '/editor/slides' : '/editor/article'
+                    router.replace({ path: editorPath, query: { id: `new-${newId}` } })
                     postId.value = newId
                     activeModal.value = 'none'
                     await doSave('publish')
@@ -1726,7 +1902,7 @@ async function doSave(action?: 'local' | 'draft' | 'publish' | 'upload' | 'unsav
         postAIGenerated.value = false
         localValue.value = ''
         savedContent.value = ''
-        savedTitle.value = t('editor.untitled')
+        savedFm.value = buildSavedFm()
         history.value = ['']
         historyIndex.value = 0
         return
@@ -1798,18 +1974,22 @@ async function doSave(action?: 'local' | 'draft' | 'publish' | 'upload' | 'unsav
             }
         }
 
+        if (!postDate.value) postDate.value = new Date().toISOString()
+
         const res = await fetchWithAuth(`/api/post?t=${Date.now()}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 id: requestId,
                 title: titleToSend,
-                content: contentToSend,
+                content: buildFileContent(),
                 status: status,
                 tags: postTags.value,
                 font: postFont.value,
                 author: postAuthor.value,
                 aiGenerated: postAIGenerated.value,
+                type: editorType.value === 'slides' ? 'slides' : undefined,
+                slideshow: editorType.value === 'slides' ? slideshowConfig.value : undefined,
                 compiledHtml,
                 toc,
                 newPost: isNewPost,
@@ -1831,7 +2011,7 @@ async function doSave(action?: 'local' | 'draft' | 'publish' | 'upload' | 'unsav
                 if (!postDate.value) postDate.value = postUpdated.value
 
                 savedContent.value = localValue.value
-                savedTitle.value = tempTitle.value
+                savedFm.value = buildSavedFm()
 
                 if (previousPostId && previousPostId !== 'new') {
                     localStorage.removeItem(`chronicle_draft_${previousPostId}`)
@@ -1848,26 +2028,18 @@ async function doSave(action?: 'local' | 'draft' | 'publish' | 'upload' | 'unsav
             }
 
             // Notify other tabs (e.g. PostManager) that a post changed
-            try { new BroadcastChannel('chronicle').postMessage({ type: 'post-updated', id: data.id }) } catch {}
+            try { new BroadcastChannel('chronicle').postMessage({ type: 'post-updated', id: data.id }) } catch { }
 
             const shouldBuildAstro = status === 'published'
             closeModals()
 
             if (shouldBuildAstro) {
+                postStatus.value = 'published'
                 const settings = settingsStore.value
-                const allowBuild = !!(settings && settings.autoBuildOnPublish)
-
-                if (allowBuild) {
-                    try {
-                        await triggerAstroBuild(data.id || postId.value || '')
-                    } catch (buildError) {
-                        postStatus.value = 'published'
-                        console.error('[BlogEditor] Astro build failed after publish', buildError)
-                        const rawMessage = buildError instanceof Error ? buildError.message : (t('editor.buildFailed') as string)
-                        showToast(`${t('settings.buildErrorPrefix') as string}${rawMessage}`, { status: 'error', position: 'bottom-center', shape: 'capsule' })
-                    }
-                } else {
-                    postStatus.value = 'published'
+                if (settings && settings.autoBuildOnPublish) {
+                    // Fire-and-forget — build runs in background, reported via notification center.
+                    showToast(t('settings.buildSubmitted') as string, { status: 'info', position: 'bottom-center', shape: 'capsule' })
+                    void triggerAstroBuild(data.id || postId.value || '')
                 }
             }
         } else {
@@ -1920,7 +2092,7 @@ async function saveLocalDirect(titleArg?: string) {
         postUpdated.value = now
         if (!postDate.value) postDate.value = now
         savedContent.value = localValue.value
-        savedTitle.value = titleToKeep
+        savedFm.value = buildSavedFm()
 
         const ok = await saveFile()
         if (ok) {
@@ -1957,12 +2129,17 @@ function closeModals() {
 
 async function handleUnsavedOption(action: 'save' | 'discard') {
     if (action === 'save') {
-        await doSave() // Saves with current status
+        // Route to the correct save path based on editing mode
+        if (isCloudEditing.value) {
+            await doSave('draft')
+        } else {
+            await saveLocalDirect()
+        }
     }
 
     // Force clean state to allow navigation
     savedContent.value = localValue.value
-    savedTitle.value = postTitle.value
+    savedFm.value = buildSavedFm()
 
     activeModal.value = 'none'
 
@@ -2045,7 +2222,16 @@ onBeforeRouteUpdate(async (to, from, next) => {
 
 // Watch query change to reload data when navigation keeps component alive
 watch(() => route.query.id, async (newId, oldId) => {
+    if (suppressQueryWatch) { suppressQueryWatch = false; return }
     if (newId !== oldId) {
+        await initLoad()
+    }
+})
+
+// Watch path change — handles type-correction redirects where query.id
+// stays the same but the path changes (e.g. /editor → /editor/article).
+watch(() => route.path, async (newPath, oldPath) => {
+    if (newPath !== oldPath && !dataReady.value && route.query.id) {
         await initLoad()
     }
 })
@@ -2056,205 +2242,389 @@ async function loadPostById(id: string) {
         postAIGenerated.value = false
         const detailRes = await fetchWithAuth(`/api/post?id=${id}&mode=edit&t=${Date.now()}`)
         if (!detailRes.ok) {
-            return false
+            // 404 / not found → validate branch handles it
+            skeletonStatus.value = 'editor.skeletonValidatingId'
+            await handleLoad404Fallback(id)
+            return true
         }
         const detail = await detailRes.json()
         const draft = localStorage.getItem(`chronicle_draft_${id}`)
         const sessionHistory = sessionStorage.getItem(`chronicle_history_${id}`)
+        // Type correction: update editorType — the :key binding forces
+        // Vue to recreate the body component when editorType changes.
+        const postType = (detail.type || detail.meta?.type) as string
+        const canonicalPath = postType === 'slides' ? '/editor/slides' : '/editor/article'
+        if (route.path !== canonicalPath) {
+            editorType.value = postType === 'slides' ? 'slides' : 'article'
+            bodyKey.value++
+            window.history.replaceState(null, '', canonicalPath + '?id=' + id)
+        }
         if (draft && normalizeContentForCompare(draft) !== normalizeContentForCompare(detail.content || '')) {
             pendingConflictDetail.value = detail
             pendingConflictDraft.value = draft
             pendingConflictSessionHistory.value = sessionHistory
             activeModal.value = 'syncConflict'
+            dataReady.value = true
             return true
         }
         applyLoadedPost(detail, draft || detail.content || '', sessionHistory, false)
         return true
     } catch (e) {
         console.error("Failed to load post", e)
+        showToast(t('editor.loadFailed'))
+        enterLocalMode()
+        finishLocal()
+        if (!pendingRedirect) dataReady.value = true
         return false
     }
+}
+
+/** Fallback when loading an existing post returns 404 — validate the raw UUID. */
+async function handleLoad404Fallback(uuid: string) {
+  try {
+    const res = await fetchWithAuth('/api/post/validate-id', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: uuid })
+    })
+    if (res.ok) {
+      const data = await res.json()
+      if (data?.valid) {
+        // Valid UUID, no existing content → redirect to new-<uuid> format
+        go(canonicalPath(), { id: `new-${uuid}` }); return
+      } else if (data?.reason === 'invalid-format') {
+        // Bad ID format → allocate fresh ID
+        go(canonicalPath(), { id: 'new' }); return
+      } else if (data?.reason === 'conflict') {
+        // Race: got 404 but validate says conflict — retry load
+        const detailRes2 = await fetchWithAuth(`/api/post?id=${uuid}&mode=edit&t=${Date.now()}`)
+        if (detailRes2.ok) {
+          const detail2 = await detailRes2.json()
+          applyLoadedPost(detail2, detail2.content || '', null, false)
+          return
+        }
+      }
+    }
+  } catch (e) { /* fall through */ }
+  // Everything failed → local mode
+  showToast(t('editor.loadFailed'))
+  enterLocalMode()
+  finishLocal()
+  if (!pendingRedirect) dataReady.value = true
+}
+
+/**
+ * Strip leading frontmatter block and normalize line endings.
+ * Body = everything after the first ---\n...\n--- delimiter.
+ */
+function normalizeBody(raw: string): string {
+  let body = raw.replace(/\r\n/g, '\n')
+  const m = body.match(/^---\n[\s\S]*?\n---\n\n?/)
+  if (m) body = body.slice(m[0].length)
+  return body.split('\n').map(l => l.trimEnd()).join('\n')
+}
+
+interface SavedFm {
+  title: string; date: string; tags: string[]; author: string
+  aiGenerated: boolean; font?: string; slideshow?: Record<string, any>
+}
+
+/** Build a SavedFm snapshot from current shell state. */
+function buildSavedFm(): SavedFm {
+  return {
+    title: postTitle.value,
+    date: postDate.value,
+    tags: [...postTags.value],
+    author: postAuthor.value,
+    aiGenerated: postAIGenerated.value,
+    font: editorType.value === 'slides' ? undefined : postFont.value,
+    slideshow: editorType.value === 'slides' ? { ...slideshowConfig.value } : undefined,
+  }
+}
+
+// Pending redirect accumulator — applied once at end of initLoad branch
+let pendingRedirect: { path?: string; query?: Record<string, any> } | null = null
+let pendingLocalFile: { text: string; filename: string; handle?: any } | null = null
+let suppressQueryWatch = false
+
+// ── Shared helpers ────────────────────────────────────
+
+const canonicalPath = () => editorType.value === 'slides' ? '/editor/slides' : '/editor/article'
+
+function go(path: string, query?: Record<string, any>) {
+  pendingRedirect = { path, query }
+  suppressQueryWatch = true
+  dataReady.value = true
+  finalizeRedirect()
+}
+
+/** Enter local mode + if on /editor, redirect to /editor/article. */
+function finishLocal() {
+  enterLocalMode()
+  if (route.path === '/editor') go(canonicalPath())
+  else dataReady.value = true
+}
+
+/** Enter local mode — clear all state, no network, empty editor ready. */
+function enterLocalMode() {
+  postId.value = null
+  postTitle.value = t('editor.untitled')
+  isDefaultTitle.value = true
+  postStatus.value = 'local'
+  postDate.value = ''
+  postUpdated.value = ''
+  postAuthor.value = ''
+  postAIGenerated.value = false
+  localValue.value = ''
+  savedContent.value = ''
+  savedFm.value = buildSavedFm()
+  history.value = ['']
+  historyIndex.value = 0
+}
+
+/** Restore localStorage/sessionStorage draft for a new cloud post UUID. */
+function restoreDraft(uuid: string) {
+  postId.value = uuid
+  const dk = `chronicle_draft_${uuid}`
+  const mk = `chronicle_draft_meta_${uuid}`
+  const hk = `chronicle_history_${uuid}`
+  const savedDraft = localStorage.getItem(dk)
+  const savedMetaRaw = localStorage.getItem(mk)
+  const savedHistoryRaw = sessionStorage.getItem(hk)
+  let savedMeta: any = null
+  try { savedMeta = savedMetaRaw ? JSON.parse(savedMetaRaw) : null } catch (e) { savedMeta = null }
+  let savedHistory: any = null
+  try { savedHistory = savedHistoryRaw ? JSON.parse(savedHistoryRaw) : null } catch (e) { savedHistory = null }
+
+  postTitle.value = savedMeta?.title || t('editor.untitled')
+  isDefaultTitle.value = !savedMeta?.title
+  postStatus.value = 'draft'
+  postDate.value = ''
+  postUpdated.value = ''
+  postAuthor.value = savedMeta?.author || ''
+  postAIGenerated.value = !!(savedMeta?.aiGenerated)
+  postTags.value = savedMeta?.tags || []
+  postFont.value = savedMeta?.font || 'sans'
+  localValue.value = savedDraft || ''
+  savedContent.value = editorType.value === 'slides' ? localValue.value : normalizeBody(localValue.value)
+  savedFm.value = buildSavedFm()
+  history.value = (savedHistory?.stack) || ['']
+  historyIndex.value = (savedHistory && typeof savedHistory.index === 'number') ? savedHistory.index : 0
+  try { localStorage.removeItem(dk); localStorage.removeItem(mk); sessionStorage.removeItem(hk) } catch (e) { }
+}
+
+/** Shared validate-id → route: used by new-<uuid> init and 404 fallback. */
+async function validateAndRoute(uuid: string) {
+  let valid = false; let reason = ''
+  try {
+    const res = await fetchWithAuth('/api/post/validate-id', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: uuid })
+    })
+    if (res.ok) {
+      const data = await res.json()
+      valid = !!(data?.valid)
+      reason = data?.reason || ''
+    }
+  } catch (e) {
+    showToast(t('editor.validateFailed'))
+    finishLocal()
+    return
+  }
+  if (reason === 'conflict')         { await loadPostById(uuid); return }
+  if (!valid || reason === 'invalid-format') { go(canonicalPath(), { id: 'new' }); return }
+  // Valid UUID, no conflict → restore draft and stay
+  restoreDraft(uuid)
+  if (route.path === '/editor') go(canonicalPath(), { id: `new-${uuid}` })
+  else dataReady.value = true
+}
+
+function finalizeRedirect() {
+  if (!pendingRedirect) return
+  const target = pendingRedirect
+  pendingRedirect = null
+  router.replace(target)
 }
 
 async function initLoad() {
     refreshCloudAuthState()
     const queryId = editorQueryId.value
 
-    // 严格校验 query：仅允许存在单一的 `id` 参数；否则导航到无 query（本地 editor）
+    // ── Start skeleton ────────────────────────────────
+    skeletonStatus.value = 'editor.skeletonLoading'
+    skeletonShowDirectEntry.value = false
+    if (skeletonTimer) clearTimeout(skeletonTimer)
+    skeletonTimer = setTimeout(() => { skeletonShowDirectEntry.value = true }, 5000)
+
+    // Cross-type file open: pendingLocalFile was set before router.push
+    if (pendingLocalFile) {
+      const { text, filename, handle } = pendingLocalFile
+      pendingLocalFile = null
+      const { meta, content } = parseFrontmatter(text)
+      const targetType = isSlidesMeta(meta) ? 'slides' : 'article'
+      const detail = buildLocalDetail(meta, text, filename, targetType)
+      applyLoadedPost(detail, content, null, false)
+      if (handle) { currentFileHandle.value = handle; currentFilePath.value = handle.name || filename }
+      else currentFilePath.value = filename
+      postId.value = null
+      postStatus.value = 'local'
+      return
+    }
+
+    // Strict query validation: only single `id` key allowed
     try {
-        const qkeys = Object.keys(route.query || {})
-        if (qkeys.length > 0) {
-            if (!(qkeys.length === 1 && qkeys[0] === 'id')) {
-                router.replace({ path: '/editor' })
-                return
-            }
-        }
+      const qkeys = Object.keys(route.query || {})
+      if (qkeys.length > 0 && !(qkeys.length === 1 && qkeys[0] === 'id')) {
+        enterLocalMode()
+        finishLocal()
+        return
+      }
     } catch (e) {
-        // 如果读取 query 失败，回退到无 query
-        router.replace({ path: '/editor' })
-        return
+      enterLocalMode()
+      finishLocal()
+      return
     }
 
-    // 1. 未登录直接跳转登录
+    // 1. Not authenticated → login redirect (the one pre-dataReady redirect)
     if (queryId && !isCloudAuthenticated()) {
-        goToLogin(queryId === 'new' ? 'create-cloud-post' : 'open-cloud-post')
-        return
+      goToLogin(queryId === 'new' ? 'create-cloud-post' : 'open-cloud-post')
+      return
     }
 
-
-    // 2. id=new，向后端请求分配唯一id，跳转到 id=new-[id]
+    // 2. id=new → allocate cloud ID
     if (queryId === 'new') {
-        try {
-            const res = await fetchWithAuth('/api/post/allocate-id', { method: 'POST' })
-            if (res.ok) {
-                const data = await res.json()
-                if (data && data.id) {
-                    router.replace({ path: '/editor', query: { id: `new-${data.id}` } })
-                    return
-                }
-            }
-        } catch (e) { }
-        // 分配失败，回退本地新建
-        postId.value = null
-        postTitle.value = t('editor.untitled')
-        isDefaultTitle.value = true
-        postStatus.value = 'local'
-        postDate.value = ''
-        postUpdated.value = ''
-        postAuthor.value = ''
-        postAIGenerated.value = false
+      skeletonStatus.value = 'editor.skeletonAllocatingId'
+      try {
+        const res = await fetchWithAuth('/api/post/allocate-id', { method: 'POST' })
+        if (res.ok) {
+          const data = await res.json()
+          if (data?.id) {
+            go(canonicalPath(), { id: `new-${data.id}` }); return
+          }
+        }
+      } catch (e) { }
+      // Allocation failed → local mode, ensure canonical route
+      showToast(t('editor.allocateFailed'))
+      enterLocalMode()
+      finishLocal()
+      return
+    }
+
+    // 3. id=new-<uuid> → validate allocation
+    if (queryId && /^new-([a-zA-Z0-9\-_]+)$/.test(queryId)) {
+      skeletonStatus.value = 'editor.skeletonValidatingId'
+      const match = queryId.match(/^new-([a-zA-Z0-9\-_]+)$/)
+      const candidateId = match?.[1]
+      if (!candidateId) { enterLocalMode(); dataReady.value = true; return }
+
+      let valid = false; let reason = ''
+      try {
+        const res = await fetchWithAuth('/api/post/validate-id', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: candidateId })
+        })
+        if (res.ok) {
+          const data = await res.json()
+          valid = !!(data?.valid)
+          reason = data?.reason || ''
+        }
+      } catch (e) {
+        showToast(t('editor.validateFailed'))
+        enterLocalMode()
+        dataReady.value = true
+        return
+      }
+
+      if (reason === 'conflict') {
+        // UUID already taken → load existing post
+        await loadPostById(candidateId)
+        return
+      }
+
+      if (!valid || reason === 'invalid-format') {
+        // Re-allocate — go through allocate branch by setting pendingRedirect
+        go(canonicalPath(), { id: 'new' }); return
+      }
+
+      // Valid — restore draft or start fresh, ready for user input
+      postId.value = candidateId
+      const dk = `chronicle_draft_${candidateId}`
+      const mk = `chronicle_draft_meta_${candidateId}`
+      const hk = `chronicle_history_${candidateId}`
+      const savedDraft = localStorage.getItem(dk)
+      const savedMetaRaw = localStorage.getItem(mk)
+      const savedHistoryRaw = sessionStorage.getItem(hk)
+      let savedMeta: any = null
+      try { savedMeta = savedMetaRaw ? JSON.parse(savedMetaRaw) : null } catch (e) { savedMeta = null }
+      let savedHistory: any = null
+      try { savedHistory = savedHistoryRaw ? JSON.parse(savedHistoryRaw) : null } catch (e) { savedHistory = null }
+
+      postTitle.value = (savedMeta?.title) || t('editor.untitled')
+      isDefaultTitle.value = !(savedMeta?.title)
+      postStatus.value = 'draft'
+      postDate.value = ''
+      postUpdated.value = ''
+      postAuthor.value = savedMeta?.author || ''
+      postAIGenerated.value = !!(savedMeta?.aiGenerated)
+      postTags.value = savedMeta?.tags || []
+      postFont.value = savedMeta?.font || 'sans'
+      localValue.value = savedDraft || ''
+      savedContent.value = editorType.value === 'slides' ? localValue.value : normalizeBody(localValue.value)
+      savedFm.value = buildSavedFm()
+      history.value = (savedHistory?.stack) || ['']
+      historyIndex.value = (savedHistory && typeof savedHistory.index === 'number') ? savedHistory.index : 0
+      try { localStorage.removeItem(dk); localStorage.removeItem(mk); sessionStorage.removeItem(hk) } catch (e) { }
+      finishLocal()
+      if (!pendingRedirect) dataReady.value = true
+      return
+    }
+
+    // 4. Invalid id format → local mode
+    if (queryId && !/^[a-zA-Z0-9\-_]+$/.test(queryId)) {
+      enterLocalMode()
+      finishLocal()
+      return
+    }
+
+    // 5. id=__about__ → load about page
+    if (queryId === '__about__') {
+      try {
+        const res = await fetchWithAuth('/api/admin/about')
+        const data = await res.json()
+        localValue.value = data.content || ''
+        savedContent.value = normalizeBody(data.content || '')
+        postId.value = '__about__'
+        postTitle.value = 'About'
+        postStatus.value = 'published'
+        isDefaultTitle.value = false
+        postDate.value = data.lastModified || ''
+        postUpdated.value = data.lastModified || ''
+        savedFm.value = buildSavedFm()
+      } catch {
         localValue.value = ''
         savedContent.value = ''
-        savedTitle.value = t('editor.untitled')
-        history.value = ['']
-        historyIndex.value = 0
-        return
+        postId.value = '__about__'
+        postTitle.value = 'About'
+        postStatus.value = 'published'
+        savedFm.value = buildSavedFm()
+      }
+      dataReady.value = true
+      return
     }
 
-    // 3. id=new-xxx，调用后端校验接口
-    if (queryId && /^new-([a-zA-Z0-9\-_]+)$/.test(queryId)) {
-        const match = queryId.match(/^new-([a-zA-Z0-9\-_]+)$/)
-        const candidateId = match && match[1]
-        let valid = false
-        let reason = ''
-        try {
-            const res = await fetchWithAuth('/api/post/validate-id', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: candidateId })
-            })
-            if (res.ok) {
-                const data = await res.json()
-                valid = !!(data && data.valid)
-                reason = data && data.reason || ''
-            }
-        } catch (e) { }
-
-        // 如果id已存在（conflict），加载已有文章，地址栏变为id=xxx
-        if (reason === 'conflict') {
-            if (!candidateId) {
-                router.replace({ path: '/editor', query: { id: 'new' } })
-                return
-            }
-            const ok = await loadPostById(candidateId)
-            if (ok) {
-                router.replace({ query: { id: candidateId } as any })
-            } else {
-                router.replace({ path: '/editor', query: { id: 'new' } })
-            }
-            return
-        }
-
-        // 如果id格式不合法（invalid-format），回退到id=new
-        if (!valid || reason === 'invalid-format') {
-            router.replace({ path: '/editor', query: { id: 'new' } })
-            return
-        }
-
-        // id可用，尝试从本地存储恢复临时草稿（如果存在），否则清空编辑区准备新建云端文章
-        postId.value = candidateId
-        const draftKey = `chronicle_draft_${candidateId}`
-        const metaKey = `chronicle_draft_meta_${candidateId}`
-        const historyKey = `chronicle_history_${candidateId}`
-        const savedDraft = localStorage.getItem(draftKey)
-        const savedMetaRaw = localStorage.getItem(metaKey)
-        const savedHistoryRaw = sessionStorage.getItem(historyKey)
-        let savedMeta = null
-        try { savedMeta = savedMetaRaw ? JSON.parse(savedMetaRaw) : null } catch (e) { savedMeta = null }
-        let savedHistory = null
-        try { savedHistory = savedHistoryRaw ? JSON.parse(savedHistoryRaw) : null } catch (e) { savedHistory = null }
-
-        postTitle.value = (savedMeta && savedMeta.title) ? savedMeta.title : t('editor.untitled')
-        isDefaultTitle.value = !(savedMeta && savedMeta.title)
-        postStatus.value = 'draft'
-        postDate.value = ''
-        postUpdated.value = ''
-        postAuthor.value = (savedMeta && savedMeta.author) ? savedMeta.author : ''
-        postAIGenerated.value = !!(savedMeta && savedMeta.aiGenerated)
-        localValue.value = savedDraft || ''
-        savedContent.value = ''
-        savedTitle.value = postTitle.value
-        history.value = (savedHistory && savedHistory.stack) ? savedHistory.stack : ['']
-        historyIndex.value = (savedHistory && typeof savedHistory.index === 'number') ? savedHistory.index : 0
-        postTags.value = (savedMeta && savedMeta.tags) ? savedMeta.tags : []
-        postFont.value = (savedMeta && savedMeta.font) ? savedMeta.font : 'sans'
-        // If we restored from localStorage, remove the temporary keys to avoid reuse
-        try { localStorage.removeItem(draftKey); localStorage.removeItem(metaKey); sessionStorage.removeItem(historyKey) } catch (e) { }
-        return
-    }
-
-    // 4. 非法 id，回退至本地 editor（no query）
-    if (queryId && !/^[a-zA-Z0-9\-_]+$/.test(queryId)) {
-        router.replace({ path: '/editor' })
-        return
-    }
-
-    // 4. id=__about__ — load about page content from dedicated endpoint
-    if (queryId === '__about__') {
-        try {
-            const res = await fetchWithAuth('/api/admin/about')
-            const data = await res.json()
-            localValue.value = data.content || ''
-            savedContent.value = data.content || ''
-            postId.value = '__about__'
-            postTitle.value = 'About'
-            postStatus.value = 'published'
-            isDefaultTitle.value = false
-            postDate.value = data.lastModified || ''
-            postUpdated.value = data.lastModified || ''
-        } catch {
-            localValue.value = ''
-            savedContent.value = ''
-            postId.value = '__about__'
-            postTitle.value = 'About'
-            postStatus.value = 'published'
-        }
-        return
-    }
-
-    // 5. id=xxx，尝试加载，失败则回退到 id=new
+    // 6. id=<uuid> → load existing post
     if (queryId) {
-        const ok = await loadPostById(queryId)
-        if (!ok) {
-            router.replace({ path: '/editor', query: { id: 'new' } })
-        }
-        return
+      skeletonStatus.value = 'editor.skeletonLoadingPost'
+      await loadPostById(queryId)
+      return
     }
 
-    // 5. 无id，进入本地模式
-    postId.value = null
-    postTitle.value = t('editor.untitled')
-    isDefaultTitle.value = true
-    postStatus.value = 'local'
-    postDate.value = ''
-    postUpdated.value = ''
-    postAuthor.value = ''
-    postAIGenerated.value = false
-    localValue.value = ''
-    savedContent.value = ''
-    savedTitle.value = t('editor.untitled')
-    history.value = ['']
-    historyIndex.value = 0
+    // 7. No id → local mode
+    enterLocalMode()
+    finishLocal()
+    if (!pendingRedirect) dataReady.value = true
 }
 
 watch(() => props.modelValue, (val) => {
@@ -2267,18 +2637,105 @@ watch(localValue, (val) => {
     if (!isTimeTraveling.value) {
         debouncedPush(val)
     }
-    void nextTick(() => {
-        refreshPreviewSearchSource()
-        applyPreviewSearchHighlights()
-    })
+    // Search source refresh is handled by EditorArticleBody internally
 })
 
+const editorBodyRef = ref<InstanceType<typeof EditorArticleBody> | InstanceType<typeof EditorSlidesBody> | null>(null)
+
+// Toolbar tabs from body — reactive, updated on mount / switch
+interface RibbonTool { type: 'button' | 'spacer'; id?: string; label?: string; icon?: string; action?: string; isStats?: boolean }
+interface RibbonTabDef { id: string; label: string; icon: string; groups: Array<{ tools: RibbonTool[] }> }
+
+const ribbonTabs = ref<RibbonTabDef[]>([])
+const activeTab = ref('')
+
+const activeTabDef = computed(() => ribbonTabs.value.find(t => t.id === activeTab.value))
+
+function loadToolbarConfig() {
+    void nextTick(() => {
+        const config = editorBodyRef.value?.getToolbarConfig?.()
+        if (config?.tabs) {
+            ribbonTabs.value = (config.tabs as RibbonTabDef[]).map(tab => ({
+              ...tab, label: t(`editor.tab.${tab.id}`) || tab.label
+            }))
+            if (!ribbonTabs.value.find(t => t.id === activeTab.value)) {
+                activeTab.value = ribbonTabs.value[0]?.id || ''
+            }
+        }
+    })
+}
+watch(editorType, loadToolbarConfig)
+onMounted(loadToolbarConfig)
+
+function isToolActive(action: string): boolean {
+    if (action.startsWith('layout:')) return layout.value === action.slice(7)
+    if (action.startsWith('font:')) return postFont.value === action.slice(5)
+    if (action === 'preview:single') return (editorBodyRef.value as any)?.previewMode === 'single'
+    if (action === 'preview:all') return (editorBodyRef.value as any)?.previewMode === 'all'
+    if (action === 'toggleOutline') return !!(editorBodyRef.value as any)?.showThumbnailsLocal
+    return false
+}
+
+function handleToolAction(action: string) {
+    if (action.startsWith('layout:')) {
+        layout.value = action.slice(7) as LayoutMode
+    } else if (action.startsWith('font:')) {
+        postFont.value = action.slice(5)
+    } else if (action === 'openMediaModal') {
+        openMediaModal()
+    } else if (action === 'openLinkModal') {
+        openLinkModal()
+    } else if (action === 'openTableModal') {
+        openTableModal()
+    } else if (action === 'openMathModal') {
+        mathInput.value = (editorBodyRef.value?.getSelection() as any)?.text || ''
+        mathMode.value = 'inline'
+        activeModal.value = 'math'
+    } else if (action === 'insertFootnote') {
+        insertFootnote()
+    } else if (action === 'insertCode') {
+        const sel = (editorBodyRef.value?.getSelection() as any)?.text || ''
+        if (sel) {
+            const isSingle = !sel.includes('\n')
+            const md = isSingle ? '`' + sel + '`' : '\n```\n' + sel + '\n```\n'
+            editorBodyRef.value?.insertAtCursor(md)
+        } else { editorBodyRef.value?.insertAtCursor('\n```\n\n```\n') }
+    } else if (action === 'insertTodo') {
+        const sel = (editorBodyRef.value?.getSelection() as any)?.text?.trim() || ''
+        if (sel) {
+            const isSingle = !sel.includes('\n')
+            const after = isSingle ? '\n\n' : '\n'
+            const lines = '\n' + sel.split('\n').filter((l: string) => l.trim()).map((l: string) => `- [ ] ${l}`).join('\n') + after
+            editorBodyRef.value?.insertAtCursor(lines)
+        } else {
+            editorBodyRef.value?.insertAtCursor('\n- [ ] \n')
+        }
+    } else if (action === 'insertQuote') {
+        const sel = (editorBodyRef.value?.getSelection() as any)?.text || ''
+        const text = sel.trim()
+        if (text) {
+            const isSingle = !text.includes('\n')
+            const after = isSingle ? '\n\n' : '\n'
+            const lines = '\n' + text.split('\n').map((l: string) => l.trim() ? `> ${l}` : '>').join('\n') + after
+            editorBodyRef.value?.insertAtCursor(lines)
+        } else {
+            editorBodyRef.value?.insertAtCursor('\n> \n')
+        }
+    } else if (action === 'stats') {
+        activeModal.value = 'stats'
+    } else if (action === 'export') {
+        activeModal.value = 'export'
+    } else {
+        ;(editorBodyRef.value as any)?.handleToolAction?.(action)
+    }
+}
+
 function undo() {
-  ;(editorRef.value as any)?.undo()
+    editorBodyRef.value?.undo()
 }
 
 function redo() {
-  ;(editorRef.value as any)?.redo()
+    editorBodyRef.value?.redo()
 }
 
 function handleBeforeUnload(e: BeforeUnloadEvent) {
@@ -2290,15 +2747,13 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
 }
 
 onMounted(() => {
+    // Log previous init state if redirected
     // Attempt to load from cloud to sync latest state
     initLoad()
     nc.registerAction('retry-build', () => {
-      triggerAstroBuild(postId.value || '')
+        triggerAstroBuild(postId.value || '')
     })
-    void nextTick(() => {
-        refreshPreviewSearchSource()
-        applyPreviewSearchHighlights()
-    })
+    // Search source refresh is handled by EditorArticleBody internally
 
     // If locale changes and title is still default, update displayed title
     try {
@@ -2308,16 +2763,23 @@ onMounted(() => {
         })
     } catch (e) { }
 
+    // Tab overflow: collapse when viewport < 864px
+    const checkTabOverflow = () => {
+        tabsOverflow.value = window.innerWidth < 864
+    }
+    checkTabOverflow()
+    window.addEventListener('resize', checkTabOverflow)
+
     window.addEventListener('beforeunload', handleBeforeUnload)
     window.addEventListener('keydown', onKeydown)
 
-    // Sync isDirty to a global flag so Electron's main process can check
-    // whether to show the "Leave/Stay" dialog before closing the window.
-    // Using a plain window property (not contextBridge) so that
-    // webContents.executeJavaScript() can read it directly.
-    ;(window as any).__chronicleDirty = isDirty.value
+        // Sync isDirty to a global flag so Electron's main process can check
+        // whether to show the "Leave/Stay" dialog before closing the window.
+        // Using a plain window property (not contextBridge) so that
+        // webContents.executeJavaScript() can read it directly.
+        ; (window as any).__chronicleDirty = isDirty.value
     watch(isDirty, (val) => {
-        ;(window as any).__chronicleDirty = val
+        ; (window as any).__chronicleDirty = val
     })
 
     // Capture-phase: intercept paste/drop before CodeMirror handles them
@@ -2330,7 +2792,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-    ;(window as any).__chronicleDirty = false
+    ; (window as any).__chronicleDirty = false
     window.removeEventListener('beforeunload', handleBeforeUnload)
     window.removeEventListener('keydown', onKeydown)
     const blogEl = document.querySelector('.blog-editor')
@@ -2339,291 +2801,39 @@ onUnmounted(() => {
         blogEl.removeEventListener('drop', onEditorDropCapture as EventListener, true)
         blogEl.removeEventListener('keydown', onEditorKeydown as EventListener, true)
     }
+    if (skeletonTimer) clearTimeout(skeletonTimer)
 })
 
-type LayoutMode = 'split' | 'edit' | 'preview'
-const layout = ref<LayoutMode>('split')
-const isMobile = ref(false) // placeholder for responsiveness
+const showMoreMenu = ref(false)
+const tabMenuOpen = ref(false)
+// canUndo/canRedo are reactive computed refs from the body (passthrough from CmEditor)
+const canUndo = computed(() => !!(editorBodyRef.value as any)?.canUndo)
+const canRedo = computed(() => !!(editorBodyRef.value as any)?.canRedo)
+const tabsOverflow = ref(false)
+const hideTitle = ref(false)
+const tabsRef = ref<HTMLDivElement | null>(null)
+const showStatusPopover = ref(false)
+const lastSavedTime = ref('')
 
-const displayModes = computed(() => [
-    { label: t('editor.view.split'), value: 'split' as LayoutMode, icon: Icons.columns },
-    { label: t('editor.view.edit'), value: 'edit' as LayoutMode, icon: Icons.edit },
-    { label: t('editor.view.preview'), value: 'preview' as LayoutMode, icon: Icons.eye }
-])
-
-const showEditor = computed(() => layout.value === 'split' || layout.value === 'edit')
-const showPreview = computed(() => layout.value === 'split' || layout.value === 'preview')
-
-const editorRef = ref<HTMLTextAreaElement | null>(null)
-const previewRef = ref<HTMLDivElement | null>(null)
-const activeScroll = ref<'editor' | 'preview' | null>(null)
-type SearchPane = 'editor' | 'preview'
-const editorSearchOpen = ref(false)
-const previewSearchOpen = ref(false)
-const editorSearchQuery = ref('')
-const previewSearchQuery = ref('')
-const editorSearchInputRef = ref<HTMLInputElement | null>(null)
-const previewSearchInputRef = ref<HTMLInputElement | null>(null)
-const editorSearchMatchIndex = ref(0)
-const previewSearchMatchIndex = ref(0)
-const previewSearchSource = ref('')
-const editorHighlightScrollTop = ref(0)
-
-function refreshPreviewSearchSource() {
-    previewSearchSource.value = previewRef.value?.textContent || ''
-}
-
-function escapeHtml(text: string) {
-    return String(text || '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;')
-}
-
-function buildHighlightedTextHtml(text: string, query: string) {
-    const source = String(text || '')
-    const needle = String(query || '').trim()
-    if (!needle) return escapeHtml(source).replace(/\n/g, '<br>')
-
-    const lowerSource = source.toLowerCase()
-    const lowerNeedle = needle.toLowerCase()
-    let cursor = 0
-    let html = ''
-
-    while (cursor < source.length) {
-        const index = lowerSource.indexOf(lowerNeedle, cursor)
-        if (index === -1) {
-            html += escapeHtml(source.slice(cursor))
-            break
-        }
-        html += escapeHtml(source.slice(cursor, index))
-        html += `<mark class="search-hit">${escapeHtml(source.slice(index, index + needle.length))}</mark>`
-        cursor = index + Math.max(needle.length, 1)
-    }
-
-    return html.replace(/\n/g, '<br>')
-}
-
-const editorSearchHighlightHtml = computed(() => buildHighlightedTextHtml(localValue.value || '', editorSearchQuery.value))
-
-function buildSearchMatches(query: string, content: string) {
-    const normalizedQuery = query.trim().toLowerCase()
-    const normalizedContent = content.toLowerCase()
-    if (!normalizedQuery) return [] as Array<{ start: number; end: number }>
-
-    const matches: Array<{ start: number; end: number }> = []
-    let cursor = 0
-    while (cursor <= normalizedContent.length) {
-        const index = normalizedContent.indexOf(normalizedQuery, cursor)
-        if (index === -1) break
-        matches.push({ start: index, end: index + normalizedQuery.length })
-        cursor = index + Math.max(normalizedQuery.length, 1)
-    }
-    return matches
-}
-
-const editorSearchMatches = computed(() => buildSearchMatches(editorSearchQuery.value, localValue.value || ''))
-const previewSearchMatches = computed(() => buildSearchMatches(previewSearchQuery.value, previewSearchSource.value))
-const editorSearchMatchCount = computed(() => editorSearchMatches.value.length)
-const previewSearchMatchCount = computed(() => previewSearchMatches.value.length)
-const editorSearchMatchLabel = computed(() => {
-    if (!editorSearchMatchCount.value) return '0/0'
-    return `${Math.min(editorSearchMatchIndex.value + 1, editorSearchMatchCount.value)}/${editorSearchMatchCount.value}`
-})
-const previewSearchMatchLabel = computed(() => {
-    if (!previewSearchMatchCount.value) return '0/0'
-    return `${Math.min(previewSearchMatchIndex.value + 1, previewSearchMatchCount.value)}/${previewSearchMatchCount.value}`
+const statusLabel = computed(() => {
+    if (isBuilding.value) return t('editor.buildingIndicator')
+    if (isSaving.value) return t('editor.savingIndicator')
+    if (isNewAndClean.value) return t('editor.newIndicator')
+    if (isDirty.value) return t('editor.unsavedIndicator')
+    return t('editor.savedIndicator')
 })
 
-function getSelectedTextForPane(pane: SearchPane) {
-    if (pane === 'editor') {
-        const el = editorRef.value
-        if (!el) return ''
-        const start = el.selectionStart ?? 0
-        const end = el.selectionEnd ?? 0
-        if (end <= start) return ''
-        return el.value.slice(start, end).trim()
-    }
+type LayoutMode = 'split' | 'edit' | 'preview' | 'slideshow'
+const layout = ref<LayoutMode>(editorType.value === 'slides' ? 'split' : 'split')
+const isMobile = ref(false)
 
-    const selection = window.getSelection()
-    const previewRoot = previewRef.value
-    if (!selection || !previewRoot || selection.rangeCount === 0) return ''
-    const text = selection.toString().trim()
-    if (!text) return ''
-    const anchor = selection.anchorNode
-    return anchor && previewRoot.contains(anchor) ? text : ''
-}
+// Reset default layout when editor type changes
+watch(editorType, (type) => {
+    layout.value = type === 'slides' ? 'split' : 'split'
+})
 
-function scrollEditorToMatch(index: number) {
-    const match = editorSearchMatches.value[index]
-    if (!match || !editorRef.value) return
-
-    editorSearchMatchIndex.value = index
-    const lineHeight = Number.parseFloat(getComputedStyle(editorRef.value).lineHeight || '') || 20
-    const textBefore = editorRef.value.value.slice(0, match.start)
-    const lineNumber = textBefore.split('\n').length - 1
-    const targetTop = Math.max(0, lineNumber * lineHeight - editorRef.value.clientHeight / 2)
-    editorHighlightScrollTop.value = targetTop
-    editorRef.value.scrollTop = targetTop
-}
-
-function findTextNodeAtOffset(root: HTMLElement, offset: number) {
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
-    let current = walker.nextNode()
-    let total = 0
-
-    while (current) {
-        const text = current.textContent || ''
-        const nextTotal = total + text.length
-        if (offset <= nextTotal) {
-            return { node: current, offset: offset - total }
-        }
-        total = nextTotal
-        current = walker.nextNode()
-    }
-
-    return null
-}
-
-function clearPreviewSearchHighlights() {
-    const root = previewRef.value
-    if (!root) return
-    root.querySelectorAll('mark.search-hit, mark.search-hit-active').forEach((mark) => {
-        const parent = mark.parentNode
-        if (!parent) return
-        parent.replaceChild(document.createTextNode(mark.textContent || ''), mark)
-        parent.normalize()
-    })
-}
-
-function applyPreviewSearchHighlights() {
-    const root = previewRef.value
-    if (!root) return
-    clearPreviewSearchHighlights()
-
-    const query = previewSearchQuery.value.trim()
-    if (!query) return
-
-    const activeIndex = previewSearchMatchIndex.value
-    const matches = previewSearchMatches.value
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
-    const nodes: Text[] = []
-    let current = walker.nextNode() as Text | null
-    while (current) {
-        if (current.parentElement && !current.parentElement.closest('.search-float')) {
-            nodes.push(current)
-        }
-        current = walker.nextNode() as Text | null
-    }
-
-    let globalOffset = 0
-    for (const node of nodes) {
-        const text = node.textContent || ''
-        const lowerText = text.toLowerCase()
-        const fragments: Array<Node> = []
-        let cursor = 0
-        let localOffsetBase = globalOffset
-
-        while (cursor < text.length) {
-            const localIndex = lowerText.indexOf(query.toLowerCase(), cursor)
-            if (localIndex === -1) break
-
-            if (localIndex > cursor) {
-                fragments.push(document.createTextNode(text.slice(cursor, localIndex)))
-            }
-
-            const absoluteIndex = localOffsetBase + localIndex
-            const matchIndex = matches.findIndex((m) => m.start === absoluteIndex)
-            const mark = document.createElement('mark')
-            mark.className = matchIndex === activeIndex ? 'search-hit search-hit-active' : 'search-hit'
-            mark.textContent = text.slice(localIndex, localIndex + query.length)
-            fragments.push(mark)
-            cursor = localIndex + query.length
-        }
-
-        if (fragments.length) {
-            if (cursor < text.length) {
-                fragments.push(document.createTextNode(text.slice(cursor)))
-            }
-            const parent = node.parentNode
-            if (parent) {
-                fragments.forEach((fragment) => parent.insertBefore(fragment, node))
-                parent.removeChild(node)
-                parent.normalize()
-            }
-        }
-
-        globalOffset += text.length
-    }
-
-    const activeMark = root.querySelector('mark.search-hit-active') as HTMLElement | null
-    if (activeMark) {
-        activeMark.scrollIntoView({ block: 'center', behavior: 'smooth' })
-    }
-}
-
-function scrollPreviewToMatch(index: number) {
-    const match = previewSearchMatches.value[index]
-    const root = previewRef.value
-    if (!match || !root) return
-
-    previewSearchMatchIndex.value = index
-    applyPreviewSearchHighlights()
-    const activeMark = root.querySelector('mark.search-hit-active') as HTMLElement | null
-    if (activeMark) {
-        activeMark.scrollIntoView({ block: 'center', behavior: 'smooth' })
-        return
-    }
-
-    const location = findTextNodeAtOffset(root, match.start)
-    if (!location) return
-    const parent = (location.node.parentElement || root)
-    parent.scrollIntoView({ block: 'center', behavior: 'smooth' })
-}
-
-function openSearchOverlay(pane: SearchPane, seedFromSelection = true) {
-    if (pane === 'editor') {
-        if (seedFromSelection) {
-            const selectedText = getSelectedTextForPane('editor')
-            if (selectedText) editorSearchQuery.value = selectedText
-        }
-        editorSearchOpen.value = true
-        nextTick(() => {
-            editorSearchInputRef.value?.focus()
-            if (editorSearchMatchCount.value) scrollEditorToMatch(0)
-        })
-        return
-    }
-
-    if (seedFromSelection) {
-        const selectedText = getSelectedTextForPane('preview')
-        if (selectedText) previewSearchQuery.value = selectedText
-    }
-    previewSearchOpen.value = true
-    nextTick(() => {
-        previewSearchInputRef.value?.focus()
-        if (previewSearchMatchCount.value) scrollPreviewToMatch(0)
-    })
-}
-
-function closeSearchOverlay(pane: SearchPane) {
-    if (pane === 'editor') editorSearchOpen.value = false
-    else previewSearchOpen.value = false
-}
-
-function jumpToSearchMatch(pane: SearchPane, delta: number) {
-    const count = pane === 'editor' ? editorSearchMatchCount.value : previewSearchMatchCount.value
-    if (!count) return
-    if (pane === 'editor') {
-        const nextIndex = (editorSearchMatchIndex.value + delta + count) % count
-        scrollEditorToMatch(nextIndex)
-    } else {
-        const nextIndex = (previewSearchMatchIndex.value + delta + count) % count
-        scrollPreviewToMatch(nextIndex)
-    }
-}
+const showEditor = computed(() => layout.value === 'split' || layout.value === 'edit' || layout.value === 'slideshow')
+const showPreview = computed(() => layout.value === 'split' || layout.value === 'preview' || layout.value === 'slideshow')
 
 function buildPrintSnapshot() {
     return {
@@ -2706,6 +2916,15 @@ function buildStandalonePrintHtml(title: string, renderedHtml: string, lang: str
 </html>`
 }
 
+function escapeHtml(text: string) {
+    return String(text || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+}
+
 function openPrintPreview(options?: { autoPrint?: boolean }) {
     try {
         const isElectron = typeof window !== 'undefined' && window.location.protocol === 'file:'
@@ -2719,7 +2938,7 @@ function openPrintPreview(options?: { autoPrint?: boolean }) {
                 renderedHtml,
                 locale.value || 'en',
             )
-            ;(window as any).chronicleElectron?.openPrintInBrowser(printHtml, postTitle.value || 'Chronicle Print')
+                ; (window as any).chronicleElectron?.openPrintInBrowser(printHtml, postTitle.value || 'Chronicle Print')
             return
         }
 
@@ -2741,49 +2960,13 @@ function openPrintPreview(options?: { autoPrint?: boolean }) {
     }
 }
 
-function onEditorScroll() {
-    syncScroll('editor')
-}
-
-function getCurrentSearchPane(): SearchPane {
-    const active = document.activeElement as HTMLElement | null
-    if (active && editorSearchInputRef.value && (active === editorSearchInputRef.value || editorSearchInputRef.value.contains(active))) {
-        return 'editor'
-    }
-    if (active && previewSearchInputRef.value && (active === previewSearchInputRef.value || previewSearchInputRef.value.contains(active))) {
-        return 'preview'
-    }
-    if (active && editorRef.value && (active === editorRef.value || editorRef.value.contains(active))) {
-        return 'editor'
-    }
-    if (active && previewRef.value && (active === previewRef.value || previewRef.value.contains(active))) {
-        return 'preview'
-    }
-    return activeScroll.value || 'editor'
-}
-
-watch(editorSearchQuery, () => {
-    editorSearchMatchIndex.value = 0
-    if (editorSearchOpen.value && editorSearchMatchCount.value) {
-        nextTick(() => scrollEditorToMatch(0))
-    }
-})
-
-watch(previewSearchQuery, () => {
-    previewSearchMatchIndex.value = 0
-    nextTick(() => applyPreviewSearchHighlights())
-    if (previewSearchOpen.value && previewSearchMatchCount.value) {
-        nextTick(() => scrollPreviewToMatch(0))
-    }
-})
-
 function onKeydown(e: KeyboardEvent) {
     const key = (e.key || '').toLowerCase()
     const mod = e.ctrlKey || e.metaKey
 
     // Ctrl+A: select all in editor, even when focus is elsewhere
     if (mod && key === 'a') {
-        const ed = (editorRef.value as any)
+        const ed = editorBodyRef.value?.editorRef as any
         const active = document.activeElement
         const cmEl = document.querySelector('.blog-editor .cm-editor')
         const inEditor = cmEl && (active === cmEl || cmEl.contains(active as Node))
@@ -2798,45 +2981,29 @@ function onKeydown(e: KeyboardEvent) {
 
     if (!mod) return
 
+    if (key === 'z') {
+        e.preventDefault(); e.stopPropagation(); undo(); return
+    }
+    if (key === 'y') {
+        e.preventDefault(); e.stopPropagation(); redo(); return
+    }
     if (key === 'f' || key === 'h') {
-        openSearchOverlay(getCurrentSearchPane(), true)
-        e.preventDefault()
-        e.stopPropagation()
+        e.preventDefault(); e.stopPropagation()
+        const view = (editorBodyRef.value?.editorRef as any)?.getEditor?.()
+        const dom = view?.contentDOM
+        if (dom) { dom.focus(); dom.dispatchEvent(new KeyboardEvent('keydown', { key, ctrlKey: true, bubbles: true })) }
         return
     }
 
     if (key === 's') {
-        if (!isCloudEditing.value) {
-            e.preventDefault()
-            e.stopPropagation()
-            void saveLocalDirect()
-            return
-        }
-        openSaveModal('publish')
-        e.preventDefault()
-        e.stopPropagation()
+        e.preventDefault(); e.stopPropagation()
+        if (e.shiftKey) { saveAs(); return }
+        if (!isCloudEditing.value) { void saveLocalDirect() } else { openSaveModal('publish') }
         return
     }
 
     if (key === 'p') {
-        openPrintPreview()
-        e.preventDefault()
-        e.stopPropagation()
-        return
-    }
-
-    if (key === 'z') {
-        if (e.shiftKey) {
-            redo()
-        } else {
-            undo()
-        }
-        e.preventDefault()
-        e.stopPropagation()
-    } else if (key === 'y') {
-        redo()
-        e.preventDefault()
-        e.stopPropagation()
+        e.preventDefault(); e.stopPropagation(); openPrintPreview(); return
     }
 }
 
@@ -2852,8 +3019,6 @@ const uploadState = reactive({
     message: ''
 })
 // ...existing code...
-
-
 // Categories for simplified file manager view
 const mediaCategories = computed(() => [
     { id: 'pic', label: t('file.categories.images'), icon: Icons.image },
@@ -2921,7 +3086,7 @@ function encodeMarkdownUrl(url: string): string {
 
 // ... inside handleFileSelect ...
 function insertMediaMarkdown(name: string, path: string, category?: string) {
-    const editor = (editorRef.value as any)
+    const editor = editorBodyRef.value?.editorRef as any
     if (!editor?.insertAtCursor) return
 
     // Determine Type
@@ -2940,8 +3105,6 @@ function insertMediaMarkdown(name: string, path: string, category?: string) {
     editor.insertAtCursor(insertText)
     activeModal.value = 'none'
 }
-
-
 function triggerFileUpload() {
     refreshCloudAuthState()
     fileInputRef.value?.click()
@@ -2989,10 +3152,10 @@ function doInsertTextFile(file: File) {
     reader.onerror = () => showToast(`Cannot read file: ${file.name}`, { status: 'error' })
     reader.onload = () => {
         if (typeof reader.result !== 'string') return
-        const editor = (editorRef.value as any)
+        const editor = editorBodyRef.value?.editorRef as any
         if (!editor?.insertAtCursor) return
         void nextTick(() => {
-            try { editor.insertAtCursor(reader.result as string) } catch {}
+            try { editor.insertAtCursor(reader.result as string) } catch { }
         })
     }
     reader.readAsText(file)
@@ -3004,11 +3167,11 @@ function doInsertCodeBlock(file: File) {
     reader.onerror = () => showToast(`Cannot read file: ${file.name}`, { status: 'error' })
     reader.onload = () => {
         if (typeof reader.result !== 'string') return
-        const editor = (editorRef.value as any)
+        const editor = editorBodyRef.value?.editorRef as any
         if (!editor?.insertAtCursor) return
         const code = `\n\`\`\`${lang}\n${reader.result}\n\`\`\`\n`
         void nextTick(() => {
-            try { editor.insertAtCursor(code) } catch {}
+            try { editor.insertAtCursor(code) } catch { }
         })
     }
     reader.readAsText(file)
@@ -3071,7 +3234,7 @@ function onEditorKeydown(e: KeyboardEvent) {
     if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault()
         e.stopPropagation()
-        const ed = (editorRef.value as any)
+        const ed = editorBodyRef.value?.editorRef as any
         ed?.focus?.()
         ed?.insertAtCursor?.(e.shiftKey ? '' : '\t')
         // Shift+Tab: no simple dedent via insertAtCursor — rely on manual backspace
@@ -3234,22 +3397,20 @@ async function handleMediaPicked(entry: any) {
 }
 
 function insertImageMarkdown(name: string, path: string) {
-    const editor = (editorRef.value as any)
+    const editor = editorBodyRef.value?.editorRef as any
     if (!editor?.insertAtCursor) return
 
     const insertText = `\n![${name}](${path})\n`
     editor.insertAtCursor(insertText)
     activeModal.value = 'none'
 }
-
-
 // Link Modal
 const linkText = ref('')
 const linkUrl = ref('')
 
 function openLinkModal() {
     // If text selected, pre-fill linkText
-    const sel = (editorRef.value as any)?.getSelection?.()
+    const sel = (editorBodyRef.value?.editorRef as any)?.getSelection?.()
     if (sel && sel.from !== sel.to) {
         linkText.value = sel.text
     }
@@ -3317,101 +3478,58 @@ function insertTable() {
 }
 
 function insertAtCursor(insertText: string) {
-    const editor = (editorRef.value as any)
+    const editor = editorBodyRef.value?.editorRef as any
     if (!editor?.insertAtCursor) return
     editor.insertAtCursor(insertText)
 }
-
-
 // Scroll sync
-function syncScroll(source: 'editor' | 'preview') {
-    if (layout.value !== 'split') return
-    if (activeScroll.value && activeScroll.value !== source) return
-
-    const scrollDom = (editorRef.value as any)?.getScrollDom?.() as HTMLElement | null
-    const preview = previewRef.value
-    if (!scrollDom || !preview) return
-
-    const edH = scrollDom.scrollHeight - scrollDom.clientHeight
-    const pvH = preview.scrollHeight - preview.clientHeight
-    if (edH <= 0 || pvH <= 0) return
-
-    if (source === 'editor') {
-        preview.scrollTop = (scrollDom.scrollTop / edH) * pvH
-    } else {
-        scrollDom.scrollTop = (preview.scrollTop / pvH) * edH
-    }
-}
-
-/** Scroll preview so the active block is visible. Priority > syncScroll. */
-function scrollActiveBlockIntoView() {
-    if (!previewRef.value) return
-    const el = previewRef.value.querySelector('.active-block') as HTMLElement | null
-    if (!el) return
-    const container = previewRef.value
-    const elTop = el.offsetTop - container.offsetTop
-    const elBot = elTop + el.offsetHeight
-    const margin = 60
-    if (elTop < container.scrollTop + margin) {
-        container.scrollTop = Math.max(0, elTop - margin)
-    } else if (elBot > container.scrollTop + container.clientHeight - margin) {
-        container.scrollTop = elBot - container.clientHeight + margin
-    }
-}
-
 // Page-level theme & locale — persisted in localStorage, optionally overridden by query params
 const LS_THEME = 'chronicle_editor_theme'
 const LS_LOCALE = 'chronicle_editor_locale'
 
 function readInitialTheme(): 'dark' | 'light' {
-  // 1. Explicit query param override
-  const q = (route.query.theme as string) || ''
-  if (q === 'dark' || q === 'light') return q
-  // 2. localStorage
-  const ls = localStorage.getItem(LS_THEME)
-  if (ls === 'dark' || ls === 'light') return ls
-  // 3. CMS current
-  return (document.body.getAttribute('data-backend-theme') as 'dark' | 'light') || 'dark'
+    // 1. Explicit query param override
+    const q = (route.query.theme as string) || ''
+    if (q === 'dark' || q === 'light') return q
+    // 2. localStorage
+    const ls = localStorage.getItem(LS_THEME)
+    if (ls === 'dark' || ls === 'light') return ls
+    // 3. CMS current
+    return (document.body.getAttribute('data-backend-theme') as 'dark' | 'light') || 'dark'
 }
 
 function readInitialLocale(): string {
-  const q = (route.query.locale as string) || ''
-  if (q) return q
-  const ls = localStorage.getItem(LS_LOCALE)
-  if (ls) return ls
-  return locale.value
+    const q = (route.query.locale as string) || ''
+    if (q) return q
+    const ls = localStorage.getItem(LS_LOCALE)
+    if (ls) return ls
+    return locale.value
 }
 
 const editorTheme = ref<'dark' | 'light'>(readInitialTheme())
 watch(editorTheme, (v) => {
-  document.body.setAttribute('data-backend-theme', v)
-  localStorage.setItem(LS_THEME, v)
+    document.body.setAttribute('data-backend-theme', v)
+    localStorage.setItem(LS_THEME, v)
 }, { immediate: true })
 
 const editorLocale = ref(readInitialLocale())
 watch(editorLocale, (v) => {
-  locale.value = v as any
-  localStorage.setItem(LS_LOCALE, v)
+    locale.value = v as any
+    localStorage.setItem(LS_LOCALE, v)
 }, { immediate: true })
 
-const cursorLine = ref(1)
-const changeRange = ref<{ from: number; to: number } | null>(null)
-
-function onCursorChange(line: number, _col: number) {
-    cursorLine.value = line
-    // Scroll preview to keep active block visible
-    setTimeout(() => scrollActiveBlockIntoView(), 80)
-}
-
-function onChangeRange(range: { from: number; to: number }) {
-    changeRange.value = range
-}
 const fontClass = computed(() => {
     return `font-${postFont.value}`
 })
 </script>
 
 <style scoped>
+@media (max-width: 600px) {
+    .ribbon-title-input {
+        display: none;
+    }
+}
+
 .blog-editor {
     display: flex;
     flex-direction: column;
@@ -3421,136 +3539,473 @@ const fontClass = computed(() => {
     background: var(--bg-primary);
 }
 
-.editor-toolbar {
+/* ═══ Ribbon Toolbar ═══ */
+.editor-ribbon {
     display: flex;
-    flex-direction: column;
+    align-items: center;
     gap: 0;
-    padding: 2px 12px 0 12px;
-    /*background: var(--bg-secondary);*/
-    background: var(--component-bg-blur);
-    border-bottom: 1px solid var(--border-color);
+    padding: 8px 12px 6px 8px;
+    height: 36px;
     position: sticky;
-    /* keep toolbar fixed inside editor viewport */
     top: 0;
     z-index: 30;
+    user-select: none;
 }
 
-.toolbar-row {
+.ribbon-qat {
     display: flex;
     align-items: center;
-    width: 100%;
-    padding: 8px 0;
-}
-
-.toolbar-row.row-meta {
-    justify-content: space-between;
-    border-bottom: 1px solid var(--border-color);
-    margin-bottom: 0;
-    padding-bottom: 8px;
-}
-
-.toolbar-row.row-tools {
-    justify-content: space-between;
-    border-bottom: 1px solid var(--border-color);
-    margin-top: 0;
-}
-
-.toolbar-row.row-view {
-    margin-top: 0;
-    padding-top: 8px;
-    border-top: none;
-}
-
-.meta-left {
-    display: flex;
-    align-items: center;
-    overflow: hidden;
-    gap: 12px;
-    flex: 1;
-}
-
-.actions-right {
-    display: flex;
-    gap: 8px;
+    gap: 0;
     flex-shrink: 0;
 }
 
-.tool-group {
+.ribbon-tabs {
     display: flex;
     align-items: center;
+    margin-left: 12px;
+    gap: 2px;
+    flex-shrink: 1;
+    overflow-x: auto;
+    min-width: 0;
 }
 
-.meta-dates {
-    display: flex;
-    flex-direction: column;
-    font-size: 11px;
-    line-height: 1.2;
-    color: var(--component-text-secondary);
-    overflow: hidden;
-    transition: all 0.2s;
-    --webkit-font-smoothing: antialiased;
-    --moz-osx-font-smoothing: grayscale;
+.ribbon-tabs::-webkit-scrollbar {
+    height: 4px;
 }
 
-.date-item {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: flex;
+
+
+.ribbon-tabs[data-overflow="true"] {
+    overflow:visible;
+}
+
+
+.ribbon-tab {
+    display: inline-flex;
+    border-radius: 0;
     align-items: center;
     gap: 4px;
-}
-
-.date-item.faded {
+    padding: 4px 12px;
+    height: 32px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
     color: var(--component-text-secondary);
-    font-size: 10px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: background 0.15s, border-color 0.15s;
 }
 
-.icon-svg.tiny {
-    width: 10px;
-    height: 10px;
+.ribbon-tab:hover {
+    border-bottom-color: var(--component-text-secondary);
+    color: var(--text-primary);
+}
+
+.ribbon-tab.active {
+    color: var(--text-primary);
+    border-bottom-color: var(--accent-color);
+    font-weight: 600;
+}
+
+.icon-svg.ribbon-tab-chevron {
+    color: var(--component-text-secondary);
+    flex-shrink: 0;
+}
+
+
+.tab-icon {
+    width: 14px;
+    height: 14px;
     opacity: 0.7;
 }
 
-.post-title-display {
-    margin: 0 0 0 10px;
-    font-size: 16px;
-    font-weight: 700;
-    font-variation-settings: 'wght' 700;
-    color: var(--text-primary);
-    max-width: 200px;
-    /* Reduced to allow space for dates */
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.stats-display {
-    background-color: transparent;
-    font-size: 12px;
-    color: var(--component-text-secondary);
-    border: none;
-}
-
-.status-chip {
-    font-size: 0.65em;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-weight: 600;
-    font-variation-settings: 'wght' 600;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    border: 1px solid currentColor;
+.ribbon-right {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: auto;
     flex-shrink: 0;
 }
 
-.divider {
-    width: 1px;
-    height: 16px;
-    background-color: var(--border-color);
-    margin: 0 6px;
+.ribbon-title-area {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 240px;
+    flex-shrink: 1;
+    min-width: 60px;
 }
 
+.ribbon-title-input {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 3px;
+    width: 100%;
+    outline: none;
+    min-width: 0;
+}
+
+.ribbon-title-input:hover {
+    border-color: var(--border-color);
+}
+
+.ribbon-title-input:focus {
+    border-color: var(--component-bg-accent);
+    background: var(--bg-primary);
+}
+
+.ribbon-status {
+    font-size: 10px;
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.ribbon-status.local {
+    color: var(--text-primary);
+    background: transparent;
+    border: 1px solid var(--text-primary);
+}
+
+.ribbon-status.draft {
+    color: var(--component-text-secondary);
+    background: var(--component-bg-hover);
+    border: 1px solid var(--component-bg-hover);
+}
+
+.ribbon-status.published {
+    color: var(--status-success);
+    background: var(--status-success-bg);
+    border: 1px solid var(--status-success);
+}
+
+.ribbon-status.modifying {
+    color: var(--status-warning);
+    background: var(--status-warning-bg);
+    border: 1px solid var(--status-warning);
+}
+
+.ribbon-save-status {
+    width: 18px;
+    height: 18px;
+    margin-right: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: var(--status-success);
+}
+
+.ribbon-save-status .icon-svg {
+    width: 18px;
+    height: 18px;
+}
+
+.ribbon-save-status.saving {
+    animation: save-pulse 1.2s ease-in-out infinite;
+}
+
+.ribbon-save-status.building {
+    color: var(--status-progress);
+    animation: spin 2s linear infinite;
+}
+
+.ribbon-save-status.dirty {
+    color: var(--text-primary);
+}
+
+.ribbon-save-status {
+    cursor: pointer;
+}
+
+.status-popover {
+    position: absolute;
+    top: 100%;
+    right: 160px;
+    margin-top: 6px;
+    min-width: 220px;
+    background: var(--component-bg-blur);
+    border: 1px solid var(--border-color);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 8px;
+    box-shadow: var(--shadow-elev-3);
+    padding: 12px 14px;
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 0.82rem;
+}
+
+.status-popover-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+}
+
+.status-popover-label {
+    color: var(--component-text-secondary);
+    flex-shrink: 0;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes save-pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.2;
+    }
+}
+
+.ribbon-sep {
+    width: 1px;
+    height: 18px;
+    background: var(--border-color);
+    margin: 0 2px;
+    flex-shrink: 0;
+}
+
+.ribbon-sep--large {
+    height: 28px;
+    margin: 0 4px;
+}
+
+.ribbon-spacer {
+    flex: 1;
+}
+
+.ribbon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--component-text-primary);
+    cursor: pointer;
+    padding: 0 8px;
+    border-radius: 4px;
+    height: 28px;
+    font-size: 13px;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s, border-color 0.15s, opacity 0.15s;
+    box-sizing: border-box;
+    vertical-align: middle;
+}
+
+.ribbon-btn:hover:not(:disabled):not(.active) {
+    background: var(--component-bg-hover);
+    border-color: transparent;
+}
+
+.ribbon-btn.active {
+    background: var(--component-bg-accent-blur);
+    color: var(--component-text-primary-highlight);
+    border: 1px solid var(--component-bg-accent);
+}
+
+.ribbon-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    border-color: transparent;
+    pointer-events: none;
+}
+
+.btn-label {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.build-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--component-text-secondary);
+}
+
+.ribbon-btn-primary {
+    background: var(--accent-color);
+    border-color: var(--accent-color);
+    color: #fff;
+    font-weight: 600;
+}
+
+.ribbon-btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    border-color: var(--accent-color);
+    pointer-events: none;
+}
+
+.ribbon-btn.ribbon-btn-primary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent-color) 80%, var(--component-text-primary));
+}
+
+.ribbon-btn-lg {
+    height: 50px;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px 10px;
+    min-width: 50px;
+}
+
+.ribbon-btn-label {
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+.ribbon-btn-wordcount {
+    font-size: 11px;
+    color: var(--component-text-secondary);
+    padding: 3px 10px;
+}
+
+.ribbon-more {
+    position: relative;
+}
+
+.ribbon-more--left .more-dropdown {
+    left: 0;
+    right: auto;
+}
+
+.more-dropdown {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    margin-top: 4px;
+    min-width: 185px;
+    background: var(--component-bg-blur);
+    border: 1px solid var(--border-color);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 8px;
+    box-shadow: var(--shadow-elev-3);
+    padding: 6px;
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.more-dropdown button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    padding: 6px 12px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+
+.more-dropdown button:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.more-dropdown button:hover {
+    background: var(--component-bg-hover);
+}
+
+.more-dropdown button.active {
+    background: var(--component-bg-accent-blur);
+    color: var(--accent-color);
+    border: 1px solid var(--component-bg-accent);
+}
+
+.more-dropdown hr {
+    margin: 3px 0;
+    border: none;
+    border-top: 1px solid var(--border-color);
+}
+
+.more-dropdown .icon-svg {
+    width: 16px;
+    height: 16px;
+    opacity: 0.65;
+    flex-shrink: 0;
+}
+
+.more-locale-row {
+    font-size: 0.8rem;
+    padding: 6px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+}
+
+.more-locale-row select {
+    flex: 1;
+    padding: 4px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 0.8rem;
+    outline: none;
+    cursor: pointer;
+}
+
+/* ═══ Ribbon Content (tab area) ═══ */
+.ribbon-content {
+    background: var(--component-bg-blur);
+    backdrop-filter: blur(6px);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-elev-2);
+    border-radius: 12px;
+    min-height: 52px;
+    position: relative;
+    top: 0px;
+    margin: 0 8px;
+    z-index: 29;
+}
+
+.ribbon-group-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    height: 60px;
+    overflow-x: auto;
+}
+
+.ribbon-group {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+/* ═══ Legacy Toolbar Button (kept for modals that reuse) ═══ */
 .toolbar-btn {
     display: inline-flex;
     align-items: center;
@@ -3562,13 +4017,8 @@ const fontClass = computed(() => {
     cursor: pointer;
     padding: 4px 8px;
     border-radius: 4px;
-    margin-right: 2px;
     height: 28px;
     font-size: 14px;
-}
-
-.toolbar-btn:hover {
-    border-color: transparent;
 }
 
 .toolbar-btn:hover:not(:disabled) {
@@ -3577,253 +4027,16 @@ const fontClass = computed(() => {
 
 .toolbar-btn.active {
     background: var(--component-bg-accent-blur);
-    border: 1px solid var(--component-bg-accent);
-}
-
-.toolbar-btn.active:hover {
-    background: var(--component-bg-accent);
+    border-color: var(--component-bg-accent);
 }
 
 .toolbar-btn:disabled {
     opacity: 0.3;
     cursor: not-allowed;
-    color: var(--component-text-secondary-disabled);
     pointer-events: none;
 }
 
-.toolbar-btn.font-sans,
-.toolbar-btn.font-serif,
-.toolbar-btn.font-mono {
-    text-transform: capitalize;
-    font-size: 1em;
-}
-
-
-.editor-workspace {
-    flex: 1;
-    min-height: 0;
-    /* allow flex children to shrink and enable internal scrolling */
-    display: flex;
-    overflow: hidden;
-    position: relative;
-}
-
-.pane {
-    flex: 1;
-    overflow: auto;
-    height: 100%;
-}
-
-.editor-pane {
-    border-right: 1px solid var(--border-color);
-    overflow: hidden;
-}
-
-.editor-pane-surface {
-    position: relative;
-    width: 100%;
-    height: 100%;
-}
-
-.editor-highlight-layer {
-    position: absolute;
-    inset: 0;
-    padding: 16px 16px 50vh 16px;
-    font-family: var(--app-font-stack-mono);
-    font-size: 14px;
-    line-height: 1.5;
-    white-space: pre-wrap;
-    word-break: break-word;
-    color: var(--text-primary);
-    pointer-events: none;
-    overflow: hidden;
-    box-sizing: border-box;
-}
-
-.markdown-input {
-    position: relative;
-    display: block;
-    width: 100%;
-    height: 100%;
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    border: none;
-    padding: 16px 16px 50vh 16px;
-    font-family: var(--app-font-stack-mono);
-    font-size: 14px;
-    line-height: 1.5;
-    resize: none;
-    outline: none;
-    box-sizing: border-box;
-}
-
-.markdown-input.is-searching {
-    color: transparent;
-    caret-color: var(--text-primary);
-    background: transparent;
-}
-
-.preview-pane {
-    background: var(--bg-primary);
-    padding: 16px 16px 50vh 16px;
-    box-sizing: border-box;
-}
-
-.preview-pane :deep(mark.search-hit) {
-    background: rgba(255, 220, 90, 0.45);
-    color: inherit;
-    border-radius: 3px;
-    padding: 0 1px;
-}
-
-.preview-pane :deep(mark.search-hit-active),
-.editor-highlight-layer :deep(mark.search-hit-active) {
-    background: rgba(255, 140, 0, 0.55);
-    color: inherit;
-    border-radius: 3px;
-    padding: 0 1px;
-}
-
-.editor-highlight-layer :deep(mark.search-hit) {
-    background: rgba(255, 220, 90, 0.45);
-    color: inherit;
-    border-radius: 3px;
-    padding: 0 1px;
-}
-
-/* Layout modifiers */
-.layout-split .pane {
-    width: 50%;
-}
-
-.layout-edit .preview-pane {
-    display: none;
-}
-
-.layout-preview .editor-pane {
-    display: none;
-}
-
-.layout-preview .pane {
-    width: 100%;
-}
-
-.search-float {
-    position: fixed;
-    bottom: 18px;
-    z-index: 1200;
-    width: 320px;
-    padding: 12px;
-    border-radius: 12px;
-    border: 1px solid var(--border-color);
-    background: var(--component-bg-secondary);
-    box-shadow: var(--shadow-elev-2);
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.search-float--editor {
-    left: 18px;
-}
-
-.search-float--preview {
-    right: 18px;
-}
-
-.search-float-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-}
-
-.search-float-title {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--component-text-primary);
-}
-
-.search-close-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    border: 1px solid transparent;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--component-text-primary);
-}
-
-.search-close-btn:hover {
-    background: var(--component-bg-hover);
-}
-
-.search-float-body {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.search-input {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 10px 12px;
-    border-radius: 8px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    outline: none;
-}
-
-.search-input:focus {
-    border-color: var(--component-bg-accent);
-}
-
-.search-float-actions {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-}
-
-.search-counter {
-    font-size: 12px;
-    color: var(--component-text-secondary);
-}
-
-.search-nav-buttons {
-    display: flex;
-    gap: 8px;
-}
-
-button {
-    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
-    border-radius: 8px;
-}
-
-button:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-}
-
-
-
-.search-nav-btn {
-    width: 30px;
-    height: 30px;
-    border-radius: 6px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-primary);
-    color: var(--component-text-primary);
-}
-
-.search-nav-btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-}
-
+/* editor workspace + pane + search-float styles moved to EditorArticleBody.vue */
 
 .modal-content {
     background: var(--component-bg-secondary);
@@ -3840,6 +4053,12 @@ button:disabled {
     flex-direction: column;
     box-shadow: var(--shadow-elev-2);
     overflow: hidden;
+}
+
+.modal-math-textarea {
+    font-family: var(--app-font-stack-mono);
+    font-size: 14px;
+    min-height: 60px;
 }
 
 /* Default larger modal preference if not specified small */
@@ -3925,7 +4144,7 @@ button:disabled {
 }
 
 .modal-sidebar-item {
-    padding: 8px 12px;
+    padding: 6px 12px;
     cursor: pointer;
     border-radius: 4px;
     margin-bottom: 2px;
@@ -3934,8 +4153,6 @@ button:disabled {
     color: var(--component-text-primary);
     font-size: 14px;
 }
-
-
 
 .modal-sidebar-item:hover {
     background: var(--component-bg-hover);
@@ -4122,34 +4339,33 @@ button:disabled {
     margin-right: 10px;
 }
 
+.status-chip {
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.status-chip.local {
+    color: var(--text-primary);
+    background: transparent;
+    border: 1px solid var(--text-primary);
+}
 
 .status-chip.draft {
     color: var(--component-text-secondary);
-    border-color: var(--border-color);
-    background: var(--component-bg-blur-alt);
+    background: var(--component-bg-hover);
 }
 
 .status-chip.published {
-    color: var(--accent-color);
-    border-color: var(--accent-color);
-    background: var(--accent-color-bg);
+    color: var(--status-success);
+    background: var(--status-success-bg);
+    border: 1px solid var(--status-success);
 }
 
 .status-chip.modifying {
-    color: var(--featured);
-    border-color: var(--featured);
-    background: var(--featured-bg);
-}
-
-.build-hint {
-    color: var(--status-progress);
-    font-size: 0.82rem;
-    font-weight: 500;
-    font-variation-settings: 'wght' 500;
-    letter-spacing: 0.02em;
-    align-items: center;
-    display: inline-flex;
-    gap: 6px;
+    color: var(--status-warning);
+    background: var(--status-warning-bg);
+    border: 1px solid var(--status-warning);
 }
 
 .toolbar-btn.danger-btn {
@@ -4294,7 +4510,7 @@ button:disabled {
     flex-direction: column;
     gap: 8px;
     background: var(--component-bg-blur-alt);
-    padding: 8px;
+    padding: 6px;
     border-radius: 8px;
     border: 1px solid var(--border-color);
 }
@@ -4396,7 +4612,7 @@ button:disabled {
 }
 
 .sidebar-btn {
-    padding: 8px 12px;
+    padding: 6px 12px;
     background: transparent;
     cursor: pointer;
     border-radius: 4px;
@@ -4456,6 +4672,27 @@ button:disabled {
     margin: 15px 0;
     color: var(--component-text-primary);
     font-size: 13px;
+}
+
+.new-doc-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 12px 0;
+}
+
+.new-doc-col {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.new-doc-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--component-text-secondary);
+    margin-bottom: 2px;
 }
 
 .post-list {
@@ -4529,7 +4766,7 @@ button:disabled {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 8px;
+    padding: 6px;
     background: transparent;
     border-radius: 4px;
 }
@@ -4687,16 +4924,36 @@ button:disabled {
     color: var(--text-on-accent);
 }
 
-.locale-select{
+.locale-select {
     transition: background 0.2s;
     display: flex;
     justify-content: center;
     text-align: start;
 }
 
-.locale-select option{
+.locale-select option {
     background: var(--bg-secondary);
     color: var(--component-text-primary);
+}
+
+.math-preview {
+    background: var(--component-bg-blur-alt);
+    border-radius: 8px;
+    padding: 10px;
+    margin-top: 10px;
+    min-height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.math-options { display: flex; gap: 20px; margin-top: 2px; }
+
+input[type="radio"] {
+    accent-color: var(--accent-color);
+    height: 16px;
+    width: 16px;
+    transform: translateY(2px);
 }
 
 @keyframes slideIn {
@@ -4709,6 +4966,15 @@ button:disabled {
         transform: translateY(0);
         opacity: 1;
     }
+}
+
+/* ── Editor body wrapper ───────────────────────────── */
+.editor-body-wrapper {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 </style>

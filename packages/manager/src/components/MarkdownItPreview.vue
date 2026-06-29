@@ -74,6 +74,11 @@ const footnoteHtml = ref('')
 // ── Incremental update ───────────────────────────────────
 
 const updateBlocks = debounce(() => {
+  if (!props.markdown || !props.markdown.trim()) {
+    blocks.value = []
+    footnoteHtml.value = ''
+    return
+  }
   try {
     // Build ContentBlocks from markdown tokens + render each block to HTML
     const raw = renderBlockHtml(props.markdown)

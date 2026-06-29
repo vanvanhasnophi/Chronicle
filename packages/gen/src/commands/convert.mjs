@@ -249,14 +249,17 @@ function rebuildIndex(postsDir, results) {
     const jekyllParsed = parseJekyllSlug(slug);
     let date = jekyllParsed.date ? new Date(jekyllParsed.date).toISOString() : new Date().toISOString();
     let tags = [];
+    let type, slideshow;
     if (frontmatterMatch) {
       const fm = yamlToJson(frontmatterMatch[1]);
       if (fm.title) title = fm.title;
       if (fm.date) date = new Date(fm.date).toISOString();
       if (fm.tags) tags = Array.isArray(fm.tags) ? fm.tags : String(fm.tags).split(/,\s*/).filter(Boolean);
+      type = fm.type || undefined;
+      slideshow = fm.slideshow || undefined;
     }
     const summary = stripSummary(content, 200);
-    index.push({ id: uuid, slug, title, date, tags, summary, status: 'published' });
+    index.push({ id: uuid, slug, title, date, tags, summary, status: 'published', ...(type && { type }), ...(slideshow && { slideshow }) });
   }
   writeFileSync(join(postsDir, 'index.json'), JSON.stringify(index, null, 2), 'utf-8');
 }
