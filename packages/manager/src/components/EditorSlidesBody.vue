@@ -5,7 +5,7 @@
       <div class="thumbnail-strip-header">
         <span class="thumbnail-count">{{ slides.length }} {{ slides.length === 1 ? 'slide' : 'slides' }}</span>
         <button class="thumbnail-toggle" @click="showThumbnailsLocal = !showThumbnailsLocal" title="Toggle thumbnails">
-          <span class="icon-svg">☰</span>
+          <span class="icon-svg" v-html="Icons.chevron"></span>
         </button>
       </div>
       <div class="thumbnail-list">
@@ -22,54 +22,52 @@
     <div class="split-area" ref="splitAreaRef">
       <!-- Center: Code editor -->
       <div v-show="showEditor" class="pane editor-pane" :style="editorStyle">
-        <CmEditor ref="editorRef" v-model="localContent" :disabled="props.disabled"
-          :placeholder="placeholder" :fontClass="fontClass"
-          @cursorChange="onCursorChange" />
+        <CmEditor ref="editorRef" v-model="localContent" :disabled="props.disabled" :placeholder="placeholder"
+          :fontClass="fontClass" @cursorChange="onCursorChange" />
       </div>
 
       <!-- Draggable divider (split mode) -->
-      <div
-        v-if="showEditor && showPreview"
-        class="pane-divider"
-        @mousedown.prevent="onDividerDown"
-      >
-      <span class="divider-line" ></span>
+      <div v-if="showEditor && showPreview" class="pane-divider" @mousedown.prevent="onDividerDown">
+        <span class="divider-line"></span>
       </div>
 
       <!-- Right: Slide preview -->
-      <div v-show="showPreview" class="pane preview-pane" :class="previewMode" :style="previewStyle" ref="previewPaneRef" @wheel="onWheel">
-      <div v-if="slides.length" class="marp-output" ref="marpOutRef" style="width:100%;height:100%;overflow:auto"></div>
-      <template v-if="currentSlideData">
-        <!-- Speaker notes -->
-        <div v-if="currentSlideData.hasNotes" class="speaker-notes-panel" :class="{ expanded: notesExpanded }">
-          <button class="notes-toggle" @click="notesExpanded = !notesExpanded">
-            💬 Speaker Notes {{ notesExpanded ? '▾' : '▸' }}
-          </button>
-          <div v-show="notesExpanded" class="notes-content">{{ currentSlideData.notes }}</div>
+      <div v-show="showPreview" class="pane preview-pane" :class="previewMode" :style="previewStyle"
+        ref="previewPaneRef" @wheel="onWheel">
+        <div v-if="slides.length" class="marp-output" ref="marpOutRef" style="width:100%;height:100%;overflow:auto">
         </div>
-      </template>
-      <div v-else class="empty-preview">
-        <p>No slides yet.</p>
-        <p>Start writing and separate slides with <code>---</code> on a blank line.</p>
-      </div>
+        <template v-if="currentSlideData">
+          <!-- Speaker notes -->
+          <div v-if="currentSlideData.hasNotes" class="speaker-notes-panel" :class="{ expanded: notesExpanded }">
+            <button class="notes-toggle" @click="notesExpanded = !notesExpanded">
+              💬 Speaker Notes {{ notesExpanded ? '▾' : '▸' }}
+            </button>
+            <div v-show="notesExpanded" class="notes-content">{{ currentSlideData.notes }}</div>
+          </div>
+        </template>
+        <div v-else class="empty-preview">
+          <p>No slides yet.</p>
+          <p>Start writing and separate slides with <code>---</code> on a blank line.</p>
+        </div>
 
-      <!-- Slide navigation controls -->
-      <div v-if="slides.length > 0" class="slide-controls-bar">
-        <button @click="goToSlide(0)" :disabled="currentSlide <= 0" title="First slide (Home)">
-          <span class="icon-svg reverse" v-html="Icons.toBottom" ></span>
-        </button>
-        <button @click="prevSlide" :disabled="currentSlide <= 0" title="Previous slide (← / PageUp)">
-          <span class="icon-svg reverse" v-html="Icons.chevron" ></span>
-        </button>
-        <span class="slide-position">{{ currentSlide + 1 }} / {{ slides.length }}</span>
-        <button @click="nextSlide" :disabled="currentSlide >= slides.length - 1" title="Next slide (→ / PageDown)">
-          <span class="icon-svg" v-html="Icons.chevron" ></span>
-        </button>
-        <button @click="goToSlide(slides.length - 1)" :disabled="currentSlide >= slides.length - 1" title="Last slide (End)">
-          <span class="icon-svg" v-html="Icons.toBottom"></span>
-        </button>
+        <!-- Slide navigation controls -->
+        <div v-if="slides.length > 0" class="slide-controls-bar">
+          <button @click="goToSlide(0)" :disabled="currentSlide <= 0" title="First slide (Home)">
+            <span class="icon-svg reverse" v-html="Icons.toBottom"></span>
+          </button>
+          <button @click="prevSlide" :disabled="currentSlide <= 0" title="Previous slide (← / PageUp)">
+            <span class="icon-svg reverse" v-html="Icons.chevron"></span>
+          </button>
+          <span class="slide-position">{{ currentSlide + 1 }} / {{ slides.length }}</span>
+          <button @click="nextSlide" :disabled="currentSlide >= slides.length - 1" title="Next slide (→ / PageDown)">
+            <span class="icon-svg" v-html="Icons.chevron"></span>
+          </button>
+          <button @click="goToSlide(slides.length - 1)" :disabled="currentSlide >= slides.length - 1"
+            title="Last slide (End)">
+            <span class="icon-svg" v-html="Icons.toBottom"></span>
+          </button>
+        </div>
       </div>
-    </div>
     </div><!-- .split-area -->
   </div>
 
@@ -93,7 +91,7 @@ import { chronicleCSS, chronicleDarkCSS, chronicleLightTheme, chronicleDarkTheme
 
 // Marp engine with Chronicle themes (default accent)
 const marp = new Marp({ html: true, markdown: { breaks: false } })
-try { marp.themeSet.add(chronicleCSS); marp.themeSet.add(chronicleDarkCSS) } catch {}
+try { marp.themeSet.add(chronicleCSS); marp.themeSet.add(chronicleDarkCSS) } catch { }
 
 
 const props = withDefaults(defineProps<{
@@ -131,7 +129,7 @@ function applyAccentTheme(md: string) {
   try {
     marp.themeSet.add(chronicleLightTheme(accent))
     marp.themeSet.add(chronicleDarkTheme(accent))
-  } catch {}
+  } catch { }
 }
 
 watch(() => props.modelValue, (val) => {
@@ -236,7 +234,7 @@ function renderMarpOutput(md: string) {
     const svgCount = el.querySelectorAll('[data-marpit-svg]').length
     currentSlide.value = Math.min(prev, Math.max(0, svgCount - 1))
     updateSlideVisibility(currentSlide.value)
-  } catch {}
+  } catch { }
 }
 
 watch(localContent, (val) => {
@@ -630,7 +628,7 @@ defineExpose({
   canUndo, canRedo, getToolbarConfig, handleToolAction, previewMode, showThumbnailsLocal,
   initContent(content: string) {
     localContent.value = content
-    ;(editorRef.value as any)?.initContent?.(content)
+      ; (editorRef.value as any)?.initContent?.(content)
   },
 })
 </script>
@@ -689,10 +687,24 @@ defineExpose({
 .thumbnail-toggle {
   background: none;
   border: none;
+  border-radius: 6px;
   cursor: pointer;
   color: var(--component-text-secondary);
-  font-size: 14px;
   padding: 2px;
+  width: 22px;
+  height: 22px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.thumbnail-toggle:hover {
+  background: var(--component-bg-hover);
+  color: var(--component-text-primary);
+}
+
+.thumbnail-toggle .icon-svg :deep(svg) {
+  width: 18px;
+  height: 18px;
+  transform: rotate(90deg);
 }
 
 .thumbnail-list {
@@ -702,6 +714,11 @@ defineExpose({
   display: flex;
   flex-direction: column;
   gap: 3px;
+
+  background: var(--component-bg-blur);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-elev-1);
 }
 
 .thumbnail-item {
@@ -735,8 +752,8 @@ defineExpose({
   color: var(--component-text-secondary);
 }
 
-.thumbnail-item.active .thumbnail-num {
-  color: var(--component-text-primary);
+.thumbnail-item.active .thumbnail-num,.thumbnail-item.active .thumbnail-label {
+  color: var(--component-text-primary-highlight);
 }
 
 .thumbnail-label {
@@ -830,6 +847,7 @@ defineExpose({
   background: var(--component-bg-blur);
   backdrop-filter: blur(6px);
   border-radius: 99999px;
+  box-shadow: var(--shadow-elev-2);
   font-size: .8rem;
   color: var(--component-text-primary);
 }
@@ -845,12 +863,12 @@ defineExpose({
   transition: background 0.2s, color 0.2s;
 }
 
-.slide-controls-bar button .icon-svg :deep(svg){
+.slide-controls-bar button .icon-svg :deep(svg) {
   width: 18px;
   height: 18px;
 }
 
-.slide-controls-bar button .icon-svg.reverse :deep(svg){
+.slide-controls-bar button .icon-svg.reverse :deep(svg) {
   transform: rotate(180deg);
 }
 
@@ -891,11 +909,13 @@ defineExpose({
   flex-shrink: 0;
   user-select: none;
 }
+
 .pane-divider:hover .divider-line {
   width: 2px;
   background: color-mix(in srgb, var(--component-text-primary-highlight) 85%, transparent);
   box-shadow: 0 0 4px 0 var(--component-text-primary-highlight);
 }
+
 .pane-divider .divider-line {
   display: block;
   width: 1px;
