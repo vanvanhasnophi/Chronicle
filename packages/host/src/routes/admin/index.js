@@ -1726,16 +1726,9 @@ router.get('/post', (req, res) => {
       if (fs.existsSync(draftPath)) {
         let raw = fs.readFileSync(draftPath, 'utf-8');
         try { raw = decrypt(raw); } catch (e) { /* not encrypted */ }
-        const { attributes, body } = postService.parseFrontMatter(raw);
-        // For slides: preserve Marp styling fields in the returned content
-        const chronicleKeys = new Set(['title','date','updatedAt','tags','font','author','aiGenerated','marp','type','slideshow'])
-        const styleLines = Object.entries(attributes)
-          .filter(([k]) => !chronicleKeys.has(k))
-          .map(([k, v]) => typeof v === 'boolean' ? `${k}: ${v}` : `${k}: ${v}`)
-        // Always include marp:true so Marp recognizes it as slideshow
-        if (!styleLines.some(l => l.startsWith('marp:'))) styleLines.unshift('marp: true')
-        const frontmatter = styleLines.length > 0 ? `---\n${styleLines.join('\n')}\n---\n\n` : `---\nmarp: true\n---\n\n`
-        return success(res, { ...postService.normalizePostForResponse(post), content: frontmatter + body, hasHtml, toc: [] });
+        const { body } = postService.parseFrontMatter(raw);
+        // Frontend handles Marp FM reconstruction via cloudDetailToApiPost + resolveEditorPayload
+        return success(res, { ...postService.normalizePostForResponse(post), content: body, hasHtml, toc: [] });
       }
     }
 

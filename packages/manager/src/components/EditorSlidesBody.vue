@@ -3,7 +3,7 @@
     <!-- Left: Thumbnail strip -->
     <div class="thumbnail-strip" v-show="showThumbnails">
       <div class="thumbnail-strip-header">
-        <span class="thumbnail-count">{{ slides.length }} {{ slides.length === 1 ? 'slide' : 'slides' }}</span>
+        <span class="thumbnail-count">{{ slides.length }} {{ slides.length === 1 ? t('editor.slide') : t('editor.slides') }}</span>
         <button class="thumbnail-toggle" @click="showThumbnailsLocal = !showThumbnailsLocal" title="Toggle thumbnails">
           <span class="icon-svg" v-html="Icons.chevron"></span>
         </button>
@@ -46,8 +46,8 @@
           </div>
         </template>
         <div v-else class="empty-preview">
-          <p>No slides yet.</p>
-          <p>Start writing and separate slides with <code>---</code> on a blank line.</p>
+          <p>{{ t('editor.emptySlides') }}</p>
+          <p>{{ t('editor.emptySlidesHint') }}</p>
         </div>
 
         <!-- Slide navigation controls -->
@@ -79,6 +79,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { EditorView } from '@codemirror/view'
 import CmEditor from './CmEditor.vue'
 import SlideOverview from './slides/SlideOverview.vue'
@@ -90,6 +91,7 @@ import Marp from '@marp-team/marp-core'
 import { chronicleCSS, chronicleDarkCSS, chronicleLightTheme, chronicleDarkTheme } from '../utils/chronicleThemes'
 
 // Marp engine with Chronicle themes (default accent)
+const { t } = useI18n()
 const marp = new Marp({ html: true, markdown: { breaks: false } })
 try { marp.themeSet.add(chronicleCSS); marp.themeSet.add(chronicleDarkCSS) } catch { }
 
@@ -719,6 +721,10 @@ defineExpose({
   border-radius: 12px;
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow-elev-1);
+}
+
+.thumbnail-list::-webkit-scrollbar {
+  width: 6px;
 }
 
 .thumbnail-item {

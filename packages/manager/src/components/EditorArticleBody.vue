@@ -68,7 +68,7 @@
         ref="previewSearchInputRef"
         v-model="previewSearchQuery"
         class="search-input"
-        placeholder="Find in preview"
+        :placeholder="$t('editor.findInPreview')"
         @keydown.enter.prevent="jumpToSearchMatch('preview', $event.shiftKey ? -1 : 1)"
         @keydown.esc.prevent="closePreviewSearch()"
       />

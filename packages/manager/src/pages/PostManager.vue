@@ -170,6 +170,7 @@ interface Post {
   date: string
   status?: 'draft' | 'published' | 'modifying'
   tags?: string[]
+  type?: 'slides' | 'article' | undefined
 }
 
 const { t } = useI18n()
