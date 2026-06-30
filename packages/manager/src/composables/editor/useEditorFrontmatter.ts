@@ -75,7 +75,7 @@ export function localFileToApiFormat(
   const marp: Record<string, any> = {}
   // 先从 meta 中提取（兼容单块 Marp 文件）
   for (const [k, v] of Object.entries(meta)) {
-    if (!CHRONICLE_FM_KEYS.has(k)) {
+    if (!CHRONICLE_FM_KEYS.has(k) && !DISCARD_FM_KEYS.has(k)) {
       marp[k] = v === true ? true : v === 'true' ? true : v === 'false' ? false : v
     }
   }
@@ -90,7 +90,7 @@ export function localFileToApiFormat(
         if (c < 0) return
         const k = line.slice(0, c).trim()
         const v = line.slice(c + 1).trim().replace(/^"(.*)"$/, '$1').replace(/^'(.*)'$/, '$1')
-        if (!CHRONICLE_FM_KEYS.has(k)) {
+        if (!CHRONICLE_FM_KEYS.has(k) && !DISCARD_FM_KEYS.has(k)) {
           marp[k] = v === 'true' ? true : v === 'false' ? false : v
         }
       })
@@ -98,11 +98,7 @@ export function localFileToApiFormat(
     }
   }
 
-  // 合并 Marp 特征用于类型判定
-  const detectMeta: Record<string, any> = { ...meta }
-  if (Object.keys(marp).length > 0) detectMeta.marp = true
-
-  const type = detectType(detectMeta)
+  const type = detectType(meta)
 
   return {
     id: null,
@@ -148,6 +144,7 @@ export function cloudDetailToApiPost(detail: Record<string, any>): ApiPost {
     'id', '_id', '__v', 'status', 'createdAt', 'updatedAt', 'date',
     'content', 'compiledHtml', 'toc', 'hasHtml', 'hadContent',
     'meta', 'filename', 'dir', 'summary', 'draft',
+    'collection', 'collectionPath',
   ])
 
   // 从 detail 字段和正文中分离非白名单 FM 键（Marp 透传）
@@ -169,16 +166,13 @@ export function cloudDetailToApiPost(detail: Record<string, any>): ApiPost {
         if (c < 0) return
         const k = line.slice(0, c).trim()
         const v = line.slice(c + 1).trim().replace(/^"(.*)"$/, '$1').replace(/^'(.*)'$/, '$1')
-        if (!CHRONICLE_FM_KEYS.has(k)) {
+        if (!CHRONICLE_FM_KEYS.has(k) && !DISCARD_FM_KEYS.has(k)) {
           marp[k] = v === 'true' ? true : v === 'false' ? false : v
         }
       })
       bodyContent = rawContent.slice(fmMatch[0].length)
     }
   }
-
-  // 合并 Marp 特征用于类型判定
-  if (Object.keys(marp).length > 0) rawMeta.marp = true
 
   const type = detectType(rawMeta)
 
@@ -318,13 +312,11 @@ export const CHRONICLE_FM_KEYS = new Set([
   'aiGenerated', 'type', 'slideshow',
 ])
 
-/**
- * Marp 专属键集合 — 出现在 raw FM 中时表示该文档是幻灯片类型。
- */
-const MARP_KEYS = [
-  'marp', 'theme', 'size', 'paginate', 'header', 'class',
-  'backgroundColor', 'backgroundImage', 'color',
-]
+/** 既非 Chronicle FM 也非 Marp FM 的元数据键——解析时直接丢弃，不进入 marp 记录 */
+const DISCARD_FM_KEYS = new Set([
+  'collection', 'collectionPath',
+])
+
 
 // ══════════════════════════════════════════════════════
 // 类型检测（启发式 → 一等公民）
@@ -333,16 +325,17 @@ const MARP_KEYS = [
 /**
  * 从 raw frontmatter 提取文档类型。
  *
- * 启发式规则（优先级递减）：
+ * 判定规则（仅显式声明）：
  *   1. meta.type === 'slides'     → 显式声明
  *   2. meta.marp === true         → Marp 标记
- *   3. 包含任意 Marp 专属键       → 推断为幻灯片
- *   4. 以上都不满足               → article
+ *   3. 以上都不满足               → article
+ *
+ * 注意：不再根据 Marp 专属键（theme, size 等）启发式推断——
+ *       这些键名太通用，在 article 自定义 frontmatter 中容易误判。
  */
 export function detectType(meta: Record<string, any>): 'article' | 'slides' {
   if (meta.type === 'slides') return 'slides'
-  if (meta.marp === true) return 'slides'
-  if (MARP_KEYS.some((k) => meta[k] !== undefined)) return 'slides'
+  if (meta.marp === true || meta.marp === 'true') return 'slides'
   return 'article'
 }
 

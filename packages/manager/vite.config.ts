@@ -21,7 +21,7 @@ export default defineConfig({
           ? html.replace('/fonts/', './fonts/')
           : html
       }
-    }
+    },
   ],
   base: isElectron ? './' : '/',
   define: {

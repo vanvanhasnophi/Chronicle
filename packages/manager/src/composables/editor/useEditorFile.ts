@@ -15,6 +15,84 @@ import { renderPreview } from '../../utils/markdownPreview'
 import { convertToHtml } from '../../utils/markdownParser'
 import { triggerBuild } from '../useAstroBuild'
 import { settingsStore } from '../settingsApi'
+import pptxgen from 'pptxgenjs'
+import _chronicleCSS from '@chronicle/shared/src/styles/chronicle-markdown.css?inline'
+
+// ══════════════════════════════════════════════════════
+// 内联 CSS（导出时嵌入独立 HTML）
+// ══════════════════════════════════════════════════════
+
+/** 与预览渲染引擎完全一致的 chronicle-markdown.css，Vite ?inline 构建时为字符串 */
+const CHRONICLE_CSS: string = (_chronicleCSS as any).default || String(_chronicleCSS)
+
+/** Marp 主题——直接复用预览窗格的 chronicleThemes，保证与预览所见一致 */
+import { chronicleLightTheme, chronicleDarkTheme } from '../../utils/chronicleThemes'
+
+/**
+ * 导出专用覆盖样式（叠加在 chronicle-markdown.css 之上）：
+ *   - body 居中 + 限宽
+ *   - light/dark toggle 按钮
+ *   - 图片始终居中
+ *   - dark mode 变量覆盖 + prefers-color-scheme 回退
+ *   - 打印隐藏交互元素
+ */
+const EXPORT_OVERRIDE = `
+@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,100..900&display=swap');
+:root{
+--app-font-stack:-apple-system,BlinkMacSystemFont,'InterVariable','Inter','Segoe UI','PingFang SC','Noto Sans SC','Microsoft YaHei',sans-serif;
+--app-font-stack-serif:'Noto Serif SC',serif;
+--app-font-stack-mono:'Consolas','SF Mono','Menlo','Monaco','Courier New',monospace;
+--text-primary:#111;--text-secondary:#4b5563;--app-text-primary:#111;
+--border-color:#e5e7eb;--accent-color:#2563eb;--accent-color-dark:#1d4ed8;--accent-contrast:#fff;
+--code-bg:#f5f5f5c0;--code-inline:#f3f4f6;
+--code-keyword:#7c3aed;--code-string:#059669;--code-comment:#6b7280;--code-number:#d97706;
+--code-type:#2563eb;--code-tag:#2563eb;--code-attribute:#7c3aed;--code-property:#059669;
+--code-selector:#d97706;--code-operator:#4b5563;--code-variable:#111;--code-text:#111;
+--code-quote:#059669;--code-link:#2563eb;--code-boolean:#d97706;--code-preprocessor:#dc2626;
+--code-section:#2563eb;--code-directive:#7c3aed;--code-parameter:#4b5563;--code-cmdlet:#7c3aed;
+--code-katexcommand:#2563eb;
+--component-bg-primary:#fafafa;--component-bg-blur:rgba(250,250,250,.8);--component-bg-blur-alt:rgba(245,245,245,.7);
+--component-bg-hover:#f3f4f690;--component-bg-highlight:#e5e7eb90;--component-bg-active:#d1d5db90;
+--component-text-primary:#111;--component-text-secondary:#6b7280;
+--status-error:#dc2626;--status-warning:#f59e0b;--featured:#f59e0b;
+--toc-scroll-offset:100px;
+}
+body{max-width:800px;margin:0 auto;padding:40px 48px;font-family:var(--app-font-stack);background:var(--component-bg-primary);color:var(--text-primary)}
+body[data-font="serif"]{font-family:var(--app-font-stack-serif)}
+.article-title{font-size:2.5rem;line-height:1.25;margin-bottom:2.5rem;font-weight:600;font-variation-settings:'wght' 600;border-bottom:1px solid var(--border-color);padding-bottom:1.5rem;color:var(--text-primary)}
+.code-chunk-header{padding:0 1rem}
+.code-chunk-lang{font-size:0.85rem;font-family:var(--app-font-stack);color:var(--component-text-secondary)}
+pre{margin-block:0}
+.chronicle-markdown .md-image {width:auto;height:auto;}
+img,.md-image{display:block;max-width:100%;margin-left:auto;margin-right:auto;cursor:default!important;opacity:1!important;filter:none!important;transition:none!important}
+[data-theme="dark"]{--text-primary:#e5e7eb;--text-secondary:#9ca3af;--app-text-primary:#e5e7eb;--border-color:#333;--accent-color:#3b82f6;--accent-color-dark:#60a5fa;--accent-contrast:#111;--code-bg:#1a1a1ac0;--code-inline:#1f1f1f;--code-keyword:#a78bfa;--code-string:#34d399;--code-comment:#6b7280;--code-number:#fbbf24;--code-type:#60a5fa;--code-tag:#60a5fa;--code-attribute:#a78bfa;--code-property:#34d399;--code-selector:#fbbf24;--code-operator:#9ca3af;--code-variable:#e5e7eb;--code-text:#e5e7eb;--code-quote:#34d399;--code-link:#60a5fa;--code-boolean:#fbbf24;--code-preprocessor:#f87171;--code-section:#60a5fa;--code-directive:#a78bfa;--code-parameter:#9ca3af;--code-cmdlet:#a78bfa;--code-katexcommand:#60a5fa;--component-bg-primary:#1a1a1a;--component-bg-blur:rgba(40,40,40,.9);--component-bg-blur-alt:rgba(60,60,60,.7);--component-bg-hover:#fff2;
+--component-bg-highlight:#fff2;--component-bg-active:#fff3;
+--component-text-primary:#e5e7eb;--component-text-secondary:#9ca3af}
+.theme-toggle{position:fixed;top:16px;right:16px;width:36px;height:36px;border-radius:50%;border:1px solid var(--border-color);background:var(--component-bg-primary);color:var(--text-primary);cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:100;transition:background .2s}
+.theme-toggle svg{width:16px;height:16px;display:block}
+.theme-toggle:hover{background:var(--component-bg-hover)}
+@media print{body{padding:16px;max-width:none}.no-print{display:none!important}img,.md-image{opacity:1!important;filter:none!important;display:block!important;max-width:100%!important}}
+@media (prefers-color-scheme:dark){:root:not([data-theme]){--text-primary:#e5e7eb;--text-secondary:#9ca3af;--app-text-primary:#e5e7eb;--border-color:#333;--accent-color:#3b82f6;--accent-color-dark:#60a5fa;--code-bg:#1a1a1a;--code-inline:#1f1f1f;--code-keyword:#a78bfa;--code-string:#34d399;--code-comment:#6b7280;--code-number:#fbbf24;--code-type:#60a5fa;--code-tag:#60a5fa;--code-attribute:#a78bfa;--code-property:#34d399;--code-selector:#fbbf24;--code-operator:#9ca3af;--code-variable:#e5e7eb;--code-text:#e5e7eb;--code-quote:#34d399;--code-link:#60a5fa;--code-boolean:#fbbf24;--code-preprocessor:#f87171;--code-section:#60a5fa;--code-directive:#a78bfa;--code-parameter:#9ca3af;--code-cmdlet:#a78bfa;--code-katexcommand:#60a5fa;--component-bg-primary:#1a1a1a;--component-bg-blur:rgba(26,26,26,.9);--component-bg-blur-alt:rgba(30,30,30,.7);--component-bg-hover:#222;--component-bg-highlight:#2a2a2a;--component-bg-active:#333;--component-text-primary:#e5e7eb;--component-text-secondary:#9ca3af}}
+/* KaTeX 离线字体兜底——各系统自带数学字体 */
+.katex,.katex .mord,.katex .mbin,.katex .mrel,.katex .mopen,.katex .mclose,.katex .mpunct,.katex .minner,.katex .mathit,.katex .mathbf,.katex .mainit{font-family:KaTeX_Main,Cambria Math,STIX Two Math,Latin Modern Math,serif}
+.katex .amsrm,.katex .mathbb{font-family:KaTeX_AMS,Cambria Math,STIX Two Math,serif}
+.katex .mathcal{font-family:KaTeX_Caligraphic,Cambria Math,STIX Two Math,serif}
+.katex .mathfrak{font-family:KaTeX_Fraktur,serif}
+.katex .mathtt{font-family:KaTeX_Typewriter,Menlo,Courier New,monospace}
+.katex .mathscr{font-family:KaTeX_Script,serif}
+.katex .mathsf{font-family:KaTeX_SansSerif,sans-serif}
+.katex-html{cursor:default}
+.katex:hover,.katex-html:hover,.katex-mathml:hover{background:transparent!important}
+.mermaid-prerendered{display:flex;justify-content:center;padding:10px 0}
+.mermaid-prerendered svg{max-width:100%;height:auto}
+.mermaid-prerendered svg,.mermaid-prerendered svg *{font-family:inherit!important}
+.mermaid-prerendered svg .nodeLabel,.mermaid-prerendered svg .label,.mermaid-prerendered svg .messageText,.mermaid-prerendered svg .legend text{fill:var(--component-text-primary)!important;color:var(--component-text-primary)!important}
+.mermaid-prerendered svg .node rect,.mermaid-prerendered svg .node circle,.mermaid-prerendered svg .node ellipse,.mermaid-prerendered svg .node polygon,.mermaid-prerendered svg .cluster rect,.mermaid-prerendered svg .node path{fill:none!important;stroke:var(--component-text-secondary)!important}
+.mermaid-prerendered svg .edgePath .path,.mermaid-prerendered svg .flowchart-link{stroke:var(--component-text-secondary)!important}
+.mermaid-prerendered svg .edgeLabel text,.mermaid-prerendered svg .edgeLabel rect,.mermaid-prerendered svg .edgeLabel span{fill:var(--component-bg-primary)!important}
+.mermaid-prerendered svg marker path{stroke:var(--component-text-secondary)!important;stroke-width:1.5!important}
+.mermaid-prerendered svg .actor,.mermaid-prerendered svg .labelBox{fill:none!important;stroke:var(--component-text-secondary)!important}
+`
 
 /**
  * useEditorFile 的依赖注入选项。
@@ -245,11 +323,433 @@ export function useEditorFile(options: EditorFileOptions) {
     return true
   }
 
-  /** 导出为自包含 HTML 文件（无外部依赖） */
+  // ══════════════════════════════════════════════════════
+  // Marp 幻灯片渲染 — 内置 Chronicle 主题的单例引擎
+  // ══════════════════════════════════════════════════════
+
+  let _marpCore: any = null
+  async function getMarpCore() {
+    if (_marpCore) return _marpCore
+    const mod = await import('@marp-team/marp-core')
+    _marpCore = (mod as any).default || mod
+    return _marpCore
+  }
+
+  /** 使用内置 Chronicle 主题的 Marp 引擎渲染幻灯片为 HTML。每次重建引擎以反映最新主题配置。 */
+  async function renderSlidesToHTML(md: string): Promise<{ html: string; css: string }> {
+    try {
+      const Marp = await getMarpCore()
+      const marp = new Marp({ html: true })
+      // 从 frontmatter 读取 accent / accent-color / tinted-bg
+      const fmMatch = md.match(/^---\n([\s\S]*?)\n---/)
+      let fmAccent = '', tintedBg = false
+      if (fmMatch) {
+        const am = fmMatch[1].match(/^accent-color:\s*(\S+)/m) || fmMatch[1].match(/^accent:\s*(\S+)/m)
+        if (am) fmAccent = am[1].replace(/["']/g, '')
+        const tb = fmMatch[1].match(/^tinted-bg:\s*(\S+)/m)
+        if (tb) tintedBg = tb[1] === 'true'
+      }
+      const accent = (fmAccent === 'follow')
+        ? (getComputedStyle(document.documentElement).getPropertyValue('--accent-color').trim() || '#2563eb')
+        : (fmAccent && fmAccent !== 'default' ? fmAccent : '#2563eb')
+      try { marp.themeSet.add(chronicleLightTheme(accent, tintedBg)) } catch (e) { console.warn('[useEditorFile] Failed to register Chronicle theme', e) }
+      try { marp.themeSet.add(chronicleDarkTheme(accent, tintedBg)) } catch (e) { console.warn('[useEditorFile] Failed to register Chronicle Dark theme', e) }
+      // 若正文未显式指定 theme，默认使用 chronicle 主题
+      let renderMd = md
+      if (!/^theme:\s*\S/m.test(md)) {
+        const fmMatch = md.match(/^---\n([\s\S]*?)\n---/)
+        if (fmMatch) {
+          renderMd = `---\n${fmMatch[1]}\ntheme: chronicle\n---${md.slice(fmMatch[0].length)}`
+        } else {
+          renderMd = `---\ntheme: chronicle\n---\n\n${md}`
+        }
+      }
+      const r = marp.render(renderMd)
+      // 后处理：Mermaid 代码块 → 预渲染 SVG
+      let html = r.html
+      if (html.includes('language-mermaid') || html.includes('mermaid')) {
+        try {
+          const mermaidMod = await import('mermaid')
+          const mermaid = (mermaidMod && (mermaidMod as any).default) || mermaidMod
+          try { mermaid.initialize({ startOnLoad: false, theme: 'base', themeVariables: { fontFamily: 'var(--app-font-stack)' } }) } catch {}
+          const doc = new DOMParser().parseFromString(html, 'text/html')
+          const codes = doc.querySelectorAll('pre code.language-mermaid, code[class*="mermaid"]')
+          for (const code of codes) {
+            const pre = code.closest('pre')
+            const text = code.textContent || ''
+            if (!text.trim() || !pre) continue
+            try {
+              const id = 'mermaid_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8)
+              const res = await mermaid.render(id, text.trim())
+              let svg = (res && (res.svg || res)) ? String(res.svg || res) : ''
+              if (svg) {
+                const wrapper = doc.createElement('div')
+                wrapper.className = 'mermaid-prerendered'
+                wrapper.innerHTML = svg
+                pre.replaceWith(wrapper)
+              }
+            } catch { /* skip failed Mermaid blocks */ }
+          }
+          html = doc.body.innerHTML
+        } catch { /* Mermaid not available */ }
+      }
+      return { html, css: r.css }
+    } catch (e) {
+      console.error('renderSlidesToHTML failed', e)
+      return { html: `<section><pre>${escapeHtml(md)}</pre></section>`, css: '' }
+    }
+  }
+
+  // ══════════════════════════════════════════════════════
+  // 静态渲染管线 — 将交互式 preview HTML 转为纯静态 HTML
+  // ══════════════════════════════════════════════════════
+
+  /**
+   * 将 renderPreview 产出的交互式 HTML 转为导出专用的纯静态 HTML：
+   *   1. 代码块 → 静态 .code-chunk-container（无 copy 按钮、无 textarea）
+   *   2. 图片 → 移除 onload/onerror/Loading 占位
+   *   3. KaTeX → 预渲染为 HTML
+   *   4. Mermaid → 预渲染为 SVG
+   */
+  async function renderStaticHTML(md: string): Promise<string> {
+    // 1. 先 KaTeX 预渲染（在 HTML 字符串上，避免 DOM 序列化破坏占位符格式）
+    let html = renderPreview(md)
+    if (!html) return ''
+
+    html = await prerenderKatexInHTML(html)
+
+    // 2. 用 DOM 处理代码块和图片（结构变换）
+    const doc = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html')
+    const root = doc.body.firstChild as HTMLElement
+    if (!root) return html
+
+    // 代码块去交互化，Mermaid 特殊处理：预渲染为 SVG
+    for (const chunk of Array.from(root.querySelectorAll('.code-chunk-container'))) {
+      const langEl = chunk.querySelector('.language-selector option[selected]')
+      const lang = langEl?.getAttribute('value') || langEl?.textContent || 'plain'
+      const textarea = chunk.querySelector('textarea')
+      const rawCode = textarea ? textarea.value || textarea.textContent || '' : ''
+
+      // Mermaid：预渲染为静态 SVG
+      if (lang === 'mermaid' && rawCode.trim()) {
+        try {
+          const mermaidMod = await import('mermaid')
+          const mermaid = (mermaidMod && (mermaidMod as any).default) || mermaidMod
+          try { mermaid.initialize({ startOnLoad: false, theme: 'base', themeVariables: { fontFamily: 'var(--app-font-stack)' } }) } catch {}
+          const id = 'mermaid_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8)
+          const res = await mermaid.render(id, rawCode)
+          let svg = (res && (res.svg || res)) ? String(res.svg || res) : ''
+          // 箭头 marker → 敞口 V 形（去闭合边，只保留两条斜线）
+          svg = svg.replace(
+            /(<marker[^>]*id="[^"]*arrowhead[^"]*"[^>]*>)([\s\S]*?)<\/marker>/g,
+            (_m: string, open: string, body: string) => {
+              body = body.replace(/fill="context-stroke"/g, 'fill="none" stroke="context-stroke" stroke-linejoin="round"')
+              body = body.replace(/\s*z\s*("|\/)/g, '$1') // 去掉 closePath
+              return open + body + '</marker>'
+            },
+          )
+          const wrapper = doc.createElement('div')
+          wrapper.className = 'mermaid-prerendered'
+          wrapper.innerHTML = `<div class="mermaid-svg">${svg}</div>`
+          chunk.replaceWith(wrapper)
+          continue
+        } catch (e) { console.warn('Mermaid render failed for export', e) }
+      }
+
+      // 普通代码块
+      const pre = chunk.querySelector('pre')
+      const code = pre?.querySelector('code')
+      chunk.innerHTML = ''
+      const header = doc.createElement('div')
+      header.className = 'code-chunk-header'
+      const langSpan = doc.createElement('span')
+      langSpan.className = 'code-chunk-lang'
+      langSpan.textContent = lang
+      header.appendChild(langSpan)
+      chunk.appendChild(header)
+      const body = doc.createElement('div')
+      body.className = 'code-chunk-body'
+      if (pre && code) {
+        pre.className = ''
+        code.className = ''
+        body.appendChild(pre)
+      } else {
+        const fallback = doc.createElement('pre')
+        const fc = doc.createElement('code')
+        fc.textContent = rawCode
+        fallback.appendChild(fc)
+        body.appendChild(fallback)
+      }
+      chunk.appendChild(body)
+    }
+
+    // 图片：移除 wrapper，样式直写到 img，去掉 onload/onerror/占位
+    for (const container of Array.from(root.querySelectorAll('.md-image-container'))) {
+      const wrapper = container.querySelector('.md-image-wrapper')
+      const img = wrapper?.querySelector('img')
+      const caption = container.querySelector('.md-image-caption')
+      if (!img) { container.remove(); continue }
+      img.removeAttribute('onload')
+      img.removeAttribute('onerror')
+      img.removeAttribute('loading')
+      img.setAttribute('loading', 'eager')
+      const wrapperStyle = wrapper?.getAttribute('style') || ''
+      if (wrapperStyle) img.setAttribute('style', wrapperStyle)
+      // 替换：container → img + caption
+      const frag = doc.createDocumentFragment()
+      frag.appendChild(img)
+      if (caption) frag.appendChild(caption)
+      container.replaceWith(frag)
+    }
+
+    // file-card：div → a 标签，恢复链接跳转
+    for (const card of Array.from(root.querySelectorAll('.file-card'))) {
+      const url = card.getAttribute('data-url') || card.getAttribute('href')
+      if (!url) continue
+      const anchor = doc.createElement('a')
+      anchor.className = 'file-card'
+      anchor.href = url
+      anchor.target = '_blank'
+      anchor.rel = 'noopener'
+      anchor.innerHTML = card.innerHTML
+      card.replaceWith(anchor)
+    }
+
+    html = root.innerHTML
+    return html
+  }
+
+  // ══════════════════════════════════════════════════════
+  // KaTeX 单例引擎
+  // ══════════════════════════════════════════════════════
+
+  let _katex: any = null
+  async function getKatex() {
+    if (_katex) return _katex
+    const mod = await import('katex')
+    _katex = (mod as any).default || mod
+    return _katex
+  }
+
+  /** 将 KaTeX 占位符预渲染为静态 HTML */
+  async function prerenderKatexInHTML(html: string): Promise<string> {
+    if (!html.includes('katex-interactive')) return html
+    try {
+      const katex = await getKatex()
+      // 匹配整个占位符标签：<span/div class="katex-placeholder katex-interactive" data-tex="…" data-type="inline|block" …>…</span/div>
+      const re = /<(span|div)\s[^>]*class="[^"]*\bkatex-placeholder\b[^"]*\bkatex-interactive\b[^"]*"[^>]*data-tex="([^"]*)"[^>]*data-type="(inline|block)"[^>]*>[\s\S]*?<\/\1>/g
+      return html.replace(re, (_m: string, _tag: string, tex: string, type: string) => {
+        try {
+          const rendered = katex.renderToString(tex, {
+            throwOnError: false,
+            displayMode: type === 'block',
+          })
+          return type === 'block'
+            ? `<div class="katex-block">${rendered}</div>`
+            : `<span class="katex-inline">${rendered}</span>`
+        } catch {
+          return `<code>${escapeHtml(tex)}</code>`
+        }
+      })
+    } catch {
+      return html
+    }
+  }
+
+  /** 构建文章独立 HTML（含完整 chronicle-markdown CSS，无外部依赖） */
+  function buildArticleStandaloneHtml(title: string, bodyHtml: string, lang: string, font?: string): string {
+    const katexTag = KATEX_TAG
+    return `<!DOCTYPE html>
+<html lang="${lang || 'en'}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${escapeHtml(title)}</title>
+<style>${CHRONICLE_CSS}</style>
+<style>${EXPORT_OVERRIDE}</style>
+${katexTag}
+</head>
+<body${font ? ` data-font="${font}"` : ''}>
+  <button class="theme-toggle no-print" id="theme-toggle" title="Toggle light/dark" aria-label="Toggle theme"><svg class="theme-icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></button>
+  ${title ? `<h1 class="article-title">${escapeHtml(title)}</h1>` : ''}
+  <div class="chronicle-markdown">${bodyHtml}</div>
+<script>
+(function(){var h=document.documentElement;var b=document.getElementById('theme-toggle');var sun='<svg class="theme-icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>';var moon='<svg class="theme-icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>';var s=localStorage.getItem('chronicle-export-theme');if(s==='dark'){h.dataset.theme='dark';b.innerHTML=moon}else if(s==='light'){h.dataset.theme='light';b.innerHTML=sun}b.addEventListener('click',function(){var c=h.dataset.theme==='dark'?'light':'dark';h.dataset.theme=c;b.innerHTML=c==='dark'?moon:sun;localStorage.setItem('chronicle-export-theme',c)})})()
+<\/script>
+</body>
+</html>`
+  }
+
+  /** KaTeX CSS — CDN 加载，所有主流 CMS 标准做法。字体由 CDN 自动处理。 */
+  const KATEX_TAG = '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">'
+
+  /** 构建幻灯片独立 HTML（含 Marp CSS，自包含） */
+  function buildSlidesStandaloneHtml(title: string, bodyHtml: string, css: string, lang: string): string {
+    return `<!DOCTYPE html>
+<html lang="${lang || 'en'}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${escapeHtml(title)}</title>
+<style>@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,100..900&display=swap);</style>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'InterVariable','Inter',-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Noto Sans SC','Microsoft YaHei',sans-serif;background:#000;color:#fff}
+  .slides-wrapper{max-width:1280px;margin:0 auto;padding:40px 0}
+  @media print{body{background:#fff}}
+  ${css}
+</style>
+</head>
+<body>
+  <div class="slides-wrapper">${bodyHtml}</div>
+</body>
+</html>`
+  }
+
+  /** 构建幻灯片打印 HTML（每页一 slide，含 Marp CSS） */
+  function buildSlidesPrintHtml(title: string, bodyHtml: string, css: string, lang: string): string {
+    return `<!DOCTYPE html>
+<html lang="${lang || 'en'}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${escapeHtml(title)} — Print</title>
+<style>@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,100..900&display=swap);</style>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'InterVariable','Inter',-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Noto Sans SC','Microsoft YaHei',sans-serif}
+  @media print{
+    @page{margin:0;size:1280px 720px}
+    body{margin:0}
+    section{page-break-after:always}
+  }
+  ${css}
+</style>
+</head>
+<body>${bodyHtml}</body>
+</html>`
+  }
+
+  /** 将幻灯片 HTML 解析为 pptxgenjs 文本对象数组 */
+  function parseSlideHTMLToTextObjects(sectionHTML: string): pptxgen.TextProps[] {
+    const result: pptxgen.TextProps[] = []
+
+    // 剥离 SVG/foreignObject 包裹层，提取纯 HTML 内容
+    let html = sectionHTML
+    const foMatch = html.match(/<foreignObject[^>]*>([\s\S]*?)<\/foreignObject>/i)
+    if (foMatch) html = foMatch[1]
+    const secMatch = html.match(/<section[^>]*>([\s\S]*?)<\/section>/i)
+    if (secMatch) html = secMatch[1]
+
+    // 解析 HTML 为结构化文本块
+    const container = document.createElement('div')
+    container.innerHTML = html
+
+    function extractBlocks(el: Element, blocks: pptxgen.TextProps[]) {
+      for (const child of Array.from(el.childNodes)) {
+        if (child.nodeType === Node.TEXT_NODE) {
+          const t = child.textContent?.replace(/\s+/g, ' ') || ''
+          if (t.trim()) blocks.push({ text: t, options: { fontSize: 16 } })
+          continue
+        }
+        if (child.nodeType !== Node.ELEMENT_NODE) continue
+        const c = child as HTMLElement
+        const tag = c.tagName.toLowerCase()
+
+        if (tag === 'h1') {
+          blocks.push({ text: c.textContent?.trim() || '', options: { fontSize: 32, bold: true } })
+        } else if (tag === 'h2') {
+          blocks.push({ text: c.textContent?.trim() || '', options: { fontSize: 26, bold: true } })
+        } else if (tag === 'h3') {
+          blocks.push({ text: c.textContent?.trim() || '', options: { fontSize: 22, bold: true } })
+        } else if (tag === 'h4' || tag === 'h5' || tag === 'h6') {
+          blocks.push({ text: c.textContent?.trim() || '', options: { fontSize: 18, bold: true } })
+        } else if (tag === 'pre') {
+          blocks.push({ text: c.textContent || '', options: { fontSize: 13, fontFace: 'Courier New' } })
+        } else if (tag === 'li') {
+          blocks.push({ text: '• ' + (c.textContent?.trim() || ''), options: { fontSize: 16 } })
+        } else if (tag === 'p') {
+          blocks.push({ text: c.textContent?.trim() || '', options: { fontSize: 16 } })
+        } else if (tag === 'blockquote') {
+          blocks.push({ text: c.textContent?.trim() || '', options: { fontSize: 15, italic: true, color: '666666' } })
+        } else if (tag === 'hr') {
+          blocks.push({ text: '────────────────', options: { fontSize: 10, color: 'CCCCCC' } })
+        } else if (tag === 'br') {
+          // skip
+        } else if (tag === 'ul' || tag === 'ol' || tag === 'div' || tag === 'span' || tag === 'section') {
+          extractBlocks(c, blocks)
+        } else {
+          // 未知标签：尝试提取文本
+          const t = c.textContent?.trim()
+          if (t) blocks.push({ text: t, options: { fontSize: 16 } })
+        }
+      }
+    }
+
+    extractBlocks(container, result)
+
+    // 兜底：如果什么都没解析出来，直接用全部文本
+    if (result.length === 0 && container.textContent?.trim()) {
+      result.push({ text: container.textContent.trim(), options: { fontSize: 16 } })
+    }
+
+    return result
+  }
+
+  /** 从 Marp 渲染 HTML 中提取各 slide 的 HTML 内容 */
+  function extractSlideSections(html: string): string[] {
+    const sections: string[] = []
+    // Marp v4 输出格式：<svg data-marpit-svg> → <foreignObject> → <section>
+    const svgRe = /<svg[^>]*data-marpit-svg[^>]*>([\s\S]*?)<\/svg>/gi
+    let m: RegExpExecArray | null
+    while ((m = svgRe.exec(html)) !== null) {
+      const inner = m[1]
+      // 提取 foreignObject 中的 <section> 内容
+      const foMatch = inner.match(/<foreignObject[^>]*>([\s\S]*?)<\/foreignObject>/i)
+      if (foMatch) {
+        sections.push(foMatch[1])
+      } else {
+        // fallback: 直接使用 SVG 内容
+        sections.push(inner)
+      }
+    }
+    if (sections.length === 0) {
+      // 兼容旧格式：直接匹配 <section>
+      const secRe = /<section[^>]*>([\s\S]*?)<\/section>/gi
+      while ((m = secRe.exec(html)) !== null) {
+        sections.push(m[1])
+      }
+    }
+    if (sections.length === 0) {
+      sections.push(html)
+    }
+    return sections
+  }
+
+  // ══════════════════════════════════════════════════════
+  // 导出
+  // ══════════════════════════════════════════════════════
+
+  /** 导出为自包含 HTML 文件（无外部依赖）。Slides 使用 Marp 渲染。 */
   async function exportAsHTML() {
     try {
-      const html = convertToHtml(localValue.value, { wrapBlocks: true })
-      const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+      if (editorType.value === 'slides') {
+        const { html, css } = await renderSlidesToHTML(localValue.value)
+        const fullHtml = buildSlidesStandaloneHtml(postTitle.value, html, css, locale.value || 'en')
+        const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${(postTitle.value || 'slides').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.html`
+        a.click()
+        URL.revokeObjectURL(url)
+        activeModal.value = 'none'
+        return
+      }
+      // 文章：静态渲染管线 + 完整 CSS 内联
+      const renderedHtml = await renderStaticHTML(localValue.value)
+      const fullHtml = buildArticleStandaloneHtml(postTitle.value, renderedHtml, locale.value || 'en', postFont.value)
+      const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -258,6 +758,40 @@ export function useEditorFile(options: EditorFileOptions) {
       URL.revokeObjectURL(url)
       activeModal.value = 'none'
     } catch (e) { console.error('exportAsHTML failed', e) }
+  }
+
+  /** 导出为 PPTX（仅幻灯片）。使用 Marp 渲染后转换为 PowerPoint 幻灯片。 */
+  async function exportAsPPTX() {
+    if (editorType.value !== 'slides') return
+    try {
+      const { html } = await renderSlidesToHTML(localValue.value)
+      const sections = extractSlideSections(html)
+
+      const pptx = new pptxgen()
+      pptx.layout = 'LAYOUT_16x9'
+      pptx.author = postAuthor.value || 'Chronicle'
+      pptx.title = postTitle.value || 'Slides'
+
+      for (const sectionHTML of sections) {
+        const slide = pptx.addSlide()
+        const texts = parseSlideHTMLToTextObjects(sectionHTML)
+        if (texts.length > 0) {
+          slide.addText(texts, {
+            x: '5%', y: '5%', w: '90%', h: '90%',
+            valign: 'top',
+          })
+        } else {
+          // 兜底：无文本时显示 slide 编号
+          slide.addText(`Slide ${sections.indexOf(sectionHTML) + 1}`, {
+            x: '10%', y: '40%', w: '80%', h: '20%',
+            fontSize: 24, color: '999999', align: 'center',
+          })
+        }
+      }
+
+      await pptx.writeFile({ fileName: `${(postTitle.value || 'slides').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pptx` })
+      activeModal.value = 'none'
+    } catch (e) { console.error('exportAsPPTX failed', e) }
   }
 
   // ══════════════════════════════════════════════════════
@@ -624,6 +1158,7 @@ export function useEditorFile(options: EditorFileOptions) {
       postDate: postDate.value, postUpdated: postUpdated.value,
       tags: postTags.value, author: postAuthor.value, aiGenerated: postAIGenerated.value,
       locale: locale.value, createdAt: Date.now(),
+      editorType: editorType.value,
     }
   }
 
@@ -631,69 +1166,100 @@ export function useEditorFile(options: EditorFileOptions) {
    * 构建独立打印 HTML — 内联所有样式，无外部资源依赖。
    * Electron 下通过 IPC 发送到系统浏览器打印；Web 下在新标签页中打开。
    */
-  function buildStandalonePrintHtml(title: string, renderedHtml: string, lang: string): string {
+  function buildStandalonePrintHtml(title: string, renderedHtml: string, lang: string, font?: string): string {
+    const katexTag = KATEX_TAG
     return `<!DOCTYPE html>
-<html lang="${lang || 'en'}">
+<html lang="${lang || 'en'}" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${escapeHtml(title)}</title>
-<style>
-  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'InterVariable','Inter',-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Noto Sans SC','Microsoft YaHei',sans-serif;font-size:16px;line-height:1.7;color:#111;background:#fff;max-width:860px;margin:0 auto;padding:40px 48px}
-  h1{font-size:2.4rem;line-height:1.25;font-weight:700;margin:0 0 28px;padding:0 0 20px;border-bottom:1px solid rgba(0,0,0,.08)}
-  h2{font-size:1.6rem;line-height:1.35;font-weight:600;margin:36px 0 12px}
-  h3{font-size:1.25rem;line-height:1.4;font-weight:600;margin:28px 0 8px}
-  h4,h5,h6{font-size:1.05rem;font-weight:600;margin:22px 0 6px}
-  p{margin:0 0 14px}a{color:#2563eb;text-decoration:underline}
-  blockquote{margin:14px 0;padding:8px 16px;border-left:3px solid #d1d5db;color:#4b5563;background:#f9fafb}
-  ul,ol{margin:8px 0 14px;padding-left:24px}li{margin:4px 0}
-  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0}
-  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px}
-  th,td{border:1px solid #e5e7eb;padding:8px 12px;text-align:left}th{background:#f3f4f6;font-weight:600}
-  pre{background:#f5f5f5;border:1px solid #e5e7eb;border-radius:6px;padding:14px 18px;overflow-x:auto;font-size:13.5px;line-height:1.55;margin:14px 0}
-  code{font-family:monospace;font-size:.875em}p code,li code{background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:.85em}
-  pre code{background:none;padding:0;font-size:inherit}
-  img{max-width:100%;height:auto;border-radius:4px}
-  .md-image-container{margin:14px 0}.md-image-caption{font-size:13px;color:#6b7280;text-align:center;margin-top:6px}
-  .file-card{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;margin:10px 0}
-  .file-card svg{width:22px;height:22px;flex-shrink:0;color:#6b7280}
-  .file-card-title{font-weight:500;font-size:14px}.file-card-subtitle{font-size:12px;color:#9ca3af}
-  .katex-placeholder{font-family:'KaTeX_Main','Times New Roman',serif;font-size:1.05em}
-  @media print{body{padding:16px;max-width:none}h1{border-bottom:none}pre{white-space:pre-wrap;word-break:break-all}.no-print{display:none!important}}
-  @media (prefers-color-scheme:dark){body{color:#e5e7eb;background:#111}h1{border-color:rgba(255,255,255,.08)}blockquote{background:#1f1f1f;border-color:#374151;color:#9ca3af}pre{background:#1a1a1a;border-color:#333}p code,li code{background:#1f1f1f}th{background:#1f1f1f}th,td{border-color:#333}.file-card{background:#1a1a1a;border-color:#333}}
-</style>
+<style>:root{color-scheme:light}</style>
+<style>${CHRONICLE_CSS}</style>
+<style>${EXPORT_OVERRIDE}</style>
+${katexTag}
 </head>
-<body>
-  ${title ? `<h1>${escapeHtml(title)}</h1>` : ''}
-  ${renderedHtml}
+<body${font ? ` data-font="${font}"` : ''}>
+  ${title ? `<h1 class="article-title">${escapeHtml(title)}</h1>` : ''}
+  <div class="chronicle-markdown">${renderedHtml}</div>
 </body>
 </html>`
   }
 
   /**
-   * 打开打印预览。
-   * Electron: 内联 CSS → IPC 发送到系统浏览器。
-   * Web: localStorage token → 新标签页 /editor/print。
+   * 打印预览 — 在当前页创建隐藏 iframe，注入静态 HTML 后直接调用 print()。
+   * 不跨窗口，样式在同一 origin 下完整渲染。
    */
-  function openPrintPreview(printOptions?: { autoPrint?: boolean }) {
+  async function openPrintPreview(printOptions?: { autoPrint?: boolean }) {
+    // 打印准备遮罩
+    const overlay = document.createElement('div')
+    overlay.id = 'chronicle-print-overlay'
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;font-family:var(--app-font-stack)'
+    overlay.innerHTML = '<div style="background:#1e1e1e;color:#e5e7eb;padding:24px 40px;border-radius:12px;font-size:16px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.3)"><div style="width:32px;height:32px;border:3px solid var(--border-color,#444);border-top-color:var(--accent-color,#3b82f6);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 16px"></div><span>' + (t('editor.printLoading') || 'Preparing print…') + '</span></div>'
+    document.body.appendChild(overlay)
+    // 注入 spinner 动画
+    if (!document.getElementById('chronicle-spin-keyframes')) {
+      const kf = document.createElement('style')
+      kf.id = 'chronicle-spin-keyframes'
+      kf.textContent = '@keyframes spin{to{transform:rotate(360deg)}}'
+      document.head.appendChild(kf)
+    }
     try {
-      const isElectronEnv = typeof window !== 'undefined' && window.location.protocol === 'file:'
-      if (isElectronEnv) {
-        const renderedHtml = renderPreview(localValue.value || '')
-        const printHtml = buildStandalonePrintHtml(postTitle.value || '', renderedHtml, locale.value || 'en')
-        ;(window as any).chronicleElectron?.openPrintInBrowser(printHtml, postTitle.value || 'Chronicle Print')
-        return
+      let printHtml: string
+      if (editorType.value === 'slides') {
+        const { html, css } = await renderSlidesToHTML(localValue.value || '')
+        printHtml = buildSlidesPrintHtml(postTitle.value || '', html, css, locale.value || 'en')
+      } else {
+        const renderedHtml = await renderStaticHTML(localValue.value || '')
+        printHtml = buildStandalonePrintHtml(postTitle.value || '', renderedHtml, locale.value || 'en', postFont.value)
       }
-      const token = (typeof crypto !== 'undefined' && (crypto as any).randomUUID)
-        ? (crypto as any).randomUUID()
-        : `print-${Math.random().toString(36).slice(2, 10)}`
-      const storageKey = `chronicle_print_preview_${token}`
-      localStorage.setItem(storageKey, JSON.stringify(buildPrintSnapshot()))
-      const query = printOptions?.autoPrint ? { token, autoPrint: '1' } : { token }
-      const url = router.resolve({ path: '/editor/print', query }).href
-      const openedWindow = window.open(url, '_blank')
-      if (!openedWindow) { router.push({ path: '/editor/print', query }) }
+      // 确保页面有 @media print 规则隐藏编辑器，只暴露打印层
+      const printStyleId = 'chronicle-print-media-style'
+      if (!document.getElementById(printStyleId)) {
+        const style = document.createElement('style')
+        style.id = printStyleId
+        style.textContent = '@media print{body>*:not(#chronicle-print-frame){display:none!important}#chronicle-print-frame{position:fixed!important;inset:0!important;width:100%!important;height:100%!important;border:none!important;z-index:99999!important;background:#fff!important}}'
+        document.head.appendChild(style)
+      }
+      // 移除旧 iframe
+      const oldFrame = document.getElementById('chronicle-print-frame') as HTMLIFrameElement | null
+      if (oldFrame) oldFrame.remove()
+      // 创建打印层 iframe——用户不可见（被编辑器覆盖），打印时才暴露
+      const frame = document.createElement('iframe')
+      frame.id = 'chronicle-print-frame'
+      frame.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;border:none;z-index:-1;background:#fff'
+      document.body.appendChild(frame)
+      const doc = frame.contentDocument || frame.contentWindow?.document
+      if (!doc) throw new Error('Cannot access iframe document')
+      doc.open()
+      doc.write(printHtml)
+      doc.close()
+      // 等图片全部加载完成后打印（防重入）
+      let printed = false
+      const doPrint = () => {
+        if (printed) return
+        printed = true
+        if (printOptions?.autoPrint !== false) {
+          try { frame.contentWindow?.print() } catch {}
+        }
+        overlay.remove()
+      }
+      // 监听 iframe 内所有图片加载
+      const waitImages = () => {
+        const imgs = frame.contentDocument?.querySelectorAll('img')
+        if (!imgs || imgs.length === 0) { setTimeout(doPrint, 300); return }
+        let pending = imgs.length
+        let timeout: ReturnType<typeof setTimeout>
+        const done = () => { pending--; if (pending <= 0) { clearTimeout(timeout); doPrint() } }
+        timeout = setTimeout(() => doPrint(), 5000) // 5s 兜底
+        imgs.forEach((img) => {
+          if (img.complete && img.naturalWidth > 0) { done(); return }
+          img.addEventListener('load', done, { once: true })
+          img.addEventListener('error', done, { once: true })
+        })
+      }
+      frame.onload = () => waitImages()
+      setTimeout(waitImages, 200)
     } catch (e) { console.error('[useEditorFile] failed to open print preview', e) }
   }
 
@@ -716,6 +1282,7 @@ export function useEditorFile(options: EditorFileOptions) {
     buildFileContent,
     writeFileHandle,
     exportAsHTML,
+    exportAsPPTX,
     // 云端操作
     doSave,
     triggerAstroBuild,

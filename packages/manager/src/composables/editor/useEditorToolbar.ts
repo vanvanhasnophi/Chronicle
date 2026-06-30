@@ -15,6 +15,7 @@ import { ref, computed, watch, nextTick, type Ref, type ComputedRef } from 'vue'
 import { getStats } from '../../utils/markdownParser'
 import { Icons } from '../../utils/icons'
 import type { LayoutMode } from './useEditorView'
+import { getSlideStore } from './useSlideState'
 
 export interface EditorToolbarOptions {
   editorBodyRef: Ref<any>
@@ -30,13 +31,15 @@ export interface EditorToolbarOptions {
   openTableModal: () => void
   /** 打开媒体弹窗 */
   openMediaModal: () => void
+  /** 打开文件菜单的导出标签页 */
+  openExportModal: () => void
   t: (key: string) => string
 }
 
 export function useEditorToolbar(options: EditorToolbarOptions) {
   const {
     editorBodyRef, editorType, postFont, localValue, isCloudEditing,
-    layout, activeModal, openLinkModal, openTableModal, openMediaModal, t,
+    layout, activeModal, openLinkModal, openTableModal, openMediaModal, openExportModal, t,
   } = options
 
   // ══════════════════════════════════════════════════════
@@ -80,6 +83,18 @@ export function useEditorToolbar(options: EditorToolbarOptions) {
     if (action === 'preview:single') return (editorBodyRef.value as any)?.previewMode === 'single'
     if (action === 'preview:all') return (editorBodyRef.value as any)?.previewMode === 'all'
     if (action === 'toggleOutline') return !!(editorBodyRef.value as any)?.showThumbnailsLocal
+    // slides class toggle active states — 通过模块级 store 读 slide 状态机
+    const checkSlideClass = (cls: string) => {
+      const s = getSlideStore()
+      if (!s) return false
+      return s.hasSlideClass(s.currentSlide.value, cls)
+    }
+    if (action === 'insertClassLead') return checkSlideClass('lead')
+    if (action === 'columnsMenu') return checkSlideClass('columns') || checkSlideClass('columns-2') || checkSlideClass('columns-3')
+    if (action === 'insertClassColumns') return checkSlideClass('columns')
+    if (action === 'insertClassColumns2') return checkSlideClass('columns-2')
+    if (action === 'insertClassColumns3') return checkSlideClass('columns-3')
+    if (action === 'insertPaginate') { const s = getSlideStore(); return s?.hasPaginate(s.currentSlide.value) ?? false }
     return false
   }
 
@@ -143,10 +158,15 @@ export function useEditorToolbar(options: EditorToolbarOptions) {
     } else if (action === 'stats') {
       activeModal.value = 'stats'
     } else if (action === 'export') {
-      activeModal.value = 'export'
+      openExportModal()
     } else {
       // 幻灯片专属动作（如 insert-slide 等）
       ;(editorBodyRef.value as any)?.handleToolAction?.(action)
+    }
+    // 插入/修改操作后导航到光标
+    const navActions = ['insertCode', 'insertTodo', 'insertQuote', 'openMathModal', 'insertFootnote', 'openLinkModal', 'openTableModal']
+    if (navActions.includes(action)) {
+      (editorBodyRef.value as any)?.scrollToCursor?.()
     }
   }
 

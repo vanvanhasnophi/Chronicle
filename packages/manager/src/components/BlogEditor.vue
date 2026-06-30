@@ -278,6 +278,8 @@
                                 }}</button>
                                 <button class="secondary-btn" @click="exportAsHTML">{{ t('editor.file.exportAsHtml')
                                 }}</button>
+                                <button v-if="editorType === 'slides'" class="secondary-btn" @click="exportAsPPTX">{{ t('editor.file.exportAsPptx') || 'Export as PPTX'
+                                }}</button>
                             </div>
                         </div>
                     </div>
@@ -854,8 +856,10 @@ function pushRecentProject(meta: { title: string; path?: string; cloud?: boolean
 // thunks for lazy resolution of circular dependency
 const _openLinkModal = () => _openLinkModalImpl()
 const _openTableModal = () => _openTableModalImpl()
+const _openExportModal = () => _openExportModalImpl()
 let _openLinkModalImpl = () => {}
 let _openTableModalImpl = () => {}
+let _openExportModalImpl = () => {}
 
 const {
   ribbonTabs, activeTab, activeTabDef,
@@ -877,12 +881,14 @@ const {
   openLinkModal: () => _openLinkModal(),
   openTableModal: () => _openTableModal(),
   openMediaModal: () => openMediaModal(),
+  openExportModal: () => _openExportModal(),
   t,
 })
 
 // Resolve circular references now that toolbar is initialized
 _openLinkModalImpl = openLinkModalInner
 _openTableModalImpl = openTableModalInner
+_openExportModalImpl = () => { openFileMenu(); fileTab.value = 'export' }
 function openLinkModal() { openLinkModalInner() }
 function openTableModal() { openTableModalInner() }
 
@@ -895,7 +901,7 @@ const currentFilePath = ref<string | null>(null)
 const {
   isSaving: _isSavingFO, isBuilding: _isBuildingFO, lastSavedTime,
   saveFile, saveAs, doSave, saveLocalDirect,
-  buildFileContent, exportAsHTML,
+  buildFileContent, exportAsHTML, exportAsPPTX,
   triggerAstroBuild,
   buildPrintSnapshot, buildStandalonePrintHtml, openPrintPreview,
   handleTopRightSave, openSaveModal, closeModals,

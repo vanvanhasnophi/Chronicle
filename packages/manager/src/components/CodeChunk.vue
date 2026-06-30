@@ -1005,6 +1005,7 @@ watch(() => props.language, (n) => {
   tab-size: 2;
   vertical-align: top;
   z-index: 0;
+  letter-spacing: normal;
 }
 .code-textarea {
   position: absolute;

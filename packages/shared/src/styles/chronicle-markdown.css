@@ -467,6 +467,7 @@
   tab-size: 2;
   vertical-align: top;
   z-index: 0;
+  letter-spacing: normal;
 }
 
 .chronicle-markdown .syntax-highlight::-webkit-scrollbar {

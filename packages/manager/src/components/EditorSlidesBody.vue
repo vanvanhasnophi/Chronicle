@@ -1,5 +1,8 @@
 <template>
   <div class="slides-body" ref="slidesBodyRef" @keydown="onKeydown">
+    <!-- Columns tool dropdown -->
+    <ToolDropdown ref="columnsDropdownRef" :items="columnsMenuItems"
+      @select="(a: string) => { handleToolAction(a); (columnsDropdownRef as any)?.close() }" />
     <!-- Left: Thumbnail strip -->
     <div class="thumbnail-strip" v-show="showThumbnails">
       <div class="thumbnail-strip-header">
@@ -23,7 +26,8 @@
       <!-- Center: Code editor -->
       <div v-show="showEditor" class="pane editor-pane" :style="editorStyle">
         <CmEditor ref="editorRef" v-model="localContent" :disabled="props.disabled" :placeholder="placeholder"
-          :fontClass="fontClass" @cursorChange="onCursorChange" />
+          :fontClass="fontClass" @cursorChange="onCursorChange"
+          @changeRange="(r: { from: number; to: number }) => slideState.onContentChange(r.from, r.to)" />
       </div>
 
       <!-- Draggable divider (split mode) -->
@@ -83,17 +87,20 @@ import { useI18n } from 'vue-i18n'
 import { EditorView } from '@codemirror/view'
 import CmEditor from './CmEditor.vue'
 import SlideOverview from './slides/SlideOverview.vue'
+import ToolDropdown from './slides/ToolDropdown.vue'
 import { parseSlides } from '@chronicle/shared/utils'
 import type { ParsedSlide } from '@chronicle/shared/utils'
 import { renderPreview } from '../utils/markdownPreview'
 import { Icons } from '../utils/icons'
 import Marp from '@marp-team/marp-core'
-import { chronicleCSS, chronicleDarkCSS, chronicleLightTheme, chronicleDarkTheme } from '../utils/chronicleThemes'
+import { chronicleLightTheme, chronicleDarkTheme } from '../utils/chronicleThemes'
+import { initSlideStore, lastOpFlags } from '../composables/editor/useSlideState'
+import { flashCMLines } from '../composables/editor/useEditorFlash'
 
 // Marp engine with Chronicle themes (default accent)
 const { t } = useI18n()
 const marp = new Marp({ html: true, markdown: { breaks: false } })
-try { marp.themeSet.add(chronicleCSS); marp.themeSet.add(chronicleDarkCSS) } catch { }
+try { marp.themeSet.add(chronicleLightTheme('#2563eb')); marp.themeSet.add(chronicleDarkTheme('#58a6ff')) } catch { }
 
 
 const props = withDefaults(defineProps<{
@@ -116,26 +123,32 @@ const emit = defineEmits<{
 
 // ── Content ──────────────────────────────────────────
 const localContent = ref(props.modelValue)
+const slideState = initSlideStore(localContent)
+const { currentSlide, hasSlideClass, toggleSlideClass, removeSlideClass, ensureSlideClass, hasPaginate, togglePaginate } = slideState
 
-// Apply accent-color from frontmatter before each Marp render
-let lastAccent = ''
+// Apply accent-color & tinted-bg from frontmatter before each Marp render
+let lastAccent = '#2563eb', lastTintedBg = false
 function applyAccentTheme(md: string) {
   const m = md.match(/^---\n([\s\S]*?)\n---/)
   const fm = m ? m[1] : ''
-  const raw = fm.match(/accent-color:\s*"?([^"\n]+)"?/)?.[1]?.trim() || ''
-  if (!raw || raw === lastAccent) return
-  lastAccent = raw
+  let raw = (fm.match(/accent-color:\s*"?([^"\n]+)"?/)?.[1] || fm.match(/^accent:\s*(\S+)/m)?.[1] || '').trim()
+  if (!raw) raw = 'default'
+  const tb = fm.match(/^tinted-bg:\s*(\S+)/m)?.[1] || ''
+  const tintedBg = tb === 'true'
+  if (raw === lastAccent && tintedBg === lastTintedBg) return
+  lastAccent = raw; lastTintedBg = tintedBg
   const accent = raw === 'follow'
     ? getComputedStyle(document.body).getPropertyValue('--accent-color').trim() || '#2563eb'
+    : raw === 'default' ? '#2563eb'
     : (raw.startsWith('#') ? raw : `#${raw}`)
   try {
-    marp.themeSet.add(chronicleLightTheme(accent))
-    marp.themeSet.add(chronicleDarkTheme(accent))
+    marp.themeSet.add(chronicleLightTheme(accent, tintedBg))
+    marp.themeSet.add(chronicleDarkTheme(accent, tintedBg))
   } catch { }
 }
 
 watch(() => props.modelValue, (val) => {
-  if (val !== localContent.value) localContent.value = val
+  if (val !== localContent.value) { localContent.value = val; slideState.fullRebuild() }
 })
 
 watch(localContent, (val) => {
@@ -143,12 +156,30 @@ watch(localContent, (val) => {
 })
 
 // ── Refs & state ─────────────────────────────────────
-const editorRef = ref<any>(null)
+const editorRef = slideState.editorRef    // 共享给 useSlideState 的 CodeMirror 引用
 const splitAreaRef = ref<HTMLDivElement | null>(null)
-const currentSlide = ref(0)
 const notesExpanded = ref(false)
 const showThumbnailsLocal = ref(true)
 const showOverview = ref(false)
+const columnsDropdownRef = ref<any>(null)
+let lastClickX = 0
+document.addEventListener('click', (e) => { lastClickX = e.clientX }, true)
+const COLUMN_CLASSES = ['columns', 'columns-2', 'columns-3']
+const columnsMenuItems = computed(() => {
+  const cs = slideState.slideMetas.value[slideState.currentSlide.value]?.classes ?? []
+  const activeCols = cs.filter(c => COLUMN_CLASSES.includes(c))
+  const effective = activeCols.length === 1 ? activeCols[0] : activeCols.length > 1 ? 'columns' : ''
+  const active = (cls: string) => effective === cls
+  return [
+    { label: t('editor.columns.none'), action: 'removeColumns', icon: Icons.prohibit, active: !effective },
+    { label: t('editor.columns.two'), action: 'insertClassColumns2', icon: Icons.twoCol, active: active('columns-2') },
+    { label: t('editor.columns.three'), action: 'insertClassColumns3', icon: Icons.threeCol, active: active('columns-3') },
+    { label: t('editor.columns.custom'), action: 'insertClassColumns', icon: Icons.columns, active: active('columns') },
+    { type: 'separator' as const },
+    { label: t('editor.columns.addSplit'), action: 'addSplit', icon: Icons.dividerV },
+  ]
+})
+
 const previewMode = ref<"single" | "all">("single")
 const cursorLine = ref(1)
 const autoFollow = ref(true)
@@ -220,19 +251,39 @@ const slides = computed(() => parsed.value.slides)
 const currentSlideData = computed(() => slides.value[currentSlide.value] ?? null)
 
 // Inject Marp HTML + CSS, preserve current slide index across re-renders
-function renderMarpOutput(md: string) {
+async function renderMarpOutput(md: string) {
   if (!md.trim()) { currentSlide.value = 0; return }
   applyAccentTheme(md)
   const prev = currentSlide.value
   try {
-    const { html, css } = marp.render(md)
+    let { html, css } = marp.render(md)
+    // Mermaid 后处理
+    if (html.includes('language-mermaid') || html.includes('mermaid')) {
+      try {
+        const mm = await import('mermaid')
+        const mermaid = (mm && (mm as any).default) || mm
+        mermaid.initialize({ startOnLoad: false, theme: 'base', themeVariables: { fontFamily: 'var(--app-font-stack)' } })
+        const doc = new DOMParser().parseFromString(html, 'text/html')
+        const codes = doc.querySelectorAll('pre code.language-mermaid, code[class*="mermaid"]')
+        for (const code of codes) {
+          const pre = code.closest('pre'); const text = code.textContent || ''
+          if (!text.trim() || !pre) continue
+          try {
+            const id = 'mermaid_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8)
+            const r = await mermaid.render(id, text.trim())
+            const svg = (r && (r.svg || r)) ? String(r.svg || r) : ''
+            if (svg) { const w = doc.createElement('div'); w.className = 'mermaid-prerendered'; w.innerHTML = svg; pre.replaceWith(w) }
+          } catch { }
+        }
+        html = doc.body.innerHTML
+      } catch { }
+    }
     const el = marpOutRef.value; if (!el) return
     el.innerHTML = html
     document.getElementById('marp-slides-css')?.remove()
     const style = document.createElement('style')
     style.id = 'marp-slides-css'; style.textContent = css
     previewPaneRef.value?.appendChild(style)
-    // Restore previous slide or clamp to valid range
     const svgCount = el.querySelectorAll('[data-marpit-svg]').length
     currentSlide.value = Math.min(prev, Math.max(0, svgCount - 1))
     updateSlideVisibility(currentSlide.value)
@@ -271,6 +322,43 @@ const config = computed(() => ({} as Record<string, any>))
 const ratio = computed(() => '16:9')
 
 // Insert text at the beginning of slide N (right after the --- separator)
+/** 定位或创建自由属性。已有则聚焦闪烁，无则新建后聚焦闪烁。 */
+function focusOrCreateDirective(idx: number, key: 'header' | 'footer' | 'bgColor', directive: string) {
+  const view = (editorRef.value as any)?.getEditor?.()
+  if (!view) return
+  const lines = localContent.value.split('\n')
+  let start = 0, sep = 0, inFM = true
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i].trim()
+    if (inFM) { if (l === '---' && i > 0) { inFM = false; start = i + 1 } continue }
+    if (sep === idx) break
+    if (l === '---' && (i === 0 || !lines[i - 1]?.trim()) && (i + 1 >= lines.length || !lines[i + 1]?.trim())) { sep++; start = i + 1 }
+  }
+  const keyRe = key === 'bgColor' ? /^<!--\s*_backgroundColor:/ : key === 'header' ? /^<!--\s*_header:/ : /^<!--\s*_footer:/
+  let targetLine = -1
+  for (let i = start; i < lines.length; i++) {
+    const l = lines[i].trim()
+    if (l === '---' && (i === 0 || !lines[i - 1]?.trim()) && (i + 1 >= lines.length || !lines[i + 1]?.trim())) break
+    if (keyRe.test(l)) { targetLine = i; break }
+  }
+  const doc = view.state.doc
+  if (targetLine >= 0 && targetLine + 1 <= doc.lines) {
+    view.dispatch({ selection: { anchor: doc.line(targetLine + 1).to } })
+  } else {
+    while (start < lines.length && !lines[start].trim()) start++
+    const lineNum = Math.min(start + 1, doc.lines)
+    const insertText = directive + '\n'
+    // header/footer 有 "" → 光标在引号内；bgColor 无引号 → 光标在 : 和 --> 之间
+    const inQuotes = directive.includes('""')
+    const offset = inQuotes ? 3 : 4  // --> 之前偏移
+    const anchor = doc.line(lineNum).from + directive.length - offset
+    view.dispatch({
+      changes: { from: doc.line(lineNum).from, insert: insertText },
+      selection: { anchor },
+    })
+  }
+}
+
 function insertAtSlideStart(idx: number, text: string) {
   const lines = localContent.value.split('\n')
   let slideStart = 0
@@ -288,16 +376,53 @@ function insertAtSlideStart(idx: number, text: string) {
       slideStart = i + 1
     }
   }
-  // After separator, insert directive with exactly one blank line above.
-  // Use CodeMirror dispatch to preserve undo history.
   while (slideStart < lines.length && !lines[slideStart].trim()) { slideStart++ }
-  const before = lines.slice(0, slideStart).join('\n').replace(/\n+$/, '')
+
+  // class 指令追加模式：已有 _class/class 则原地修改，否则在 slide 头部新建 _class
+  if (text.startsWith('<!-- _class:') || text.startsWith('<!-- class:')) {
+    const newClass = text.match(/^<!--\s*(?:_)?class:\s*(.+?)\s*-->/)?.[1]?.trim()
+    if (newClass) {
+      // 优先最后一个 _class
+      let foundLine = -1
+      for (let i = slideStart; i < lines.length; i++) {
+        if (/^<!--\s*_class:/.test(lines[i])) foundLine = i
+      }
+      // 其次最后一个 class（非 _class）
+      if (foundLine < 0) {
+        for (let i = slideStart; i < lines.length; i++) {
+          if (/^<!--\s*class:/.test(lines[i])) foundLine = i
+        }
+      }
+      if (foundLine >= 0) {
+        const existing = (lines[foundLine].match(/^<!--\s*(?:_)?class:\s*(.+?)\s*-->/)?.[1] || '').trim()
+        if (!existing.split(/\s+/).includes(newClass)) {
+          const merged = lines[foundLine].startsWith('<!-- _class:')
+            ? `<!-- _class: ${existing} ${newClass} -->`
+            : `<!-- class: ${existing} ${newClass} -->`
+          const editor = editorRef.value as any
+          const view = editor?.getEditor?.()
+          if (view) {
+            const doc = view.state.doc
+            if (foundLine + 1 > doc.lines) return
+            const lineObj = doc.line(foundLine + 1)
+            view.dispatch({
+              changes: { from: lineObj.from, to: lineObj.to, insert: merged },
+            })
+          }
+        }
+        return
+      }
+    }
+  }
+  // 无已有指令则插入新行
   const editor = editorRef.value as any
   const view = editor?.getEditor?.()
   if (view) {
-    const insertPos = before.length + 2  // after before + \n\n
+    const doc = view.state.doc
+    const lineNum = Math.min(slideStart + 1, doc.lines)
+    const pos = doc.line(lineNum).from
     view.dispatch({
-      changes: { from: insertPos, to: insertPos, insert: `${text}\n` },
+      changes: { from: pos, to: pos, insert: `${text}\n` },
     })
   }
 }
@@ -465,15 +590,32 @@ const canUndo = computed(() => !!(editorRef.value as any)?.canUndo)
 const canRedo = computed(() => !!(editorRef.value as any)?.canRedo)
 
 function handleToolAction(action: string) {
+  // 先导航——确保操作时编辑器定位在当前 slide
+  if (!['preview:single','preview:all','toggleOutline','columnsMenu','addSplit'].includes(action)) {
+    jumpEditorToSlide(currentSlide.value)
+  }
   if (action === 'preview:single') previewMode.value = 'single'
   else if (action === 'preview:all') previewMode.value = 'all'
   else if (action === 'toggleOutline') showThumbnailsLocal.value = !showThumbnailsLocal.value
   else if (action === 'newSlide') insertNewSlide()
-  else if (action === 'insertHeader') insertAtSlideStart(currentSlide.value, '<!-- _header:  -->')
-  else if (action === 'insertFooter') insertAtSlideStart(currentSlide.value, '<!-- _footer:  -->')
-  else if (action === 'insertClassLead') insertAtSlideStart(currentSlide.value, '<!-- _class: lead -->')
-  else if (action === 'insertBgColor') insertAtSlideStart(currentSlide.value, '<!-- _backgroundColor:  -->')
-  else if (action === 'insertPaginate') insertAtSlideStart(currentSlide.value, '<!-- _paginate: true -->')
+  else if (action === 'insertHeader') focusOrCreateDirective(currentSlide.value, 'header', '<!-- _header: "" -->')
+  else if (action === 'insertFooter') focusOrCreateDirective(currentSlide.value, 'footer', '<!-- _footer: "" -->')
+  else if (action === 'insertClassLead') toggleSlideClass(currentSlide.value, 'lead')
+  else if (action === 'addSplit') { (editorRef.value as any)?.insertAtCursor?.('\n<!-- _split -->\n') }
+  else if (action === 'removeColumns') COLUMN_CLASSES.forEach(c => removeSlideClass(currentSlide.value, c))
+  else if (action === 'columnsMenu') columnsDropdownRef.value?.open(lastClickX, 124)
+  else if (action === 'insertClassColumns') { COLUMN_CLASSES.forEach(c => { if (c !== 'columns') removeSlideClass(currentSlide.value, c) }); ensureSlideClass(currentSlide.value, 'columns') }
+  else if (action === 'insertClassColumns2') { COLUMN_CLASSES.forEach(c => { if (c !== 'columns-2') removeSlideClass(currentSlide.value, c) }); ensureSlideClass(currentSlide.value, 'columns-2') }
+  else if (action === 'insertClassColumns3') { COLUMN_CLASSES.forEach(c => { if (c !== 'columns-3') removeSlideClass(currentSlide.value, c) }); ensureSlideClass(currentSlide.value, 'columns-3') }
+  else if (action === 'insertBgColor') focusOrCreateDirective(currentSlide.value, 'bgColor', '<!-- _backgroundColor:  -->')
+  else if (action === 'insertPaginate') togglePaginate(currentSlide.value)
+  // 闪烁高亮当前行（纯删除操作除外）
+  const view = (editorRef.value as any)?.getEditor?.()
+  if (view && !['preview:single','preview:all','toggleOutline','columnsMenu','removeColumns'].includes(action) && !lastOpFlags.wasDelete) {
+    const cursorLine = view.state.doc.lineAt(view.state.selection.main.head).number
+    requestAnimationFrame(() => flashCMLines(view, cursorLine))
+  }
+  lastOpFlags.wasDelete = false
 }
 
 function insertNewSlide() {
@@ -586,8 +728,9 @@ function getToolbarConfig() {
           {
             tools: [
               { type: 'button', id: 'insertClassLead', label: 'Lead', icon: Icons.singlePage, action: 'insertClassLead' },
-              { type: 'button', id: 'insertBgColor', label: 'BG Color', icon: Icons.palette, action: 'insertBgColor' },
-              { type: 'button', id: 'insertPaginate', label: 'Paginate', icon: Icons.orderNum, action: 'insertPaginate' },
+              { type: 'button', id: 'columnsMenu', label: 'Columns', icon: Icons.columns, action: 'columnsMenu' },
+              { type: 'button', id: 'insertBgColor', label: 'BG', icon: Icons.palette, action: 'insertBgColor' },
+              { type: 'button', id: 'insertPaginate', label: 'Page No', icon: Icons.orderNum, action: 'insertPaginate' },
             ]
           },
           {
@@ -628,6 +771,29 @@ function getToolbarConfig() {
 defineExpose({
   editorRef, insertAtCursor, getSelection, undo, redo, clearHistory,
   canUndo, canRedo, getToolbarConfig, handleToolAction, previewMode, showThumbnailsLocal,
+  hasSlideClass,
+  /** 滚动编辑器到当前光标位置（工具栏插入后调用） */
+  scrollToCursor() {
+    const view = (editorRef.value as any)?.getEditor?.()
+    if (view) {
+      const pos = view.state.selection.main.head
+      view.dispatch({
+        effects: EditorView.scrollIntoView(pos, { y: 'center' }),
+      })
+    }
+  },
+  /** 查询当前可见 slide 的 DOM section 是否包含指定 class（供 toolbar active state） */
+  checkActiveSlideClass(cls: string) {
+    const svgs = marpOutRef.value?.querySelectorAll?.('[data-marpit-svg]') ?? []
+    for (const svg of svgs) {
+      if ((svg as HTMLElement).style.display === 'none') continue // single mode: 只查可见 slide
+      // all mode: 所有 slide 可见，按 currentSlide 索引匹配；single mode: 只有一个可见
+      if (previewMode.value === 'all' && Array.from(svgs).indexOf(svg) !== currentSlide.value) continue
+      const sec = svg.querySelector('section[id], section:not([data-marpit-pagination])')
+      return sec?.classList?.contains(cls) ?? false
+    }
+    return false
+  },
   initContent(content: string) {
     localContent.value = content
       ; (editorRef.value as any)?.initContent?.(content)
@@ -636,6 +802,16 @@ defineExpose({
 </script>
 
 <style>
+/* flash highlight for directive focus — 瞬间亮，背景渐隐 */
+.chronicle-flash-line {
+  background: var(--accent-color)!important;
+  border-radius: 4px;
+}
+.chronicle-flash-line.remove {
+  background: transparent !important;
+  transition: background 2s ease-out, color 2s ease-out, border-radius 2s ease-out;
+}
+
 .preview-pane.single [data-marpit-svg] {
   position: absolute;
   inset: 0;
