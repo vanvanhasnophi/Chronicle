@@ -644,12 +644,14 @@ defineExpose({
   text-align: center;
   padding: 2rem;
   line-height: 1.8;
+  font-family: var(--app-font-stack);
 }
 
 .preview-empty-hint {
   font-size: 0.85rem;
   opacity: 0.65;
   margin-top: 4px;
+  font-family: var(--app-font-stack);
 }
 
 /* ── Preview fade-in ────────────────────────────────── */

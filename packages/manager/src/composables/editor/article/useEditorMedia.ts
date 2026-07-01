@@ -11,7 +11,8 @@
  * 依赖：editorBodyRef（插入光标）、认证状态
  */
 import { ref, computed, reactive, nextTick, type Ref } from 'vue'
-import { Icons } from '../../utils/icons'
+import { Icons } from '../../../utils/icons'
+import { uploadFile, fetchServerFiles } from '../cloud/useCloudRelay'
 
 export interface EditorMediaOptions {
   editorBodyRef: Ref<any>
@@ -118,24 +119,10 @@ export function useEditorMedia(options: EditorMediaOptions) {
     return url.replace(/[\s\x00-\x1f]/g, (c) => encodeURIComponent(c))
   }
 
-  /** 从服务器获取媒体文件列表 */
+  /** 从服务器获取媒体文件列表 → cloud/useCloudUpload */
   async function fetchServerImages() {
-    try {
-      if (!isCloudAuthenticated()) { uploadedImages.value = []; return }
-      const path = selectedCategory.value
-      const res = await fetchWithAuth(`/api/files?path=${encodeURIComponent(path)}&t=${Date.now()}`)
-      if (res.ok) {
-        const items = await res.json()
-        uploadedImages.value = items
-          .filter((i: any) => i.type === 'file')
-          .map((i: any) => ({
-            name: i.name,
-            url: i.url || `/server/data/upload/${i.path}`,
-            path: i.url || `/server/data/upload/${i.path}`,
-            thumb: (i.url || `/server/data/upload/${i.path}`).replace('/server/data/upload/', '/server/data/upload/.thumbs/'),
-          }))
-      }
-    } catch (e) { console.error(e) }
+    if (!isCloudAuthenticated()) { uploadedImages.value = []; return }
+    uploadedImages.value = await fetchServerFiles(fetchWithAuth, selectedCategory.value)
   }
 
   function openMediaModal() {
@@ -176,20 +163,9 @@ export function useEditorMedia(options: EditorMediaOptions) {
     fileInputRef.value?.click()
   }
 
-  /** 上传单个文件到服务器，返回服务器 URL */
+  /** 上传单个文件到服务器 → cloud/useCloudUpload */
   async function uploadMediaFile(file: File) {
-    try {
-      const encodedName = encodeURIComponent(file.name)
-      const uploadUrl = API_BASE_URL ? `${API_BASE_URL.replace(/\/$/, '')}/api/upload` : '/api/upload'
-      const res = await fetchWithAuth(`${uploadUrl}?t=${Date.now()}`, {
-        method: 'POST',
-        headers: { 'x-filename': encodedName },
-        body: file,
-      })
-      if (!res.ok) throw new Error('upload failed')
-      const j = await res.json()
-      return j && j.url ? j.url : null
-    } catch (e) { console.error('uploadMediaFile failed', e); return null }
+    return uploadFile(fetchWithAuth, file, API_BASE_URL)
   }
 
   // ══════════════════════════════════════════════════════

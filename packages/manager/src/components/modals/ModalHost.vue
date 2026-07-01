@@ -14,7 +14,7 @@
 </template>
 
 <script setup lang="ts">
-import { useModal } from '../../composables/editor/useModal'
+import { useModal } from '../../composables/editor/core/useModalStack'
 
 defineOptions({ inheritAttrs: false })
 

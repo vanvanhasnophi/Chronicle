@@ -90,12 +90,12 @@ import SlideOverview from './slides/SlideOverview.vue'
 import ToolDropdown from './slides/ToolDropdown.vue'
 import { parseSlides } from '@chronicle/shared/utils'
 import type { ParsedSlide } from '@chronicle/shared/utils'
-import { renderPreview } from '../utils/markdownPreview'
-import { Icons } from '../utils/icons'
+import { renderPreview } from '../utils/markdownPreview.ts'
+import { Icons } from '../utils/icons.ts'
 import Marp from '@marp-team/marp-core'
-import { chronicleLightTheme, chronicleDarkTheme } from '../utils/chronicleThemes'
-import { initSlideStore, lastOpFlags } from '../composables/editor/useSlideState'
-import { flashCMLines } from '../composables/editor/useEditorFlash'
+import { chronicleLightTheme, chronicleDarkTheme } from '../composables/editor/slides/chronicleThemes'
+import { initSlideStore, lastOpFlags, focusOrCreateDirective as _focusOrCreateDirective, insertNewSlide as _insertNewSlide } from '../composables/editor/slides/useSlideDirectives'
+import { flashCMLines } from '../composables/editor/markdown/useEditorFlash'
 
 // Marp engine with Chronicle themes (default accent)
 const { t } = useI18n()
@@ -321,110 +321,10 @@ watch(previewMode, (mode) => {
 const config = computed(() => ({} as Record<string, any>))
 const ratio = computed(() => '16:9')
 
-// Insert text at the beginning of slide N (right after the --- separator)
+// Delegates to slides/useSlideDirectives
 /** 定位或创建自由属性。已有则聚焦闪烁，无则新建后聚焦闪烁。 */
 function focusOrCreateDirective(idx: number, key: 'header' | 'footer' | 'bgColor', directive: string) {
-  const view = (editorRef.value as any)?.getEditor?.()
-  if (!view) return
-  const lines = localContent.value.split('\n')
-  let start = 0, sep = 0, inFM = true
-  for (let i = 0; i < lines.length; i++) {
-    const l = lines[i].trim()
-    if (inFM) { if (l === '---' && i > 0) { inFM = false; start = i + 1 } continue }
-    if (sep === idx) break
-    if (l === '---' && (i === 0 || !lines[i - 1]?.trim()) && (i + 1 >= lines.length || !lines[i + 1]?.trim())) { sep++; start = i + 1 }
-  }
-  const keyRe = key === 'bgColor' ? /^<!--\s*_backgroundColor:/ : key === 'header' ? /^<!--\s*_header:/ : /^<!--\s*_footer:/
-  let targetLine = -1
-  for (let i = start; i < lines.length; i++) {
-    const l = lines[i].trim()
-    if (l === '---' && (i === 0 || !lines[i - 1]?.trim()) && (i + 1 >= lines.length || !lines[i + 1]?.trim())) break
-    if (keyRe.test(l)) { targetLine = i; break }
-  }
-  const doc = view.state.doc
-  if (targetLine >= 0 && targetLine + 1 <= doc.lines) {
-    view.dispatch({ selection: { anchor: doc.line(targetLine + 1).to } })
-  } else {
-    while (start < lines.length && !lines[start].trim()) start++
-    const lineNum = Math.min(start + 1, doc.lines)
-    const insertText = directive + '\n'
-    // header/footer 有 "" → 光标在引号内；bgColor 无引号 → 光标在 : 和 --> 之间
-    const inQuotes = directive.includes('""')
-    const offset = inQuotes ? 3 : 4  // --> 之前偏移
-    const anchor = doc.line(lineNum).from + directive.length - offset
-    view.dispatch({
-      changes: { from: doc.line(lineNum).from, insert: insertText },
-      selection: { anchor },
-    })
-  }
-}
-
-function insertAtSlideStart(idx: number, text: string) {
-  const lines = localContent.value.split('\n')
-  let slideStart = 0
-  let sepCount = 0
-  let inFrontmatter = true
-  for (let i = 0; i < lines.length; i++) {
-    const l = lines[i].trim()
-    if (inFrontmatter) {
-      if (l === '---' && i > 0) { inFrontmatter = false; slideStart = i + 1 }
-      continue
-    }
-    if (sepCount === idx) { break }
-    if (l === '---' && (i === 0 || lines[i - 1].trim() === '') && (i + 1 >= lines.length || lines[i + 1].trim() === '')) {
-      sepCount++
-      slideStart = i + 1
-    }
-  }
-  while (slideStart < lines.length && !lines[slideStart].trim()) { slideStart++ }
-
-  // class 指令追加模式：已有 _class/class 则原地修改，否则在 slide 头部新建 _class
-  if (text.startsWith('<!-- _class:') || text.startsWith('<!-- class:')) {
-    const newClass = text.match(/^<!--\s*(?:_)?class:\s*(.+?)\s*-->/)?.[1]?.trim()
-    if (newClass) {
-      // 优先最后一个 _class
-      let foundLine = -1
-      for (let i = slideStart; i < lines.length; i++) {
-        if (/^<!--\s*_class:/.test(lines[i])) foundLine = i
-      }
-      // 其次最后一个 class（非 _class）
-      if (foundLine < 0) {
-        for (let i = slideStart; i < lines.length; i++) {
-          if (/^<!--\s*class:/.test(lines[i])) foundLine = i
-        }
-      }
-      if (foundLine >= 0) {
-        const existing = (lines[foundLine].match(/^<!--\s*(?:_)?class:\s*(.+?)\s*-->/)?.[1] || '').trim()
-        if (!existing.split(/\s+/).includes(newClass)) {
-          const merged = lines[foundLine].startsWith('<!-- _class:')
-            ? `<!-- _class: ${existing} ${newClass} -->`
-            : `<!-- class: ${existing} ${newClass} -->`
-          const editor = editorRef.value as any
-          const view = editor?.getEditor?.()
-          if (view) {
-            const doc = view.state.doc
-            if (foundLine + 1 > doc.lines) return
-            const lineObj = doc.line(foundLine + 1)
-            view.dispatch({
-              changes: { from: lineObj.from, to: lineObj.to, insert: merged },
-            })
-          }
-        }
-        return
-      }
-    }
-  }
-  // 无已有指令则插入新行
-  const editor = editorRef.value as any
-  const view = editor?.getEditor?.()
-  if (view) {
-    const doc = view.state.doc
-    const lineNum = Math.min(slideStart + 1, doc.lines)
-    const pos = doc.line(lineNum).from
-    view.dispatch({
-      changes: { from: pos, to: pos, insert: `${text}\n` },
-    })
-  }
+  _focusOrCreateDirective(editorRef, localContent, idx, key, directive)
 }
 
 // ── Layout modes ─────────────────────────────────────
@@ -611,58 +511,17 @@ function handleToolAction(action: string) {
   else if (action === 'insertPaginate') togglePaginate(currentSlide.value)
   // 闪烁高亮当前行（纯删除操作除外）
   const view = (editorRef.value as any)?.getEditor?.()
-  if (view && !['preview:single','preview:all','toggleOutline','columnsMenu','removeColumns'].includes(action) && !lastOpFlags.wasDelete) {
+  if (view && !['preview:single','preview:all','toggleOutline','columnsMenu'].includes(action) && !lastOpFlags.wasDelete) {
     const cursorLine = view.state.doc.lineAt(view.state.selection.main.head).number
     requestAnimationFrame(() => flashCMLines(view, cursorLine))
   }
   lastOpFlags.wasDelete = false
 }
 
+// Delegates to slides/useSlideDirectives
 function insertNewSlide() {
-  const lines = localContent.value.split('\n')
-  let slideStart = 0
-  let sepCount = 0
-  let inFrontmatter = true
-  // Find start of current slide
-  for (let i = 0; i < lines.length; i++) {
-    const l = lines[i].trim()
-    if (inFrontmatter) {
-      if (l === '---' && i > 0) { inFrontmatter = false; slideStart = i + 1; continue }
-      continue
-    }
-    if (sepCount >= currentSlide.value) break
-    if (l === '---' && (i === 0 || lines[i - 1].trim() === '') && (i + 1 >= lines.length || lines[i + 1].trim() === '')) {
-      sepCount++; slideStart = i + 1
-    }
-  }
-  // Find end of current slide (next separator or EOF)
-  let slideEnd = lines.length
-  for (let i = slideStart; i < lines.length; i++) {
-    const l = lines[i].trim()
-    if (l === '---' && (i === 0 || lines[i - 1].trim() === '') && (i + 1 >= lines.length || lines[i + 1].trim() === '')) {
-      slideEnd = i; break
-    }
-  }
-  const before = lines.slice(0, slideEnd).join('\n')
-  const insert = `\n---\n\n<!-- New Page -->\n\n\n`
-  const editor = editorRef.value as any
-  const view = editor?.getEditor?.()
-  if (view) {
-    view.dispatch({
-      changes: { from: before.length, to: before.length, insert },
-    })
-    const cursorPos = before.length + insert.length - 1
-    view.dispatch({ selection: { anchor: cursorPos } })
-    // Auto-navigate to the new page after Marp re-renders
-    const newIdx = currentSlide.value + 1
-    void nextTick(() => {
-      void nextTick(() => {
-        goToSlide(newIdx)
-      })
-    })
-  }
+  _insertNewSlide(editorRef, localContent, currentSlide, goToSlide)
 }
-
 function getToolbarConfig() {
   return {
     tabs: [

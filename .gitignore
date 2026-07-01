@@ -54,3 +54,7 @@ docs/dev
 CLAUDE.md
 *.bak
 
+
+# Blue code
+*.backup
+*.legacy

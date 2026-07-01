@@ -1590,3 +1590,17 @@ html {
     padding-left: 40px;
   }
 }
+
+/* ══════════════════════════════════════════════════════
+   CodeMirror 行闪烁高亮（useEditorFlash）
+   瞬间亮 → 渐隐：.cm-line-flash（instant ON）→ .cm-line-flash-removing（fade out）
+   ══════════════════════════════════════════════════════ */
+.cm-line-flash {
+  background: var(--accent-color);
+  border-radius: 4px;
+}
+.cm-line-flash-removing {
+  background: transparent;
+  border-radius: 4px;
+  transition: background 1.6s ease-out;
+}

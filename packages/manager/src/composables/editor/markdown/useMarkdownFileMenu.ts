@@ -13,13 +13,13 @@
  * 依赖：useEditorFrontmatter（解析）、useEditorSession（加载/应用数据）
  */
 import { ref, computed, type Ref, type ComputedRef } from 'vue'
-import { Icons } from '../../utils/icons'
+import { Icons } from '../../../utils/icons'
 import {
   localFileToApiFormat,
   detectType,
   extractEditorFm,
-} from './useEditorFrontmatter'
-import type { LayoutMode } from './useEditorView'
+} from '../core/useFileProperties'
+import type { LayoutMode } from '../core/useEditorLayout'
 
 export interface FileMenuOptions {
   // 编辑器类型 / 模态框 / 编辑模式

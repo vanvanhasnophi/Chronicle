@@ -294,3 +294,99 @@ export function getSlideStore(): SlideStore | null {
 }
 
 export const SLIDE_STATE_KEY: InjectionKey<SlideStore> = Symbol('slideState')
+
+// ══════════════════════════════════════════════════════
+// Slide 编辑操作（纯函数，通过参数依赖注入）
+// ══════════════════════════════════════════════════════
+
+import { nextTick } from 'vue'
+
+/** 定位或创建自由属性。已有则聚焦闪烁，无则新建后聚焦闪烁。 */
+export function focusOrCreateDirective(
+  editorRef: Ref<any>,
+  localContent: Ref<string>,
+  idx: number,
+  key: 'header' | 'footer' | 'bgColor',
+  directive: string,
+) {
+  const view = (editorRef.value as any)?.getEditor?.()
+  if (!view) return
+  const lines = localContent.value.split('\n')
+  let start = 0, sep = 0, inFM = true
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i].trim()
+    if (inFM) { if (l === '---' && i > 0) { inFM = false; start = i + 1 } continue }
+    if (sep === idx) break
+    if (l === '---' && (i === 0 || !lines[i - 1]?.trim()) && (i + 1 >= lines.length || !lines[i + 1]?.trim())) { sep++; start = i + 1 }
+  }
+  const keyRe = key === 'bgColor' ? /^<!--\s*_backgroundColor:/ : key === 'header' ? /^<!--\s*_header:/ : /^<!--\s*_footer:/
+  let targetLine = -1
+  for (let i = start; i < lines.length; i++) {
+    const l = lines[i].trim()
+    if (l === '---' && (i === 0 || !lines[i - 1]?.trim()) && (i + 1 >= lines.length || !lines[i + 1]?.trim())) break
+    if (keyRe.test(l)) { targetLine = i; break }
+  }
+  const doc = view.state.doc
+  if (targetLine >= 0 && targetLine + 1 <= doc.lines) {
+    view.dispatch({ selection: { anchor: doc.line(targetLine + 1).to } })
+  } else {
+    while (start < lines.length && !lines[start].trim()) start++
+    const lineNum = Math.min(start + 1, doc.lines)
+    const insertText = directive + '\n'
+    const inQuotes = directive.includes('""')
+    const offset = inQuotes ? 3 : 4
+    const anchor = doc.line(lineNum).from + directive.length - offset
+    view.dispatch({
+      changes: { from: doc.line(lineNum).from, insert: insertText },
+      selection: { anchor },
+    })
+  }
+}
+
+/** 在当前 slide 之后插入新 slide */
+export function insertNewSlide(
+  editorRef: Ref<any>,
+  localContent: Ref<string>,
+  currentSlide: Ref<number>,
+  goToSlide?: (idx: number) => void,
+) {
+  const lines = localContent.value.split('\n')
+  let slideStart = 0
+  let sepCount = 0
+  let inFrontmatter = true
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i].trim()
+    if (inFrontmatter) {
+      if (l === '---' && i > 0) { inFrontmatter = false; slideStart = i + 1; continue }
+      continue
+    }
+    if (sepCount >= currentSlide.value) break
+    if (l === '---' && (i === 0 || lines[i - 1].trim() === '') && (i + 1 >= lines.length || lines[i + 1].trim() === '')) {
+      sepCount++; slideStart = i + 1
+    }
+  }
+  let slideEnd = lines.length
+  for (let i = slideStart; i < lines.length; i++) {
+    const l = lines[i].trim()
+    if (l === '---' && (i === 0 || lines[i - 1].trim() === '') && (i + 1 >= lines.length || lines[i + 1].trim() === '')) {
+      slideEnd = i; break
+    }
+  }
+  const before = lines.slice(0, slideEnd).join('\n')
+  const insert = `\n---\n\n<!-- New Page -->\n\n\n`
+  const editor = editorRef.value as any
+  const view = editor?.getEditor?.()
+  if (view) {
+    view.dispatch({
+      changes: { from: before.length, to: before.length, insert },
+    })
+    const cursorPos = before.length + insert.length - 1
+    view.dispatch({ selection: { anchor: cursorPos } })
+    const newIdx = currentSlide.value + 1
+    void nextTick(() => {
+      void nextTick(() => {
+        goToSlide?.(newIdx)
+      })
+    })
+  }
+}

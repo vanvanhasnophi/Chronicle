@@ -20,7 +20,7 @@
  * 依赖：useEditorFrontmatter（所有 frontmatter refs + 解析函数）
  */
 import { ref, watch, type Ref, type ComputedRef } from 'vue'
-import type { SavedFm } from './useEditorFrontmatter'
+import type { SavedFm } from './useFileProperties'
 import {
   localFileToApiFormat,
   cloudDetailToApiPost,
@@ -29,8 +29,9 @@ import {
   resolveEditorPayload,
   extractEditorFm,
   normalizeBody,
+  parseFrontmatter,
   type ApiPost,
-} from './useEditorFrontmatter'
+} from './useFileProperties'
 
 export interface EditorSessionOptions {
   // 核心类型/路由
@@ -268,7 +269,11 @@ export function useEditorSession(options: EditorSessionOptions) {
         return { type: detectType({ type: detail.type || detail.meta?.type } as any) }
       }
       apiPost = cloudDetailToApiPost(detail)
-      if (draft) apiPost.content = draft
+      if (draft) {
+        // draft 可能含旧 Chronicle FM，剥掉只取正文
+        const draftParsed = parseFrontmatter(draft)
+        apiPost.content = draftParsed.content
+      }
     } else if (params.source === 'local') {
       if (!params.text) throw new Error('openPost local requires text')
       apiPost = localFileToApiFormat(params.text, params.filename || 'untitled.md', params.handle)
@@ -346,7 +351,7 @@ export function useEditorSession(options: EditorSessionOptions) {
       } catch { parsedSlideshow = {} }
     }
     savedFm.value = {
-      title: detail.title, date: detail.date || '',
+      title: detail.title,
       tags: detail.tags || [], author: readAuthorFromDetail(detail),
       aiGenerated: readAiGeneratedFromDetail(detail),
       font: postType === 'slides' ? undefined : (detail.font || 'sans'),

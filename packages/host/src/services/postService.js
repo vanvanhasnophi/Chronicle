@@ -51,20 +51,24 @@ function parseFrontMatter(content) {
 
 function stringifyFrontMatter(attributes, body) {
     const cleanBody = body.replace(/^---\n[\s\S]*?\n---\n?/, '')
+    // 必需字段先写（保证顺序），其余全部透传
+    const required = new Set(['title','date','updatedAt','tags','font','author','aiGenerated'])
     let fm = '---\n';
-    fm += `title: ${attributes.title || ''}\n`;
-    fm += `date: ${attributes.date || ''}\n`;
-    fm += `tags: ${JSON.stringify(attributes.tags || [])}\n`;
-    if (attributes.type !== 'slides') fm += `font: ${attributes.font || 'sans'}\n`;
-    fm += `author: ${attributes.author || ''}\n`;
-    fm += `aiGenerated: ${!!attributes.aiGenerated}\n`;
-    if (attributes.type === 'slides') {
-        fm += `marp: true\n`;
-        let ss = {};
-        try { ss = typeof attributes.slideshow === 'string' ? JSON.parse(attributes.slideshow) : (attributes.slideshow || {}) } catch {}
-        if (ss.theme) fm += `theme: ${ss.theme}\n`;
-        if (ss.ratio) fm += `size: ${ss.ratio}\n`;
-        if (ss.footer) fm += `footer: "${ss.footer}"\n`;
+    for (const k of ['title','date','updatedAt','tags','font','author','aiGenerated']) {
+      if (k === 'font' && attributes.type === 'slides') continue  // slides 不写 font
+      if (k === 'updatedAt' && attributes.updatedAt === attributes.date) continue
+      const v = attributes[k]
+      if (k === 'tags') fm += `tags: ${JSON.stringify(v || [])}\n`
+      else if (k === 'aiGenerated') fm += `aiGenerated: ${!!v}\n`
+      else if (v !== undefined && v !== null) fm += `${k}: ${v}\n`
+    }
+    // 其余全部透传
+    for (const [k, v] of Object.entries(attributes)) {
+      if (required.has(k)) continue
+      if (v === undefined || v === null) continue
+      if (typeof v === 'boolean') fm += `${k}: ${v}\n`
+      else if (typeof v === 'object') fm += `${k}: ${JSON.stringify(v)}\n`
+      else fm += `${k}: ${v}\n`
     }
     fm += '---\n';
     return fm + cleanBody.replace(/^\n+/, '');
@@ -150,8 +154,34 @@ function writePostContentToDisk(post, content, options = {}) {
     if (!isValidId(id)) throw new Error('Invalid post id')
     const filename = options.draft ? `${id}-draft.md` : `${id}-content.md`
     const target = path.join(dir, filename)
-    // Manager sends fully-built content (frontmatter + body); write as-is
+
+    // ── 原样写入，客户端 buildFileContent() 是唯一真相源 ──
     fs.writeFileSync(target, content || '')
+}
+
+/**
+ * 从 content 提取 index.json 所需元数据。
+ * 与 writePostContentToDisk 分离——写入不改内容，提取只读。
+ */
+function extractMetaFromContent(content, fallback = {}) {
+    if (!content || typeof content !== 'string') return fallback
+    const parsed = parseFrontMatter(content)
+    const attrs = parsed.attributes || {}
+    const hasMarp = attrs.marp === 'true' || attrs.marp === true
+    const hasType = attrs.type || fallback.type
+    return {
+        title:   attrs.title || fallback.title || 'Untitled',
+        date:    attrs.date || fallback.date || new Date().toISOString(),
+        tags:    attrs.tags || fallback.tags || [],
+        font:    attrs.font || fallback.font || 'sans',
+        author:  attrs.author !== undefined ? attrs.author : (fallback.author || ''),
+        aiGenerated: attrs.aiGenerated !== undefined
+          ? (attrs.aiGenerated === 'true' || attrs.aiGenerated === true)
+          : !!fallback.aiGenerated,
+        type:    hasType || (hasMarp ? 'slides' : undefined),
+        slideshow: attrs.slideshow || fallback.slideshow || undefined,
+        marp:    hasMarp || undefined,
+    }
 }
 
 
@@ -491,6 +521,7 @@ module.exports = {
     sortTags,
     parseFrontMatter,
     stringifyFrontMatter,
+    extractMetaFromContent,
     getPostDir,
     isValidId,
     isEncryptedContent,

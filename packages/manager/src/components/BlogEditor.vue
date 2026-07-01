@@ -8,7 +8,9 @@
                     <span class="icon-svg" v-html="Icons.menu"></span> <span class="label ribbon-btn-label"
                         style="font-size: 13px">{{ t('editor.menu') }}</span>
                 </button>
-                <div v-if="showMoreMenu" class="more-dropdown" @click.self="showMoreMenu = false">
+                <div v-if="showMoreMenu" class="dropdown-backdrop" @click="showMoreMenu = false"></div>
+                <Transition name="dropdown">
+                <div v-if="showMoreMenu" class="more-dropdown">
                     <button @click="openFileMenu(); showMoreMenu = false">
                         <span class="icon-svg more-icon" v-html="Icons.file"></span> {{ t('editor.fileLabel') }}
                     </button>
@@ -41,6 +43,7 @@
                         </select>
                     </div>
                 </div>
+                </Transition>
             </div>
             <span class="ribbon-sep"></span>
 
@@ -64,7 +67,7 @@
                 <template v-if="!tabsOverflow">
                     <button v-for="tab in ribbonTabs" :key="tab.id" class="ribbon-tab"
                         :class="{ active: activeTab === tab.id }" @click="activeTab = tab.id">
-                        <span class="icon-svg tab-icon" v-html="tab.icon"></span> {{ tab.label }} 
+                        <span class="icon-svg tab-icon" v-html="tab.icon"></span> {{ t(tab.label) }} 
                     </button>
                 </template>
                 <template v-else>
@@ -74,12 +77,15 @@
                             }}
                         <span class="icon-svg ribbon-tab-chevron" v-html="Icons.chevron"></span>
                         </button>
-                        <div v-if="tabMenuOpen" class="more-dropdown" @click.self="tabMenuOpen = false">
+                        <div v-if="tabMenuOpen" class="dropdown-backdrop" @click="tabMenuOpen = false"></div>
+                        <Transition name="dropdown">
+                        <div v-if="tabMenuOpen" class="more-dropdown">
                             <button v-for="tab in ribbonTabs" :key="tab.id" :class="{ active: activeTab === tab.id }"
                                 @click="activeTab = tab.id; tabMenuOpen = false">
-                                <span class="icon-svg more-icon" v-html="tab.icon"></span> {{ tab.label }}
+                                <span class="icon-svg more-icon" v-html="tab.icon"></span> {{ t(tab.label) }}
                             </button>
                         </div>
+                        </Transition>
                     </div>
                 </template>
             </div>
@@ -93,11 +99,12 @@
                     <span v-if="!isAboutMode" :class="['ribbon-status', postStatus]">{{ $t('status.' + (postStatus ||
                         'published'))
                     }}</span>
-                    <span class="ribbon-save-status" :class="{ building: isBuilding, saving: isSaving, dirty: isDirty || isNewAndClean }"
+                    <span class="ribbon-save-status" :class="{ building: isBuilding, saving: isSaving, dirty: isDirty, new: isNewAndClean && !isDirty }"
                         @click="showStatusPopover = !showStatusPopover" @blur="showStatusPopover = false" tabindex="0">
                         <span class="icon-svg"
-                            v-html="isBuilding ? Icons.sync : isSaving ? Icons.save : isNewAndClean ? ringIcon : isDirty ? Icons.dot : Icons.check"></span>
+                            v-html="isBuilding ? Icons.sync : isSaving ? Icons.save : (isNewAndClean || isDirty) ? Icons.dot : Icons.check"></span>
                     </span>
+                    <Transition name="dropdown">
                     <div v-if="showStatusPopover" class="status-popover" @click.self="showStatusPopover = false">
                         <div class="status-popover-row"><span class="status-popover-label">{{ t("editor.statusLabel") }}</span> <span>{{
                             statusLabel
@@ -120,10 +127,16 @@
                             }}</span>
                         </div>
                     </div>
+                    </Transition>
                 </div>
                 <span class="ribbon-sep"></span>
                 <button class="ribbon-btn" @click="openPrintPreview()" title="Print (Ctrl+P)">
                     <span class="icon-svg" v-html="Icons.print"></span>
+                </button>
+                <button v-if="postStatus === 'modifying'" class="ribbon-btn ribbon-btn-danger icon-label-btn"
+                    @click="restorePost()" title="Restore">
+                    <span class="icon-svg" v-html="Icons.undo"></span>
+                    <span class="btn-label label">{{ t('editor.restore') }}</span>
                 </button>
                 <button v-if="!isAboutMode" class="ribbon-btn ribbon-btn-primary icon-label-btn"
                     @click="openSaveModal('publish')" :disabled="isSaving" title="Publish">
@@ -174,7 +187,7 @@
                     <button v-for="tab in fileTabs" :key="tab.id" class="sidebar-btn"
                         :class="{ active: fileTab === tab.id }" @click="handleFileTabChange(tab.id)">
                         <span class="icon-svg sidebar-icon" v-html="tab.icon"></span>
-                        {{ tab.label }}
+                        {{ t(tab.label) }}
                     </button>
 
                     <button class="sidebar-btn sidebar-btn--print" type="button"
@@ -639,6 +652,7 @@
         </div>
 
     </div>
+    <FilePreviewModal />
 </template>
 
 <script setup lang="ts">
@@ -646,38 +660,38 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick, reactive, provi
 import { useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 
-import { fetchWithAuth } from '../utils/fetchWithAuth'
-import { settingsStore } from '../composables/settingsApi'
-import { Icons } from '../utils/icons'
+import { fetchWithAuth } from '../utils/fetchWithAuth.ts'
+import { settingsStore } from '../composables/settingsApi.ts'
+import { Icons } from '../utils/icons.ts'
 
 /** Hollow ring icon for new/unsaved state — 2.5px stroke, 12px outer diameter */
-const ringIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="6" cy="6" r="4.75"/></svg>`
 
-import { convertToHtml } from '../utils/markdownParser'
-import { renderPreview } from '../utils/markdownPreview'
-import { sortTags } from '../utils/tagUtils'
-import { formatDate as formatDateUtil, formatDateTime } from '../utils/dateUtils'
-import { debounce } from '../utils/debounce'
-import { getNotificationCenter } from '../composables/useNotificationCenter'
-import useToast from '../composables/useToast'
-import { triggerBuild } from '../composables/useAstroBuild'
+import { convertToHtml } from '../utils/markdownParser.ts'
+import { renderPreview } from '../utils/markdownPreview.ts'
+import { sortTags } from '../utils/tagUtils.ts'
+import { formatDate as formatDateUtil, formatDateTime } from '../utils/dateUtils.ts'
+import { debounce } from '../utils/debounce.ts'
+import { getNotificationCenter } from '../composables/useNotificationCenter.ts'
+import useToast from '../composables/useToast.ts'
+import { triggerBuild } from '../composables/useAstroBuild.ts'
 
 import CheckRow from './ui/CheckRow.vue'
 import FilePicker from './FilePicker.vue'
 import EditorArticleBody from './EditorArticleBody.vue'
 import EditorSlidesBody from './EditorSlidesBody.vue'
+import FilePreviewModal from './FilePreviewModal.vue'
 
-import { useModal } from '../composables/editor/useModal'
-import { useEditorFrontmatter } from '../composables/editor/useEditorFrontmatter'
-import { useEditorView } from '../composables/editor/useEditorView'
-import { useEditorMedia } from '../composables/editor/useEditorMedia'
-import { useEditorToolbar } from '../composables/editor/useEditorToolbar'
-import { useEditorFile } from '../composables/editor/useEditorFile'
-import { useEditorSession } from '../composables/editor/useEditorSession'
-import { useFileMenu } from '../composables/editor/useFileMenu'
+import { useModal } from '../composables/editor/core/useModalStack'
+import { useEditorFrontmatter } from '../composables/editor/core/useFileProperties'
+import { useEditorView } from '../composables/editor/core/useEditorLayout'
+import { useEditorMedia } from '../composables/editor/article/useEditorMedia'
+import { useEditorToolbar } from '../composables/editor/core/useEditorToolbar'
+import { useEditorFile } from '../composables/editor/markdown/useEditorFile'
+import { useEditorSession } from '../composables/editor/core/useEditorLifecycle'
+import { useFileMenu } from '../composables/editor/markdown/useMarkdownFileMenu'
 
-import type { IEditorBody } from './editor/IEditorBody'
-import type { ISlidesBody } from './editor/ISlidesBody'
+import type { IEditorBody } from './editor/IEditorBody.ts'
+import type { ISlidesBody } from './editor/ISlidesBody.ts'
 
 // ═══ Route / i18n / env ═══
 const route = useRoute()
@@ -911,20 +925,22 @@ const {
   postTitle, isDefaultTitle, postId, postStatus: postStatus as any,
   postDate, postUpdated, postTags, postFont, postAuthor, postAIGenerated,
   slideshowConfig,
-  isCloudEditing, isAboutMode, editorQueryId,
+  isCloudEditing, isAboutMode,
   isCloudAuthenticated, refreshCloudAuthState, goToLogin,
   buildSavedFm, normalizeBody,
-  activeModal, openModal: useModal().openModal, showToast, t, fetchWithAuth,
+  activeModal, showToast, t, fetchWithAuth,
   currentFileHandle, currentFilePath,
   savedContent, savedFm,
   route, router, locale, assetMap,
-  resolveLocalFileUrls, applyUrlMappings,
-  prerenderMermaidInCompiledHtml,
   escapeHtml,
   fileMap,
   pushRecentProject,
   CHRONICLE_FM_KEYS,
   stringifyFrontmatter: serializeFrontmatter,
+  preSave: async (content: string) => {
+    const map = await resolveLocalFileUrls(content)
+    return Object.keys(map).length ? applyUrlMappings(content, map) : content
+  },
 })
 
 // Sync isSaving/isBuilding from fileOps into local refs used by template
@@ -1355,6 +1371,10 @@ onUnmounted(() => {
     color: var(--text-primary);
 }
 
+.ribbon-save-status.new {
+    color: color-mix(in srgb, var(--text-primary) 40%, transparent);
+}
+
 .ribbon-save-status {
     cursor: pointer;
 }
@@ -1494,6 +1514,14 @@ onUnmounted(() => {
     background: color-mix(in srgb, var(--accent-color) 80%, var(--component-text-primary));
 }
 
+.ribbon-btn-danger {
+    color: var(--status-error);
+}
+
+.ribbon-btn.ribbon-btn-danger:hover:not(:disabled) {
+    background:  var(--status-error-bg) ;
+}
+
 .ribbon-btn-lg {
     height: 50px;
     flex-direction: column;
@@ -1515,6 +1543,12 @@ onUnmounted(() => {
 
 .ribbon-more {
     position: relative;
+}
+
+.dropdown-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 199;
 }
 
 .ribbon-more--left .more-dropdown {
@@ -1583,6 +1617,22 @@ onUnmounted(() => {
     height: 16px;
     opacity: 0.65;
     flex-shrink: 0;
+}
+
+/* ── more-dropdown 打开/关闭动画 ── */
+:deep(.dropdown-enter-active) {
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+:deep(.dropdown-leave-active) {
+    transition: opacity 0.1s ease, transform 0.1s ease;
+}
+:deep(.dropdown-enter-from) {
+    opacity: 0;
+    transform: translateY(-4px);
+}
+:deep(.dropdown-leave-to) {
+    opacity: 0;
+    transform: translateY(-4px);
 }
 
 .more-locale-row {

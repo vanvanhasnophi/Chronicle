@@ -64,6 +64,9 @@ export function serializeFrontmatter(meta: PostFrontmatter, content: string): st
     if (typeof v === 'boolean') {
       return `${k}: ${v}`
     }
+    if (typeof v === 'object') {
+      return `${k}: ${JSON.stringify(v)}`
+    }
     return `${k}: ${String(v)}`
   }).join('\n')
 

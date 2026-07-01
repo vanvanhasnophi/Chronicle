@@ -12,10 +12,10 @@
  * 依赖：editorBodyRef（光标操作）、useEditorView.LayoutMode
  */
 import { ref, computed, watch, nextTick, type Ref, type ComputedRef } from 'vue'
-import { getStats } from '../../utils/markdownParser'
-import { Icons } from '../../utils/icons'
-import type { LayoutMode } from './useEditorView'
-import { getSlideStore } from './useSlideState'
+import { getStats } from '../../../utils/markdownParser'
+import { Icons } from '../../../utils/icons'
+import type { LayoutMode } from './useEditorLayout'
+import { getSlideStore } from '../slides/useSlideDirectives'
 
 export interface EditorToolbarOptions {
   editorBodyRef: Ref<any>
@@ -33,7 +33,7 @@ export interface EditorToolbarOptions {
   openMediaModal: () => void
   /** 打开文件菜单的导出标签页 */
   openExportModal: () => void
-  t: (key: string) => string
+  t: (key: string, options?: Record<string, any>) => string
 }
 
 export function useEditorToolbar(options: EditorToolbarOptions) {
@@ -63,7 +63,7 @@ export function useEditorToolbar(options: EditorToolbarOptions) {
       if (config?.tabs) {
         ribbonTabs.value = (config.tabs as RibbonTabDef[]).map(tab => ({
           ...tab,
-          label: t(`editor.tab.${tab.id}`) || tab.label,
+          label: `editor.tab.${tab.id}` || tab.label,
         }))
         if (!ribbonTabs.value.find(t => t.id === activeTab.value)) {
           activeTab.value = ribbonTabs.value[0]?.id || ''
