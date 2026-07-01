@@ -2,41 +2,43 @@
  * useEditorSession — 编辑器生命周期与数据加载
  *
  * 职责：
- *   1. initLoad() — 根据 URL query 参数决定加载路径（7 种场景）
- *   2. loadPostById() — 从云端 API 加载文章详情
- *   3. applyLoadedPost() — 将加载的数据填充到所有 frontmatter refs
- *   4. 版本冲突检测 — 比较 localStorage 草稿 vs 云端版本
- *   5. 骨架屏状态管理 — skeletonStatus 驱动 TextEditor 的加载动画
+ *   1. initLoad() — 入口：cloud hook 优先，core 兜底（去 query + path 补全 + 本地空白）
+ *   2. createPost() — 新建文章（local/cloud）
+ *   3. openPost()  — 打开文章（cloud/local/about），走 cloudDetailToApiPost → initEditor
+ *   4. 版本冲突检测 — resolveVersionConflict
+ *   5. 骨架屏状态管理
  *
- * initLoad 的 7 条分支：
- *   1. 未认证 → 跳转登录
- *   2. id=new → 分配云端 ID
- *   3. id=new-<uuid> → 验证 ID 有效性 → 恢复草稿或新建
- *   4. 无效 ID 格式 → 本地模式
- *   5. id=__about__ → 加载关于页面
- *   6. id=<uuid> → 加载已有文章
- *   7. 无 ID → 本地模式
- *
- * 依赖：useEditorFrontmatter（所有 frontmatter refs + 解析函数）
+ * Cloud 接入点：createResolveQuery 工厂 → resolveQuery(queryId) → boolean
+ * 返回 true   = cloud 已处理路由
+ * 返回 false  = core 兜底
  */
 import { ref, watch, type Ref, type ComputedRef } from 'vue'
-import type { SavedFm } from './useFileProperties'
+import type { SavedFm } from '../markdown/useFrontmatter'
 import {
   localFileToApiFormat,
   cloudDetailToApiPost,
   aboutToApiPost,
   detectType,
   resolveEditorPayload,
-  extractEditorFm,
   normalizeBody,
   parseFrontmatter,
   type ApiPost,
-} from './useFileProperties'
+} from '../markdown/useFrontmatter'
+import {
+  allocateId,
+  fetchPost,
+  fetchAbout,
+  getDraft,
+  getHistory,
+  saveDraft,
+  saveHistory,
+} from '../cloud/useCloudRelay'
 
 export interface EditorSessionOptions {
   // 核心类型/路由
   editorType: Ref<'article' | 'slides'>
   editorQueryId: ComputedRef<string | undefined>
+  editorBasePath: string
   route: any
   router: any
   // i18n / 通知 / 网络
@@ -76,11 +78,20 @@ export interface EditorSessionOptions {
   skeletonShowDirectEntry: Ref<boolean>
   skeletonTimer: { current: ReturnType<typeof setTimeout> | null }
   CHRONICLE_FM_KEYS: Set<string>
+  /**
+   * Cloud 层 query 解析器工厂。
+   * 接收 createPost/openPost → 返回 resolveQuery 函数。
+   * 工厂模式解决循环依赖：resolveQuery 需要 core 的 actions，但 resolveQuery 本身又是 core 的入参。
+   */
+  createResolveQuery?: (actions: {
+    createPost: (params: { source: 'local' | 'cloud'; type: 'article' | 'slides'; preAllocatedId?: string }) => Promise<{ id: string | null; type: 'article' | 'slides' }>
+    openPost: (params: { source: 'cloud' | 'local' | 'about'; id?: string; text?: string; filename?: string; handle?: any }) => Promise<{ type: 'article' | 'slides' }>
+  }) => (queryId: string | undefined) => Promise<boolean>
 }
 
 export function useEditorSession(options: EditorSessionOptions) {
   const {
-    editorType, editorQueryId, route, router, t, showToast,
+    editorType, editorQueryId, editorBasePath, route, router, t, showToast,
     isCloudAuthenticated, refreshCloudAuthState, goToLogin, fetchWithAuth,
     postId, postTitle, isDefaultTitle, postStatus, postDate, postUpdated,
     postTags, postFont, postAuthor, postAIGenerated, slideshowConfig,
@@ -89,6 +100,7 @@ export function useEditorSession(options: EditorSessionOptions) {
     currentFileHandle, currentFilePath,
     activeModal, editorBodyRef, dataReady, bodyKey, skeletonStatus,
     skeletonShowDirectEntry, skeletonTimer, CHRONICLE_FM_KEYS,
+    createResolveQuery,
   } = options
 
   // ══════════════════════════════════════════════════════
@@ -100,9 +112,13 @@ export function useEditorSession(options: EditorSessionOptions) {
   const pendingConflictSessionHistory = ref<string | null>(null)
 
   let pendingRedirect: { path?: string; query?: Record<string, any> } | null = null
+  let initLoadActive = false
 
-  const canonicalPath = () =>
-    editorType.value === 'slides' ? '/editor/slides' : '/editor/article'
+  const editorPath = (type?: 'article' | 'slides') => {
+    const t = type || editorType.value
+    return `${editorBasePath}/${t}`
+  }
+  const canonicalPath = () => editorPath()
 
   function normalizeContentForCompare(content: string) {
     return String(content || '').replace(/\r\n/g, '\n')
@@ -136,7 +152,7 @@ export function useEditorSession(options: EditorSessionOptions) {
   /** 本地模式 + 补全路径（/editor → /editor/article） */
   function finishLocal() {
     enterLocalMode()
-    if (route.path === '/editor') go(canonicalPath())
+    if (route.path === editorBasePath) go(canonicalPath())
     else dataReady.value = true
   }
 
@@ -156,7 +172,7 @@ export function useEditorSession(options: EditorSessionOptions) {
   }
 
   function resetEditor() {
-    const basePath = editorType.value === 'slides' ? '/editor/slides' : '/editor/article'
+    const basePath = editorPath()
     router.push({ path: basePath })
   }
 
@@ -185,12 +201,13 @@ export function useEditorSession(options: EditorSessionOptions) {
     content: string,
     extra?: { filePath?: string | null },
   ) {
-    if (metadata.type !== editorType.value) {
+    if (metadata.type !== editorType.value || metadata.postId !== postId.value) {
       editorType.value = metadata.type
       bodyKey.value++
     }
     postId.value = metadata.postId
     postTitle.value = metadata.title || t('editor.untitled')
+    document.title = postTitle.value ? `${postTitle.value} - Chronicle Workdown` : 'Chronicle Workdown'
     isDefaultTitle.value = !metadata.title
     postStatus.value = metadata.postStatus as any
     postDate.value = metadata.date || ''
@@ -225,8 +242,8 @@ export function useEditorSession(options: EditorSessionOptions) {
       } else {
         skeletonStatus.value = 'editor.skeletonAllocatingId'
         try {
-          const res = await fetchWithAuth('/api/post/allocate-id', { method: 'POST' })
-          if (res.ok) { const data = await res.json(); if (data?.id) { pid = data.id; pstatus = 'draft' } }
+          const id = await allocateId(fetchWithAuth)
+          if (id) { pid = id; pstatus = 'draft' }
         } catch {}
         if (!pid) { showToast(t('editor.allocateFailed')); pstatus = 'local' }
       }
@@ -254,32 +271,32 @@ export function useEditorSession(options: EditorSessionOptions) {
     let apiPost: ApiPost
     if (params.source === 'cloud') {
       if (!params.id) throw new Error('openPost cloud requires id')
-      const detailRes = await fetchWithAuth(`/api/post?id=${params.id}&mode=edit&t=${Date.now()}`)
-      if (!detailRes.ok) { skeletonStatus.value = 'editor.skeletonValidatingId'; throw new Error('POST_NOT_FOUND') }
-      const detail = await detailRes.json()
+      const detail = await fetchPost(fetchWithAuth, params.id)
+      if (!detail) { skeletonStatus.value = 'editor.skeletonValidatingId'; throw new Error('POST_NOT_FOUND') }
       // 版本冲突
-      const draft = localStorage.getItem(`chronicle_draft_${params.id}`)
-      const sessionHistory = sessionStorage.getItem(`chronicle_history_${params.id}`)
-      if (draft && normalizeContentForCompare(draft) !== normalizeContentForCompare(detail.content || '')) {
+      const draft = getDraft(params.id)
+      const draftContent = draft?.content ?? null
+      const history = getHistory(params.id)
+      if (draftContent && normalizeContentForCompare(draftContent) !== normalizeContentForCompare(detail.content || '')) {
         pendingConflictDetail.value = detail
-        pendingConflictDraft.value = draft
-        pendingConflictSessionHistory.value = sessionHistory
+        pendingConflictDraft.value = draftContent
+        pendingConflictSessionHistory.value = history ? JSON.stringify(history) : null
         activeModal.value = 'syncConflict'
         dataReady.value = true
         return { type: detectType({ type: detail.type || detail.meta?.type } as any) }
       }
       apiPost = cloudDetailToApiPost(detail)
-      if (draft) {
+      if (draftContent) {
         // draft 可能含旧 Chronicle FM，剥掉只取正文
-        const draftParsed = parseFrontmatter(draft)
+        const draftParsed = parseFrontmatter(draftContent)
         apiPost.content = draftParsed.content
       }
     } else if (params.source === 'local') {
       if (!params.text) throw new Error('openPost local requires text')
       apiPost = localFileToApiFormat(params.text, params.filename || 'untitled.md', params.handle)
     } else {
-      const res = await fetchWithAuth('/api/admin/about')
-      const data = await res.json()
+      const data = await fetchAbout(fetchWithAuth)
+      if (!data) throw new Error('Failed to load about')
       apiPost = aboutToApiPost(data)
     }
     const { metadata, content } = resolveEditorPayload(apiPost)
@@ -287,285 +304,58 @@ export function useEditorSession(options: EditorSessionOptions) {
     return { type: metadata.type }
   }
 
-  // ══════════════════════════════════════════════════════
-  // 数据填充（旧，由 initEditor 替代，保留供外部兼容）
-  // ══════════════════════════════════════════════════════
-
-  /**
-   * 将已加载的文章数据填充到所有 frontmatter refs。
-   *
-   * 幻灯片特殊处理：
-   *   - 提取正文中的 Marp YAML（theme, size 等）作为独立 frontmatter 块
-   *   - Chronicle 专属键（title, date, tags 等）不纳入 Marp FM
-   */
-  function applyLoadedPost(
-    detail: any,
-    content: string,
-    sessionHistory: string | null,
-    syncLocalCache = false,
-  ) {
-    if (!detail) return
-    postId.value = detail.id
-    postTitle.value = detail.title
-    isDefaultTitle.value = false
-    postStatus.value = detail.status || 'draft'
-    postDate.value = detail.date || ''
-    postUpdated.value = detail.updatedAt || detail.date || ''
-    postTags.value = detail.tags || []
-    postFont.value = detail.type === 'slides' ? 'sans' : (detail.font || 'sans')
-    postAuthor.value = readAuthorFromDetail(detail)
-    postAIGenerated.value = readAiGeneratedFromDetail(detail)
-    try {
-      slideshowConfig.value = typeof detail.slideshow === 'object'
-        ? detail.slideshow
-        : JSON.parse(detail.slideshow || '{}')
-    } catch { slideshowConfig.value = {} }
-
-    const postType = detail.type || detail.meta?.type
-    if (postType === 'slides') {
-      const fmMatch = content.match(/^---\n([\s\S]*?)\n---\n?/)
-      if (fmMatch) {
-        const styleLines: string[] = []
-        fmMatch[1].split('\n').forEach((line: string) => {
-          const c = line.indexOf(':')
-          if (c < 0) return
-          const k = line.slice(0, c).trim()
-          if (!CHRONICLE_FM_KEYS.has(k)) styleLines.push(line)
-        })
-        if (styleLines.length > 0) {
-          localValue.value = `---\n${styleLines.join('\n')}\n---\n\n${content.slice(fmMatch[0].length)}`
-        } else { localValue.value = content }
-      } else { localValue.value = content }
-    } else { localValue.value = content }
-
-    // 设置脏检测基线
-    savedContent.value =
-      postType === 'slides' ? localValue.value : normalizeBody(localValue.value)
-
-    let parsedSlideshow: Record<string, any> | undefined = undefined
-    if (postType === 'slides') {
-      try {
-        parsedSlideshow = typeof detail.slideshow === 'object'
-          ? detail.slideshow
-          : JSON.parse(detail.slideshow || '{}')
-      } catch { parsedSlideshow = {} }
-    }
-    savedFm.value = {
-      title: detail.title,
-      tags: detail.tags || [], author: readAuthorFromDetail(detail),
-      aiGenerated: readAiGeneratedFromDetail(detail),
-      font: postType === 'slides' ? undefined : (detail.font || 'sans'),
-      slideshow: parsedSlideshow,
-    }
-
-    if (syncLocalCache) {
-      localStorage.setItem(`chronicle_draft_${detail.id}`, content)
-      sessionStorage.setItem(`chronicle_history_${detail.id}`, JSON.stringify({
-        stack: [content], index: 0,
-      }))
-    }
-    dataReady.value = true
-  }
-
-  // ══════════════════════════════════════════════════════
-  // 云端加载
-  // ══════════════════════════════════════════════════════
-
-  /**
-   * 根据 ID 从服务器加载文章。
-   * 检测 localStorage 草稿版本冲突 → 弹出 syncConflict 弹窗。
-   * 检测文章类型 → 自动纠正路由（/editor/article vs /editor/slides）。
-   */
-  async function loadPostById(id: string) {
-    try {
-      postAuthor.value = ''
-      postAIGenerated.value = false
-      const detailRes = await fetchWithAuth(`/api/post?id=${id}&mode=edit&t=${Date.now()}`)
-      if (!detailRes.ok) {
-        skeletonStatus.value = 'editor.skeletonValidatingId'
-        await handleLoad404Fallback(id)
-        return true
-      }
-      const detail = await detailRes.json()
-      const draft = localStorage.getItem(`chronicle_draft_${id}`)
-      const sessionHistory = sessionStorage.getItem(`chronicle_history_${id}`)
-
-      // 类型纠正 — 如果实际是幻灯片但路由是文章（或反之），修正路由
-      const postType = (detail.type || detail.meta?.type) as string
-      const cp = postType === 'slides' ? '/editor/slides' : '/editor/article'
-      if (route.path !== cp) {
-        editorType.value = postType === 'slides' ? 'slides' : 'article'
-        bodyKey.value++
-        window.history.replaceState(null, '', cp + '?id=' + id)
-      }
-
-      // 版本冲突检测：本地草稿 ≠ 云端内容
-      if (draft && normalizeContentForCompare(draft) !== normalizeContentForCompare(detail.content || '')) {
-        pendingConflictDetail.value = detail
-        pendingConflictDraft.value = draft
-        pendingConflictSessionHistory.value = sessionHistory
-        activeModal.value = 'syncConflict'
-        dataReady.value = true
-        return true
-      }
-
-      applyLoadedPost(detail, draft || detail.content || '', sessionHistory, false)
-      return true
-    } catch (e) {
-      console.error('Failed to load post', e)
-      showToast(t('editor.loadFailed'))
-      enterLocalMode(); finishLocal()
-      if (!pendingRedirect) dataReady.value = true
-      return false
-    }
-  }
-
-  /**
-   * 加载 404 时的回退处理。
-   * 验证 UUID 有效性 → 有效则转到 new-<uuid>，无效则重新分配。
-   */
-  async function handleLoad404Fallback(uuid: string) {
-    try {
-      const res = await fetchWithAuth('/api/post/validate-id', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: uuid }),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        if (data?.valid) { go(canonicalPath(), { id: `new-${uuid}` }); return }
-        else if (data?.reason === 'invalid-format') { go(canonicalPath(), { id: 'new' }); return }
-        else if (data?.reason === 'conflict') {
-          const detailRes2 = await fetchWithAuth(`/api/post?id=${uuid}&mode=edit&t=${Date.now()}`)
-          if (detailRes2.ok) {
-            applyLoadedPost(await detailRes2.json(), '', null, false)
-            return
-          }
-        }
-      }
-    } catch (e) {}
-    showToast(t('editor.loadFailed'))
-    enterLocalMode(); finishLocal()
-    if (!pendingRedirect) dataReady.value = true
-  }
+  // 从工厂构建 resolveQuery（调用方注入 cloud 逻辑，core 只提供 actions）
+  const resolveQuery = createResolveQuery?.({ createPost, openPost })
 
   // ══════════════════════════════════════════════════════
   // 主初始化入口
   // ══════════════════════════════════════════════════════
 
   /**
-   * 编辑器初始化——根据 URL query 参数决定加载路径。
+   * 编辑器初始化。
    *
-   * 骨架屏计时器：5 秒后显示"直接进入编辑器"按钮。
+   * 1. 如果提供了 resolveQuery hook（cloud 层），优先委托
+   * 2. hook 返回 true  → cloud 已处理
+   * 3. hook 返回 false / 不存在 → core 兜底：忽略所有 query，路径补全，本地空白编辑器
    */
   async function initLoad() {
-    refreshCloudAuthState()
-    const queryId = editorQueryId.value
-
-    // 启动骨架屏计时器
-    skeletonStatus.value = 'editor.skeletonLoading'
-    skeletonShowDirectEntry.value = false
-    if (skeletonTimer.current) clearTimeout(skeletonTimer.current)
-    skeletonTimer.current = setTimeout(() => { skeletonShowDirectEntry.value = true }, 5000)
-
-    // ── Query 格式校验（只允许 id 键） ──
+    if (initLoadActive) return
+    initLoadActive = true
     try {
-      const qkeys = Object.keys(route.query || {})
-      if (qkeys.length > 0 && !(qkeys.length === 1 && qkeys[0] === 'id')) {
-        await createPost({ source: 'local', type: editorType.value })
-        router.replace(canonicalPath())
-        return
+      refreshCloudAuthState()
+
+      // 启动骨架屏计时器
+      skeletonStatus.value = 'editor.skeletonLoading'
+      skeletonShowDirectEntry.value = false
+      if (skeletonTimer.current) clearTimeout(skeletonTimer.current)
+      skeletonTimer.current = setTimeout(() => { skeletonShowDirectEntry.value = true }, 5000)
+
+      const queryId = editorQueryId.value
+
+      // ── Cloud hook（如果接入） ──
+      if (resolveQuery) {
+        try {
+          const handled = await resolveQuery(queryId)
+          if (handled) return
+        } catch {
+          // hook 异常 → 走 core 兜底
+        }
       }
-    } catch {
+
+      // ── Core 兜底路由：忽略 query，只做 path 补全 ──
+      await createPost({ source: 'local', type: editorType.value })
+      if (route.path === editorBasePath || Object.keys(route.query || {}).length > 0) {
+        router.replace(canonicalPath())
+      }
+    } catch (e) {
+      console.error('initLoad failed', e)
+      showToast(t('editor.loadFailed'))
       await createPost({ source: 'local', type: editorType.value })
       router.replace(canonicalPath())
-      return
+    } finally {
+      initLoadActive = false
     }
-
-    const cp = canonicalPath()
-
-    // 1. 未认证 → 登录（保留当前 URL 作为 redirect target）
-    if (queryId && !isCloudAuthenticated()) {
-      goToLogin(route.fullPath || canonicalPath())
-      return
-    }
-
-    try {
-      // 2. id=new → createPost（cloud，分配 ID）
-      if (queryId === 'new') {
-        const { id } = await createPost({ source: 'cloud', type: editorType.value })
-        if (id) { router.replace({ path: cp, query: { id: `new-${id}` } }); return }
-        await createPost({ source: 'local', type: editorType.value })
-        router.replace(cp)
-        return
-      }
-
-      // 3. id=new-<uuid> → 验证 ID → createPost（预分配）或 openPost（冲突）
-      if (queryId && /^new-([a-zA-Z0-9\-_]+)$/.test(queryId)) {
-        skeletonStatus.value = 'editor.skeletonValidatingId'
-        const candidateId = queryId.match(/^new-([a-zA-Z0-9\-_]+)$/)?.[1]
-        if (!candidateId) {
-          await createPost({ source: 'local', type: editorType.value })
-          router.replace(cp); return
-        }
-        try {
-          const res = await fetchWithAuth('/api/post/validate-id', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: candidateId }),
-          })
-          if (res.ok) {
-            const data = await res.json()
-            if (data?.reason === 'conflict') {
-              const { type: actualType } = await openPost({ source: 'cloud', id: candidateId })
-              const targetPath = actualType === 'slides' ? '/editor/slides' : '/editor/article'
-              router.replace({ path: targetPath, query: { id: candidateId } })
-              return
-            }
-            if (data?.valid) {
-              await createPost({ source: 'cloud', type: editorType.value, preAllocatedId: candidateId })
-              router.replace({ path: cp, query: { id: candidateId } })
-              return
-            }
-          }
-        } catch {}
-        showToast(t('editor.validateFailed'))
-        router.replace({ path: cp, query: { id: 'new' } })
-        return
-      }
-
-      // 4. 无效 ID 格式 → 本地模式
-      if (queryId && !/^[a-zA-Z0-9\-_]+$/.test(queryId)) {
-        await createPost({ source: 'local', type: editorType.value })
-        router.replace(cp)
-        return
-      }
-
-      // 5. id=__about__ → 打开关于页面
-      if (queryId === '__about__') {
-        await openPost({ source: 'about' })
-        router.replace('/editor/article?id=__about__')
-        return
-      }
-
-      // 6. id=<uuid> → 打开已有文章
-      if (queryId) {
-        skeletonStatus.value = 'editor.skeletonLoadingPost'
-        const { type: actualType } = await openPost({ source: 'cloud', id: queryId })
-        const targetPath = actualType === 'slides' ? '/editor/slides' : '/editor/article'
-        router.replace({ path: targetPath, query: { id: queryId } })
-        return
-      }
-
-    // 7. 无 ID → 本地空白编辑器
-    await createPost({ source: 'local', type: editorType.value })
-    if (route.path === '/editor') router.replace(cp)
-  } catch (e) {
-    console.error('initLoad failed', e)
-    showToast(t('editor.loadFailed'))
-    await createPost({ source: 'local', type: editorType.value })
-    router.replace(cp)
   }
-}
 
   // ══════════════════════════════════════════════════════
   // 版本冲突解决
@@ -574,13 +364,29 @@ export function useEditorSession(options: EditorSessionOptions) {
   function resolveVersionConflict(choice: 'cloud' | 'local') {
     const detail = pendingConflictDetail.value
     if (!detail) return
-    const draft = pendingConflictDraft.value
-    const sessionHistory = pendingConflictSessionHistory.value
-    if (choice === 'cloud') {
-      applyLoadedPost(detail, detail.content || '', null, true)
-    } else {
-      applyLoadedPost(detail, draft || detail.content || '', sessionHistory, false)
+    const draftContent = pendingConflictDraft.value
+
+    // 走标准数据路径：cloudDetailToApiPost → resolveEditorPayload → initEditor
+    const apiPost = cloudDetailToApiPost(detail)
+    if (choice === 'local' && draftContent) {
+      const draftParsed = parseFrontmatter(draftContent)
+      apiPost.content = draftParsed.content
     }
+    const { metadata, content } = resolveEditorPayload(apiPost)
+    initEditor(metadata, content)
+
+    // cloud 选择时同步草稿到 localStorage
+    if (choice === 'cloud') {
+      saveDraft(detail.id, detail.content || '', {
+        title: detail.title, tags: detail.tags || [],
+        author: readAuthorFromDetail(detail),
+        aiGenerated: readAiGeneratedFromDetail(detail),
+        date: detail.date, font: detail.font,
+        slideshow: apiPost.slideshow,
+      })
+      saveHistory(detail.id, { stack: [detail.content || ''], index: 0 })
+    }
+
     clearVersionConflictState()
     activeModal.value = 'none'
   }
@@ -593,11 +399,8 @@ export function useEditorSession(options: EditorSessionOptions) {
     pendingConflictDetail, pendingConflictDraft, pendingConflictSessionHistory,
     initLoad, createPost, openPost, initEditor,
     loadPost, canonicalPath,
-    // @deprecated — 旧代码兼容（BlogEditor/useFileMenu 迁移中）
-    loadPostById, applyLoadedPost,
     enterLocalMode, finishLocal, go, finalizeRedirect,
     resetEditor,
     resolveVersionConflict, clearVersionConflictState,
-    handleLoad404Fallback,
   }
 }

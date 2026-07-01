@@ -14,7 +14,7 @@
                     <button @click="openFileMenu(); showMoreMenu = false">
                         <span class="icon-svg more-icon" v-html="Icons.file"></span> {{ t('editor.fileLabel') }}
                     </button>
-                    <button @click="openMetaModal(); showMoreMenu = false">
+                    <button v-if="profile.showProperties" @click="openMetaModal(); showMoreMenu = false">
                         <span class="icon-svg more-icon" v-html="Icons.edit"></span> {{ t('editor.meta') || 'Properties'
                         }}
                     </button>
@@ -56,7 +56,7 @@
                     <span class="icon-svg" v-html="Icons.redo"></span>
                 </button>
                 <span class="ribbon-sep"></span>
-                <button class="ribbon-btn qat-btn qat-save" @click="() => handleTopRightSave('draft')"
+                <button v-if="!isAbout" class="ribbon-btn qat-btn qat-save" @click="() => handleTopRightSave('draft')"
                     :disabled="isSaving" title="Save (Ctrl+S)">
                     <span class="icon-svg" v-html="Icons.save"></span>
                 </button>
@@ -95,8 +95,8 @@
                 <!-- Title inline -->
                 <div class="ribbon-title-area">
                     <input v-model="postTitle" class="ribbon-title-input" :placeholder="t('editor.untitled')"
-                        spellcheck="false" />
-                    <span v-if="!isAboutMode" :class="['ribbon-status', postStatus]">{{ $t('status.' + (postStatus ||
+                        spellcheck="false" :readonly="profile.titleReadonly" />
+                    <span v-if="profile.showStatus" :class="['ribbon-status', postStatus]">{{ $t('status.' + (postStatus ||
                         'published'))
                     }}</span>
                     <span class="ribbon-save-status" :class="{ building: isBuilding, saving: isSaving, dirty: isDirty, new: isNewAndClean && !isDirty }"
@@ -138,7 +138,14 @@
                     <span class="icon-svg" v-html="Icons.undo"></span>
                     <span class="btn-label label">{{ t('editor.restore') }}</span>
                 </button>
-                <button v-if="!isAboutMode" class="ribbon-btn ribbon-btn-primary icon-label-btn"
+                <!-- About page: save button → confirmation dialog -->
+                <button v-if="profile.primaryAction === 'save'" class="ribbon-btn ribbon-btn-primary icon-label-btn"
+                    @click="openSaveModal('draft')" :disabled="isSaving" title="Save">
+                    <span class="icon-svg" v-html="Icons.save"></span>
+                    <span class="btn-label label">{{ t('editor.save') }}</span>
+                </button>
+                <!-- Regular post: publish/upload button -->
+                <button v-if="profile.showPublish" class="ribbon-btn ribbon-btn-primary icon-label-btn"
                     @click="openSaveModal('publish')" :disabled="isSaving" title="Publish">
                     <span class="icon-svg" v-html="Icons.publish"></span>
                     <span class="btn-label label">{{ isCloudEditing ? t('editor.publish') : t('editor.upload') }}</span>
@@ -155,10 +162,10 @@
                             <template v-for="tool in group.tools" :key="tool.id">
                                 <span v-if="tool.type === 'spacer'" class="ribbon-spacer"></span>
                                 <button v-else-if="tool.isStats" class="ribbon-btn ribbon-btn-wordcount"
-                                    @click="activeModal = 'stats'">{{ wordCountLabel }}</button>
+                                    @click="(e) => openToolPopover(tool, e)">{{ wordCountLabel }}</button>
                                 <button v-else class="ribbon-btn ribbon-btn-lg"
                                     :class="{ active: tool.action ? isToolActive(tool.action) : false }"
-                                    @click="handleToolAction(tool.action || '')" :title="tool.label">
+                                    @click="tool.popover ? openToolPopover(tool, $event) : tool.onClick ? tool.onClick($event) : handleToolAction(tool.action || '')" :title="tool.label">
                                     <span v-if="tool.icon" class="icon-svg" v-html="tool.icon"></span>
                                     <span class="ribbon-btn-label">{{ t('editor.tool.' + tool.id) || tool.label }}</span>
                                 </button>
@@ -420,7 +427,8 @@
     <div v-if="['draft', 'publish'].includes(activeModal)" class="modal-overlay">
         <div class="modal-content small-modal">
             <div class="modal-header">
-                <h3>{{ activeModal === 'draft' ? (isCloudEditing ? t('editor.saveDraft') : t('editor.save')) :
+                <h3 v-if="isAboutMode">{{ t('editor.save') }}</h3>
+                <h3 v-else>{{ activeModal === 'draft' ? (isCloudEditing ? t('editor.saveDraft') : t('editor.save')) :
                     (isCloudEditing ? t('editor.publishNow') : t('editor.upload')) }}</h3>
                 <button class="close-btn" @click="activeModal = 'none'">
                     <span class="icon-svg" v-html="Icons.close"></span>
@@ -528,13 +536,12 @@
     </div>
 
     <!-- Group 4: Confirmation Modals (Restore, Unsaved) -->
-    <div v-if="['restore', 'unsaved', 'stats', 'syncConflict'].includes(activeModal)" class="modal-overlay">
+    <div v-if="['restore', 'unsaved', 'syncConflict'].includes(activeModal)" class="modal-overlay">
         <div class="modal-content small-modal">
             <div class="modal-header">
                 <h3 v-if="activeModal === 'restore'">{{ t('editor.confirmRestoreTitle') }}</h3>
                 <h3 v-else-if="activeModal === 'unsaved'">{{ t('editor.unsavedTitle') }}</h3>
                 <h3 v-else-if="activeModal === 'syncConflict'">{{ t('editor.versionConflictTitle') }}</h3>
-                <h3 v-else>{{ t('editor.statsTitle') }}</h3>
 
                 <button v-if="activeModal !== 'syncConflict'" class="close-btn" @click="activeModal = 'none'">
                     <span class="icon-svg" v-html="Icons.close"></span>
@@ -580,31 +587,6 @@
                 </div>
             </div>
 
-            <!-- Stats Body -->
-            <div v-if="activeModal === 'stats'" class="modal-body">
-                <div class="stats-grid">
-                    <div class="stat-item">
-                        <span class="stat-label">{{ t('editor.stats.words') }}</span>
-                        <span class="stat-value">{{ editorStats.wordCount }}</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">{{ t('editor.stats.charsWithSpaces') }}</span>
-                        <span class="stat-value">{{ editorStats.charCount }}</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">{{ t('editor.stats.charsNoSpaces') }}</span>
-                        <span class="stat-value">{{ editorStats.charCountNoSpaces }}</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">{{ t('editor.stats.nonWestern') }}</span>
-                        <span class="stat-value">{{ editorStats.nonWesternCount }}</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">{{ t('editor.stats.markdownChars') }}</span>
-                        <span class="stat-value">{{ editorStats.markdownCount }}</span>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 
@@ -653,6 +635,19 @@
 
     </div>
     <FilePreviewModal />
+    <!-- 单例 ToolDropdown：容器声明式，内容 preset 驱动 -->
+    <ToolDropdown ref="ddRef" :items="ddPreset.type === 'menu' ? ddPreset.items : []"
+      @select="(a: string) => ddOnSelect?.(a)">
+      <template v-if="ddPreset.type === 'kv'">
+        <div class="tool-dropdown-stat" v-for="r in ddPreset.rows" :key="r.label">
+          <span>{{ r.label }}</span>
+          <span class="stat-num">{{ r.value }}</span>
+        </div>
+      </template>
+      <template v-else-if="ddPreset.type === 'custom'">
+        <component :is="ddPreset.content" />
+      </template>
+    </ToolDropdown>
 </template>
 
 <script setup lang="ts">
@@ -680,14 +675,18 @@ import FilePicker from './FilePicker.vue'
 import EditorArticleBody from './EditorArticleBody.vue'
 import EditorSlidesBody from './EditorSlidesBody.vue'
 import FilePreviewModal from './FilePreviewModal.vue'
+import ToolDropdown from './slides/ToolDropdown.vue'
 
 import { useModal } from '../composables/editor/core/useModalStack'
-import { useEditorFrontmatter } from '../composables/editor/core/useFileProperties'
+import { useEditorFrontmatter } from '../composables/editor/markdown/useFrontmatter'
 import { useEditorView } from '../composables/editor/core/useEditorLayout'
+import { useEditorProfile } from '../composables/editor/core/useEditorProfile'
+import { provideToolDropdown, type DropdownPreset } from '../composables/editor/core/useToolDropdown'
 import { useEditorMedia } from '../composables/editor/article/useEditorMedia'
-import { useEditorToolbar } from '../composables/editor/core/useEditorToolbar'
+import { useEditorToolbar, type RibbonTool } from '../composables/editor/core/useEditorToolbar'
 import { useEditorFile } from '../composables/editor/markdown/useEditorFile'
 import { useEditorSession } from '../composables/editor/core/useEditorLifecycle'
+import { resolveEditorRoute } from '../composables/editor/cloud/useCloudRouter'
 import { useFileMenu } from '../composables/editor/markdown/useMarkdownFileMenu'
 
 import type { IEditorBody } from './editor/IEditorBody.ts'
@@ -698,6 +697,7 @@ const route = useRoute()
 const router = useRouter()
 const { t, locale } = useI18n()
 const { show: showToast } = useToast()
+const editorBasePath = '/editor'
 const nc = getNotificationCenter()
 const CDN_BASE_URL = import.meta.env.VITE_CDN_BASE_URL || ''
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
@@ -722,7 +722,47 @@ const editorQueryId = computed<string | undefined>(() => {
 })
 const isCloudEditing = computed(() => !!editorQueryId.value)
 const isAboutMode = computed(() => editorQueryId.value === '__about__')
+
+// ── Editor profile — 按页面类型封装 UI 差异 ──
+const { profile, isAbout } = useEditorProfile({ editorQueryId, isCloudEditing })
 const activeModal = ref('none')
+
+// ── 单例 ToolDropdown ──
+const ddRef = ref<InstanceType<typeof ToolDropdown> | null>(null)
+const ddPreset = ref<DropdownPreset>({ type: 'menu', items: [] })
+const ddOnSelect = ref<((action: string) => void) | null>(null)
+
+provideToolDropdown({
+  preset: ddPreset,
+  onSelect: ddOnSelect,
+  open(x, y?) { ddRef.value?.open(x, y) },
+  close() { ddRef.value?.close() },
+})
+
+function openToolPopover(tool: RibbonTool, e: MouseEvent) {
+  let preset: DropdownPreset
+  if (tool.isStats) {
+    const s = editorStats.value
+    preset = { type: 'kv', rows: [
+      { label: t('editor.stats.words'), value: s.wordCount },
+      { label: t('editor.stats.charsNoSpaces'), value: s.charCountNoSpaces },
+      { label: t('editor.stats.charsWithSpaces'), value: s.charCount },
+      { label: t('editor.stats.nonWestern'), value: s.nonWesternCount },
+      { label: t('editor.stats.markdownChars'), value: s.markdownCount },
+    ] }
+  } else if (tool.popover) {
+    preset = typeof tool.popover === 'function' ? tool.popover() : tool.popover
+  } else {
+    return
+  }
+  ddPreset.value = preset
+  if (preset.type === 'menu') {
+    const handler = tool.popoverOnSelect || ((a: string) => { handleToolAction(a); ddRef.value?.close() })
+    ddOnSelect.value = (a) => { handler(a); ddRef.value?.close() }
+  }
+  ddRef.value?.open(e.clientX)
+}
+
 const localValue = ref(props.modelValue)
 const assetMap = ref<Record<string, string>>({})
 
@@ -865,15 +905,8 @@ function pushRecentProject(meta: { title: string; path?: string; cloud?: boolean
 }
 
 // ══════════════════════════════════════════════════════
-// Layer 2: useEditorToolbar (flat destructure — circular ref resolved via lazy thunks)
+// Layer 2: useEditorToolbar
 // ══════════════════════════════════════════════════════
-// thunks for lazy resolution of circular dependency
-const _openLinkModal = () => _openLinkModalImpl()
-const _openTableModal = () => _openTableModalImpl()
-const _openExportModal = () => _openExportModalImpl()
-let _openLinkModalImpl = () => {}
-let _openTableModalImpl = () => {}
-let _openExportModalImpl = () => {}
 
 const {
   ribbonTabs, activeTab, activeTabDef,
@@ -882,7 +915,7 @@ const {
   insertAtCursor, insertLink, insertTable, insertMath,
   insertFootnote, buildTocFromMarkdown,
   mathInput, mathMode, mathPreviewRef,
-  linkText, linkUrl, openLinkModalInner, openTableModalInner,
+  linkText, linkUrl,
   tblRows, tblCols, tblHoverR, tblHoverC,
   tableGridHover, tableGridClick,
   editorStats, wordCountLabel,
@@ -892,19 +925,10 @@ const {
   localValue, isCloudEditing,
   layout,
   activeModal,
-  openLinkModal: () => _openLinkModal(),
-  openTableModal: () => _openTableModal(),
   openMediaModal: () => openMediaModal(),
-  openExportModal: () => _openExportModal(),
+  openExportModal: () => { openFileMenu(); fileTab.value = 'export' },
   t,
 })
-
-// Resolve circular references now that toolbar is initialized
-_openLinkModalImpl = openLinkModalInner
-_openTableModalImpl = openTableModalInner
-_openExportModalImpl = () => { openFileMenu(); fileTab.value = 'export' }
-function openLinkModal() { openLinkModalInner() }
-function openTableModal() { openTableModalInner() }
 
 // ══════════════════════════════════════════════════════
 // Layer 3: useEditorFile (flat destructure)
@@ -921,7 +945,7 @@ const {
   handleTopRightSave, openSaveModal, closeModals,
   tempTitle,
 } = useEditorFile({
-  editorType, localValue,
+  editorType, editorBasePath, localValue,
   postTitle, isDefaultTitle, postId, postStatus: postStatus as any,
   postDate, postUpdated, postTags, postFont, postAuthor, postAIGenerated,
   slideshowConfig,
@@ -953,11 +977,11 @@ watch(_isBuildingFO, (v) => { isBuilding.value = v })
 const {
   pendingConflictDetail, pendingConflictDraft, pendingConflictSessionHistory,
   initLoad, createPost, openPost,
-  loadPost: loadPostByIdAlias,
+  loadPost, canonicalPath,
   resetEditor,
   resolveVersionConflict, clearVersionConflictState,
 } = useEditorSession({
-  editorType, editorQueryId, route, router, t, showToast,
+  editorType, editorQueryId, editorBasePath, route, router, t, showToast,
   isCloudAuthenticated, refreshCloudAuthState, goToLogin, fetchWithAuth,
   postId, postTitle, isDefaultTitle,
   postStatus: postStatus as any, postDate, postUpdated,
@@ -968,6 +992,20 @@ const {
   activeModal, editorBodyRef: editorBodyRef as Ref<any>,
   dataReady, bodyKey, skeletonStatus, skeletonShowDirectEntry, skeletonTimer,
   CHRONICLE_FM_KEYS,
+  createResolveQuery: ({ createPost, openPost }) =>
+    (queryId) => resolveEditorRoute({
+      queryId,
+      editorType,
+      editorBasePath,
+      isCloudAuthenticated,
+      goToLogin,
+      router,
+      fetchWithAuth,
+      skeletonStatus,
+      showToast,
+      t,
+      actions: { createPost, openPost },
+    }),
 })
 
 // ═══ Handle unsaved check ═══
@@ -994,7 +1032,7 @@ const {
   openLocalFilePicker, openRecentProject, requestOpenLocalFile,
   resetCurrentFile, handlePostOpen,
 } = useFileMenu({
-  editorType, activeModal, isCloudEditing,
+  editorType, editorBasePath, activeModal, isCloudEditing,
   isCloudAuthenticated, refreshCloudAuthState, goToLogin, isDirty, t, fetchWithAuth,
   router, route,
   postId, postTitle, isDefaultTitle,
@@ -1065,14 +1103,21 @@ watch(localValue, (val) => {
 })
 watch(fmChanged, () => {}, { flush: 'sync' })
 
-// Popstate handler — replaces watch(route). 文件菜单用 router.replace（不触发 popstate），
-// 仅浏览器前进后退时 URL 重新变成输入。
+// Popstate handler — 浏览器前进后退时触发 initLoad。
 function onPopstate() {
-  if (route.path.startsWith('/editor') && route.path !== '/editor/print') {
+  if (route.path.startsWith(editorBasePath) && route.path !== editorBasePath + '/print') {
     initLoad()
   }
 }
 window.addEventListener('popstate', onPopstate)
+
+// Route query watch — initLoad 内部 router.replace 不触发 popstate，需手动监听。
+// 仅监听 query.id 变化，忽略同值替换（Vue Router 同值不触发）。
+watch(() => route.query.id, (newId, oldId) => {
+  if (newId && newId !== oldId && route.path.startsWith(editorBasePath)) {
+    initLoad()
+  }
+})
 
 // ═══ Navigation guards ═══
 const handleNavigation = (to: any, _from: any, next: any) => {
@@ -1087,6 +1132,7 @@ onBeforeRouteUpdate(async (to, _from, next) => {
 
 // ═══ Toolbar config ═══
 onMounted(loadToolbarConfig)
+watch(bodyKey, () => { loadToolbarConfig() })
 
 // ═══ Keyboard & lifecycle ═══
 function handleBeforeUnload(e: BeforeUnloadEvent) {
@@ -1306,6 +1352,11 @@ onUnmounted(() => {
     background: var(--bg-primary);
 }
 
+.ribbon-title-input[readonly] {
+    cursor: default;
+    border: none;
+}
+
 .ribbon-status {
     font-size: 10px;
     padding: 4px 6px;
@@ -1410,6 +1461,21 @@ onUnmounted(() => {
     color: var(--component-text-secondary);
     flex-shrink: 0;
 }
+
+    /* Stats popover rows -- slot content of ToolDropdown, styled here (scoped CSS does not reach slots) */
+    .tool-dropdown-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 6px 12px;
+    font-size: 0.82rem;
+    }
+    .tool-dropdown-stat :deep(.stat-num) {
+    font-variant-numeric: tabular-nums;
+    color: var(--accent-color);
+    font-weight: 500;
+    }
 
 @keyframes spin {
     to {
@@ -1602,7 +1668,7 @@ onUnmounted(() => {
 
 .more-dropdown button.active {
     background: var(--component-bg-accent-blur);
-    color: var(--accent-color);
+    color: var(--component-text-primary-highlight);
     border: 1px solid var(--component-bg-accent);
 }
 
@@ -2434,50 +2500,6 @@ onUnmounted(() => {
 .file-drop-area:hover {
     border-color: var(--accent-color);
     color: var(--component-text-primary);
-}
-
-.stats-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 12px;
-    padding: 10px 0;
-}
-
-.stat-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 6px;
-    background: transparent;
-    border-radius: 4px;
-}
-
-.stat-label {
-    color: var(--component-text-secondary);
-    font-size: 0.9em;
-}
-
-.stat-value {
-    color: var(--accent-color);
-    font-weight: bold;
-    font-family: var(--app-font-stack-mono);
-    font-size: 1.2em;
-}
-
-.stats-display {
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    font-size: 12px;
-    color: var(--component-text-secondary);
-    padding: 4px 8px;
-    border-radius: 4px;
-    transition: color 0.2s, background 0.2s;
-}
-
-.stats-display:hover {
-    color: var(--text-primary);
-    background: var(--component-bg-hover);
 }
 
 /* Font Selector */

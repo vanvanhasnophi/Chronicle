@@ -14,16 +14,18 @@
  */
 import { ref, computed, type Ref, type ComputedRef } from 'vue'
 import { Icons } from '../../../utils/icons'
+import { fetchPostList } from '../cloud/useCloudRelay'
 import {
   localFileToApiFormat,
   detectType,
   extractEditorFm,
-} from '../core/useFileProperties'
+} from './useFrontmatter'
 import type { LayoutMode } from '../core/useEditorLayout'
 
 export interface FileMenuOptions {
   // 编辑器类型 / 模态框 / 编辑模式
   editorType: Ref<'article' | 'slides'>
+  editorBasePath: string
   activeModal: Ref<string>
   isCloudEditing: ComputedRef<boolean>
   // 认证
@@ -70,7 +72,7 @@ export interface FileMenuOptions {
 
 export function useFileMenu(options: FileMenuOptions) {
   const {
-    editorType, activeModal, isCloudEditing, isCloudAuthenticated,
+    editorType, editorBasePath, activeModal, isCloudEditing, isCloudAuthenticated,
     refreshCloudAuthState, goToLogin, isDirty, t, fetchWithAuth,
     router, route,
     postId, postTitle, isDefaultTitle, postStatus, postDate, postUpdated,
@@ -81,6 +83,8 @@ export function useFileMenu(options: FileMenuOptions) {
     resolveVersionConflict, clearVersionConflictState,
     handleUnsavedCheck, pushRecentProject,
   } = options
+
+  const ep = (type?: 'article' | 'slides') => `${editorBasePath}/${type || editorType.value}`
 
   // ══════════════════════════════════════════════════════
   // 文件菜单状态
@@ -180,8 +184,7 @@ export function useFileMenu(options: FileMenuOptions) {
       }
       fileLoading.value = true
       try {
-        const res = await fetchWithAuth(`/api/posts?includeDrafts=true&t=${Date.now()}`)
-        if (res.ok) filePosts.value = await res.json()
+        filePosts.value = await fetchPostList(fetchWithAuth)
       } finally { fileLoading.value = false }
     }
   }
@@ -231,7 +234,7 @@ export function useFileMenu(options: FileMenuOptions) {
    */
   async function applyOpenedFile(text: string, filename: string, handle?: any) {
     const { type } = await openPost({ source: 'local', text, filename, handle })
-    const path = type === 'slides' ? '/editor/slides' : '/editor/article'
+    const path = ep(type as 'article' | 'slides')
     router.replace(path)
     activeModal.value = 'none'
     pushRecentProjectUnified({ title: filename.replace(/\.[^/.]+$/, ''), path: filename, cloud: false })
@@ -282,25 +285,22 @@ export function useFileMenu(options: FileMenuOptions) {
   async function createLocalNew(type: 'article' | 'slides') {
     const doNew = async () => {
       await createPost({ source: 'local', type })
-      router.replace(type === 'slides' ? '/editor/slides' : '/editor/article')
+      router.replace(ep(type as 'article' | 'slides'))
       activeModal.value = 'none'
     }
     if (isDirty.value) handleUnsavedCheck(doNew)
     else await doNew()
   }
 
-  /** 新建云端文档——createPost + router.replace */
+  /** 新建云端文档——导航到 ?id=new，由 initLoad 统一处理 */
   async function createCloudNew(type: 'article' | 'slides') {
-    if (!isCloudAuthenticated()) { goToLogin(`/editor/${type}?id=new`); return }
-    const doCloud = async () => {
-      const { id } = await createPost({ source: 'cloud', type })
-      const path = type === 'slides' ? '/editor/slides' : '/editor/article'
-      if (id) router.replace({ path, query: { id } })
-      else router.replace(path)
+    if (!isCloudAuthenticated()) { goToLogin(`${editorBasePath}/${type}?id=new`); return }
+    const doCloud = () => {
+      router.push({ path: ep(type as 'article' | 'slides'), query: { id: 'new' } })
       activeModal.value = 'none'
     }
     if (isDirty.value) handleUnsavedCheck(doCloud)
-    else await doCloud()
+    else doCloud()
   }
 
   // ══════════════════════════════════════════════════════
@@ -309,9 +309,7 @@ export function useFileMenu(options: FileMenuOptions) {
 
   async function openRecentProject(r: any) {
     if (r.cloud && r.path) {
-      const { type } = await openPost({ source: 'cloud', id: r.path })
-      const targetPath = type === 'slides' ? '/editor/slides' : '/editor/article'
-      router.replace({ path: targetPath, query: { id: r.path } })
+      router.push({ path: ep(), query: { id: r.path } })
       activeModal.value = 'none'
       return
     }
@@ -336,22 +334,14 @@ export function useFileMenu(options: FileMenuOptions) {
   // ══════════════════════════════════════════════════════
 
   async function handlePostOpen(id: string) {
-    const requireCloudAuth = (nextUrl: string) => {
-      refreshCloudAuthState()
-      if (isCloudAuthenticated()) return true
-      goToLogin(nextUrl)
-      return false
-    }
-    const targetUrl = `/editor/article?id=${id}`
-    if (!requireCloudAuth(targetUrl)) return
-    const doOpen = async () => {
-      const { type } = await openPost({ source: 'cloud', id })
-      const targetPath = type === 'slides' ? '/editor/slides' : '/editor/article'
-      router.replace({ path: targetPath, query: { id } })
-      if (activeModal.value !== 'syncConflict') activeModal.value = 'none'
+    const targetUrl = `${editorBasePath}/article?id=${id}`
+    if (!isCloudAuthenticated()) { goToLogin(targetUrl); return }
+    const doOpen = () => {
+      router.push({ path: ep(), query: { id } })
+      activeModal.value = 'none'
     }
     if (isDirty.value) handleUnsavedCheck(doOpen)
-    else await doOpen()
+    else doOpen()
   }
 
   // ══════════════════════════════════════════════════════
@@ -366,7 +356,7 @@ export function useFileMenu(options: FileMenuOptions) {
     if (fileTab.value === 'new') {
       const doNew = async () => {
         await createPost({ source: 'local', type: editorType.value })
-        router.replace(editorType.value === 'slides' ? '/editor/slides' : '/editor/article')
+        router.replace(ep())
         activeModal.value = 'none'
       }
       if (isDirty.value) handleUnsavedCheck(doNew)

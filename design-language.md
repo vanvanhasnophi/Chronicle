@@ -160,7 +160,7 @@ border (边框)
 
 | Token | 值 | 用途 |
 |-------|-----|------|
-| `--bg-primary` | `#141414` | 页面底色 |
+| `--bg-primary` | `#121212` | 页面底色 |
 | `--bg-secondary` | `#1e1e1e` | 次级页面 |
 | `--surface` | `#222222` | 卡片、组件 |
 | `--surface-alt` | `#2a2a2a` | 组件变体 |
@@ -844,7 +844,7 @@ input[type="checkbox"] { accent-color: var(--accent); }
 ```css
 /* 1. 暗色 token (默认) */
 :root {
-  --bg-primary: #141414;
+  --bg-primary: #121212;
   --text-primary: #e0e0e0;
   /* ... 全部 token */
 }

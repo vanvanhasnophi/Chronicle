@@ -44,7 +44,8 @@ export function parseFrontmatter(raw: string): { meta: PostFrontmatter; content:
   }
 
   const yamlBlock = afterFirst.slice(0, closeIdx).trim()
-  const content = afterFirst.slice(closeIdx + FM_DELIM.length + 1).trimStart()
+  // strip at most 1 leading blank line after FM separator (writer always adds one)
+  const content = afterFirst.slice(closeIdx + FM_DELIM.length + 1).replace(/^\n/, '')
 
   const meta = parseSimpleYaml(yamlBlock)
   return { meta, content }
@@ -70,7 +71,7 @@ export function serializeFrontmatter(meta: PostFrontmatter, content: string): st
     return `${k}: ${String(v)}`
   }).join('\n')
 
-  return `---\n${yaml}\n---\n\n${content.replace(/^\n+/, '')}`
+  return `---\n${yaml}\n---\n\n${content}`
 }
 
 // ── Minimal YAML parser (handles the subset we need) ────────────────

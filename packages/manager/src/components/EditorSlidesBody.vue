@@ -1,8 +1,5 @@
 <template>
   <div class="slides-body" ref="slidesBodyRef" @keydown="onKeydown">
-    <!-- Columns tool dropdown -->
-    <ToolDropdown ref="columnsDropdownRef" :items="columnsMenuItems"
-      @select="(a: string) => { handleToolAction(a); (columnsDropdownRef as any)?.close() }" />
     <!-- Left: Thumbnail strip -->
     <div class="thumbnail-strip" v-show="showThumbnails">
       <div class="thumbnail-strip-header">
@@ -87,7 +84,6 @@ import { useI18n } from 'vue-i18n'
 import { EditorView } from '@codemirror/view'
 import CmEditor from './CmEditor.vue'
 import SlideOverview from './slides/SlideOverview.vue'
-import ToolDropdown from './slides/ToolDropdown.vue'
 import { parseSlides } from '@chronicle/shared/utils'
 import type { ParsedSlide } from '@chronicle/shared/utils'
 import { renderPreview } from '../utils/markdownPreview.ts'
@@ -161,9 +157,6 @@ const splitAreaRef = ref<HTMLDivElement | null>(null)
 const notesExpanded = ref(false)
 const showThumbnailsLocal = ref(true)
 const showOverview = ref(false)
-const columnsDropdownRef = ref<any>(null)
-let lastClickX = 0
-document.addEventListener('click', (e) => { lastClickX = e.clientX }, true)
 const COLUMN_CLASSES = ['columns', 'columns-2', 'columns-3']
 const columnsMenuItems = computed(() => {
   const cs = slideState.slideMetas.value[slideState.currentSlide.value]?.classes ?? []
@@ -491,7 +484,7 @@ const canRedo = computed(() => !!(editorRef.value as any)?.canRedo)
 
 function handleToolAction(action: string) {
   // 先导航——确保操作时编辑器定位在当前 slide
-  if (!['preview:single','preview:all','toggleOutline','columnsMenu','addSplit'].includes(action)) {
+  if (!['preview:single','preview:all','toggleOutline','addSplit'].includes(action)) {
     jumpEditorToSlide(currentSlide.value)
   }
   if (action === 'preview:single') previewMode.value = 'single'
@@ -503,7 +496,6 @@ function handleToolAction(action: string) {
   else if (action === 'insertClassLead') toggleSlideClass(currentSlide.value, 'lead')
   else if (action === 'addSplit') { (editorRef.value as any)?.insertAtCursor?.('\n<!-- _split -->\n') }
   else if (action === 'removeColumns') COLUMN_CLASSES.forEach(c => removeSlideClass(currentSlide.value, c))
-  else if (action === 'columnsMenu') columnsDropdownRef.value?.open(lastClickX, 124)
   else if (action === 'insertClassColumns') { COLUMN_CLASSES.forEach(c => { if (c !== 'columns') removeSlideClass(currentSlide.value, c) }); ensureSlideClass(currentSlide.value, 'columns') }
   else if (action === 'insertClassColumns2') { COLUMN_CLASSES.forEach(c => { if (c !== 'columns-2') removeSlideClass(currentSlide.value, c) }); ensureSlideClass(currentSlide.value, 'columns-2') }
   else if (action === 'insertClassColumns3') { COLUMN_CLASSES.forEach(c => { if (c !== 'columns-3') removeSlideClass(currentSlide.value, c) }); ensureSlideClass(currentSlide.value, 'columns-3') }
@@ -511,8 +503,9 @@ function handleToolAction(action: string) {
   else if (action === 'insertPaginate') togglePaginate(currentSlide.value)
   // 闪烁高亮当前行（纯删除操作除外）
   const view = (editorRef.value as any)?.getEditor?.()
-  if (view && !['preview:single','preview:all','toggleOutline','columnsMenu'].includes(action) && !lastOpFlags.wasDelete) {
-    const cursorLine = view.state.doc.lineAt(view.state.selection.main.head).number
+  if (view && !['preview:single','preview:all','toggleOutline'].includes(action) && !lastOpFlags.wasDelete) {
+    let cursorLine = view.state.doc.lineAt(view.state.selection.main.head).number
+    if (action === 'addSplit') cursorLine = Math.max(1, cursorLine - 1)
     requestAnimationFrame(() => flashCMLines(view, cursorLine))
   }
   lastOpFlags.wasDelete = false
@@ -587,7 +580,7 @@ function getToolbarConfig() {
           {
             tools: [
               { type: 'button', id: 'insertClassLead', label: 'Lead', icon: Icons.singlePage, action: 'insertClassLead' },
-              { type: 'button', id: 'columnsMenu', label: 'Columns', icon: Icons.columns, action: 'columnsMenu' },
+              { type: 'button', id: 'columnsMenu', label: 'Columns', icon: Icons.columns, popover: () => ({ type: 'menu', items: columnsMenuItems.value }), popoverOnSelect: (a: string) => handleToolAction(a) },
               { type: 'button', id: 'insertBgColor', label: 'BG', icon: Icons.palette, action: 'insertBgColor' },
               { type: 'button', id: 'insertPaginate', label: 'Page No', icon: Icons.orderNum, action: 'insertPaginate' },
             ]

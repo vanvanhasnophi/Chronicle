@@ -30,7 +30,8 @@ function sortTags(tags) {
 // ── Front Matter Helpers ─────────────────────────────────
 
 function parseFrontMatter(content) {
-    const match = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+    // 匹配 FM 块 ---\n...\n---\n，后置最多带走 1 个空行（\n）
+    const match = content.match(/^---\n([\s\S]*?)\n---\n\n?/);
     if (!match) return { attributes: {}, body: content };
 
     const attributes = {};
@@ -46,11 +47,11 @@ function parseFrontMatter(content) {
             }
         }
     });
-    return { attributes, body: match[2] };
+    return { attributes, body: content.slice(match[0].length) };
 }
 
 function stringifyFrontMatter(attributes, body) {
-    const cleanBody = body.replace(/^---\n[\s\S]*?\n---\n?/, '')
+    const cleanBody = body.replace(/^---\n[\s\S]*?\n---\n\n?/, '')
     // 必需字段先写（保证顺序），其余全部透传
     const required = new Set(['title','date','updatedAt','tags','font','author','aiGenerated'])
     let fm = '---\n';
@@ -70,8 +71,8 @@ function stringifyFrontMatter(attributes, body) {
       else if (typeof v === 'object') fm += `${k}: ${JSON.stringify(v)}\n`
       else fm += `${k}: ${v}\n`
     }
-    fm += '---\n';
-    return fm + cleanBody.replace(/^\n+/, '');
+    fm += '---\n\n';
+    return fm + cleanBody;
 }
 
 // Helper: get directory path for a post (supports legacy filename)

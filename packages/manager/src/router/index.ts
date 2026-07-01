@@ -238,13 +238,12 @@ router.afterEach((to) => {
 
   if (to.name === 'Home') {
       document.title = 'Chronicle'
+  } else if (to.path.startsWith('/editor')) {
+      // Editor manages its own title — don't touch it here
   } else if (to.meta && to.meta.title) {
     const titleText = resolveMessage(String(to.meta.title))
     document.title = `${titleText} - ${appName}`
   } else {
-    // Default fallback if no title set. For dynamic pages like BlogPost
-    // the component will overwrite document.title once data is ready,
-    // but we should avoid leaving the previous route's title visible.
     document.title = appName
   }
 

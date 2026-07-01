@@ -62,7 +62,7 @@
   --status-progress-bg: color-mix(in srgb, var(--status-progress) 15%, transparent);
 
   /* Background hierarchy */
-  --app-bg-primary: #141414;
+  --app-bg-primary: #121212;
   --app-bg-secondary: #1e1e1e;
   --component-bg: #222222;
   --component-bg-alt: #2a2a2a;
@@ -276,7 +276,7 @@ body[data-backend-theme="dark"] {
 
   --recommended-accent-text: #fff;
 
-  --app-bg-primary: #141414;
+  --app-bg-primary: #121212;
   --app-bg-secondary: #1e1e1e;
   --component-bg: #222222;
   --component-bg-alt: #2a2a2a;

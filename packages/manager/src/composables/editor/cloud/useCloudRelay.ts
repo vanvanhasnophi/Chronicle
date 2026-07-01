@@ -62,6 +62,29 @@ export async function fetchPost(fetchWithAuth: any, id: string): Promise<Record<
   } catch { return null }
 }
 
+/** 获取云端文章列表（含草稿） */
+export async function fetchPostList(fetchWithAuth: any): Promise<Record<string, any>[]> {
+  try {
+    const res = await fetchWithAuth(`/api/posts?includeDrafts=true&t=${Date.now()}`)
+    return res.ok ? await res.json() : []
+  } catch { return [] }
+}
+
+/** 验证云端文章 ID 有效性。返回 { valid, reason } 或 null */
+export async function validateId(
+  fetchWithAuth: any,
+  id: string,
+): Promise<{ valid: boolean; reason?: string } | null> {
+  try {
+    const res = await fetchWithAuth('/api/post/validate-id', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
+    return res.ok ? await res.json() : null
+  } catch { return null }
+}
+
 /**
  * 保存文章到云端。
  * 只传三个字段：id、content（完整 .md 含 YAML）、status。
@@ -93,7 +116,7 @@ export async function fetchAbout(fetchWithAuth: any): Promise<{ content: string;
 export async function saveAbout(fetchWithAuth: any, content: string): Promise<boolean> {
   try {
     const res = await fetchWithAuth('/api/admin/about', {
-      method: 'POST',
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content }),
     })

@@ -15,6 +15,7 @@ import { ref, computed, watch, nextTick, type Ref, type ComputedRef } from 'vue'
 import { getStats } from '../../../utils/markdownParser'
 import { Icons } from '../../../utils/icons'
 import type { LayoutMode } from './useEditorLayout'
+import type { DropdownPreset } from './useToolDropdown'
 import { getSlideStore } from '../slides/useSlideDirectives'
 
 export interface EditorToolbarOptions {
@@ -25,29 +26,25 @@ export interface EditorToolbarOptions {
   isCloudEditing: ComputedRef<boolean>
   layout: Ref<LayoutMode>
   activeModal: Ref<string>
-  /** 打开链接弹窗（由外部提供以解决与 toolbar 自身的循环引用） */
-  openLinkModal: () => void
-  /** 打开表格弹窗（由外部提供以解决循环引用） */
-  openTableModal: () => void
-  /** 打开媒体弹窗 */
+  /** 打开媒体弹窗（来自 useEditorMedia） */
   openMediaModal: () => void
-  /** 打开文件菜单的导出标签页 */
+  /** 打开文件菜单的导出标签页（来自 useFileMenu） */
   openExportModal: () => void
   t: (key: string, options?: Record<string, any>) => string
 }
 
+export interface RibbonTool { type: 'button' | 'spacer'; id?: string; label?: string; icon?: string; action?: string; isStats?: boolean; onClick?: (e: MouseEvent) => void; popover?: DropdownPreset | (() => DropdownPreset); popoverOnSelect?: (action: string) => void }
+export interface RibbonTabDef { id: string; label: string; icon: string; groups: Array<{ tools: RibbonTool[] }> }
+
 export function useEditorToolbar(options: EditorToolbarOptions) {
   const {
     editorBodyRef, editorType, postFont, localValue, isCloudEditing,
-    layout, activeModal, openLinkModal, openTableModal, openMediaModal, openExportModal, t,
+    layout, activeModal, openMediaModal, openExportModal, t,
   } = options
 
   // ══════════════════════════════════════════════════════
   // Ribbon 标签页
   // ══════════════════════════════════════════════════════
-
-  interface RibbonTool { type: 'button' | 'spacer'; id?: string; label?: string; icon?: string; action?: string; isStats?: boolean }
-  interface RibbonTabDef { id: string; label: string; icon: string; groups: Array<{ tools: RibbonTool[] }> }
 
   const ribbonTabs = ref<RibbonTabDef[]>([])
   const activeTab = ref('')
@@ -90,7 +87,6 @@ export function useEditorToolbar(options: EditorToolbarOptions) {
       return s.hasSlideClass(s.currentSlide.value, cls)
     }
     if (action === 'insertClassLead') return checkSlideClass('lead')
-    if (action === 'columnsMenu') return checkSlideClass('columns') || checkSlideClass('columns-2') || checkSlideClass('columns-3')
     if (action === 'insertClassColumns') return checkSlideClass('columns')
     if (action === 'insertClassColumns2') return checkSlideClass('columns-2')
     if (action === 'insertClassColumns3') return checkSlideClass('columns-3')
@@ -116,9 +112,9 @@ export function useEditorToolbar(options: EditorToolbarOptions) {
     } else if (action === 'openMediaModal') {
       openMediaModal()
     } else if (action === 'openLinkModal') {
-      openLinkModal()
+      openLinkModalInner()
     } else if (action === 'openTableModal') {
-      openTableModal()
+      openTableModalInner()
     } else if (action === 'openMathModal') {
       mathInput.value = (editorBodyRef.value?.getSelection() as any)?.text || ''
       mathMode.value = 'inline'

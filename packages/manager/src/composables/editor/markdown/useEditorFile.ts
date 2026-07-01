@@ -10,7 +10,8 @@
  * 依赖：useEditorFrontmatter（frontmatter 状态）、useEditorMedia（本地文件上传解析）
  */
 import { ref, type Ref, type ComputedRef } from 'vue'
-import type { SavedFm } from '../core/useFileProperties'
+import type { SavedFm } from './useFrontmatter'
+import { extractMarpKeys } from './useFrontmatter'
 import { triggerBuild } from '../../useAstroBuild'
 import { settingsStore } from '../../settingsApi'
 import pptxgen from 'pptxgenjs'
@@ -30,7 +31,7 @@ import {
   renderMermaidBlocksInMarkdown,
 } from './useStaticRenderer'
 import { createCloudSave } from '../cloud/useCloudSave'
-import { allocateId, savePost, saveDraft as _saveDraft, clearDraft as _clearDraft } from '../cloud/useCloudRelay'
+import { allocateId, savePost, saveDraft as _saveDraft, clearDraft as _clearDraft, saveAbout } from '../cloud/useCloudRelay'
 import type { DraftMeta } from '../cloud/useCloudRelay'
 
 /**
@@ -39,6 +40,7 @@ import type { DraftMeta } from '../cloud/useCloudRelay'
  */
 export interface EditorFileOptions {
   editorType: Ref<'article' | 'slides'>
+  editorBasePath: string
   localValue: Ref<string>
   // ── Frontmatter state (来自 useEditorFrontmatter) ──
   postTitle: Ref<string>
@@ -94,7 +96,7 @@ export interface EditorFileOptions {
 
 export function useEditorFile(options: EditorFileOptions) {
   const {
-    editorType, localValue, postTitle, isDefaultTitle, postId, postStatus,
+    editorType, editorBasePath, localValue, postTitle, isDefaultTitle, postId, postStatus,
     postDate, postUpdated, postTags, postFont, postAuthor, postAIGenerated,
     slideshowConfig, isCloudEditing, isAboutMode,
     isCloudAuthenticated, refreshCloudAuthState, goToLogin,
@@ -146,24 +148,9 @@ export function useEditorFile(options: EditorFileOptions) {
     }
     let body = localValue.value
     if (editorType.value === 'slides') {
-      // 检测正文中的 Marp YAML frontmatter 并提取非 Chronicle 键
-      const fmMatch = body.match(/^---\n([\s\S]*?)\n---\n?/)
-      if (fmMatch) {
-        const rawFm = fmMatch[1]
-        const isMarp = /^(marp|theme|size|footer|paginate|header|class|backgroundColor|backgroundImage|color):/m.test(rawFm)
-        if (isMarp) {
-          body = body.slice(fmMatch[0].length)
-          rawFm.split('\n').forEach(line => {
-            const c = line.indexOf(':')
-            if (c < 0) return
-            const k = line.slice(0, c).trim()
-            const v = line.slice(c + 1).trim().replace(/^"(.*)"$/, '$1')
-            if (k && !CHRONICLE_FM_KEYS.has(k)) {
-              fm[k] = v === 'true' ? true : v === 'false' ? false : v
-            }
-          })
-        }
-      }
+      const { marp, cleanBody } = extractMarpKeys(body, CHRONICLE_FM_KEYS)
+      body = cleanBody
+      Object.assign(fm, marp)
       fm.marp = true
       // slideshowConfig 面板设置作为 fallback（正文 Marp FM 优先）
       const ss = slideshowConfig.value || {}
@@ -225,14 +212,24 @@ export function useEditorFile(options: EditorFileOptions) {
    * 另存为：优先 File System Access API 弹出保存对话框，
    * 浏览器不支持时 fallback 到 Blob 下载。
    */
+  function safeFilename(title: string): string {
+    // 保留中文等 Unicode，只替换文件系统非法字符
+    const name = (title || 'untitled').trim()
+    // 去掉路径分隔符和其他非法字符
+    const cleaned = name.replace(/[\\/:*?"<>|]/g, '_').trim()
+    return cleaned || 'untitled'
+  }
+
   async function saveAs() {
     if (!postDate.value) postDate.value = new Date().toISOString()
     const contents = buildFileContent()
-    // 尝试 File System Access API
+    const filename = safeFilename(postTitle.value) + '.md'
+
+    // 优先 File System Access API
     if ((window as any).showSaveFilePicker) {
       try {
         const handle = await (window as any).showSaveFilePicker({
-          suggestedName: `${(postTitle.value || 'untitled').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.md`,
+          suggestedName: filename,
           types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }],
         })
         const ok = await writeFileHandle(handle, contents)
@@ -246,16 +243,23 @@ export function useEditorFile(options: EditorFileOptions) {
           activeModal.value = 'none'
           return true
         }
-      } catch (e) { console.error('saveAs: File System API failed, falling back to download', e) }
+      } catch (e: any) {
+        if (e?.name === 'AbortError') return false // 用户主动取消 — 静默
+        // API 调用失败（非取消）— 继续走下载 fallback
+      }
     }
-    // Blob 下载 fallback
+
+    // 下载 fallback（API 不支持或调用失败）
     const blob = new Blob([contents], { type: 'text/markdown;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    const filename = `${(postTitle.value || 'untitled').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.md`
-    a.href = url; a.download = filename
-    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
     URL.revokeObjectURL(url)
+    activeModal.value = 'none'
     showToast(t('editor.file.savedToFile') as string)
     return true
   }
@@ -268,32 +272,51 @@ export function useEditorFile(options: EditorFileOptions) {
   // 导出
   // ══════════════════════════════════════════════════════
 
+  /** 写文件或下载：优先 File System API，否则 Blob 下载 */
+  async function writeOrDownload(contents: string | Blob, filename: string, mimeType: string) {
+    if ((window as any).showSaveFilePicker) {
+      try {
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName: filename,
+          types: [{ description: mimeType.split('/')[1]?.toUpperCase() || 'File', accept: { [mimeType]: [`.${filename.split('.').pop()}`] } }],
+        })
+        if (handle.createWritable) {
+          const writable = await handle.createWritable()
+          await writable.write(contents)
+          await writable.close()
+          return true
+        }
+      } catch (e: any) {
+        if (e?.name === 'AbortError') return false
+      }
+    }
+    // 下载 fallback
+    const blob = contents instanceof Blob ? contents : new Blob([contents], { type: mimeType })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    return true
+  }
+
   /** 导出为自包含 HTML 文件（无外部依赖）。Slides 使用 Marp 渲染。 */
   async function exportAsHTML() {
     try {
+      const ext = '.html'
+      const filename = safeFilename(postTitle.value || (editorType.value === 'slides' ? 'slides' : 'untitled')) + ext
+      let fullHtml: string
       if (editorType.value === 'slides') {
         const { html, css } = await renderSlidesToHTML(localValue.value)
-        const fullHtml = buildSlidesStandaloneHtml(postTitle.value, html, css, locale.value || 'en')
-        const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `${(postTitle.value || 'slides').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.html`
-        a.click()
-        URL.revokeObjectURL(url)
-        activeModal.value = 'none'
-        return
+        fullHtml = buildSlidesStandaloneHtml(postTitle.value, html, css, locale.value || 'en')
+      } else {
+        const renderedHtml = await renderStaticHTML(localValue.value)
+        fullHtml = buildArticleStandaloneHtml(postTitle.value, renderedHtml, locale.value || 'en', postFont.value)
       }
-      // 文章：静态渲染管线 + 完整 CSS 内联
-      const renderedHtml = await renderStaticHTML(localValue.value)
-      const fullHtml = buildArticleStandaloneHtml(postTitle.value, renderedHtml, locale.value || 'en', postFont.value)
-      const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${(postTitle.value || 'untitled').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.html`
-      a.click()
-      URL.revokeObjectURL(url)
+      await writeOrDownload(fullHtml, filename, 'text/html')
       activeModal.value = 'none'
     } catch (e) { console.error('exportAsHTML failed', e) }
   }
@@ -302,6 +325,7 @@ export function useEditorFile(options: EditorFileOptions) {
   async function exportAsPPTX() {
     if (editorType.value !== 'slides') return
     try {
+      const filename = safeFilename(postTitle.value || 'slides') + '.pptx'
       const { html } = await renderSlidesToHTML(localValue.value)
       const sections = extractSlideSections(html)
 
@@ -314,12 +338,8 @@ export function useEditorFile(options: EditorFileOptions) {
         const slide = pptx.addSlide()
         const texts = parseSlideHTMLToTextObjects(sectionHTML)
         if (texts.length > 0) {
-          slide.addText(texts, {
-            x: '5%', y: '5%', w: '90%', h: '90%',
-            valign: 'top',
-          })
+          slide.addText(texts, { x: '5%', y: '5%', w: '90%', h: '90%', valign: 'top' })
         } else {
-          // 兜底：无文本时显示 slide 编号
           slide.addText(`Slide ${sections.indexOf(sectionHTML) + 1}`, {
             x: '10%', y: '40%', w: '80%', h: '20%',
             fontSize: 24, color: '999999', align: 'center',
@@ -327,30 +347,23 @@ export function useEditorFile(options: EditorFileOptions) {
         }
       }
 
-      await pptx.writeFile({ fileName: `${(postTitle.value || 'slides').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pptx` })
+      // pptxgenjs writeFile 自带文件保存对话框，直接使用
+      await pptx.writeFile({ fileName: filename })
       activeModal.value = 'none'
-    } catch (e) { console.error('exportAsPPTX failed', e) }
+    } catch (e: any) {
+      if (e?.name !== 'AbortError') console.error('exportAsPPTX failed', e)
+    }
   }
 
   // ══════════════════════════════════════════════════════
   // 认证工具
   // ══════════════════════════════════════════════════════
 
-  /** 从 localStorage 读取 chronicle_auth token */
-  function getAdminAuthToken() {
-    try {
-      const raw = localStorage.getItem('chronicle_auth')
-      if (!raw) return ''
-      const parsed = JSON.parse(raw)
-      return typeof parsed?.token === 'string' ? parsed.token : ''
-    } catch { return '' }
-  }
-
   /** 要求云端认证，未登录则跳转登录页 */
   const requireCloudAuth = (nextUrl?: string) => {
     refreshCloudAuthState()
     if (isCloudAuthenticated()) return true
-    goToLogin(nextUrl || route.fullPath || '/editor/article')
+    goToLogin(nextUrl || route.fullPath || editorBasePath + '/article')
     return false
   }
 
@@ -428,6 +441,23 @@ export function useEditorFile(options: EditorFileOptions) {
    * @param action 保存意图：'local' | 'draft' | 'publish' | 'upload' | 'unsaved'
    */
   async function doSave(action?: 'local' | 'draft' | 'publish' | 'upload' | 'unsaved') {
+    // ══ About 页面特殊处理 — 独立于 cloud/post 保存链路 ══
+    if (isAboutMode.value) {
+      isSaving.value = true
+      try {
+        const ok = await saveAbout(fetchWithAuth, localValue.value)
+        if (!ok) throw new Error('Save failed')
+        savedContent.value = editorType.value === 'slides' ? localValue.value : normalizeBody(localValue.value)
+        activeModal.value = 'none'
+        showToast(t('editor.saved') as string, { status: 'success', position: 'bottom-center', shape: 'capsule' })
+        const settings = settingsStore.value
+        if (settings?.autoBuildOnPublish) { try { await triggerAstroBuild('__about__') } catch {} }
+      } catch (e: any) {
+        showToast((e?.message || t('editor.saveFailed')) as string, { status: 'error', position: 'bottom-center', shape: 'capsule' })
+      } finally { isSaving.value = false }
+      return
+    }
+
     // ══ 绿色分支：preSave contract 存在时，委托 cloud/useCloudSave ══
     if (preSave && action !== 'local') {
       const intent = action || (activeModal.value || 'draft')
@@ -483,8 +513,8 @@ export function useEditorFile(options: EditorFileOptions) {
               if (processed) localValue.value = processed
               _clearDraft(newId)  // 清除 upload 时存的临时草稿
               onSaved(newId, 'published')
-              const editorPath = editorType.value === 'slides' ? '/editor/slides' : '/editor/article'
-              router.replace({ path: editorPath, query: { id: newId } })
+              const targetPath = editorBasePath + '/' + editorType.value
+              router.replace({ path: targetPath, query: { id: newId } })
               if (settingsStore.value?.autoBuildOnPublish) void triggerAstroBuild(newId)
             }
           } else if (intent === 'publish') {
@@ -508,27 +538,6 @@ export function useEditorFile(options: EditorFileOptions) {
         } finally { isSaving.value = false }
         return
       }
-    }
-
-    // ── About 页面特殊处理 ──
-    if (isAboutMode.value) {
-      isSaving.value = true
-      try {
-        const res = await fetchWithAuth('/api/admin/about', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: localValue.value }),
-        })
-        await res.json()
-        savedContent.value = editorType.value === 'slides' ? localValue.value : normalizeBody(localValue.value)
-        activeModal.value = 'none'
-        showToast(t('editor.saved') as string, { status: 'success', position: 'bottom-center', shape: 'capsule' })
-        const settings = settingsStore.value
-        if (settings?.autoBuildOnPublish) { try { await triggerAstroBuild('__about__') } catch {} }
-      } catch (e: any) {
-        showToast((e?.message || t('editor.saveFailed')) as string, { status: 'error', position: 'bottom-center', shape: 'capsule' })
-      } finally { isSaving.value = false }
-      return
     }
 
     // ── 路径 1: 本地保存 ──
@@ -662,7 +671,6 @@ export function useEditorFile(options: EditorFileOptions) {
     // 云端操作
     doSave,
     triggerAstroBuild,
-    getAdminAuthToken,
     requireCloudAuth,
     // 模态框
     handleTopRightSave,

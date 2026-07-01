@@ -132,7 +132,7 @@ const hasContent = computed(() => {
   const body = localContent.value.replace(/^---\n[\s\S]*?\n---\n\n?/, '').trim()
   return body.length > 0
 })
-const previewReady = ref(false)
+const previewReady = ref(hasContent.value)
 watch(hasContent, (val) => { if (val) previewReady.value = true })
 
 // ── Refs ─────────────────────────────────────────────
@@ -394,7 +394,7 @@ function getToolbarConfig() {
           {
             tools: [
               { type: 'spacer' },
-              { type: 'button', id: 'wordcount', label: '', icon: '', action: 'stats', isStats: true },
+              { type: 'button', id: 'wordcount', label: '', icon: '', isStats: true },
             ]
           },
         ]
@@ -495,9 +495,6 @@ defineExpose({
   padding: 0 1px;
 }
 
-.preview-content {
-  /* no extra padding — preview-pane already has it */
-}
 
 /* ── Split divider ────────────────────────────────── */
 .pane-divider {
