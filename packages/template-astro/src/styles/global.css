@@ -803,3 +803,18 @@ select option {
   background: var(--component-bg-primary);
   color: var(--component-text-primary);
 }
+
+@media (max-width: 768px) {
+
+  .icon-label-btn .label {
+    display: none;
+  }
+
+  .icon-label-btn {
+    padding: 0.6rem;
+  }
+
+  .responsive-title {
+    padding-left: 40px;
+  }
+}

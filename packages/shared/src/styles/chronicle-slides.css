@@ -43,18 +43,14 @@ html.focus .slides-container {
 /* ── Browse: absolute size, both scroll directions ── */
 .marp-slides-browse {
   overflow: auto;
-  padding: 70px 0 0 0;
-  margin-bottom: 50px;
-  justify-content: center;
-}
-html.is-mobile .marp-slides-browse {
-  padding: 50px 0 0 0;
 }
 .marp-slides-browse .marp-slides {
   --slide-zoom: 1;
-  width: 800px;
-  transform: scale(var(--slide-zoom));
-  transform-origin: top left;
+  width: fit-content;
+  margin: 0 auto;
+}
+.marp-slides-browse .marpit {
+  zoom: var(--slide-zoom);
 }
 
 /* ── Present: contain, single slide fills viewport ── */
@@ -70,13 +66,6 @@ html.is-mobile .marp-slides-browse {
   justify-content: center;
 }
 
-.marp-slides-present {
-  top: 70px;
-}
-
-html.is-mobile .marp-slides-present {
-  top: 50px;
-}
 
 .marp-slides-present svg[data-marpit-svg] {
   max-width: 100%;
@@ -123,75 +112,19 @@ html.is-mobile .marp-slides-present {
 .slide-content img { max-width: 100%; max-height: 60vh; }
 .slide-content blockquote { border-left: 3px solid var(--slide-accent); padding-left: 1em; margin: .5em 0; opacity: .85; }
 
-/* ── Controls bar ──────────────────────────────── */
+/* ── Controls bar (layout) ───────────────────── */
 .slides-controls {
   position: absolute;
   bottom: 0; left: 0; right: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 16px;
+  gap: 8px;
   padding: 8px 16px;
-  opacity: .25;
-  transition: opacity .2s, background .2s;
-  background: transparent;
-  color: var(--component-text-secondary);
-  font-size: 14px;
   z-index: 10;
 }
 
-html:not(.focus) .slides-controls {
-  opacity: 1;
-  background: var(--component-bg-blur);
-  backdrop-filter: blur(4px);
-}
-
-.slides-controls:hover {
-  opacity: 1;
-  background: var(--component-bg-blur);
-  backdrop-filter: blur(4px);
-}
-
-.slides-controls button {
-  background: transparent;
-  border: none;
-  color: var(--component-text-secondary);
-  cursor: pointer;
-  padding: 6px 14px;
-  border-radius: 4px;
-  font-size: 14px;
-  transition: background .15s, color .15s;
-}
-.slides-controls button:hover { background: var(--component-bg-hover); color: var(--component-text-primary); }
-.slides-controls button:disabled { opacity: .3; cursor: not-allowed; }
-.slides-controls button.active { background: var(--component-bg-active); color: var(--component-text-primary); }
-
-.slide-back-link {
-  color: var(--component-text-secondary); text-decoration: none;
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 32px; height: 32px; border-radius: 6px;
-  font-size: 16px; transition: background .15s;
-}
-.slide-back-link:hover { background: var(--component-bg-hover); color: var(--component-text-primary); }
-
-.slide-counter {
-  font-variant-numeric: tabular-nums;
-  min-width: 60px;
-  text-align: center;
-}
-
 .slide-view-spacer { flex: 1; }
-
-.slide-zoom-group {
-  display: flex; align-items: center; gap: 2px;
-}
-.slide-zoom-label {
-  min-width: 42px; text-align: center;
-  font-variant-numeric: tabular-nums; font-size: 12px;
-}
-.slide-zoom-group button {
-  font-size: 13px; padding: 4px 10px;
-}
 
 /* ── Speaker notes ─────────────────────────────── */
 .speaker-notes {
@@ -212,34 +145,6 @@ html:not(.focus) .slides-controls {
   font-size: 12px;
   padding: 4px 8px;
 }
-
-/* ── View toggle floating bar ──────────────────── */
-.slides-view-bar {
-  position: fixed;
-  bottom: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 4px;
-  background: var(--component-bg-blur, rgba(255,255,255,.9));
-  border: 1px solid var(--border-color, #ddd);
-  border-radius: 8px;
-  padding: 4px;
-  z-index: 80;
-  box-shadow: 0 2px 12px rgba(0,0,0,.1);
-}
-
-.slides-view-bar button {
-  background: transparent;
-  border: none;
-  padding: 6px 14px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-  color: var(--text-primary, #111);
-}
-.slides-view-bar button:hover { background: var(--component-bg-hover, #f0f0f0); }
-.slides-view-bar button.active { background: var(--component-bg-accent-blur, #e0e7ff); font-weight: 600; }
 
 /* ── Dark mode ─────────────────────────────────── */
 @media (prefers-color-scheme: dark) {

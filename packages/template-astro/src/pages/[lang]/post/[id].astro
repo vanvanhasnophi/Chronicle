@@ -212,7 +212,7 @@ const metaDescription = buildMetaDescription(post, locale);
 
 {isSlidesView && post ? (
 <Layout title={pageTitle} settings={settings} locale={locale} navTitle={post?.title} navBackHref={backToBlogs} navBackLabel={t('inblog.backToBlogs')} meta={{ description: metaDescription, type: 'article' }}>
-  <Slideshow id={post.id} config={post.slideshow || {}} />
+  <Slideshow id={post.id} locale={locale} config={post.slideshow || {}} />
 </Layout>
 ) : (
 <Layout title={pageTitle} settings={settings} locale={locale} navTitle={post?.title} navBackHref={backToBlogs} navBackLabel={t('inblog.backToBlogs')} meta={{ description: metaDescription, type: 'article' }}>

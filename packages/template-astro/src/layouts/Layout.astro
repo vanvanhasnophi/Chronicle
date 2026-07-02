@@ -142,6 +142,11 @@ try {
 
             document.addEventListener('astro:page-load', sendPageView);
             document.addEventListener('astro:after-swap', sendPageView);
+
+            // Always clear html.focus on any navigation so present-mode black bg never leaks
+            document.documentElement.classList.remove('focus');
+            document.addEventListener('astro:page-load', () => document.documentElement.classList.remove('focus'));
+            document.addEventListener('astro:after-swap', () => document.documentElement.classList.remove('focus'));
           })();
         </script>
       
