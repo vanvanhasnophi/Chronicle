@@ -171,7 +171,7 @@
 }
 
 /* Light theme overrides for syntax highlighting */
-[data-theme="light"] {
+[data-theme="light"]:not(.focus) {
   --code-keyword: #0000ff;
   --code-string: #a31515;
   --code-comment: #008000;
@@ -201,7 +201,7 @@
 
 
 /* Explicit light theme tokens */
-:root[data-theme="light"] {
+:root[data-theme="light"]:not(.focus) {
   color-scheme: light;
   --app-text-wght: 430;
 
@@ -273,7 +273,7 @@
 
 /* Follow-system light mode when no explicit dark override is set */
 @media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) {
+  :root:not([data-theme="dark"]):not(.focus) {
     color-scheme: light;
     --app-text-wght: 430;
     --code-bg: rgba(255, 0, 0, 0.12);
@@ -756,6 +756,10 @@ body.backend::after {
   opacity: 1;
 }
 
+html.bg-no-img #chronicle-bg-layer .bg-image {
+  display: none;
+}
+
 #chronicle-bg-layer .bg-overlay {
   position: absolute;
   inset: 0;
@@ -763,6 +767,10 @@ body.backend::after {
   z-index: 3;
   /* 最上层：遮罩层 + 模糊 */
   transition: background 0.3s ease, backdrop-filter 0.3s ease, -webkit-backdrop-filter 0.3s ease;
+}
+
+html.focus #chronicle-bg-layer .bg-overlay {
+  background: #000 !important;
 }
 
 

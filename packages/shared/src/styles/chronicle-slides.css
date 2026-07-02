@@ -15,20 +15,74 @@
 .slides-container {
   position: fixed;
   inset: 0;
-  background: #000;
+  background: transparent;
   display: flex;
   flex-direction: column;
   z-index: 100;
   overflow: hidden;
 }
 
+html.focus .slides-container {
+  background: #000;
+}
+
 .slides-viewport {
   flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Base pane ── */
+.marp-slides-wrap {
+  position: absolute; inset: 0;
+  overflow: hidden;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Browse: absolute size, both scroll directions ── */
+.marp-slides-browse {
+  overflow: auto;
+  padding: 70px 0 0 0;
+  margin-bottom: 50px;
+  justify-content: center;
+}
+html.is-mobile .marp-slides-browse {
+  padding: 50px 0 0 0;
+}
+.marp-slides-browse .marp-slides {
+  --slide-zoom: 1;
+  width: 800px;
+  transform: scale(var(--slide-zoom));
+  transform-origin: top left;
+}
+
+/* ── Present: contain, single slide fills viewport ── */
+.marp-slides-present .marp-slides {
+  position: absolute; inset: 0;
+}
+
+.marp-slides-present .marpit {
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
-  padding: 16px;
+}
+
+.marp-slides-present {
+  top: 70px;
+}
+
+html.is-mobile .marp-slides-present {
+  top: 50px;
+}
+
+.marp-slides-present svg[data-marpit-svg] {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto !important;
+  height: auto !important;
 }
 
 .slide-canvas {
@@ -43,6 +97,7 @@
   box-shadow: 0 4px 24px rgba(0,0,0,.3);
 }
 
+.slide-canvas[data-ratio="16:9"]  { --slide-ratio: 1.778; }
 .slide-canvas[data-ratio="4:3"]  { --slide-ratio: 1.333; }
 .slide-canvas[data-ratio="21:9"] { --slide-ratio: 2.333; }
 .slide-canvas[data-ratio="2:1"]  { --slide-ratio: 2; }
@@ -70,32 +125,72 @@
 
 /* ── Controls bar ──────────────────────────────── */
 .slides-controls {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 16px;
   padding: 8px 16px;
-  background: rgba(0,0,0,.6);
-  color: #fff;
+  opacity: .25;
+  transition: opacity .2s, background .2s;
+  background: transparent;
+  color: var(--component-text-secondary);
   font-size: 14px;
+  z-index: 10;
+}
+
+html:not(.focus) .slides-controls {
+  opacity: 1;
+  background: var(--component-bg-blur);
+  backdrop-filter: blur(4px);
+}
+
+.slides-controls:hover {
+  opacity: 1;
+  background: var(--component-bg-blur);
+  backdrop-filter: blur(4px);
 }
 
 .slides-controls button {
-  background: rgba(255,255,255,.1);
-  border: 1px solid rgba(255,255,255,.2);
-  color: #fff;
+  background: transparent;
+  border: none;
+  color: var(--component-text-secondary);
   cursor: pointer;
   padding: 6px 14px;
   border-radius: 4px;
   font-size: 14px;
+  transition: background .15s, color .15s;
 }
-.slides-controls button:hover { background: rgba(255,255,255,.2); }
+.slides-controls button:hover { background: var(--component-bg-hover); color: var(--component-text-primary); }
 .slides-controls button:disabled { opacity: .3; cursor: not-allowed; }
+.slides-controls button.active { background: var(--component-bg-active); color: var(--component-text-primary); }
+
+.slide-back-link {
+  color: var(--component-text-secondary); text-decoration: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 6px;
+  font-size: 16px; transition: background .15s;
+}
+.slide-back-link:hover { background: var(--component-bg-hover); color: var(--component-text-primary); }
 
 .slide-counter {
   font-variant-numeric: tabular-nums;
   min-width: 60px;
   text-align: center;
+}
+
+.slide-view-spacer { flex: 1; }
+
+.slide-zoom-group {
+  display: flex; align-items: center; gap: 2px;
+}
+.slide-zoom-label {
+  min-width: 42px; text-align: center;
+  font-variant-numeric: tabular-nums; font-size: 12px;
+}
+.slide-zoom-group button {
+  font-size: 13px; padding: 4px 10px;
 }
 
 /* ── Speaker notes ─────────────────────────────── */

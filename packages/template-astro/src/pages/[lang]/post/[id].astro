@@ -205,12 +205,15 @@ if (renderedPostContent) {
   }
 }
 
-const isSlidesView = post?.type === 'slides' || !!post?.slideshow;
+const isSlidesType = post?.type === 'slides' || !!post?.slideshow;
+const isSlidesView = isSlidesType;
 const metaDescription = buildMetaDescription(post, locale);
 ---
 
 {isSlidesView && post ? (
-  <Slideshow content={Buffer.from(post.content || rawPostMarkdown, 'utf-8').toString('base64')} config={post.slideshow || {}} />
+<Layout title={pageTitle} settings={settings} locale={locale} navTitle={post?.title} navBackHref={backToBlogs} navBackLabel={t('inblog.backToBlogs')} meta={{ description: metaDescription, type: 'article' }}>
+  <Slideshow id={post.id} config={post.slideshow || {}} />
+</Layout>
 ) : (
 <Layout title={pageTitle} settings={settings} locale={locale} navTitle={post?.title} navBackHref={backToBlogs} navBackLabel={t('inblog.backToBlogs')} meta={{ description: metaDescription, type: 'article' }}>
   <div class="post-detail-container" id="post-top">
