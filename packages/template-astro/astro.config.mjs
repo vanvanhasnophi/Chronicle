@@ -11,8 +11,8 @@ const pkg = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf-8'));
 
 export default defineConfig({
   output: 'static',
-  // 禁用Astro内置预加载，使用自定义智能预加载策略
-  prefetch: false,
+  // Astro 7 native prefetch on hover
+  prefetch: { defaultStrategy: 'hover' },
   integrations: [
     icon(),
   ],

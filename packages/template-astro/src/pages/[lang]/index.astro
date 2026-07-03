@@ -8,7 +8,6 @@ export async function getStaticPaths() {
 import Layout from "../../layouts/Layout.astro";
 import { getTranslation, getLocale } from "../../utils/i18n.ts";
 import { buildLocalizedPath } from "../../utils/routeLocale.ts";
-import { initPreloadSystem } from "../../utils/preload.ts";
 import { loadSiteSettings } from "../../utils/siteSettings";
 import CardStyleHomeDeck from "../../components/CardStyleHomeDeck.astro";
 import HomeCoverDeck from "../../components/HomeCoverDeck.astro";
@@ -381,20 +380,7 @@ const featureFlags = resolveFeatureFlags(settings?.featureFlags || {});
     window.__chronicleUpdateSplitHero = () => { ticking = false; requestUpdate(); };
   }
 
-  // Initialize preload system
-  function initPreload() {
-    // 动态导入预加载模块
-    import("../../utils/preload.ts")
-      .then((module) => {
-        module.initPreloadSystem();
-      })
-      .catch((error) => {
-        console.warn("[Preload] Failed to initialize preload system:", error);
-      });
-  }
-
   // Run on initial load
-  initPreload();
   // Delay initialization to ensure Layout has rendered main-content
   document.addEventListener("DOMContentLoaded", () => {
     initHomeNavigationFreeze();
@@ -404,7 +390,6 @@ const featureFlags = resolveFeatureFlags(settings?.featureFlags || {});
   // Re-run on page load if we're on the home page
   document.addEventListener("astro:page-load", () => {
     initHomeNavigationFreeze();
-    initPreload();
     initSplitHeroCompression();
   });
 

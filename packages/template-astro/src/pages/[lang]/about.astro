@@ -12,6 +12,7 @@ import { buildLocalizedPath } from '../../utils/routeLocale';
 import { loadSiteSettings } from '../../utils/siteSettings';
 import { renderChronicleMarkdown } from '../../utils/chronicleMarkdown';
 import { getProfile } from '../../data/localDataSource';
+import chronicleMarkdownCssUrl from '@chronicle/shared/src/styles/chronicle-markdown.css?url';
 import fs from 'fs';
 import path from 'path';
 
@@ -129,6 +130,10 @@ const metaDescription = profile?.bio
               </div>
             )
           }
+
+          <!-- chronicle-markdown.css loaded async (43KB) — non-render-blocking -->
+          <link rel="stylesheet" href={chronicleMarkdownCssUrl} media="print" onload="this.media='all'" />
+          <noscript><link rel="stylesheet" href={chronicleMarkdownCssUrl} /></noscript>
 
           {
             lastModified ? (

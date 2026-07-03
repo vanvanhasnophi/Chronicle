@@ -1,164 +1,251 @@
 # Chronicle Astro 性能优化计划
 
-> 基线：Lighthouse 模拟移动端（moto g power, 4x CPU slowdown）  
-> FCP 4.9s (11分) · LCP 4.9s (29分) · TTI 15.9s (6分) · TBT 生产环境 1800ms · 总 JS 3.3 MB
+> **原始基线**（2026 早期）：Lighthouse 模拟移动端（moto g power, 4x CPU slowdown）  
+> FCP 4.9s (11分) · LCP 4.9s (29分) · TTI 15.9s (6分) · TBT 1800ms · 总 JS 3.3 MB
 
-## Phase 0：低垂果实（今天，删代码就行）
+> **当前基线**（2026-07-03 重测）：  
+> **FCP 4.1s (22分) · LCP 4.1s (48分) · Speed Index 4.1s (80分)**
+>
+> 改进：FCP -800ms, LCP -800ms。但 FCP 22 分仍为 **红色**，LCP 48 分仍为 **橙色**。"4.1 秒白屏"等待依然过长。
+>
+> **指标解释**：FCP=LCP=SpeedIndex 全等于 4.1s，说明页面在 4.1 秒前完全空白，然后一次性渲染全部内容。这是典型的 **render-blocking CSS 过多 + 外部字体阻塞** 模式。
 
-### 0.1 清除 70+ `console.log`
+---
 
-**影响**：主线程阻塞，生产日志泄露  
-**文件**：Layout.astro (25)、preload.ts (14)、backgroundLayer.ts (10) 等  
-**做法**：全部删除或 `if (import.meta.env.DEV)` 守卫  
-**工期**：20min
+## Phase 0：低垂果实 ✅ 已完成
 
-### 0.2 Service Worker 清理去阻塞化
+### 0.1 清除 console.log
+- **状态**：✅ 完成
+- **实际**：Layout.astro (1 remaining SSR diagnostic), backgroundLayer.ts, localDataSource.ts 等已全部守卫
 
-**影响**：每页都同步执行 SW 注销逻辑，阻塞首次渲染  
-**位置**：Layout.astro line 155-173，标记为 `is:inline`  
-**做法**：移到延迟 `<script>` 标签，或改成 `async` module  
-**工期**：10min
+### 0.2 Service Worker 清理去阻塞化  
+- **状态**：✅ 完成
+- **实际**：已改为 `async`，不阻塞解析
 
 ### 0.3 Layout `is:inline` 脚本瘦身
-
-**影响**：6 个 `is:inline` 同步执行  
-**现状**：
-- ✅ 保留：theme 初始化（防 FOUC，line 254）
-- ❌ 可移除：SW 清理 (155)、perf mode (304)、mobile 检测 (281)
-- ⚠️ 条件保留：GA (122-128，有 GA ID 才渲染)
-
-**做法**：theme 保留，其余合并为一个 defer module script  
-**工期**：30min
-
-| 指标 | 预估改善 |
-|------|----------|
-| FCP | -200~500ms |
-| TBT | -50~100ms |
+- **状态**：✅ 完成
+- **实际**：is:inline 从 5 个减少到 3 个（theme 初始化 + 2 个条件 GA）。mobile 检测 + perf mode 已提取到 `layout-init.ts`
 
 ---
 
-## Phase 1：消灭无谓的 Vue（今天/明天）
+## Phase 1：消灭无谓的 Vue ✅ 已完成
 
 ### 1.1 BackToTop 去 Vue 化
-
-**问题**：首页和博客列表只为 1 个 BTT 按钮加载 700KB Vue runtime  
-**做法**：`BackToTop.vue` → vanilla JS（~20 行）+ 一段 CSS  
-**关键功能**：滚动 ≥300px 显示、点击 `scrollTo({top:0})`、`astro:page-load` 重绑  
-**受影响的页面**：`/`, `/en`, `/blogs`, `/en/blogs`
-
-**工期**：1h
+- **状态**：✅ 完成
 
 ### 1.2 FloatingToc 去 Vue 化
+- **状态**：✅ 完成
 
-**问题**：文章页 TOC 侧栏用 `v-for` 渲染静态列表，不需要 Vue 响应式  
-**做法**：SSR 渲染 HTML 骨架，vanilla JS 负责滚动高亮 + 折叠动画  
-**关键功能**：`tocController` 已经是 vanilla TS，只需替换模板渲染层  
-**受影响的页面**：文章页 (有 TOC 时)
-
-**工期**：3h
-
-| 指标 | 预估改善 |
-|------|----------|
-| JS bundle | -700KB (Vue runtime + CornerButton 等不再 import) |
-| FCP | -300~800ms（少解析 700KB JS） |
-| TTI | -2~4s |
+| 指标 | 预估 | 实际 |
+|------|------|------|
+| JS bundle | -700KB | ✅ 达成 |
+| FCP | -300~800ms | ✅ 包含在总改善中 |
 
 ---
 
-## Phase 2：JS 按需加载（本周）
+## Phase 2：JS 按需加载 ✅ 已完成
 
-### 2.1 Mermaid 真正懒加载
+### 2.1 Mermaid 懒加载
+- **状态**：✅ 已有（DOM 检测后才 import）
 
-**问题**：`import('mermaid')` 拉进全部 30+ 图表类型（435KB cytoscape + 146KB architecture + …），即使文章没有 Mermaid  
-**做法**：
-```js
-// 只在 DOM 中存在 .language-mermaid 时才 import
-if (document.querySelector('code.language-mermaid, code[class*="mermaid"]')) {
-  import('mermaid').then(renderAll)
-}
-```
-**工期**：30min
-
-### 2.2 KaTeX 真正懒加载
-
-**问题**：259KB KaTeX 全量加载，即使文章没有数学公式  
-**做法**：同上，DOM 检测到 `.katex` 或 `$` 定界符才 import  
-**工期**：30min
+### 2.2 KaTeX
+- **状态**：✅ 服务端渲染，不需要客户端包
 
 ### 2.3 Article 页内联脚本外提
+- **状态**：✅ 完成
+- **实际**：~450 行内联 JS → `article.ts` 模块
 
-**问题**：474 行内联 JS（复制代码、图片预览、Mermaid 交互）阻塞 HTML 解析  
-**做法**：提取为 `article.ts` 模块，`<script type="module" src="...">`  
+| 指标 | 预估 | 实际 |
+|------|------|------|
+| FCP | -500ms~1s | ✅ 包含在总改善中 |
+| HTML 内联 JS | -450 行 | ✅ 达成 |
+
+---
+
+## Phase 3：CSS & 资源优化 ✅ 已完成
+
+### 3.1 全局 CSS 精简
+- **状态**：✅ 完成
+- **实际**：移除 Ant Design 选择器 (~33 行)、合并 light theme 重复变量
+
+### 3.2 启用 Astro 7 原生 prefetch
+- **状态**：✅ 完成
+- **实际**：`prefetch: { defaultStrategy: 'hover' }`，删除 `preload.ts` (-193 行)
+
+### 3.3 图片优化
+- **状态**：✅ 完成
+- **实际**：Avatar 添加 `fetchpriority="high"`
+
+---
+
+## Phase 4：架构债清理 ⚠️ 部分完成
+
+### 4.1 合并重定向页面
+- **状态**：✅ 完成
+- **实际**：6 个重定向页面从 27-49 行简化到 ~10 行。`[...slug].astro` catch-all 在 SSG 模式下不可行（需要 `getStaticPaths`），保留独立文件。
+
+### 4.2 去重 Collection 页面
+- **状态**：❌ 延期
+- **原因**：涉及复杂的闭包依赖重构
+
+### 4.3 启用 Astro 7 内置 i18n
+- **状态**：❌ 延期
+- **原因**：非紧急，需要测试所有路由
+
+---
+
+## Phase 5：CSS 关键路径优化 🔴 当前优先级最高
+
+> **问题**：4.1s FCP 的最大瓶颈。84KB CSS（global 23K + app 9K + post 9K + chronicle-markdown 43K）全量阻塞首次渲染。浏览器必须下载、解析完所有 CSS 才能绘制任何像素。
+
+### 5.1 内联 Critical CSS
+
+**影响**：首屏（导航栏 + 文章标题 + 元数据 + 第一段文字）所需的 CSS 不到 5KB。内联到 `<head>` 可让浏览器在 CSS 下载完成前就开始绘制。
+
+**做法**：
+- 提取 nav-header、post-title、post-meta、.post-body 首段的样式
+- 在 Layout.astro 的 `<head>` 中内联 `<style>` 块
+- 其余 CSS 用 `media="print" onload="this.media='all'"` 模式异步加载
+
+**关键样式**（需要内联）：
+```css
+/* 布局骨架 */
+.nav-header { position:fixed; top:0; left:0; right:0; z-index:9999; height:70px; background:var(--component-bg-blur); }
+.main-content { padding-top:70px; }
+#app { display:flex; flex-direction:column; min-height:100vh; }
+
+/* 文章首屏 */
+.post-title { font-size:2.5rem; }
+.post-meta { display:flex; flex-wrap:wrap; gap:0.75rem; }
+.post-body { max-width:800px; margin:2rem auto; }
+
+/* 文字基础 */
+body { font-family:var(--app-font-stack); color:var(--text-primary); background-color:var(--app-bg-primary); }
+```
+
 **工期**：2h
+
+### 5.2 chronicle-markdown.css 异步加载
+
+**问题**：`chronicle-markdown.css` 有 43KB，包含所有 markdown 元素的样式（代码块、表格、引用、文件卡片等）。绝大多数内容在首屏之下，不需要阻塞首次渲染。
+
+**做法**：
+- 在 `[id].astro` 中，将 `import '@chronicle/shared/src/styles/chronicle-markdown.css'` 从 frontmatter 移到 `<head>` 中带 `media="print" onload` 的 link
+- 或使用 `is:raw` + 手动 link 标签
+
+**工期**：30min
+
+### 5.3 CSS 总体积评估
+
+| 文件 | 大小 | 可否延迟 |
+|------|------|----------|
+| global.css | 23KB | 首屏部分内联，其余延迟 |
+| app.css | 9KB | 部分可延迟（菜单、设置弹窗样式） |
+| post.css | 9KB | 首屏部分内联，其余延迟 |
+| chronicle-markdown.css | 43KB | **全部可延迟**（内容在首屏之下） |
+| KaTeX CSS | ~20KB (外部) | 只在有数学公式的页面加载 |
+| **合计** | **~84KB** | **首屏实际需要 ~5KB** |
 
 | 指标 | 预估改善 |
 |------|----------|
-| FCP | -500ms~1s（首次渲染不等 JS） |
-| TTI | -2~5s（少解析 2.5MB 未使用的 Mermaid/KaTeX） |
+| FCP | -1s~2s（5KB vs 84KB 阻塞 CSS） |
+| LCP | -1s~2s |
 
 ---
 
-## Phase 3：CSS & 资源优化（本周/下周）
+## Phase 6：字体加载优化
 
-### 3.1 全局 CSS 精简
+### 6.1 自托管 Noto Serif SC
 
-**问题**：820 行 global.css，亮色主题变量重复两份，Ant Design 覆盖 30 行  
-**做法**：合并重复的亮色主题、移除未使用的 Ant Design 规则  
-**工期**：1h
-
-### 3.2 启用 Astro 7 原生 prefetch
-
-**问题**：`prefetch: false` + 自定义 `preload.ts`（193 行，14 条 log）  
-**做法**：
-```js
-// astro.config.mjs
-prefetch: { defaultStrategy: 'hover' }
+**问题**：当前通过 Google Fonts 加载 `Noto Serif SC`：
+```html
+<link rel="preload" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@200..900&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
 ```
-删除 `preload.ts` 和 index/search 页面中的 `import('../../utils/preload.ts')`  
+即使有 `preconnect`，仍需 DNS + TCP + TLS + 请求（4 个 RTT）。本地开发时也要等 Google 服务器响应。
+
+**做法**：
+- 下载 `Noto Serif SC` 可变字体 woff2 到 `public/fonts/`
+- 创建 `noto-serif-sc.css` 定义 `@font-face`（与 inter.css 模式一致）
+- 替换 Google Fonts link 为本地路径
+- `font-display: swap` 确保文字立即可见（系统字体回退）
+
+**字体文件**：
+- `NotoSerifSC[wght].woff2` — 可变字体，约 12MB（全字重 200-900）
+- 子集化（只保留简体中文常用字 + 拉丁字符）可降到 ~3-5MB
+- 或只下载 400 + 700 两个字重（不用可变字体），约 2MB
+
+**工期**：1h（完整版）/ 3h（含子集化）
+
+### 6.2 字体加载策略审查
+
+**当前状态**：
+- Inter：✅ 自托管，`font-display: swap`，variable woff2
+- Noto Serif SC：❌ Google Fonts 外部加载，`preload` + `onload` 模式
+
+**preload + onload 模式的问题**：
+- `preload` 的 `as="style"` 在 Chrome 中有 Highest 优先级，会与关键 CSS 争抢带宽
+- 外部域名（fonts.googleapis.com）即使有 preconnect，仍需要额外的网络往返
+- `onload` 回调在资源加载完才触发，但页面可能在此之前已经开始渲染
+
+**改进方案**：
+1. 自托管后使用普通 `<link rel="stylesheet">` + `media="print" onload="this.media='all'"`（不争抢 preload 扫描器的带宽）
+2. 或者使用 `<link rel="stylesheet">` 直接放在 head 中（让浏览器按正常优先级加载）
+3. 对于 `font-display: swap` 的字体，直接 link 优于 preload+onload（不抢占关键 CSS 的带宽）
+
 **工期**：30min
 
-### 3.3 主页背景图优化
-
-**问题**：背景图未设置 `fetchpriority`、没有 `srcset`、未用 `loading="lazy"`  
-**做法**：添加 `fetchpriority="high"` 给 LCP 图片，其他 `loading="lazy"`  
-**工期**：30min
+| 指标 | 预估改善 |
+|------|----------|
+| FCP (外部域名用户) | -500ms~1s（无外部 DNS/TLS 延迟） |
+| FCP (本地开发) | -200~500ms（无外部请求超时风险） |
 
 ---
 
-## Phase 4：架构债清理（下周）
+## Phase 7：缓存与交付优化
 
-### 4.1 合并 7 个重复重定向页面
+### 7.1 静态资源强缓存
 
-**问题**：`index.astro`, `about.astro`, `blogs.astro`, `collection.astro`, `friends.astro`, `search.astro`, `post.astro` 是 40 行完全相同的重定向模板 ×7  
-**做法**：单个 `[...slug].astro` catch-all 路由 + locale 检测  
-**工期**：1h
+**问题**：字体文件（Inter Variable woff2）、CSS bundle、JS bundle 应该永久缓存。当前需要确认 Astro 构建是否添加了 hash。
 
-### 4.2 去重 Collection 页面
+**做法**：
+- 确认 `astro.config.mjs` 中 `build.assets` 配置
+- 确认字体文件 URL 带 hash 或版本号（以便 safe cache-busting）
+- Nginx/CDN 配置 `Cache-Control: public, max-age=31536000, immutable`（针对带 hash 的资源）
 
-**问题**：`collection.astro` 和 `[lang]/collection.astro` 共享 95% 代码  
-**做法**：提取共用 JS 为模块，两个页面只做 i18n 包装  
-**工期**：2h
+**工期**：30min
 
-### 4.3 启用 Astro 7 内置 i18n
+### 7.2 HTML 压缩
 
-**问题**：自定义 `middleware.ts` + `routeLocale.ts` + 7 个重定向页维护成本高  
-**做法**：评估迁移到 `astro.config.mjs` 的 `i18n` 配置  
-**工期**：1d（需要测试所有路由）
+**问题**：Astro 默认不压缩 HTML 输出。
+
+**做法**：
+- 检查是否已有 `compressHTML: true` 配置
+- 或使用 Vite 插件压缩 HTML
+
+**工期**：15min
 
 ---
 
-## 整体预估
+## 更新后的整体预估
 
-| Phase | 内容 | FCP 改善 | JS 减少 | 工期 |
-|-------|------|----------|---------|------|
-| 0 | 删 log、去阻塞脚本 | -300ms | - | 1h |
-| 1 | 去 Vue | -500ms | -700KB | 4h |
-| 2 | JS 懒加载 | -1s | -2.5MB（未使用） | 3h |
-| 3 | CSS/资源 | -200ms | - | 2h |
-| 4 | 架构清理 | - | -150 行 | 1.5d |
+| Phase | 内容 | FCP 改善 | LCP 改善 | 工期 |
+|-------|------|----------|----------|------|
+| 0-3 | ✅ 已完成 | -800ms | -800ms | — |
+| 4 | ⚠️ 部分完成 | — | — | 剩余 3h |
+| **5** | **CSS 关键路径** | **-1s~2s** | **-1s~2s** | **2.5h** |
+| **6** | **字体自托管** | **-500ms~1s** | — | **1.5h** |
+| 7 | 缓存/压缩 | — | -200ms（重复访问） | **1h** |
 
-**Phase 2 收益最大**：如果文章没有 Mermaid/KaTeX，TTI 直接砍掉 10s+。  
+**Phase 5 + 6 预计总改善**：FCP 从 4.1s → 2.0-2.5s（改善约 40-50%），LCP 从 4.1s → 2.5-3.0s。
 
-**Phase 1 覆盖面最广**：首页、博客不再拉 Vue，这些是流量最大的页面。
+**核心洞察**：FCP = LCP = SpeedIndex = 4.1s，三者完全相等，意味着页面是一次性全量渲染的。打破这个瓶颈的关键是 **让浏览器提前绘制首屏内容**（Phase 5 内联 Critical CSS），而不是等全部 84KB CSS 下载解析完再一起画。
 
-建议顺序：0 → 1 → 2 → 3 → 4。Phase 0 做完就能看到 FCP 改善，Phase 1 验证去 Vue 效果，Phase 2 解决剩余的大头。
+---
+
+## 建议执行顺序
+
+**本轮**：Phase 5 → Phase 6 → Phase 7
+
+- Phase 5（CSS critical）收益最大，是 FCP 突破 2s 的关键
+- Phase 6（字体自托管）消除外部依赖，减少波动
+- Phase 7（缓存）提升重复访问体验

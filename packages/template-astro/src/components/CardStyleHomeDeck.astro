@@ -354,7 +354,7 @@ const yearLabel = new Date().getFullYear();
       <article class="author-card panel-card">
         <div class="author-card__top">
           {authorAvatar ? (
-            <img class="author-avatar" src={authorAvatar} alt={authorName} width="64" height="64" loading="eager" decoding="async" />
+            <img class="author-avatar" src={authorAvatar} alt={authorName} width="64" height="64" loading="eager" decoding="async" fetchpriority="high" />
           ) : (
             <div class="author-avatar" aria-hidden="true">{authorInitials}</div>
           )}

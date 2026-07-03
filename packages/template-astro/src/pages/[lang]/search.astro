@@ -1193,16 +1193,5 @@ const metaDescription = locale === "zh-CN"
       window.history.replaceState({}, "", `${routePrefix}/search`);
     }
 
-    // 智能预加载其他页面
-    import("../../utils/preload.ts")
-      .then(({ executeSmartPreload }) => {
-        // 延迟执行预加载，避免影响首屏性能
-        setTimeout(() => {
-          executeSmartPreload();
-        }, 2000);
-      })
-      .catch((err) => {
-        console.warn("[Preload] Failed to load preload module:", err);
-      });
   }
 </script>
