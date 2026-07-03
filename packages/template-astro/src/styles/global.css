@@ -216,7 +216,7 @@
   --app-bg-secondary: #f0f0f0;
   --component-bg: #ffffff;
   --component-bg-alt: #f7f7f7;
-  --component-bg-blur: rgba(230, 230, 230, 0.7);
+  --component-bg-blur: rgba(230, 230, 230, 0.8);
   --component-bg-blur-alt: rgba(232, 232, 232, 0.5);
   --component-bg-accent: color-mix(in srgb, var(--accent-color) 30%, #fffb);
   --component-bg-accent-blur: color-mix(in srgb, var(--accent-color) 35%, #fffb);
@@ -282,7 +282,7 @@
     --app-bg-secondary: #f0f0f0;
     --component-bg: #ffffff;
     --component-bg-alt: #f7f7f7;
-    --component-bg-blur: rgba(230, 230, 230, 0.7);
+    --component-bg-blur: rgba(230, 230, 230, 0.8);
     --component-bg-blur-alt: rgba(232, 232, 232, 0.5);
     --component-bg-accent: color-mix(in srgb, var(--accent-color) 30%, #fffb);
     --component-bg-accent-blur: color-mix(in srgb, var(--accent-color) 35%, #fffb);

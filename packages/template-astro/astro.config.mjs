@@ -4,7 +4,6 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
 import icon from 'astro-icon';
-import vue from '@astrojs/vue';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -16,7 +15,6 @@ export default defineConfig({
   prefetch: false,
   integrations: [
     icon(),
-    vue()
   ],
   server: { port: 4321 },
   // 禁用Astro原生i18n配置，使用自定义i18n实现

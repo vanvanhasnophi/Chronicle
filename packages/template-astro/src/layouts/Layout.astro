@@ -98,7 +98,7 @@ try {
 } catch (e) { }
 ---
 <!DOCTYPE html>
-<html lang={htmlLang} class={"immersive"}>
+<html lang={htmlLang} class={"immersive"} data-perf-default={defaultPerformanceMode}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -118,7 +118,6 @@ try {
     <!-- Google Analytics (gtag) 注入：仅当 GA ID 存在且流量开关启用时注入 -->
     {(GA_MEASUREMENT_ID && ((featureFlags && (featureFlags as any).traffic) === true)) ? (
       
-        <!-- GA SSR: traffic={String((featureFlags && (featureFlags as any).traffic) === true)} gaMeasurementId={GA_MEASUREMENT_ID || ''} injected={String(Boolean(GA_MEASUREMENT_ID && (featureFlags && (featureFlags as any).traffic) === true))} -->
         <script async src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}></script>
         <script is:inline define:vars={{ GA_MEASUREMENT_ID }}>
           window.dataLayer = window.dataLayer || [];
@@ -152,38 +151,15 @@ try {
       
     ) : null}
     
-    <!-- Emergency SW cleanup: unregister legacy service workers and drop CacheStorage. -->
-    <script is:inline>
-      (function () {
-        if (typeof window === 'undefined') return;
-        if (!('serviceWorker' in navigator)) return;
-
-        const CLEANUP_FLAG = 'chronicle.sw.cleanup.v1';
-
-        (async () => {
-          try {
-            const registrations = await navigator.serviceWorker.getRegistrations();
-            if (!registrations.length) return;
-
-            await Promise.all(registrations.map((registration) => registration.unregister()));
-
-            if ('caches' in window) {
-              const cacheKeys = await caches.keys();
-              await Promise.all(cacheKeys.map((key) => caches.delete(key)));
-            }
-
-            // One forced reload ensures current tab is no longer served by an old SW-controlled response.
-            if (!sessionStorage.getItem(CLEANUP_FLAG)) {
-              sessionStorage.setItem(CLEANUP_FLAG, '1');
-              const nextUrl = new URL(window.location.href);
-              nextUrl.searchParams.set('_sw_cleaned', String(Date.now()));
-              window.location.replace(nextUrl.toString());
-            }
-          } catch (err) {
-            console.warn('[Chronicle] Service worker cleanup failed:', err);
-          }
-        })();
-      })();
+    <!-- Legacy SW cleanup (non-blocking) -->
+    <script async>
+      (function(){if(typeof window==='undefined'||!('serviceWorker' in navigator))return;
+      const f='chronicle.sw.cleanup.v2';(async()=>{try{
+      const r=await navigator.serviceWorker.getRegistrations();if(!r.length)return;
+      await Promise.all(r.map(x=>x.unregister()));
+      if('caches' in window){const k=await caches.keys();await Promise.all(k.map(x=>caches.delete(x)))}
+      if(!sessionStorage.getItem(f)){sessionStorage.setItem(f,'1');location.reload()}
+      }catch(e){}})()})();
     </script>
 
     <!-- 字体预连接与延迟加载 (非阻塞首屏渲染) -->
@@ -279,94 +255,8 @@ try {
       })();
     </script>
 
-    <script is:inline>
-      (function () {
-        if (typeof window === 'undefined') return;
-
-        const applyMobileClass = () => {
-          document.documentElement.classList.toggle('is-mobile', window.innerWidth < 768);
-        };
-
-        const syncMobileClass = () => {
-          applyMobileClass();
-        };
-
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', syncMobileClass, { once: true });
-        } else {
-          syncMobileClass();
-        }
-
-        document.addEventListener('astro:page-load', syncMobileClass);
-        document.addEventListener('astro:after-swap', syncMobileClass);
-      })();
-    </script>
-
-    <script is:inline define:vars={{ defaultPerformanceMode }}>
-      // Perf mode: detect low-end device, apply data-perf attribute
-      (function () {
-        if (typeof window === 'undefined') return;
-        const KEY = 'chronicle_performance_mode';
-
-        function getOverride() {
-          try { return localStorage.getItem(KEY); } catch { return null; }
-        }
-        function setOverride(v) {
-          try { localStorage.setItem(KEY, v); } catch {}
-        }
-        function isLowEnd() {
-          try {
-            const c = navigator.hardwareConcurrency;
-            const m = navigator.deviceMemory;
-            if (c && c < 4) return true;
-            if (m && m < 4) return true;
-            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return true;
-          } catch {}
-          return false;
-        }
-        function resolve() {
-          const ov = getOverride();
-          if (ov === 'full' || ov === 'reduced') return ov;
-          if (defaultPerformanceMode === 'full') return 'full';
-          if (defaultPerformanceMode === 'reduced') return 'reduced';
-          return isLowEnd() ? 'reduced' : 'full';
-        }
-        function apply(m) {
-          const root = document.documentElement;
-          root.setAttribute('data-perf', m);
-
-          // Broadcast perf state as CSS variables so any component can react
-          if (m === 'reduced') {
-            root.style.setProperty('--perf-glow-filter', 'blur(8px)');
-            root.style.setProperty('--perf-glow-opacity', '0.45');
-            root.style.setProperty('--perf-glow-anim-name', 'none');
-          } else {
-            root.style.removeProperty('--perf-glow-filter');
-            root.style.removeProperty('--perf-glow-opacity');
-            root.style.removeProperty('--perf-glow-anim-name');
-          }
-
-          const btn = document.getElementById('perf-toggle');
-          if (btn) btn.setAttribute('data-perf', m);
-          if (window.__chronicleUpdateSplitHero) window.__chronicleUpdateSplitHero();
-        }
-
-        // Init on load
-        apply(resolve());
-
-        // Persist across Astro view-transition navigations
-        document.addEventListener('astro:page-load', () => apply(resolve()));
-        document.addEventListener('astro:after-swap', () => apply(resolve()));
-
-        // Expose toggler to window for button onclick
-        window.__chronicleTogglePerf = function () {
-          const cur = resolve();
-          const next = cur === 'full' ? 'reduced' : 'full';
-          setOverride(next);
-          apply(next);
-        };
-        window.__chronicleGetPerf = resolve;
-      })();
+    <script>
+      import '../scripts/layout-init';
     </script>
 
     
@@ -412,19 +302,14 @@ try {
       
       // 确保背景层在页面切换时不被重新创建
       function ensureBackgroundLayerExists() {
-        if (!document.getElementById('chronicle-bg-layer')) {
-          console.warn('[Layout] Background layer not found, creating it');
-          ensureBackgroundLayer();
+        if (!document.getElementById('chronicle-bg-layer')) {          ensureBackgroundLayer();
         } else {
           // 如果背景层已存在，确保它不会被View Transitions替换
           const existingLayer = document.getElementById('chronicle-bg-layer');
           if (existingLayer && existingLayer.parentNode === document.body) {
             // 背景层已经在正确位置，不需要操作
-            console.log('[Layout] Background layer already exists and is properly placed');
-          } else {
-            // 背景层存在但位置不正确，重新创建
-            console.warn('[Layout] Background layer exists but in wrong position, recreating');
-            ensureBackgroundLayer();
+                      } else {
+            // 背景层存在但位置不正确，重新创建            ensureBackgroundLayer();
           }
         }
       }
@@ -434,31 +319,24 @@ try {
 
       // 复用背景层渲染逻辑
       function applyBackgroundLayer(forceReload = false) {
-        console.log('[Layout] applyBackgroundLayer called', { forceReload });
-        const settings = { ...(window as any).__CHRONICLE_SETTINGS__ };
-        console.log('[Layout] Settings:', settings);
-        
+                const settings = { ...(window as any).__CHRONICLE_SETTINGS__ };
+                
         if (settings.frontendBackground) {
-          console.log('[Layout] Found frontendBackground:', settings.frontendBackground);
-          const meta = backgroundMeta;
-          console.log('[Layout] Background meta:', meta);
-          
+                    const meta = backgroundMeta;
+                    
           writeBackgroundMetaVars('frontend', meta);
           updateResolvedOverlays();
           
           const overlayVar = '--frontend-bg-overlay';
           const overlayValue = getComputedStyle(document.documentElement).getPropertyValue(overlayVar) || 'transparent';
-          console.log('[Layout] Overlay value:', overlayValue);
-          
+                    
           const layer = document.getElementById('chronicle-bg-layer');
-          console.log('[Layout] Background layer found:', !!layer);
-          
+                    
           if (layer) {
             // 如果需要强制重载，设置标记
             if (forceReload) {
               layer.setAttribute('data-force-reload', 'true');
-              console.log('[Layout] Setting force-reload flag');
-            }
+                          }
             
             // 强制设置背景层样式
             layer.style.opacity = '1';
@@ -468,22 +346,16 @@ try {
             const overlayEl = layer.querySelector('.bg-overlay') as HTMLElement | null;
             if (overlayEl) {
               overlayEl.style.background = overlayValue || 'transparent';
-              console.log('[Layout] Background layer overlay applied:', overlayValue);
-            }
+                          }
             
             // 强制渲染背景图片
-            console.log('[Layout] Calling stageBackgroundLayer...');
-            stageBackgroundLayer(settings.frontendBackground, meta, overlayValue);
-            console.log('[Layout] stageBackgroundLayer called');
-          } else {
+                        stageBackgroundLayer(settings.frontendBackground, meta, overlayValue);
+                      } else {
             // 如果背景层丢失，重新创建并渲染
-            console.log('[Layout] Background layer not found, recreating...');
-            ensureBackgroundLayer();
-            console.log('[Layout] Background layer recreated and rendered');
-          }
+                        ensureBackgroundLayer();
+                      }
         } else {
-          console.log('[Layout] No frontendBackground found in settings');
-        }
+                  }
       }
 
       // 立即应用背景设置，确保首次加载时背景层正确渲染
@@ -582,8 +454,7 @@ try {
             const overlayVar = '--frontend-bg-overlay';
             const overlayValue = getComputedStyle(document.documentElement).getPropertyValue(overlayVar) || 'transparent';
 
-            console.log('[Layout] Applying background with overlay:', overlayValue);
-            stageBackgroundLayer(settings.frontendBackground, meta, overlayValue);
+                        stageBackgroundLayer(settings.frontendBackground, meta, overlayValue);
           }
         } catch (e) {
           console.error('[Layout] Error applying background:', e);
@@ -639,12 +510,10 @@ try {
 
             // 仅在首次加载或强制重载时重新渲染背景图片
             if (forceBackgroundReload || !isBackgroundReady) {
-              console.log('[Layout] Applying background with overlay:', overlayValue, { forceBackgroundReload, isBackgroundReady });
-              stageBackgroundLayer(settings.frontendBackground, meta, overlayValue);
+                            stageBackgroundLayer(settings.frontendBackground, meta, overlayValue);
             } else {
               // 页面导航时，只更新overlay而不重新加载背景图片
-              console.log('[Layout] Updating overlay only:', overlayValue);
-              
+                            
               const layer = document.getElementById('chronicle-bg-layer');
               if (layer) {
                 const overlayEl = layer.querySelector('.bg-overlay') as HTMLElement | null;
@@ -725,8 +594,7 @@ try {
       // 监听View Transitions，确保背景层在动画期间保持可见
       document.addEventListener('astro:before-swap', (e) => {
         const layer = document.getElementById('chronicle-bg-layer');
-        console.log('[Layout] Before page swap - background layer exists:', !!layer);
-        if (layer) {
+                if (layer) {
           // 在页面切换前，确保背景层不会被移除
           layer.setAttribute('data-persist', 'true');
           

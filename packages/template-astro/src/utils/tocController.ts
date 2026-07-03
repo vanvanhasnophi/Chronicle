@@ -1,14 +1,29 @@
-import { reactive } from 'vue';
+/**
+ * tocController — vanilla TS scroll observer for TOC highlight & BTT visibility.
+ * Zero Vue dependency. Components listen via subscribe() for state changes.
+ */
 
 type TocItem = { id: string; level: number; text: string };
 
-const state = reactive({
+const state = {
   liveActiveId: '',
   showTOCandBTT: false,
   showBackToTop: false,
   floatCollapsed: true,
   initialized: false,
-});
+};
+
+type Listener = () => void;
+const listeners = new Set<Listener>();
+
+export function subscribe(fn: Listener): () => void {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
+
+function notify() {
+  listeners.forEach((fn) => fn());
+}
 
 let tocGetter: (() => TocItem[]) | null = null;
 let containerSelector = '.main-content';
@@ -31,11 +46,10 @@ function removeBoundScrollListener() {
   }
 }
 
-function bindScrollListenerToCurrentContainer() {
+export function bindScrollListenerToCurrentContainer() {
   const container = getContainer();
   const validBoundContainer = scrollContainerBound && scrollContainerBound.isConnected;
 
-  // Rebind when route swap replaced the scroll container element.
   if (!container) {
     if (validBoundContainer) {
       scrollContainerBound?.removeEventListener('scroll', onScroll);
@@ -87,7 +101,8 @@ function getScrollTop() {
 }
 
 function updateBackToTopVisibility() {
-  state.showBackToTop = getScrollTop() > 300;
+  const show = getScrollTop() > 300;
+  if (state.showBackToTop !== show) { state.showBackToTop = show; notify(); }
 }
 
 function updateTocVisibilityBasedOnInline() {
@@ -95,17 +110,18 @@ function updateTocVisibilityBasedOnInline() {
   const inline = getInlineToc();
   const scrollTop = getScrollTop();
 
+  let show: boolean;
   if (!inline) {
-    state.showTOCandBTT = scrollTop > 300;
-    return;
+    show = scrollTop > 300;
+  } else {
+    const cRect = container
+      ? container.getBoundingClientRect()
+      : { top: 0, bottom: window.innerHeight };
+    const iRect = inline.getBoundingClientRect();
+    const inlineVisible = iRect.bottom > cRect.top + 8 && iRect.top < cRect.bottom - 8;
+    show = !inlineVisible || scrollTop > 300;
   }
-
-  const cRect = container
-    ? container.getBoundingClientRect()
-    : { top: 0, bottom: window.innerHeight };
-  const iRect = inline.getBoundingClientRect();
-  const inlineVisible = iRect.bottom > cRect.top + 8 && iRect.top < cRect.bottom - 8;
-  state.showTOCandBTT = !inlineVisible || scrollTop > 300;
+  if (state.showTOCandBTT !== show) { state.showTOCandBTT = show; notify(); }
 }
 
 function computeLiveActiveFromBaseline() {
@@ -132,11 +148,10 @@ function computeLiveActiveFromBaseline() {
       if (rect.top > baselineY) chosen = toc[0].id;
     }
   }
-
-  if (chosen) state.liveActiveId = chosen;
+  if (chosen && chosen !== state.liveActiveId) { state.liveActiveId = chosen; notify(); }
 }
 
-function scrollToHeading(id: string, behavior: ScrollBehavior = 'smooth') {
+export function scrollToHeading(id: string, behavior: ScrollBehavior = 'smooth') {
   const container = getContainer();
   const heading = document.getElementById(id);
   if (!heading) return;
@@ -156,7 +171,7 @@ function scrollToHeading(id: string, behavior: ScrollBehavior = 'smooth') {
   container.scrollTo({ top: Math.max(0, top), behavior });
 }
 
-function pauseLiveSync(duration = 1500) {
+export function pauseLiveSync(duration = 1500) {
   liveSyncPaused = true;
   if (liveSyncPauseTimer) {
     clearTimeout(liveSyncPauseTimer);
@@ -169,17 +184,7 @@ function pauseLiveSync(duration = 1500) {
   }, duration);
 }
 
-function resumeLiveSyncImmediately() {
-  if (!liveSyncPaused) return;
-  liveSyncPaused = false;
-  if (liveSyncPauseTimer) {
-    clearTimeout(liveSyncPauseTimer);
-    liveSyncPauseTimer = undefined;
-  }
-  computeLiveActiveFromBaseline();
-}
-
-function backToTop() {
+export function backToTop() {
   const container = getContainer();
   if (container) {
     container.scrollTo({ top: 0, behavior: 'smooth' });
@@ -193,91 +198,19 @@ function syncFromHash() {
   if (!raw) return;
   const id = decodeURIComponent(raw);
   state.liveActiveId = id;
+  notify();
   scrollToHeading(id);
-}
-
-function syncHashAfterLayoutStabilized() {
-  if (typeof window === 'undefined') return;
-  const hash = window.location.hash.replace(/^#/, '').trim();
-  if (!hash) return;
-
-  window.requestAnimationFrame(() => {
-    window.requestAnimationFrame(() => {
-      const heading = document.getElementById(decodeURIComponent(hash));
-      if (!heading) return;
-
-      state.liveActiveId = decodeURIComponent(hash);
-
-      const container = getContainer();
-      const offset = getScrollOffset();
-
-      if (!container) {
-        const expectedTop = Math.max(0, heading.getBoundingClientRect().top + window.scrollY - offset);
-        const currentTop = Math.max(0, window.scrollY || document.documentElement.scrollTop || 0);
-        if (Math.abs(currentTop - expectedTop) > 4) {
-          scrollToHeading(decodeURIComponent(hash), 'auto');
-        }
-        return;
-      }
-
-      const containerRect = container.getBoundingClientRect();
-      const headingRect = heading.getBoundingClientRect();
-      const expectedTop = Math.max(0, headingRect.top - containerRect.top + container.scrollTop - offset);
-      if (Math.abs(container.scrollTop - expectedTop) > 4) {
-        scrollToHeading(decodeURIComponent(hash), 'auto');
-      }
-    });
-  });
-}
-
-function scheduleInitialHashSync() {
-  if (typeof window === 'undefined') return;
-  if (!window.location.hash) return;
-
-  const run = () => {
-    if (document.fonts && document.fonts.ready) {
-      void document.fonts.ready.finally(() => syncHashAfterLayoutStabilized());
-      return;
-    }
-    syncHashAfterLayoutStabilized();
-  };
-
-  if (document.readyState === 'complete') {
-    run();
-    return;
-  }
-
-  window.addEventListener('load', run, { once: true });
-}
-
-function onUserScrollIntent(event: Event) {
-  if (event instanceof KeyboardEvent) {
-    const keys = ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', 'Space', ' '];
-    if (!keys.includes(event.key)) return;
-  }
-  resumeLiveSyncImmediately();
-}
-
-function runScrollSync() {
-  updateBackToTopVisibility();
-  updateTocVisibilityBasedOnInline();
-  computeLiveActiveFromBaseline();
-}
-
-function onScroll() {
-  if (typeof window === 'undefined') return;
-  if (scrollSyncRafId !== undefined) return;
-  scrollSyncRafId = window.requestAnimationFrame(() => {
-    scrollSyncRafId = undefined;
-    runScrollSync();
-  });
 }
 
 export function setTocGetter(getter: () => TocItem[]) {
   tocGetter = getter;
 }
 
-export function initController(opts?: { containerSelector?: string; inlineSelector?: string; baselineOffset?: number }) {
+export function initController(opts?: {
+  containerSelector?: string;
+  inlineSelector?: string;
+  baselineOffset?: number;
+}) {
   if (typeof window === 'undefined') return;
 
   if (opts?.containerSelector) containerSelector = opts.containerSelector;
@@ -294,8 +227,6 @@ export function initController(opts?: { containerSelector?: string; inlineSelect
   }
 
   bindScrollListenerToCurrentContainer();
-
-  // initial run
   runScrollSync();
   scheduleInitialHashSync();
 }
@@ -317,14 +248,76 @@ export function destroyController() {
   if (liveSyncPauseTimer) clearTimeout(liveSyncPauseTimer);
 }
 
+function scheduleInitialHashSync() {
+  if (typeof window === 'undefined') return;
+  if (!window.location.hash) return;
+
+  const run = () => {
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => { syncFromHash(); });
+    } else {
+      syncFromHash();
+    }
+  };
+
+  if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', run, { once: true });
+  } else {
+    window.requestAnimationFrame(() => { window.requestAnimationFrame(run); });
+  }
+}
+
+let userScrollIntent = false;
+let userScrollIntentTimer: number | undefined;
+
+/** Lock active ID to a specific item, release on next user scroll. */
+export function lockActiveId(id: string) {
+  state.liveActiveId = id;
+  liveSyncPaused = true;
+  notify();
+}
+function unlockOnScroll() {
+  if (!liveSyncPaused) return;
+  liveSyncPaused = false;
+  if (liveSyncPauseTimer) { clearTimeout(liveSyncPauseTimer); liveSyncPauseTimer = undefined; }
+  computeLiveActiveFromBaseline();
+  notify();
+}
+
+function runScrollSync() {
+  updateBackToTopVisibility();
+  updateTocVisibilityBasedOnInline();
+  computeLiveActiveFromBaseline();
+}
+
+function onScroll() {
+  if (typeof window === 'undefined') return;
+  if (scrollSyncRafId !== undefined) return;
+  scrollSyncRafId = window.requestAnimationFrame(() => {
+    scrollSyncRafId = undefined;
+    runScrollSync();
+  });
+}
+
+function onUserScrollIntent() {
+  userScrollIntent = true;
+  unlockOnScroll(); // release click-lock on user input
+  if (userScrollIntentTimer) clearTimeout(userScrollIntentTimer);
+  userScrollIntentTimer = window.setTimeout(() => {
+    userScrollIntent = false;
+  }, 1200);
+}
+
 export default {
   state,
+  subscribe,
   initController,
   destroyController,
   setTocGetter,
+  bindScrollListenerToCurrentContainer,
   computeLiveActiveFromBaseline,
-  scrollToHeading,
   pauseLiveSync,
-  resumeLiveSyncImmediately,
+  lockActiveId,
+  scrollToHeading,
   backToTop,
 };

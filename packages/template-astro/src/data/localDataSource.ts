@@ -321,7 +321,7 @@ export function getAllPosts(): PostMeta[] {
     _postCache = scanPostsFromDisk();
     _postCacheMtime = Date.now();
     if (_postCache.length > 0) {
-        console.log(`[localDataSource] Scanned ${_postCache.length} posts from ${POSTS_DIR}`);
+        if (import.meta.env.DEV) console.log(`[localDataSource] Scanned ${_postCache.length} posts from ${POSTS_DIR}`);
     } else {
         console.warn('[localDataSource] No posts found in', POSTS_DIR);
     }
@@ -568,5 +568,7 @@ export function getPostCollections(postId: string): CollectionRef[] {
 
 // ── Debug ────────────────────────────────────────────────
 
-console.log('[localDataSource] DATA_DIR:', DATA_DIR);
-console.log('[localDataSource] Posts:', getAllPosts().length, '| Published:', getPublishedPosts().length);
+if (import.meta.env.DEV) {
+  console.log('[localDataSource] DATA_DIR:', DATA_DIR);
+  console.log('[localDataSource] Posts:', getAllPosts().length, '| Published:', getPublishedPosts().length);
+}

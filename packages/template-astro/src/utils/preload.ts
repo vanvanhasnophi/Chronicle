@@ -88,17 +88,14 @@ function preloadPage(url: string): Promise<boolean> {
       if (response.ok) {
         // 读取响应体以确保内容被缓存
         return response.text().then(() => {
-          console.log(`[Preload] Successfully preloaded: ${url}`);
-          resolve(true);
+                    resolve(true);
         });
       } else {
-        console.warn(`[Preload] Failed to preload ${url}: ${response.status}`);
-        resolve(false);
+                resolve(false);
       }
     })
     .catch(error => {
-      console.warn(`[Preload] Failed to preload ${url}:`, error);
-      resolve(false);
+            resolve(false);
     });
   });
 }
@@ -109,8 +106,7 @@ function preloadPage(url: string): Promise<boolean> {
 async function preloadPages(urls: string[]): Promise<void> {
   if (urls.length === 0) return;
   
-  console.log(`[Preload] Starting preload for ${urls.length} pages`);
-  
+    
   // 并行预加载，限制并发数避免性能问题
   const concurrencyLimit = 3;
   const batches = [];
@@ -128,8 +124,7 @@ async function preloadPages(urls: string[]): Promise<void> {
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   
-  console.log(`[Preload] Completed preloading ${urls.length} pages`);
-}
+  }
 
 /**
  * 执行智能预加载
@@ -149,15 +144,12 @@ function executeSmartPreload(): void {
     const urls = targets.map(t => t.url);
     
     if (urls.length > 0) {
-      console.log(`[Preload] Found ${urls.length} pages to preload`);
-      
+            
       // 异步执行预加载，不阻塞主线程
       preloadPages(urls).catch(error => {
-        console.error('[Preload] Preload error:', error);
-      });
+              });
     } else {
-      console.log('[Preload] No pages to preload');
-    }
+          }
   }, 2000); // 页面加载完成后2秒开始预加载
 }
 
@@ -167,18 +159,15 @@ function executeSmartPreload(): void {
 function initPreloadSystem(): void {
   // 避免在移动设备上过度预加载
   if (window.innerWidth < 768) {
-    console.log('[Preload] Skipping preload on mobile device');
-    return;
+        return;
   }
   
   // 开发环境仍然可以预加载，但使用不同的策略
   const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
   
   if (isDevelopment) {
-    console.log('[Preload] Running in development environment');
-  } else {
-    console.log('[Preload] Running in production environment');
-  }
+      } else {
+      }
   
   executeSmartPreload();
 }

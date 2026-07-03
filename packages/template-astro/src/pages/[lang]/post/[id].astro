@@ -6,9 +6,9 @@ import { buildLocalizedPath, toContentLocale } from '../../../utils/routeLocale'
 import { buildTocItems, injectHeadingIds } from '../../../utils/toc';
 import { renderCodeBlockStatsHtml, renderCodeBlockLangLabelsHtml } from '../../../utils/markdownParser';
 import { escapeHtmlText, decodeHtmlEntities, getFileExt, getMediaIcon, toMediaCard, rewriteMediaLinks, hydrateLegacyKatexPlaceholders, wrapRenderedKatex } from '../../../utils/contentUtils';
-import DesktopFloatingToc from '../../../components/FloatingToc.vue';
-import CornerActions from '../../../components/CornerActions.vue';
-import CollectionNav from '../../../components/CollectionNav.vue';
+import DesktopFloatingToc from '../../../components/FloatingToc.astro';
+import CornerActions from '../../../components/CornerActions.astro';
+import CollectionNav from '../../../components/CollectionNav.astro';
 import Slideshow from '../../../components/Slideshow.astro';
 import 'katex/dist/katex.min.css';
 import '../../../styles/post.css';
@@ -74,12 +74,14 @@ settings = getPublicSettings() as Record<string, any>;
 // ── Collections + post titles for CollectionNav ──────────
 let embeddedCollections: any[] = [];
 let embeddedPostTitles: Record<string, string> = {};
+let embeddedPostTypes: Record<string, string> = {};
 try {
   const collectionsData = getCollections();
   embeddedCollections = (collectionsData as any)?.collections || [];
   const allPosts = getPublishedPosts();
   for (const p of allPosts) {
     embeddedPostTitles[String(p.id)] = String(p.title || '').trim();
+    embeddedPostTypes[String(p.id)] = String(p.type || 'article').trim();
   }
 } catch (_) {}
 
@@ -227,7 +229,7 @@ const metaDescription = buildMetaDescription(post, locale);
         </a>
       </div>
     ) : post ? (
-      <article class={`post-content font-${post.font || 'sans'}`}>
+      <article class={`post-content font-${post.font || 'sans'}`} data-page-locale={locale} data-mermaid-ui={JSON.stringify(mermaidUiText)}>
         <nav class="post-nav">
           <a href={backToBlogs} class="nav-back" aria-label="Back to blogs">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
@@ -324,13 +326,24 @@ const metaDescription = buildMetaDescription(post, locale);
             </div>
           </div>
           <script>
-            const summary = document.getElementById('inline-toc')?.querySelector('.toc-summary');
-            summary?.addEventListener('click', () => {
-              const toc = document.getElementById('inline-toc');
-              if(!toc) return;
-              const open = toc.classList.toggle('open');
-              summary.setAttribute('aria-expanded', String(open));
-            });
+            let _tocHandler: (() => void) | null = null
+            function bindTocToggle() {
+              const s = document.getElementById('inline-toc')?.querySelector('.toc-summary')
+              if (!s || _tocHandler) return
+              _tocHandler = () => {
+                const toc = document.getElementById('inline-toc')
+                if (!toc) return
+                const open = toc.classList.toggle('open')
+                s.setAttribute('aria-expanded', String(open))
+              }
+              s.addEventListener('click', _tocHandler)
+            }
+            document.addEventListener('astro:page-load', bindTocToggle)
+            document.addEventListener('astro:before-swap', () => {
+              const s = document.getElementById('inline-toc')?.querySelector('.toc-summary')
+              if (s && _tocHandler) s.removeEventListener('click', _tocHandler)
+              _tocHandler = null
+            })
           </script>
         )}
 
@@ -343,23 +356,25 @@ const metaDescription = buildMetaDescription(post, locale);
   <div class="scroll-blank"/>
 
   {tocItems.length > 0 && (
-    <DesktopFloatingToc
-      client:idle
-      toc={tocItems}
-      navLabel={t('inblog.toc-title')}
-      mountToBody={true}
-    />
+    <>
+      <script id="chronicle-toc-data" type="application/json" set:html={JSON.stringify(tocItems)}></script>
+      <DesktopFloatingToc
+        toc={tocItems}
+        navLabel={t('inblog.toc-title')}
+        mountToBody={true}
+      />
+    </>
   )}
 
-  <CornerActions client:idle toc={tocItems} postId={post?.id || id} collections={embeddedCollections} postTitles={embeddedPostTitles} />
+  <CornerActions toc={tocItems} postId={post?.id || id} collections={embeddedCollections} postTitles={embeddedPostTitles} postTypes={embeddedPostTypes} />
 
   {post?.collection && (
-    <CollectionNav client:media="(min-width: 768px)" postId={post?.id || id} collections={embeddedCollections} postTitles={embeddedPostTitles} />
+    <CollectionNav postId={post?.id || id} collections={embeddedCollections} postTitles={embeddedPostTitles} postTypes={embeddedPostTypes} />
   )}
 
   <style is:global>
     /* Hide desktop CollectionNav on mobile (768px breakpoint, matches html.is-mobile) */
-    html.is-mobile .collection-nav {
+    html.is-mobile .cn-panel[data-cn-variant="sidebar"] {
       display: none !important;
     }
 
@@ -385,439 +400,12 @@ const metaDescription = buildMetaDescription(post, locale);
         height: 80px;
       }
     }
-    
+
 
   </style>
 
   <script>
-    // 复制代码功能 - 参考CodeChunk.vue实现
-    function copyCode(button: HTMLElement) {
-      const code = button.getAttribute('data-code');
-      if (!code) return;
-
-      // Optimistically show an in-progress state to reduce perceived delay
-      showCopyInProgress(button);
-
-      // Try modern Clipboard API first (async, but we don't await to keep UI responsive)
-      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-        navigator.clipboard.writeText(code).then(() => {
-          clearCopyInProgress(button);
-          showCopySuccess(button);
-        }).catch(() => {
-          // Fallback to execCommand approach
-          tryFallbackCopy(button, code);
-        });
-        return;
-      }
-
-      // Fallback immediately
-      tryFallbackCopy(button, code);
-    }
-
-    function tryFallbackCopy(button: HTMLElement, code: string) {
-      const textArea = document.createElement('textarea');
-      textArea.value = code;
-      // Place off-screen to avoid scroll
-      textArea.style.position = 'fixed';
-      textArea.style.left = '-9999px';
-      document.body.appendChild(textArea);
-      textArea.select();
-      try {
-        const successful = document.execCommand('copy');
-        if (successful) {
-          clearCopyInProgress(button);
-          showCopySuccess(button);
-        } else {
-          clearCopyInProgress(button);
-          console.error('Fallback copy failed');
-        }
-      } catch (backupErr) {
-        clearCopyInProgress(button);
-        console.error('复制失败:', backupErr);
-      } finally {
-        document.body.removeChild(textArea);
-      }
-    }
-    
-    // 显示复制成功状态
-    function showCopySuccess(button: HTMLElement) {
-      const copyIcon = button.querySelector('.copy-icon') as HTMLElement;
-      const successIcon = button.querySelector('.success-icon') as HTMLElement;
-      
-      if (copyIcon) copyIcon.style.display = 'none';
-      if (successIcon) successIcon.style.display = 'block';
-      button.classList.add('success');
-      
-      // 1.5秒后恢复原状
-      setTimeout(() => {
-        if (copyIcon) copyIcon.style.display = 'block';
-        if (successIcon) successIcon.style.display = 'none';
-        button.classList.remove('success');
-      }, 1500);
-    }
-    
-    function showCopyInProgress(button: HTMLElement) {
-      const copyIcon = button.querySelector('.copy-icon') as HTMLElement;
-      if (copyIcon) copyIcon.style.opacity = '0.4';
-      button.classList.add('copying');
-    }
-
-    function clearCopyInProgress(button: HTMLElement) {
-      const copyIcon = button.querySelector('.copy-icon') as HTMLElement;
-      if (copyIcon) copyIcon.style.opacity = '';
-      button.classList.remove('copying');
-    }
-
-    function initPostPageFeatures() {
-      import('../../../utils/mathTooltip').then(({ initMathTooltip }) => {
-        initMathTooltip(document.querySelector('.post-content'));
-      }).catch((err) => {
-        console.error('初始化数学公式 tooltip 失败:', err);
-      });
-
-      // Initialize special Mermaid code-block interactions (mode switch + SVG download)
-      initMermaidCodeBlocks();
-
-      // 初始化复制按钮
-      const copyButtons = document.querySelectorAll('.copy-btn');
-      copyButtons.forEach(button => {
-        const copyIcon = button.querySelector('.copy-icon') as HTMLElement;
-        const successIcon = button.querySelector('.success-icon') as HTMLElement;
-
-        if (copyIcon) copyIcon.style.display = 'block';
-        if (successIcon) successIcon.style.display = 'none';
-      });
-
-      // 直接给每个 copy 按钮绑定处理器，避免 document 代理导致的额外查找开销
-      copyButtons.forEach(button => {
-        // Remove previous handlers if any to avoid duplication
-        (button as HTMLElement).removeEventListener('click', (button as any).__copyHandler__);
-        const handler = (e: Event) => {
-          e.stopPropagation();
-          copyCode(button as HTMLElement);
-        };
-        (button as any).__copyHandler__ = handler;
-        (button as HTMLElement).addEventListener('click', handler);
-      });
-
-      const imageClickHandler = (event: Event) => {
-        const target = event.target as HTMLElement | null;
-        const img = target && target.closest ? target.closest('img.md-image') as HTMLImageElement | null : null;
-        if (!img) return;
-        const hook = (window as any).__CHRONICLE_OPEN_IMAGE_VIEWER__;
-        if (typeof hook === 'function') {
-          event.preventDefault();
-          event.stopPropagation();
-          hook({ src: img.src, alt: img.alt || '', element: img });
-        }
-      };
-
-      const globalState = window as any;
-      if (!globalState.__CHRONICLE_IMAGE_CLICK_HANDLER_BOUND__) {
-        globalState.__CHRONICLE_IMAGE_CLICK_HANDLER_BOUND__ = true;
-        document.addEventListener('click', imageClickHandler, { capture: true });
-      }
-
-      // Register image viewer hook (shared with manager pattern)
-      if (!globalState.__CHRONICLE_OPEN_IMAGE_VIEWER__) {
-        globalState.__CHRONICLE_OPEN_IMAGE_VIEWER__ = function(info: { src: string; alt: string; element: HTMLImageElement }) {
-          const existing = document.querySelector('.image-preview-overlay');
-          if (existing) existing.remove();
-
-          const overlay = document.createElement('div');
-          overlay.className = 'image-preview-overlay';
-
-          // Actions group — matches manager FilePreviewModal image mode
-          const actions = document.createElement('div');
-          actions.className = 'preview-header-actions';
-          actions.style.cssText = 'position:fixed;top:30px;right:30px;z-index:20002';
-
-          const downloadBtn = document.createElement('a');
-          downloadBtn.className = 'preview-action-btn';
-          downloadBtn.href = info.src;
-          downloadBtn.download = '';
-          downloadBtn.target = '_blank';
-          downloadBtn.title = 'Download';
-          downloadBtn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
-
-          const closeBtn = document.createElement('button');
-          closeBtn.className = 'preview-action-btn';
-          closeBtn.title = 'Close';
-          closeBtn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
-
-          actions.appendChild(downloadBtn);
-          actions.appendChild(closeBtn);
-          overlay.appendChild(actions);
-
-          const container = document.createElement('div');
-          container.className = 'image-preview-container';
-
-          const img = document.createElement('img');
-          img.src = info.src;
-          img.alt = info.alt;
-          img.draggable = false;
-          img.className = 'image-preview-content';
-
-          let scale = 1, x = 0, y = 0, dragging = false, startX = 0, startY = 0;
-
-          img.addEventListener('dragstart', function(e) { e.preventDefault(); });
-
-          function apply() {
-            img.style.transform = 'translate(' + x + 'px, ' + y + 'px) scale(' + scale + ')';
-          }
-
-          overlay.addEventListener('wheel', function(e) {
-            e.preventDefault();
-            scale = Math.min(Math.max(0.5, scale * (e.deltaY > 0 ? 0.9 : 1.1)), 5);
-            apply();
-          });
-
-          overlay.addEventListener('mousedown', function(e) {
-            if (e.target === img || e.target === container) {
-              dragging = true;
-              startX = e.clientX - x;
-              startY = e.clientY - y;
-              img.classList.add('is-dragging');
-            }
-          });
-
-          window.addEventListener('mousemove', function(e) {
-            if (!dragging) return;
-            x = e.clientX - startX;
-            y = e.clientY - startY;
-            apply();
-          });
-
-          window.addEventListener('mouseup', function() {
-            dragging = false;
-            img.classList.remove('is-dragging');
-          });
-
-          function close() {
-            overlay.remove();
-            document.removeEventListener('keydown', onEsc);
-          }
-
-          function onEsc(e: KeyboardEvent) {
-            if (e.key === 'Escape') close();
-          }
-          document.addEventListener('keydown', onEsc);
-
-          closeBtn.addEventListener('click', close);
-          overlay.addEventListener('click', function(e) {
-            if (e.target === overlay) close();
-          });
-
-          container.appendChild(img);
-          overlay.appendChild(container);
-          document.body.appendChild(overlay);
-        };
-      }
-    }
-
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initPostPageFeatures, { once: true });
-    } else {
-      initPostPageFeatures();
-    }
-
-    document.addEventListener('astro:page-load', initPostPageFeatures);
-    
-    // Google Analytics: post_view handling moved to standalone script below
-    
-    // Mermaid support for published read-only code blocks.
-    // IMPORTANT: Astro side never renders Mermaid; we only consume server-prerendered SVG.
-
-    function getMermaidUiText() {
-      const w = (typeof window !== 'undefined') ? (window as any) : null;
-      const fallback = {
-        downloadSvg: 'Download SVG',
-        split: 'Split View',
-        code: 'Code Only',
-        preview: 'Preview Only',
-        notPrerendered: 'No prerendered Mermaid SVG found.'
-      };
-      if (!w || !w.__MERMAID_UI_TEXT) return fallback;
-      const ui = w.__MERMAID_UI_TEXT;
-      return {
-        downloadSvg: String(ui.downloadSvg || fallback.downloadSvg),
-        split: String(ui.split || fallback.split),
-        code: String(ui.code || fallback.code),
-        preview: String(ui.preview || fallback.preview),
-        notPrerendered: String(ui.notPrerendered || fallback.notPrerendered)
-      };
-    }
-
-    function makeIconButton(title: string, iconSvg: string, extraClass = '') {
-      const btn = document.createElement('button');
-      btn.className = `icon-btn ${extraClass}`.trim();
-      btn.type = 'button';
-      btn.title = title;
-      btn.setAttribute('aria-label', title);
-      btn.innerHTML = iconSvg;
-      return btn;
-    }
-
-    function initMermaidCodeBlocks() {
-      const ui = getMermaidUiText();
-      const blocks = document.querySelectorAll('.code-chunk-container.mermaid');
-      if (!blocks || blocks.length === 0) return;
-
-      blocks.forEach((block: Element) => {
-        if (!(block instanceof HTMLElement)) return;
-        if (block.dataset.mermaidEnhanced === '1') return;
-
-        const editorWrapper = block.querySelector('.editor-wrapper') as HTMLElement | null;
-        const editorFooter = block.querySelector('.editor-footer') as HTMLElement | null;
-        if (!(editorWrapper instanceof HTMLElement)) return;
-
-        const textarea = block.querySelector('.code-textarea') as HTMLTextAreaElement | null;
-        const codeText = textarea?.value || '';
-        if (!codeText.trim()) return;
-
-        block.dataset.mermaidEnhanced = '1';
-
-        // Query existing DOM — toolbar + preview panel generated by SSG renderCodeChunkHtml
-        const preview = block.querySelector('.mermaid-preview') as HTMLElement | null;
-        const container = preview?.querySelector('.mermaid-container') as HTMLElement | null;
-        let downloadBtn = block.querySelector('.mermaid-download-btn') as HTMLElement | null;
-        let splitBtn   = block.querySelector('.mermaid-split-btn') as HTMLElement | null;
-        let codeBtn    = block.querySelector('.mermaid-code-btn') as HTMLElement | null;
-        let previewBtn = block.querySelector('.mermaid-preview-btn') as HTMLElement | null;
-
-        // Pre-rendered SVG from SSG build
-        const preSvg = container?.querySelector('svg');
-        let lastRenderedSvg: string | null = preSvg ? preSvg.outerHTML : null;
-        if (lastRenderedSvg && downloadBtn) (downloadBtn as HTMLButtonElement).disabled = false;
-
-        let mode: 'split' | 'code' | 'preview' = 'preview';
-
-        function setActiveButton() {
-          splitBtn?.classList.toggle('active', mode === 'split');
-          codeBtn?.classList.toggle('active', mode === 'code');
-          previewBtn?.classList.toggle('active', mode === 'preview');
-        }
-
-        let mermaidRenderBusy = false;
-        async function renderMermaidSvg() {
-          if (mode === 'code' || !container) return;
-          if (lastRenderedSvg) { container.innerHTML = lastRenderedSvg; return; }
-          if (mermaidRenderBusy) return;
-          mermaidRenderBusy = true;
-          try {
-            container.innerHTML = '<div class="mermaid-loading">Rendering…</div>';
-            // @ts-ignore — dynamic import, resolved at runtime by Vite
-            const mm = await import('mermaid');
-            const mermaidLib = (mm as any).default || mm;
-            mermaidLib.initialize({ startOnLoad: false, theme: 'base' });
-            const id = 'mermaid_client_' + Math.random().toString(36).slice(2, 8);
-            const { svg } = await mermaidLib.render(id, codeText);
-            lastRenderedSvg = svg;
-            container.innerHTML = svg;
-            if (downloadBtn) (downloadBtn as HTMLButtonElement).disabled = false;
-          } catch (e: any) {
-            container.innerHTML = '<div class="mermaid-error">Mermaid render error</div>';
-          } finally {
-            mermaidRenderBusy = false;
-          }
-        }
-
-        function applyMode(nextMode: 'split' | 'code' | 'preview') {
-          mode = nextMode;
-          setActiveButton();
-          if (editorWrapper) editorWrapper.style.display = (mode === 'preview') ? 'none' : '';
-          if (editorFooter) editorFooter.style.display = (mode === 'preview') ? 'none' : '';
-          if (preview) preview.style.display = (mode === 'code') ? 'none' : '';
-          if (mode !== 'code') {
-            renderMermaidSvg();
-          }
-        }
-
-        splitBtn?.addEventListener('click', () => applyMode('split'));
-        codeBtn?.addEventListener('click', () => applyMode('code'));
-        previewBtn?.addEventListener('click', () => applyMode('preview'));
-
-        downloadBtn?.addEventListener('click', () => {
-          if (!lastRenderedSvg) return;
-          try {
-            const raw = lastRenderedSvg;
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(raw, 'image/svg+xml');
-            const svgEl = doc.documentElement;
-
-            // ensure defs
-            let defs = svgEl.querySelector('defs');
-            if (!defs) {
-              defs = doc.createElementNS('http://www.w3.org/2000/svg', 'defs');
-              svgEl.insertBefore(defs, svgEl.firstChild);
-            }
-
-            // clone global marker if exists
-            try {
-              const globalMarker = document.querySelector('marker#chronicle-mermaid-arrow');
-              if (globalMarker) {
-                const cloned = globalMarker.cloneNode(true);
-                const existing = defs.querySelector('#chronicle-mermaid-arrow');
-                if (existing) existing.remove();
-                defs.appendChild(doc.importNode(cloned, true));
-              }
-            } catch (e) {}
-
-            // inline resolved CSS variables for consistency
-            try {
-              const cs = getComputedStyle(document.documentElement);
-              const vars = {
-                '--component-bg-blur-alt': cs.getPropertyValue('--component-bg-blur-alt') || '#ffffff',
-                '--border-color': cs.getPropertyValue('--border-color') || '#e6e6e6',
-                '--text-primary': cs.getPropertyValue('--text-primary') || '#111111',
-                '--component-text-primary': cs.getPropertyValue('--component-text-primary') || '#111111'
-              };
-              const styleContent = `
-                svg { background: ${vars['--component-bg-blur-alt']}; }
-                rect { fill: ${vars['--component-bg-blur-alt']}; stroke: ${vars['--text-primary']}; }
-                path { stroke: ${vars['--component-text-primary']}; fill: none; }
-                text { fill: ${vars['--component-text-primary']}; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif; }
-              `;
-              const prevStyle = svgEl.querySelector('style[data-chronicle-inline]');
-              if (prevStyle) prevStyle.remove();
-              const styleEl = doc.createElementNS('http://www.w3.org/2000/svg', 'style');
-              styleEl.setAttribute('data-chronicle-inline', '1');
-              styleEl.textContent = styleContent;
-              svgEl.insertBefore(styleEl, svgEl.firstChild);
-            } catch (e) {}
-
-            const serializer = new XMLSerializer();
-            const outSvg = serializer.serializeToString(svgEl);
-            const blob = new Blob([outSvg], { type: 'image/svg+xml;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'mermaid-' + Date.now() + '.svg';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-          } catch (err) {
-            // fallback
-            const blob = new Blob([lastRenderedSvg], { type: 'image/svg+xml;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'mermaid-' + Date.now() + '.svg';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-          }
-        });
-
-        // default mode: preview
-        if (!lastRenderedSvg && downloadBtn) (downloadBtn as HTMLButtonElement).disabled = true;
-        applyMode('preview');
-      });
-    }
-
-    // code block stats are rendered during SSR; no client-side hydration needed
+    import '../../../scripts/article';
   </script>
 
   <script define:vars={{ POST_ID: JSON.stringify(post?.id || id), POST_TITLE: JSON.stringify(post?.title || ''), PAGE_LOCALE: JSON.stringify(locale), MERMAID_UI_TEXT: JSON.stringify(mermaidUiText) }} is:inline>
@@ -848,7 +436,6 @@ const metaDescription = buildMetaDescription(post, locale);
     })();
   </script>
 
-  <script src="../../../utils/filePreviewLazy.js"></script>
 
 </Layout>
 )}

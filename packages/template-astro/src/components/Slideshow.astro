@@ -314,7 +314,7 @@ if (md.trim()) {
               points="15 9 18 12 15 15"></polyline></svg
           ></button
         >
-        <div class="slide-zoom-popup" id="slide-zoom-popup">
+        <div class="slide-zoom-popup" id="slide-zoom-popup" style="display:none">
           <button
             class="icon-btn"
             id="slide-zoom-out-m"
@@ -426,8 +426,28 @@ if (md.trim()) {
 </div>
 
 <script>
+
+  // ── Page lifecycle: recreate on every soft navigation ──
+  let scope: any
+  function createScope() {
+    const listeners: any[] = [], bodyNodes: HTMLElement[] = [];
+    return {
+      on(ev: string, fn: EventListener, opts?: any) { document.addEventListener(ev, fn, opts); listeners.push({ t: document, ev, fn, opts }); },
+      onEl(el: EventTarget, ev: string, fn: EventListener, opts?: any) { el.addEventListener(ev, fn, opts); listeners.push({ t: el, ev, fn, opts }); },
+      toBody(el: HTMLElement) { document.body.appendChild(el); bodyNodes.push(el); },
+      destroy() {
+        listeners.forEach((l: any) => l.t.removeEventListener(l.ev, l.fn, l.opts));
+        listeners.length = 0;
+        bodyNodes.forEach((el: HTMLElement) => el.remove());
+        bodyNodes.length = 0;
+      }
+    };
+  }
+
+  function setupPage() {
   const el = document.getElementById("chronicle-slideshow");
-  if (!el) throw new Error("Slideshow container not found");
+  if (!el) return; // not a slideshow page — silently skip
+  scope = createScope()
   const browseBox = document.getElementById("marp-slides-browse")!;
   const presentBox = document.getElementById("marp-slides-present")!;
   const browseSlides = browseBox.querySelector(".marp-slides")! as HTMLElement;
@@ -491,7 +511,7 @@ if (md.trim()) {
         current = i;
         if (viewMode === "browse") scrollToSlide(i);
         updateView();
-        tocPopup.style.display = "none";
+        hidePopup(tocPopup);
       });
       tocList.appendChild(item);
     });
@@ -508,18 +528,18 @@ if (md.trim()) {
     e.stopPropagation();
     buildTocList();
     updateTocActive();
-    tocPopup.style.display = tocPopup.style.display === "none" ? "" : "none";
+    togglePopup(tocPopup, slideCounter);
   });
 
-  document.addEventListener("click", (e) => {
+  scope.on("click", (e: { target: Node; }) => {
     if (!tocPopup.contains(e.target as Node) && e.target !== slideCounter) {
-      tocPopup.style.display = "none";
+      hidePopup(tocPopup);
     }
     if (
       !infoPopup.contains(e.target as Node) &&
       (e.target as HTMLElement).id !== "slide-info"
     ) {
-      infoPopup.style.display = "none";
+      hidePopup(infoPopup);
     }
   });
 
@@ -529,13 +549,14 @@ if (md.trim()) {
     e.stopPropagation();
     // Close TOC if open
     tocPopup.style.display = "none";
-    infoPopup.style.display = infoPopup.style.display === "none" ? "" : "none";
+    togglePopup(infoPopup, e.target as HTMLElement);
   });
 
-  document.addEventListener("keydown", (e) => {
+  scope.on("keydown", (e: { key: string; }) => {
     if (e.key === "Escape") {
-      tocPopup.style.display = "none";
-      infoPopup.style.display = "none";
+      hidePopup(tocPopup);
+      hidePopup(infoPopup);
+      hidePopup(zoomPopup);
     }
   });
 
@@ -570,7 +591,7 @@ if (md.trim()) {
     }
   }
 
-  document.addEventListener("keydown", (e) => {
+  scope.on("keydown", (e: { target: HTMLElement; key: any; preventDefault: () => void; }) => {
     if ((e.target as HTMLElement)?.closest("input,textarea")) return;
     switch (e.key) {
       case "ArrowRight":
@@ -616,10 +637,10 @@ if (md.trim()) {
 
 
   let tx = 0;
-  document.addEventListener("touchstart", (e) => {
+  scope.on("touchstart", (e: { touches: { clientX: number; }[]; }) => {
     tx = e.touches[0].clientX;
   });
-  document.addEventListener("touchend", (e) => {
+  scope.on("touchend", (e: { changedTouches: { clientX: number; }[]; }) => {
     const dx = e.changedTouches[0].clientX - tx;
     if (Math.abs(dx) > 50) dx > 0 ? prev() : next();
   });
@@ -644,12 +665,43 @@ if (md.trim()) {
   const zoomLabel = document.getElementById("slide-zoom-label")!;
   const zoomGroup = document.getElementById("slide-zoom-group")!;
   const zoomPopup = document.getElementById("slide-zoom-popup")!;
+  ;[tocPopup, infoPopup, zoomPopup].forEach((p) => scope.toBody(p));
+
+  // Popup positioning relative to trigger buttons
+  function positionPopup(popup: HTMLElement, trigger: HTMLElement) {
+    const r = trigger.getBoundingClientRect();
+    const anchorX = r.left + r.width / 2;
+    // Half popup width + 8px margin — cached so we only measure once
+    if (!popup.dataset._halfW) {
+      const prev = popup.style.display;
+      popup.style.display = 'block'; popup.style.visibility = 'hidden';
+      popup.dataset._halfW = String(popup.offsetWidth / 2 + 8 || 100);
+      popup.style.display = prev; popup.style.visibility = '';
+    }
+    const pad = popup.dataset._halfW;
+    popup.style.position = 'fixed';
+    popup.style.top = 'auto';
+    popup.style.bottom = (window.innerHeight - r.top + 12) + 'px';
+    popup.style.left = `clamp(${pad}px, ${anchorX}px, calc(100vw - ${pad}px))`;
+  }
+  function showPopup(popup: HTMLElement, trigger: HTMLElement) {
+    [tocPopup, infoPopup, zoomPopup].forEach(p => { if (p !== popup) hidePopup(p) });
+    positionPopup(popup, trigger);
+    popup.style.display = popup === zoomPopup ? 'flex' : 'block';
+    popup.classList.remove('slide-popup');
+    void popup.offsetHeight;
+    popup.classList.add('slide-popup');
+  }
+  function hidePopup(popup: HTMLElement) { popup.style.display = 'none'; popup.classList.remove('slide-popup'); }
+  function togglePopup(popup: HTMLElement, trigger: HTMLElement) { popup.style.display === 'none' ? showPopup(popup, trigger) : hidePopup(popup); }
+
   const zoomValueM = document.getElementById("slide-zoom-value-m")!;
   let browseZoom = 1;
   let zoom = 1;
   let zooming = false;
   const ZOOM_MIN = 0.2;
   const ZOOM_MAX = 4;
+  const ZOOM_DEFAULT_MAX = 1;
   const ZOOM_STEP = 0.1;
   function setZoom(z: number) {
     zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
@@ -663,17 +715,18 @@ if (md.trim()) {
     zoomLabel.textContent = text;
     zoomValueM.textContent = text;
   }
-  document.addEventListener(
+  scope.on(
     "wheel",
-    (e) => {
+    (e: { ctrlKey: boolean; deltaY: number; preventDefault: () => void; }) => {
       // Browse mode + Ctrl: zoom
       if (viewMode === "browse" && e.ctrlKey) {
         e.preventDefault();
         setZoom(zoom - Math.sign(e.deltaY) * ZOOM_STEP);
         return;
       }
-      // Present mode: scroll to navigate slides
+      // Present mode: scroll to navigate slides (skip if inside a popup)
       if (viewMode === "present") {
+        if (((e as any).target as HTMLElement).closest('.slide-popup')) return;
         e.preventDefault();
         if (e.deltaY > 0) next();
         else if (e.deltaY < 0) prev();
@@ -690,7 +743,7 @@ if (md.trim()) {
   function fitZoom() {
     const vw = browseBox.clientWidth;
     const fitPct = 10 * Math.floor((vw - 10) / 80);
-    setZoom(Math.max(ZOOM_MIN, fitPct / 100));
+    setZoom(Math.min(Math.max(ZOOM_MIN, fitPct / 100), ZOOM_DEFAULT_MAX));
   }
   document
     .getElementById("slide-zoom-fit")
@@ -711,18 +764,18 @@ if (md.trim()) {
     ?.addEventListener("click", (e) => {
       e.stopPropagation();
       fitZoom();
-      zoomGroup.classList.remove("open");
+      hidePopup(zoomPopup);
     });
   // Label click → toggle popup
   zoomLabel.addEventListener("click", (e) => {
     e.stopPropagation();
     if (window.matchMedia("(max-width: 540px)").matches)
-      zoomGroup.classList.toggle("open");
+      togglePopup(zoomPopup, zoomLabel);
   });
   // Click outside → close
-  document.addEventListener("click", (e) => {
+  scope.on("click", (e: { target: Node; }) => {
     if (!zoomGroup.contains(e.target as Node))
-      zoomGroup.classList.remove("open");
+      hidePopup(zoomPopup);
   });
   function updateZoomUI() {
     zoomGroup.style.display = viewMode === "browse" ? "" : "none";
@@ -732,7 +785,7 @@ if (md.trim()) {
 
   // ── Scroll detection: update current slide from browse scroll position ──
   let scrollTicking = false;
-  browseBox.addEventListener("scroll", () => {
+  scope.onEl(browseBox, "scroll", () => {
     if (scrollTicking) return;
     scrollTicking = true;
     requestAnimationFrame(() => {
@@ -810,20 +863,14 @@ if (md.trim()) {
   // Render Mermaid in both browse and present slides
   [browseBox, presentBox].forEach((box) => renderMermaidBlocks(box));
 
-  // ── Teardown on soft navigation: prevent stale listeners from running ──
-  let destroyed = false;
-  document.addEventListener("astro:before-swap", () => {
-    destroyed = true;
-    viewMode = "browse";
-    document.documentElement.classList.remove("focus");
-  });
+  }
 
-  // Override updateView to no-op after teardown
-  const _updateView = updateView;
-  updateView = () => { if (!destroyed) _updateView(); };
-  const _next = next; const _prev = prev;
-  next = () => { if (!destroyed) _next(); };
-  prev = () => { if (!destroyed) _prev(); };
+  // ── Lifecycle: setup on every navigation, teardown on leave ──
+  document.addEventListener("astro:page-load", setupPage)
+  document.addEventListener("astro:before-swap", () => {
+    if (scope) { scope.destroy(); scope = null }
+    document.documentElement.classList.remove("focus")
+  })
 </script>
 
 <style is:global>
@@ -858,7 +905,9 @@ if (md.trim()) {
   }
 
   .slides-controls button,
-  .slides-controls a {
+  .slides-controls a,
+  .slide-popup button,
+  .slide-popup a {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -879,17 +928,23 @@ if (md.trim()) {
     transform: translateY(-1px);
   }
   .slides-controls button:hover,
-  .slides-controls a:hover {
+  .slides-controls a:hover,
+  .slide-popup button:hover,
+  .slide-popup a:hover {
     background: var(--component-bg-hover);
     color: var(--component-text-primary);
   }
   .slides-controls button:disabled,
-  .slides-controls a:disabled {
+  .slides-controls a:disabled,
+  .slide-popup button:disabled,
+  .slide-popup a:disabled {
     opacity: 0.3;
     cursor: not-allowed;
   }
   .slides-controls button.active,
-  .slides-controls a.active {
+  .slides-controls a.active,
+  .slide-popup button.active, 
+  .slide-popup a.active {
     background: var(--component-bg-active);
     color: var(--component-text-primary);
   }
@@ -948,7 +1003,18 @@ if (md.trim()) {
 
   .slide-zoom-popup {
     display: none;
+    align-items: center;
+    gap: 2px;
+    background: var(--component-bg-blur);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border-color-blur);
+    border-radius: 8px;
+    padding: 4px 6px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    white-space: nowrap;
   }
+  .slide-zoom-popup button { font-size: 13px; padding: 8px 12px; }
+  .slide-zoom-popup span { min-width: 64px; text-align: center; font-variant-numeric: tabular-nums; font-size: 0.95rem; }
 
   /* ── View toggle floating bar ─────────────────── */
   .slides-view-bar {
@@ -1015,12 +1081,17 @@ if (md.trim()) {
     margin-top: 50px;
   }
 
+  /* ── Shared popup animation (body-mounted) ────── */
+  .slide-popup { transform:translateX(-50%); animation:popup-in .2s ease-out }
+  @keyframes popup-in { from { opacity:0; transform:translateX(-50%) translateY(4px) } to { opacity:1; transform:translateX(-50%) translateY(0) } }
+
   /* ── Slide TOC popup ──────────────────────────── */
   .slide-toc-popup {
     position: absolute;
-    bottom: calc(100% + 8px);
+    bottom:  8px;
     left: 6px;
-    background: var(--component-bg);
+    background: var(--component-bg-blur);
+    backdrop-filter: blur(12px);
     border: 1px solid var(--border-color-blur);
     border-radius: 10px;
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
@@ -1108,23 +1179,14 @@ if (md.trim()) {
       display: none;
       align-items: center;
       gap: 2px;
-      background: var(--component-bg);
+      background: var(--component-bg-blur);
+      backdrop-filter: blur(12px);
       border: 1px solid var(--border-color-blur);
       border-radius: 8px;
       padding: 4px 6px;
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
       white-space: nowrap;
       z-index: 20;
-    }
-    .slide-zoom-popup::after {
-      content: "";
-      position: absolute;
-      top: 100%;
-      left: 50%;
-      transform: translateX(-50%);
-      border: 8px solid transparent;
-      border-top-color: var(--component-bg);
-      background: transparent;
     }
 
     .slide-zoom-group.open .slide-zoom-popup {
@@ -1139,7 +1201,7 @@ if (md.trim()) {
       min-width: 64px;
       text-align: center;
       font-variant-numeric: tabular-nums;
-      font-size: 0.85rem;
+      font-size: 0.95rem;
     }
   }
   /* ── Post info popup ──────────────────────────── */
@@ -1147,7 +1209,8 @@ if (md.trim()) {
     position: absolute;
     bottom: calc(100% + 8px);
     left: 8px;
-    background: var(--component-bg);
+    background: var(--component-bg-blur);
+    backdrop-filter: blur(12px);
     border: 1px solid var(--border-color-blur);
     border-radius: 10px;
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);

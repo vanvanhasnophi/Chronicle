@@ -73,9 +73,8 @@
                 <template v-else>
                     <div class="ribbon-more">
                         <button class="ribbon-tab active" @click="tabMenuOpen = !tabMenuOpen">
-                            <span class="icon-svg tab-icon" v-html="activeTabDef?.icon"></span> {{ activeTabDef?.label
-                            }}
-                        <span class="icon-svg ribbon-tab-chevron" v-html="Icons.chevron"></span>
+                            <span class="icon-svg tab-icon" v-html="activeTabDef?.icon"></span> {{ t(activeTabDef?.label || 'editor.tab') }}
+                            <span class="icon-svg ribbon-tab-chevron" v-html="Icons.chevron"></span>
                         </button>
                         <div v-if="tabMenuOpen" class="dropdown-backdrop" @click="tabMenuOpen = false"></div>
                         <Transition name="dropdown">

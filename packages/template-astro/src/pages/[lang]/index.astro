@@ -12,7 +12,7 @@ import { initPreloadSystem } from "../../utils/preload.ts";
 import { loadSiteSettings } from "../../utils/siteSettings";
 import CardStyleHomeDeck from "../../components/CardStyleHomeDeck.astro";
 import HomeCoverDeck from "../../components/HomeCoverDeck.astro";
-import BackToTop from "../../components/BackToTop.vue";
+import BackToTop from "../../components/BackToTop.astro";
 import { resolveFeatureFlags } from "../../utils/featureFlags.ts";
 
 // Get locale from Astro.locals (set by middleware)
@@ -64,10 +64,7 @@ const featureFlags = resolveFeatureFlags(settings?.featureFlags || {});
       </div>
     )
   }
-  <BackToTop
-    client:idle
-    mountToBody={true}
-  />
+  <BackToTop />
 </Layout>
 
 <style>
