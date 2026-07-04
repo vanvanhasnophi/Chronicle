@@ -185,6 +185,8 @@ export interface PostMeta {
     dir: string;
     toc: { id: string; text: string; level: number }[];
     hasHtml?: boolean;
+    type?: string;
+    slideshow?: any;
 }
 
 export interface LocalPost extends PostMeta {
@@ -287,6 +289,8 @@ function scanPostsFromDisk(): PostMeta[] {
             collectionPath: attrs.collectionPath ? String(attrs.collectionPath) : undefined,
             author: attrs.author ? String(attrs.author) : undefined,
             aiGenerated: !!attrs.aiGenerated,
+            type: attrs.type || attrs.marp ? 'slides' : undefined,
+            slideshow: attrs.slideshow || undefined,
             dir,
             toc: [],
         });
@@ -317,7 +321,7 @@ export function getAllPosts(): PostMeta[] {
     _postCache = scanPostsFromDisk();
     _postCacheMtime = Date.now();
     if (_postCache.length > 0) {
-        console.log(`[localDataSource] Scanned ${_postCache.length} posts from ${POSTS_DIR}`);
+        if (import.meta.env.DEV) console.log(`[localDataSource] Scanned ${_postCache.length} posts from ${POSTS_DIR}`);
     } else {
         console.warn('[localDataSource] No posts found in', POSTS_DIR);
     }
@@ -354,7 +358,8 @@ export function getPostById(id: string): LocalPost | null {
             let raw = fs.readFileSync(contentPath, 'utf-8');
             // Branch 1: Already plaintext with/without frontmatter
             if (raw.startsWith('---')) {
-                content = stripFrontmatter(raw);
+                // Slides: keep full frontmatter so Marp fields (theme, size, etc.) are preserved
+                content = meta?.type === 'slides' ? raw : stripFrontmatter(raw);
             }
             // Branch 2: Encrypted (hex:hex) — decrypt first
             else if (isEncryptedContent(raw)) {
@@ -563,5 +568,7 @@ export function getPostCollections(postId: string): CollectionRef[] {
 
 // ── Debug ────────────────────────────────────────────────
 
-console.log('[localDataSource] DATA_DIR:', DATA_DIR);
-console.log('[localDataSource] Posts:', getAllPosts().length, '| Published:', getPublishedPosts().length);
+if (import.meta.env.DEV) {
+  console.log('[localDataSource] DATA_DIR:', DATA_DIR);
+  console.log('[localDataSource] Posts:', getAllPosts().length, '| Published:', getPublishedPosts().length);
+}

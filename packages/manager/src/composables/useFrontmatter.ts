@@ -44,7 +44,8 @@ export function parseFrontmatter(raw: string): { meta: PostFrontmatter; content:
   }
 
   const yamlBlock = afterFirst.slice(0, closeIdx).trim()
-  const content = afterFirst.slice(closeIdx + FM_DELIM.length + 1).trimStart()
+  // strip at most 1 leading blank line after FM separator (writer always adds one)
+  const content = afterFirst.slice(closeIdx + FM_DELIM.length + 1).replace(/^\n/, '')
 
   const meta = parseSimpleYaml(yamlBlock)
   return { meta, content }
@@ -54,15 +55,18 @@ export function parseFrontmatter(raw: string): { meta: PostFrontmatter; content:
  * Serialize metadata + content into a markdown string with YAML frontmatter.
  */
 export function serializeFrontmatter(meta: PostFrontmatter, content: string): string {
-  const entries = Object.entries(meta).filter(([, v]) => v !== undefined && v !== null && v !== '')
+  const entries = Object.entries(meta).filter(([, v]) => v !== undefined && v !== null)
   if (entries.length === 0) return content
 
   const yaml = entries.map(([k, v]) => {
     if (Array.isArray(v)) {
-      return `${k}: [${v.join(', ')}]`
+      return `${k}: ${JSON.stringify(v)}`
     }
     if (typeof v === 'boolean') {
       return `${k}: ${v}`
+    }
+    if (typeof v === 'object') {
+      return `${k}: ${JSON.stringify(v)}`
     }
     return `${k}: ${String(v)}`
   }).join('\n')

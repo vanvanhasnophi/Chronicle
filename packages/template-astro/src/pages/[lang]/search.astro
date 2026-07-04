@@ -201,7 +201,6 @@ const metaDescription = locale === "zh-CN"
     opacity: 0;
   }
 
-
 .selected .tag-count {
     color: var(--recommended-accent-text);
 }
@@ -279,7 +278,6 @@ const metaDescription = locale === "zh-CN"
     color: var(--component-text-primary-hover);
     opacity: 1;
   }
-
 
   /* Content Area Wrapper */
   .content-wrapper {
@@ -437,7 +435,7 @@ const metaDescription = locale === "zh-CN"
     background: var(--component-bg-hover);
     border-color: var(--component-text-primary-hover);
   }
-  .post-header {
+  .s__post-header {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
@@ -1040,7 +1038,7 @@ const metaDescription = locale === "zh-CN"
               const isF = (tag) => tag === "featured" || tag === "精选";
               return `
               <article class="result-card" data-post-id="${esc(String(post.id))}">
-                <div class="post-header">
+                <div class="s__post-header">
                   <h3 class="post-title">${esc(post.title)}</h3>
                   <span class="post-date">${new Date(post.date).toLocaleDateString(locale)}</span>
                 </div>
@@ -1195,16 +1193,5 @@ const metaDescription = locale === "zh-CN"
       window.history.replaceState({}, "", `${routePrefix}/search`);
     }
 
-    // 智能预加载其他页面
-    import("../../utils/preload.ts")
-      .then(({ executeSmartPreload }) => {
-        // 延迟执行预加载，避免影响首屏性能
-        setTimeout(() => {
-          executeSmartPreload();
-        }, 2000);
-      })
-      .catch((err) => {
-        console.warn("[Preload] Failed to load preload module:", err);
-      });
   }
 </script>

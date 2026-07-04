@@ -11,7 +11,7 @@ import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { EditorView, keymap, placeholder as cmPlaceholder } from '@codemirror/view'
 import { Compartment, EditorState, type Extension } from '@codemirror/state'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
-import { defaultKeymap, history, historyKeymap, undo, redo } from '@codemirror/commands'
+import { defaultKeymap, history, historyKeymap, undo, redo, historyField, isolateHistory } from '@codemirror/commands'
 import { searchKeymap } from '@codemirror/search'
 import { HighlightStyle, syntaxHighlighting, LanguageDescription, StreamLanguage, LanguageSupport } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
@@ -254,6 +254,8 @@ const emit = defineEmits<{
 }>()
 
 const editorHost = ref<HTMLDivElement | null>(null)
+const canUndoRef = ref(false)
+const canRedoRef = ref(false)
 let editorView: EditorView | null = null
 const editableCompartment = new Compartment()
 
@@ -420,6 +422,13 @@ function createExtensions(): Extension[] {
       if (update.selectionSet) {
         emitCursor(update.view)
       }
+      // Update undo/redo state reactively
+      const hv = update.view.state.field(historyField, false) as any
+      const prevCanUndo = canUndoRef.value
+      canUndoRef.value = (hv?.done?.length ?? 0) > 1
+      canRedoRef.value = (hv?.undone?.length ?? 0) > 0
+      if (canUndoRef.value !== prevCanUndo) {
+      }
     }),
     keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
     history(),
@@ -434,9 +443,6 @@ function createExtensions(): Extension[] {
 
   exts.push(syntaxHighlighting(hljsHighlight))
 
-  if (props.disabled) {
-    exts.push(EditorState.readOnly.of(true))
-  }
   exts.push(editableCompartment.of(EditorView.editable.of(!props.disabled)))
 
   return exts
@@ -470,9 +476,7 @@ onUnmounted(() => {
 
 watch(() => props.modelValue, (val) => {
   if (editorView && !editorView.composing && val !== editorView.state.doc.toString()) {
-    editorView.dispatch({
-      changes: { from: 0, to: editorView.state.doc.length, insert: val },
-    })
+    editorView.setState(EditorState.create({ doc: val, extensions: createExtensions() })); //
   }
 })
 
@@ -489,6 +493,15 @@ defineExpose({
   getEditor() { return editorView },
   undo() { if (editorView) undo(editorView) },
   redo() { if (editorView) redo(editorView) },
+  canUndo: canUndoRef,
+  canRedo: canRedoRef,
+  initContent(content: string) {
+    if (!editorView) return
+    editorView.setState(EditorState.create({ doc: content, extensions: createExtensions() }))
+    const h0 = (editorView.state.field(historyField, false) as any)
+    canUndoRef.value = (h0?.done?.length ?? 0) > 1
+    canRedoRef.value = (h0?.undone?.length ?? 0) > 0
+  },
   getCursorLine(): number {
     if (!editorView) return 1
     const pos = editorView.state.selection.main.head

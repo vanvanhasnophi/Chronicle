@@ -143,9 +143,21 @@ const routes = [
   },
   {
     path: '/editor',
-    name: 'TextEditor',
+    name: 'TextEditorRoot',
     component: TextEditorLazy,
-    meta: { layout: 'blank', title: 'editor.createNewPost' }
+    meta: { layout: 'blank', title: 'editor.createNewArticle' }
+  },
+  {
+    path: '/editor/article',
+    name: 'TextEditorDocument',
+    component: TextEditorLazy,
+    meta: { layout: 'blank', title: 'editor.createNewArticle' }
+  },
+  {
+    path: '/editor/slides',
+    name: 'TextEditorSlides',
+    component: TextEditorLazy,
+    meta: { layout: 'blank', title: 'editor.createNewSlides' }
   },
   {
     path: '/editor/print',
@@ -153,6 +165,7 @@ const routes = [
     component: EditorPrintPreview,
     meta: { layout: 'blank', title: 'editor.print' }
   },
+  { path: '/editor/:pathMatch(.*)*', redirect: '/editor' },
   {
     path: '/files',
     name: 'FileManager',
@@ -225,13 +238,12 @@ router.afterEach((to) => {
 
   if (to.name === 'Home') {
       document.title = 'Chronicle'
+  } else if (to.path.startsWith('/editor')) {
+      // Editor manages its own title — don't touch it here
   } else if (to.meta && to.meta.title) {
     const titleText = resolveMessage(String(to.meta.title))
     document.title = `${titleText} - ${appName}`
   } else {
-    // Default fallback if no title set. For dynamic pages like BlogPost
-    // the component will overwrite document.title once data is ready,
-    // but we should avoid leaving the previous route's title visible.
     document.title = appName
   }
 

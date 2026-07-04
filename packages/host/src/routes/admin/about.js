@@ -40,6 +40,10 @@ function readAbout() {
     contentStart = i + 1; // after closing ---
   }
 
+  // skip at most 1 blank line between frontmatter separator and content
+  if (contentStart < lines.length && lines[contentStart] === '') {
+    contentStart++
+  }
   const content = lines.slice(contentStart).join('\n');
   return { lastModified, content };
 }

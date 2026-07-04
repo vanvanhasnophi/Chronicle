@@ -41,7 +41,7 @@
   --success: #5cb85c;
 
   /* === 背景 === */
-  --bg-primary: #141414;
+  --bg-primary: #121212;
   --bg-secondary: #1e1e1e;
   --surface: #222222;
   --surface-alt: #2a2a2a;

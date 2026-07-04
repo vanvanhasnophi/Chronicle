@@ -1,11 +1,25 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import TitleBar from './components/TitleBar.vue'
 import ManagerLayout from './components/ManagerLayout.vue'
+import { registerToastEmitter } from './composables/useNotificationCenter'
+import useToast from './composables/useToast'
 
 const route = useRoute()
 const layout = computed(() => (route.meta.layout as string) || 'blank')
+const { show: showToast } = useToast()
+
+onMounted(() => {
+  registerToastEmitter((n) => {
+    showToast(n.title, {
+      status: n.level === 'error' ? 'error' : n.level === 'warning' ? 'warning' : n.level === 'success' ? 'success' : n.level === 'progress' ? 'info' : 'info',
+      position: 'bottom-center',
+      shape: 'capsule',
+      duration: n.kind === 'instant' ? 3000 : 2000,
+    })
+  })
+})
 </script>
 
 <template>

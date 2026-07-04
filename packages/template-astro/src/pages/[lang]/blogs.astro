@@ -1,6 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import BackToTop from '../../components/BackToTop.vue';
+import BackToTop from '../../components/BackToTop.astro';
 import BlogPostCard from '../../components/BlogPostCard.astro';
 import { getTranslation } from '../../utils/i18n';
 import { buildLocalizedPath, toContentLocale } from '../../utils/routeLocale';
@@ -130,10 +130,7 @@ const metaDescription = locale === 'zh-CN'
       </section>
     </main>
   </div>
-  <BackToTop
-    client:idle
-    mountToBody={true}
-  />
+  <BackToTop />
   
 </Layout>
 
@@ -245,8 +242,6 @@ const metaDescription = locale === 'zh-CN'
     padding-top: 10px;
   }
 
-
-
   .month-posts {
     flex-grow: 1;
     display: flex;
@@ -322,7 +317,6 @@ const metaDescription = locale === 'zh-CN'
     width: 0;
   }
 
-
   .post-card-time {
     font-size: 0.85em;
     color: var(--component-text-secondary);
@@ -331,8 +325,6 @@ const metaDescription = locale === 'zh-CN'
     min-width: 24px;
     font-variant-numeric: tabular-nums;
   }
-
-
 
   .compact-card .post-featured-star {
     display: none;
@@ -411,7 +403,6 @@ const metaDescription = locale === 'zh-CN'
     border-radius: 12px;
     transition: all 0.3s ease;
   }
-
 
   html.is-mobile .featured-card .post-title,
   html.is-mobile .compact-card .post-title {
@@ -577,8 +568,6 @@ const metaDescription = locale === 'zh-CN'
       } catch (e) {
         // keep raw url when URL constructor cannot parse
       }
-      console.info(`[blogs][${stage}] request raw:`, url);
-      console.info(`[blogs][${stage}] request resolved:`, resolved);
     }
 
     logRequestUrl('ssr', initialPostsRequestUrl);

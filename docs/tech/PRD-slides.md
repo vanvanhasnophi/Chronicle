@@ -11,7 +11,7 @@
 | 决策 | 结论 | 原因 |
 |------|------|------|
 | 文档类型声明 | **必须显式声明** `type: slides` | 避免与普通文章中的 `---` `/ `***` 水平线产生歧义 |
-| 默认文档类型 | `type: document` | 向后兼容，所有现有文章无需修改 |
+| 默认文档类型 | `type: article` | 向后兼容，所有现有文章无需修改 |
 | 预览引擎 | **自研解析器** | 复用 Chronicle markdown-it 管线，KaTeX / 文件卡片 / 代码高亮零差异 |
 | 导出引擎 | **@marp-team/marp-core**（客户端） | 专业 PPTX/PDF 输出，Marp 主题兼容性 |
 | 输出格式 | 交互式 HTML 页面为主，PPTX/PDF 为辅 |
@@ -50,7 +50,7 @@
 ---
 title: 一篇普通文章
 date: 2026-06-09
-type: document       # 或省略，默认为 document
+type: article       # 或省略，默认为 article
 ---
 
 # 幻灯片文档
@@ -67,7 +67,7 @@ slideshow:
 
 ### 2.2 `type` 字段对行为的控制
 
-| 行为 | `type: document`（默认） | `type: slides` |
+| 行为 | `type: article`（默认） | `type: slides` |
 |------|--------------------------|----------------|
 | `---` 语义 | `<hr>` 水平分割线 | 幻灯片分页符 |
 | `***` / `___` | `<hr>` 水平分割线 | `<hr>` 水平分割线（不切页） |
@@ -130,7 +130,7 @@ BlogEditor.vue (新增 layout: 'slideshow')
     └── MarpExportModal.vue         🆕  导出弹窗
 
 Post.astro (发布页)
-├── post.astro                      ✏️  文章视图（type: document 时）
+├── post.astro                      ✏️  文章视图（type: article 时）
 └── slideshow.astro                 🆕  幻灯片视图（type: slides 时，或手动切换）
 
 Post Index (posts/index.json)
@@ -211,7 +211,7 @@ toolbar row 3（现有）:
   [📝 编辑] [👁 分屏] [📖 预览]  ← 现存
   [🎬 幻灯片]                      ← 🆕
 
-type: document → 默认选中 [分屏]
+type: article → 默认选中 [分屏]
 type: slides   → 默认选中 [🎬 幻灯片]
 ```
 
@@ -365,7 +365,7 @@ packages/manager/src/
 
 packages/template-astro/src/
 ├── pages/post.astro               ✏️ 文章页增加 slideshow 入口
-└── utils/chronicleMarkdown.ts     ✏️ type: document 时 --- → <hr>
+└── utils/chronicleMarkdown.ts     ✏️ type: article 时 --- → <hr>
                                      type: slides 时 --- → 幻灯片分隔符
 
 packages/gen/src/
@@ -450,7 +450,7 @@ packages/gen/src/
 ```typescript
 // packages/shared/src/types/post.ts
 
-export type PostType = 'document' | 'slides'
+export type PostType = 'article' | 'slides'
 
 export interface SlideshowConfig {
   theme?: 'default' | 'gaia' | 'uncover'   // 导出默认主题
@@ -460,7 +460,7 @@ export interface SlideshowConfig {
 
 export interface PostMeta {
   // ... existing fields
-  type?: PostType          // 默认 'document'
+  type?: PostType          // 默认 'article'
   slideshow?: SlideshowConfig  // type: slides 时的配置
 }
 ```
@@ -493,7 +493,7 @@ export function parseMarkdown(markdown: string): { meta: SlideMeta; slides: Pars
 
 | 风险 | 缓解 |
 |------|------|
-| `---` 分割误判 | 严格的空行检测 + `type: document` 显式声明 |
+| `---` 分割误判 | 严格的空行检测 + `type: article` 显式声明 |
 | 复杂幻灯片（嵌套列表中的 `---`）| 总是以行首 `---` + 空行包围为准 |
 | marp-core 体积 | 懒加载，仅导出时请求 |
 | PPTX 导出质量（截图方案） | 比原生 PPTX 质量低，但满足日常需求。后续可换后端 puppeteer |
@@ -505,7 +505,7 @@ export function parseMarkdown(markdown: string): { meta: SlideMeta; slides: Pars
 
 ## 九、不变原则
 
-1. **`type: document` 的行为与现在完全一致** — 所有现有文章向后兼容，零改动
+1. **`type: article` 的行为与现在完全一致** — 所有现有文章向后兼容，零改动
 2. **内容格式不变** — 不引入新的内容格式，所有变更在渲染层，Markdown 源码无感
 3. **Schema 驱动** — slideshow 配置项通过 JSON Schema 声明（`packages/template-astro/schemas/` 下新增），CMS 自动渲染配置面板
 4. **预览即发布** — CMS 预览的渲染结果与发布页一致（与现有 markdown 管线同要求）

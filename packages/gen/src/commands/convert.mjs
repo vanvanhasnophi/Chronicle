@@ -245,18 +245,30 @@ function rebuildIndex(postsDir, results) {
     const content = readFileSync(contentFile, 'utf-8');
     const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
     let title = slug;
-    // Detect Jekyll date from slug path (e.g., 2026-01-01-hello-world → 2026-01-01)
     const jekyllParsed = parseJekyllSlug(slug);
     let date = jekyllParsed.date ? new Date(jekyllParsed.date).toISOString() : new Date().toISOString();
     let tags = [];
+    let type, slideshow, font = 'sans', author = '', aiGenerated = false;
     if (frontmatterMatch) {
       const fm = yamlToJson(frontmatterMatch[1]);
       if (fm.title) title = fm.title;
       if (fm.date) date = new Date(fm.date).toISOString();
       if (fm.tags) tags = Array.isArray(fm.tags) ? fm.tags : String(fm.tags).split(/,\s*/).filter(Boolean);
+      type = fm.type || undefined;
+      slideshow = fm.slideshow || undefined;
+      font = fm.font || 'sans';
+      author = fm.author !== undefined ? String(fm.author || '').trim() : '';
+      aiGenerated = fm.aiGenerated === 'true' || fm.aiGenerated === true;
+      // Auto-detect Marp slideshows (marp: true → type: 'slides')
+      if (!type && (fm.marp === 'true' || fm.marp === true)) type = 'slides';
     }
     const summary = stripSummary(content, 200);
-    index.push({ id: uuid, slug, title, date, tags, summary, status: 'published' });
+    index.push({
+      id: uuid, slug, title, date, tags, summary, status: 'published',
+      font, author, aiGenerated,
+      ...(type && { type }),
+      ...(slideshow && { slideshow }),
+    });
   }
   writeFileSync(join(postsDir, 'index.json'), JSON.stringify(index, null, 2), 'utf-8');
 }
@@ -336,25 +348,14 @@ const BACKEND_KEYS = new Set([
 ]);
 
 function convertSettings(siteDir, dataDir) {
-  // Preserve backend fields from existing settings.json
+  // settings.json already reset to defaults + backend at top level.
+  // Just overlay site/settings.yml on top.
   const settingsPath = join(dataDir, 'settings.json');
-  let backend = {};
-  if (existsSync(settingsPath)) {
-    try {
-      const existing = JSON.parse(readFileSync(settingsPath, 'utf-8'));
-      for (const key of BACKEND_KEYS) {
-        if (key in existing) backend[key] = existing[key];
-      }
-    } catch (e) { /* corrupt — start fresh */ }
-  }
-
-  // Start with frontend defaults, overlay backend
-  const settings = { ...SETTINGS_DEFAULTS, ...backend };
+  const settings = JSON.parse(readFileSync(settingsPath, 'utf-8'));
 
   const ymlFile = join(siteDir, 'settings.yml');
   if (existsSync(ymlFile)) {
-    const yaml = readFileSync(ymlFile, 'utf-8');
-    const yml = yamlToJson(yaml);
+    const yml = yamlToJson(readFileSync(ymlFile, 'utf-8'));
 
     for (const [ymlKey, jsonKey] of Object.entries(YAML_TO_JSON_KEY)) {
       if (ymlKey in yml) {
@@ -364,13 +365,7 @@ function convertSettings(siteDir, dataDir) {
     }
 
     for (const key of Object.keys(yml)) {
-      if (key in settings) {
-        settings[key] = yml[key];
-      }
-    }
-
-    if (!yml.url) {
-      settings.frontendUrl = backend.frontendUrl || '';
+      if (key in settings) settings[key] = yml[key];
     }
   }
 
@@ -1051,21 +1046,21 @@ async function processBackground(siteDir, bgSourceDir, dataDir, assetMap) {
 // ═══════════════════════════════════════════════════════════
 
 /**
- * Pick up site/{name}.* from site root (not branding/).
- * Copies to data/branding/ with content-hash naming — no compression.
+ * Pick up site/{name}.* from site root.
  *
- * - avatar: only used if profile.json.avatar is empty (fallback).
- * - favicon: always sets settings.json.favicon.
+ * - avatar: copy original to upload/pic/, compress to branding/chr_avatar-{hash}.webp,
+ *           write both avatar (compressed) and avatarSource (original) to profile.json.
+ * - favicon: plain copy to branding/ with hash naming, set settings.json.favicon.
  */
-function processBrandingAsset(siteDir, name, target, dataDir, assetMap) {
-  // Only for avatar: check if profile.json already has a non-empty value
+async function processBrandingAsset(siteDir, name, target, dataDir, assetMap) {
+  // Only for avatar: check if profile.json already has avatar set
   if (name === 'avatar') {
     const profileFile = join(dataDir, 'profile.json');
     if (existsSync(profileFile)) {
       try {
         const profile = JSON.parse(readFileSync(profileFile, 'utf-8'));
-        if (profile.avatar && profile.avatar.trim()) return; // already set, skip fallback
-      } catch (e) { /* proceed with fallback */ }
+        if (profile.avatar && profile.avatar.trim()) return; // already set, skip
+      } catch (e) { /* proceed */ }
     }
   }
 
@@ -1081,24 +1076,68 @@ function processBrandingAsset(siteDir, name, target, dataDir, assetMap) {
     const brandingDataDir = join(dataDir, 'branding');
     mkdirSync(brandingDataDir, { recursive: true });
     const content = readFileSync(fullPath);
-    const hash = createHash('sha256').update(content).digest('hex').slice(0, 8);
-    const destName = `${name}-${hash}${ext}`;
-    cpSync(fullPath, join(brandingDataDir, destName), { force: true });
+    const fileHash = createHash('sha256').update(content).digest('hex').slice(0, 8);
 
+    if (name === 'avatar') {
+      // ── Avatar: copy original to upload, compress to branding ──
+      const uploadPicDir = join(dataDir, 'upload', 'pic');
+      mkdirSync(uploadPicDir, { recursive: true });
+      // Preserve original filename (match CMS behaviour)
+      const sourceName = `${name}${ext}`;
+      const sourcePath = `pic/${sourceName}`;
+      const destPath = join(uploadPicDir, sourceName);
+      cpSync(fullPath, destPath, { force: true });
+
+      // Use compressImage from image.cjs — same hash seed as CMS: 'avatar:' + sourcePath
+      const { compressImage } = require('../../src/processor/image.cjs');
+      const outputRel = `chr_avatar-${stem}-${createHash('sha1').update('avatar:' + sourcePath).digest('hex').slice(0, 10)}.webp`;
+
+      const result = await compressImage({
+        sourceRel: sourcePath,
+        uploadDir: join(dataDir, 'upload'),
+        outputDir: brandingDataDir,
+        outputRel,
+        quality: 80,
+        resizeWidth: 256,
+        resizeHeight: 256,
+        clearPrefix: 'chr_avatar',
+      });
+
+      if (!result.success) {
+        console.error(`[convert] Avatar compression failed: ${result.message}`);
+        return;
+      }
+
+      const url = result.url;
+
+      // Write both compressed and source URLs to profile.json
+      const profileFile = join(dataDir, 'profile.json');
+      let profileJson = { name: '', avatar: '', bio: '', location: '', links: [] };
+      if (existsSync(profileFile)) {
+        try { profileJson = JSON.parse(readFileSync(profileFile, 'utf-8')); } catch (e) { /* use default */ }
+      }
+      profileJson.avatar = url;
+      profileJson.avatarSource = sourcePath;
+      writeFileSync(profileFile, JSON.stringify(profileJson, null, 2), 'utf-8');
+      console.log(`[convert] Avatar: site/${entry} → ${outputRel} (source: ${sourcePath})`);
+      assetMap[entry] = url;
+      return;
+    }
+
+    // ── Favicon: plain copy ──
+    const destName = `${name}-${fileHash}${ext}`;
+    cpSync(fullPath, join(brandingDataDir, destName), { force: true });
     const url = `/server/data/branding/${destName}`;
     assetMap[entry] = url;
 
-    // Inject into the target JSON
     const targetFile = join(dataDir, `${target}.json`);
     if (existsSync(targetFile)) {
       try {
         const json = JSON.parse(readFileSync(targetFile, 'utf-8'));
-        if (target === 'profile') json.avatar = url;
-        else if (target === 'settings') json.favicon = url;
+        if (target === 'settings') json.favicon = url;
         writeFileSync(targetFile, JSON.stringify(json, null, 2), 'utf-8');
       } catch (e) { /* ignore */ }
     }
-
     console.log(`[convert] Branding: site/${entry} → branding/${destName}`);
     return;
   }
@@ -1158,6 +1197,36 @@ export async function convertSite(siteDir, dataDir) {
     cpSync(dataDir, backupDir, { recursive: true, force: true });
     console.log(`[convert] Backed up existing data/ → data.backup`);
   }
+
+  // ── Preserve backend settings before cleanup ──────────
+  let preservedBackend = {};
+  const settingsPath = join(dataDir, 'settings.json');
+  if (existsSync(settingsPath)) {
+    try {
+      const existing = JSON.parse(readFileSync(settingsPath, 'utf-8'));
+      for (const key of BACKEND_KEYS) {
+        if (key in existing) preservedBackend[key] = existing[key];
+      }
+      // Also preserve about.showProfileCard if set
+      if (existing.about?.showProfileCard !== undefined) {
+        if (!preservedBackend.about) preservedBackend.about = {};
+        preservedBackend.about.showProfileCard = existing.about.showProfileCard;
+      }
+    } catch (e) { /* corrupt — start fresh */ }
+  }
+
+  // ── Clean slate: reset everything that will be rewritten ──
+  const brandingDir = join(dataDir, 'branding');
+  if (existsSync(brandingDir)) rmSync(brandingDir, { recursive: true, force: true });
+  mkdirSync(brandingDir, { recursive: true });
+
+  for (const f of ['about.md', 'collections.json', 'friends.json', 'profile.json']) {
+    const p = join(dataDir, f);
+    if (existsSync(p)) rmSync(p, { force: true });
+  }
+
+  // Reset settings to defaults + preserved backend keys
+  writeFileSync(settingsPath, JSON.stringify({ ...SETTINGS_DEFAULTS, ...preservedBackend }, null, 2), 'utf-8');
 
   const postsDir = join(dataDir, 'posts');
   mkdirSync(dataDir, { recursive: true });
@@ -1256,7 +1325,7 @@ export async function convertSite(siteDir, dataDir) {
       writeFileSync(join(dataDir, 'about.md'), aboutContent, 'utf-8');
     } else {
       // No showProfileCard to extract — just copy
-      copyFileSync(aboutSrc, join(dataDir, 'about.md'));
+      cpSync(aboutSrc, join(dataDir, 'about.md'), { force: true });
     }
     console.log('[convert] About: site/about.md → data/about.md');
   }
@@ -1266,8 +1335,8 @@ export async function convertSite(siteDir, dataDir) {
 
   // ── Branding assets (avatar / favicon from site/ root) ──
   // Must run after profile.json and settings.json are written
-  processBrandingAsset(siteDir, 'avatar', 'profile', dataDir, assetMap);
-  processBrandingAsset(siteDir, 'favicon', 'settings', dataDir, assetMap);
+  await processBrandingAsset(siteDir, 'avatar', 'profile', dataDir, assetMap);
+  await processBrandingAsset(siteDir, 'favicon', 'settings', dataDir, assetMap);
 
   // ── Friends ───────────────────────────────────────
   const friendsConverted = convertFriends(siteDir, dataDir, assetMap);

@@ -30,7 +30,8 @@ function sortTags(tags) {
 // ── Front Matter Helpers ─────────────────────────────────
 
 function parseFrontMatter(content) {
-    const match = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+    // 匹配 FM 块 ---\n...\n---\n，后置最多带走 1 个空行（\n）
+    const match = content.match(/^---\n([\s\S]*?)\n---\n\n?/);
     if (!match) return { attributes: {}, body: content };
 
     const attributes = {};
@@ -46,19 +47,32 @@ function parseFrontMatter(content) {
             }
         }
     });
-    return { attributes, body: match[2] };
+    return { attributes, body: content.slice(match[0].length) };
 }
 
 function stringifyFrontMatter(attributes, body) {
+    const cleanBody = body.replace(/^---\n[\s\S]*?\n---\n\n?/, '')
+    // 必需字段先写（保证顺序），其余全部透传
+    const required = new Set(['title','date','updatedAt','tags','font','author','aiGenerated'])
     let fm = '---\n';
-    if (attributes.title) fm += `title: ${attributes.title}\n`;
-    if (attributes.date) fm += `date: ${attributes.date}\n`;
-    if (attributes.font) fm += `font: ${attributes.font}\n`;
-    if (attributes.author) fm += `author: ${attributes.author}\n`;
-    if (typeof attributes.aiGenerated === 'boolean') fm += `aiGenerated: ${attributes.aiGenerated}\n`;
-    if (attributes.tags) fm += `tags: ${JSON.stringify(attributes.tags)}\n`;
-    fm += '---\n';
-    return fm + body;
+    for (const k of ['title','date','updatedAt','tags','font','author','aiGenerated']) {
+      if (k === 'font' && attributes.type === 'slides') continue  // slides 不写 font
+      if (k === 'updatedAt' && attributes.updatedAt === attributes.date) continue
+      const v = attributes[k]
+      if (k === 'tags') fm += `tags: ${JSON.stringify(v || [])}\n`
+      else if (k === 'aiGenerated') fm += `aiGenerated: ${!!v}\n`
+      else if (v !== undefined && v !== null) fm += `${k}: ${v}\n`
+    }
+    // 其余全部透传
+    for (const [k, v] of Object.entries(attributes)) {
+      if (required.has(k)) continue
+      if (v === undefined || v === null) continue
+      if (typeof v === 'boolean') fm += `${k}: ${v}\n`
+      else if (typeof v === 'object') fm += `${k}: ${JSON.stringify(v)}\n`
+      else fm += `${k}: ${v}\n`
+    }
+    fm += '---\n\n';
+    return fm + cleanBody;
 }
 
 // Helper: get directory path for a post (supports legacy filename)
@@ -135,23 +149,39 @@ function readPostContentFromDisk(post) {
 }
 
 function writePostContentToDisk(post, content, options = {}) {
-    // options: { draft: boolean }
     const dir = getPostDir(post)
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
     const id = post.id
     if (!isValidId(id)) throw new Error('Invalid post id')
     const filename = options.draft ? `${id}-draft.md` : `${id}-content.md`
-    const full = stringifyFrontMatter({
-        title: post.title, date: post.date, updatedAt: post.updatedAt,
-        tags: post.tags || [], font: post.font || 'sans',
-        author: post.author || '', aiGenerated: !!post.aiGenerated
-    }, content || '')
-    const isDraft = options.draft || post.status === 'draft'
     const target = path.join(dir, filename)
-    if (isDraft) {
-        fs.writeFileSync(target, encrypt(full))
-    } else {
-        fs.writeFileSync(target, full)  // plaintext for published posts
+
+    // ── 原样写入，客户端 buildFileContent() 是唯一真相源 ──
+    fs.writeFileSync(target, content || '')
+}
+
+/**
+ * 从 content 提取 index.json 所需元数据。
+ * 与 writePostContentToDisk 分离——写入不改内容，提取只读。
+ */
+function extractMetaFromContent(content, fallback = {}) {
+    if (!content || typeof content !== 'string') return fallback
+    const parsed = parseFrontMatter(content)
+    const attrs = parsed.attributes || {}
+    const hasMarp = attrs.marp === 'true' || attrs.marp === true
+    const hasType = attrs.type || fallback.type
+    return {
+        title:   attrs.title || fallback.title || 'Untitled',
+        date:    attrs.date || fallback.date || new Date().toISOString(),
+        tags:    attrs.tags || fallback.tags || [],
+        font:    attrs.font || fallback.font || 'sans',
+        author:  attrs.author !== undefined ? attrs.author : (fallback.author || ''),
+        aiGenerated: attrs.aiGenerated !== undefined
+          ? (attrs.aiGenerated === 'true' || attrs.aiGenerated === true)
+          : !!fallback.aiGenerated,
+        type:    hasType || (hasMarp ? 'slides' : undefined),
+        slideshow: attrs.slideshow || fallback.slideshow || undefined,
+        marp:    hasMarp || undefined,
     }
 }
 
@@ -492,6 +522,7 @@ module.exports = {
     sortTags,
     parseFrontMatter,
     stringifyFrontMatter,
+    extractMetaFromContent,
     getPostDir,
     isValidId,
     isEncryptedContent,

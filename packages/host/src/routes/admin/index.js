@@ -361,6 +361,7 @@ function spawnGenBuild(settings, options = {}) {
 // ── Background / Compression Helpers ──────────────────────
 
 const {
+  compressImage,
   compressBackground,
   parseBackgroundLikeValue,
   computeBackgroundCompression,
@@ -495,6 +496,7 @@ function getPostDir(post) { return postService.getPostDir(post); }
 function isValidId(id) { return postService.isValidId(id); }
 function readPostContentFromDisk(post) { return postService.readPostContentFromDisk(post); }
 function writePostContentToDisk(post, content, options) { return postService.writePostContentToDisk(post, content, options); }
+function extractMetaFromContent(content, fallback) { return postService.extractMetaFromContent(content, fallback); }
 function normalizePostTitle(title) { return postService.normalizePostTitle(title); }
 function normalizePostForResponse(post) { return postService.normalizePostForResponse(post); }
 function refreshPostMetadataFromDisk(post) { return postService.refreshPostMetadataFromDisk(post); }
@@ -1588,8 +1590,43 @@ router.post('/clean/build-target', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════
-//  BACKGROUND COMPRESSION (admin token required)
+//  IMAGE COMPRESSION (admin token required)
 // ═══════════════════════════════════════════════════════════
+
+// Generic: POST /image-compress  { sourcePath, outputDir?, outputRel?, quality?, resizeWidth?, resizeHeight? }
+// Caller decides outputDir and outputRel. Backgrounds should use /background/compress instead.
+router.post('/image-compress', async (req, res) => {
+  if (!requireAdminToken(req, res)) return;
+  try {
+    const body = req.body || {};
+    const sourceRel = body.sourcePath || body.sourceRel || '';
+
+    if (!sourceRel) {
+      return res.status(400).json({ success: false, message: 'sourcePath is required' });
+    }
+
+    const result = await compressImage({
+      sourceRel,
+      uploadDir: UPLOAD_DIR,
+      outputDir: body.outputDir || undefined,
+      outputRel: body.outputRel || undefined,
+      quality: body.quality || 80,
+      resizeWidth: body.resizeWidth || undefined,
+      resizeHeight: body.resizeHeight || undefined,
+      mediaDomain: process.env.MEDIA_DOMAIN || '',
+    });
+
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+    res.json(result);
+  } catch (e) {
+    console.error('[ImageCompress] Error', e);
+    res.status(500).json({ success: false, message: e.message || 'Compression failed' });
+  }
+});
+
+// ── Background compression (existing, delegates to compressBackground) ──
 
 router.post('/background/compress', async (req, res) => {
   if (!requireAdminToken(req, res)) return;
@@ -1713,23 +1750,27 @@ router.get('/post', (req, res) => {
 
     if (!post) return fail(res, 'Post not found', 404);
 
-    const content = postService.readPostContentFromDisk(post);
-    // hasHtml indicates the post has content available for rendering
-    // (markdown rendering happens in template-astro or CMS editor, not in host)
-    const hasHtml = !!(content && content.length > 0);
+    // For slides: return full file content (frontmatter + body) so Marp fields are preserved
+    const dir = postService.getPostDir(post);
+    const contentPath = path.join(dir, `${post.id}-content.md`);
+    const draftPath = path.join(dir, `${post.id}-draft.md`);
 
     // mode=edit: prefer draft content for editing
-    if (mode === 'edit') {
-      const dir = postService.getPostDir(post);
-      const draftPath = path.join(dir, `${post.id}-draft.md`);
-      if (fs.existsSync(draftPath)) {
-        let raw = fs.readFileSync(draftPath, 'utf-8');
-        try { raw = decrypt(raw); } catch (e) { /* not encrypted */ }
-        const { body } = postService.parseFrontMatter(raw);
-        return success(res, { ...postService.normalizePostForResponse(post), content: body, hasHtml, toc: [] });
+    if (mode === 'edit' && fs.existsSync(draftPath)) {
+      let raw = fs.readFileSync(draftPath, 'utf-8');
+      try { raw = decrypt(raw); } catch (e) { /* not encrypted */ }
+      if (post.type === 'slides') {
+        // slides: Marp FM 在 content 里，必须原样返回
+        return success(res, { ...postService.normalizePostForResponse(post), content: raw, hasHtml: true, toc: [] });
       }
+      const { body } = postService.parseFrontMatter(raw);
+      return success(res, { ...postService.normalizePostForResponse(post), content: body, hasHtml: true, toc: [] });
     }
 
+    const content = post.type === 'slides'
+      ? (fs.readFileSync(contentPath, 'utf-8'))
+      : postService.readPostContentFromDisk(post);
+    const hasHtml = !!(content && content.length > 0);
     success(res, { ...postService.normalizePostForResponse(post), content, hasHtml, toc: [] });
   } catch (e) {
     fail(res, 'Failed to load post');
@@ -1749,8 +1790,16 @@ router.post('/post', (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid id format' });
     }
 
-    if (!data.title) {
-      return res.status(400).json({ success: false, message: 'Missing title' });
+    // ── 兼容层：从 content YAML 提取基础元数据，显式传入的字段优先覆盖 ──
+    const fromContent = extractMetaFromContent(data.content)
+    const resolved = {
+      title:      data.title || fromContent.title || 'Untitled',
+      tags:       data.tags || fromContent.tags || [],
+      font:       data.font || fromContent.font || 'sans',
+      author:     data.author !== undefined ? String(data.author || '').trim() : (fromContent.author || ''),
+      aiGenerated: data.aiGenerated !== undefined ? !!data.aiGenerated : !!fromContent.aiGenerated,
+      type:       data.type || fromContent.type || undefined,
+      slideshow:  data.slideshow || fromContent.slideshow || undefined,
     }
 
     const newPost = data.newPost === true;
@@ -1773,26 +1822,28 @@ router.post('/post', (req, res) => {
       const filename = `${data.id}.md`;
       post = {
         id: data.id,
-        title: data.title,
+        title: resolved.title,
         date: now,
         updatedAt: now,
         filename,
         dir: data.id,
         summary: stripSummary(content, 200),
-        tags: sortTags(data.tags || []),
-        font: data.font || 'sans',
-        author: String(data.author || '').trim(),
-        aiGenerated: !!data.aiGenerated,
+        tags: sortTags(resolved.tags),
+        font: resolved.font,
+        author: resolved.author,
+        aiGenerated: resolved.aiGenerated,
         status: status || 'draft'
       };
+      if (resolved.type) post.type = resolved.type;
+      if (resolved.slideshow) post.slideshow = resolved.slideshow;
       posts.push(post);
     } else {
       if (existingPost) {
         post = existingPost;
         wasPublished = post.status === 'published';
-        post.title = data.title || post.title;
-        if (data.author !== undefined) post.author = String(data.author || '').trim();
-        if (data.aiGenerated !== undefined) post.aiGenerated = !!data.aiGenerated;
+        post.title = resolved.title || post.title;
+        post.author = resolved.author || post.author;
+        post.aiGenerated = resolved.aiGenerated;
         if (content !== undefined) {
           post.summary = stripSummary(content, 200);
         }
@@ -1806,26 +1857,30 @@ router.post('/post', (req, res) => {
         } else if (status) {
           post.status = status;
         }
-        if (data.tags) post.tags = sortTags(data.tags || []);
-        if (data.font) post.font = data.font;
+        post.tags = sortTags(resolved.tags.length ? resolved.tags : (post.tags || []));
+        post.font = resolved.font || post.font;
+        if (resolved.type) post.type = resolved.type;
+        if (resolved.slideshow) post.slideshow = resolved.slideshow;
         post.updatedAt = now;
         if (!post.dir) post.dir = post.id;
       } else {
         const filename = `${data.id}.md`;
         post = {
           id: data.id,
-          title: data.title,
+          title: resolved.title,
           date: now,
           updatedAt: now,
           filename,
           dir: data.id,
           summary: stripSummary(content, 200),
-          tags: sortTags(data.tags || []),
-          font: data.font || 'sans',
-          author: String(data.author || '').trim(),
-          aiGenerated: !!data.aiGenerated,
+          tags: sortTags(resolved.tags),
+          font: resolved.font,
+          author: resolved.author,
+          aiGenerated: resolved.aiGenerated,
           status: status || 'draft'
         };
+        if (resolved.type) post.type = resolved.type;
+        if (resolved.slideshow) post.slideshow = resolved.slideshow;
         posts.push(post);
       }
     }
@@ -2076,13 +2131,55 @@ router.get('/profile', (req, res) => {
   try { success(res, readProfile()); } catch (e) { fail(res, 'Failed to read profile'); }
 });
 
-router.post('/profile', (req, res) => {
+router.post('/profile', async (req, res) => {
   if (!requireAdminToken(req, res)) return;
   try {
     const body = req.body || {};
-    // Merge with existing rather than overwrite
     const existing = readProfile();
-    const merged = { ...existing, ...body };
+    let avatarUrl = body.avatar || existing.avatar || '';
+    let avatarSource = body.avatarSource || existing.avatarSource || '';
+
+    // If avatar changed to an upload/ file (not already compressed), compress it
+    if (body.avatar && body.avatar !== existing.avatar) {
+      const uploadPrefix = '/server/data/upload/';
+      const brandingPrefix = '/server/data/branding/';
+      const isUploadUrl = body.avatar.includes(uploadPrefix) || body.avatar.includes('/upload/');
+      const isAlreadyCompressed = body.avatar.includes(brandingPrefix) || body.avatar.includes('/branding/');
+
+      if (isUploadUrl && !isAlreadyCompressed) {
+        try {
+          // Extract relative path from the upload URL
+          const sourceRel = body.avatar.replace(/.*\/server\/data\/upload\//, '').replace(/.*\/upload\//, '');
+          const stem = sourceRel.split('/').pop()?.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9._-]+/g, '_') || 'avatar';
+          const hash = require('crypto').createHash('sha1').update('avatar:' + sourceRel).digest('hex').slice(0, 10);
+          const outputRel = `chr_avatar-${stem}-${hash}.webp`;
+
+          const result = await compressImage({
+            sourceRel,
+            uploadDir: UPLOAD_DIR,
+            outputDir: BRANDING_DIR,
+            outputRel,
+            quality: 80,
+            resizeWidth: 256,
+            resizeHeight: 256,
+            clearPrefix: 'chr_avatar',
+          });
+
+          if (result.success) {
+            avatarUrl = result.url;
+            avatarSource = sourceRel;
+            console.log('[Profile] Avatar compressed:', sourceRel, '→', outputRel);
+          }
+        } catch (e) {
+          console.warn('[Profile] Avatar compression failed, using original:', e.message);
+        }
+      } else if (isAlreadyCompressed) {
+        // Already compressed — keep avatarSource from body or existing
+        avatarSource = body.avatarSource || existing.avatarSource || '';
+      }
+    }
+
+    const merged = { ...existing, ...body, avatar: avatarUrl, avatarSource };
     fs.writeFileSync(PROFILE_FILE, JSON.stringify(merged, null, 2), 'utf-8');
     success(res, merged);
   } catch (e) { fail(res, 'Failed to save profile'); }

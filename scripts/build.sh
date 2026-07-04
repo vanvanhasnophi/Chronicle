@@ -313,12 +313,20 @@ NGINX
   lite)
     info "=== Building: 精简版 (Lite) ==="
 
-    # 精简版：只需要 template-astro，使用本地示例数据
+    # 精简版：先转换 site/ → data/（含图片压缩），再 Astro 构建
     # 不依赖 server、manager 或任何运行时后端
+    site_dir="${SITE_DIR:-${REPO_ROOT}/site}"
+    if [ -d "$site_dir" ]; then
+      info "Converting site/ → data/ ..."
+      npx chronicle-gen convert -s "$site_dir" -d "$DATA_DIR" || warn "convert had issues, continuing with existing data/"
+    else
+      info "No site/ directory found, building from existing data/"
+    fi
+
     build_template static
 
     assemble_release "chronicle-lite-$(date +%Y%m%d)" \
-      "$ASTRO_DIR/dist"
+      "$ASTRO_DIR/dist" "$DATA_DIR"
 
     info ""
     info "精简版构建完成。这是一个纯静态博客，可以："

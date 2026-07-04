@@ -8,6 +8,12 @@
   }
 }
 
+@keyframes shimmer {
+  0%   { opacity: 0.35; }
+  50%  { opacity: 0.85; }
+  100% { opacity: 0.35; }
+}
+
 :root {
   /* 可用视口高度：浏览器 = 100dvh，Electron = 100dvh - 40px（避让 TitleBar） */
   --app-height: 100dvh;
@@ -46,12 +52,17 @@
   --code-bg: rgba(255, 0, 0, 0.12);
   --code-text: #ff8585;
 
+  --status-warning: var(--featured);
+  --status-warning-bg: var(--featured-bg);
   --status-error: #d9534f;
+  --status-error-bg: color-mix(in srgb, var(--status-error) 15%, transparent);
   --status-success: #5cb85c;
+  --status-success-bg: color-mix(in srgb, var(--status-success) 15%, transparent);
   --status-progress: #06b6d4;
+  --status-progress-bg: color-mix(in srgb, var(--status-progress) 15%, transparent);
 
   /* Background hierarchy */
-  --app-bg-primary: #141414;
+  --app-bg-primary: #121212;
   --app-bg-secondary: #1e1e1e;
   --component-bg: #222222;
   --component-bg-alt: #2a2a2a;
@@ -154,6 +165,7 @@
 [data-theme="light"] {
   --code-keyword: #0000ff;
   --code-string: #a31515;
+  --code-subst: #cf222e;
   --code-comment: #008000;
   --code-katexcommand: #8a6f2f;
   --code-number: #098658;
@@ -161,11 +173,11 @@
   --code-operator: #333333;
   --code-tag: #800000;
   --code-attribute: #795e26;
-  --code-property: #001080;
+  --code-property: #0366d6;
   --code-selector: #800000;
   --code-type: #267f99;
-  --code-variable: #001080;
-  --code-parameter: #001080;
+  --code-variable: #0366d6;
+  --code-parameter: #0366d6;
   --code-cmdlet: #0000ff;
   --code-directive: #0451a5;
   --code-preprocessor: #0451a5;
@@ -198,7 +210,7 @@ body[data-backend-theme="light"] {
   --app-bg-secondary: #f0f0f0;
   --component-bg: #ffffff;
   --component-bg-alt: #f7f7f7;
-  --component-bg-blur: rgba(230, 230, 230, 0.7);
+  --component-bg-blur: rgba(230, 230, 230, 0.8);
   --component-bg-blur-alt: rgba(232, 232, 232, 0.5);
   --component-bg-accent: color-mix(in srgb, var(--accent-color) 30%, #fffb);
   --component-bg-accent-blur: color-mix(in srgb, var(--accent-color) 35%, #fffb);
@@ -264,7 +276,7 @@ body[data-backend-theme="dark"] {
 
   --recommended-accent-text: #fff;
 
-  --app-bg-primary: #141414;
+  --app-bg-primary: #121212;
   --app-bg-secondary: #1e1e1e;
   --component-bg: #222222;
   --component-bg-alt: #2a2a2a;
@@ -345,7 +357,7 @@ body[data-backend-theme="dark"] {
   --app-bg-secondary: #f0f0f0;
   --component-bg: #ffffff;
   --component-bg-alt: #f7f7f7;
-  --component-bg-blur: rgba(230, 230, 230, 0.7);
+  --component-bg-blur: rgba(230, 230, 230, 0.8);
   --component-bg-blur-alt: rgba(232, 232, 232, 0.5);
   --component-bg-accent: color-mix(in srgb, var(--accent-color) 30%, #fffb);
   --component-bg-accent-blur: color-mix(in srgb, var(--accent-color) 35%, #fffb);
@@ -417,7 +429,7 @@ body[data-backend-theme="dark"] {
     --app-bg-secondary: #f0f0f0;
     --component-bg: #ffffff;
     --component-bg-alt: #f7f7f7;
-    --component-bg-blur: rgba(230, 230, 230, 0.7);
+    --component-bg-blur: rgba(230, 230, 230, 0.8);
     --component-bg-blur-alt: rgba(232, 232, 232, 0.5);
     --component-bg-accent: color-mix(in srgb, var(--accent-color) 30%, #fffb);
     --component-bg-accent-blur: color-mix(in srgb, var(--accent-color) 35%, #fffb);
@@ -1577,4 +1589,18 @@ html {
   .responsive-title {
     padding-left: 40px;
   }
+}
+
+/* ══════════════════════════════════════════════════════
+   CodeMirror 行闪烁高亮（useEditorFlash）
+   瞬间亮 → 渐隐：.cm-line-flash（instant ON）→ .cm-line-flash-removing（fade out）
+   ══════════════════════════════════════════════════════ */
+.cm-line-flash {
+  background: var(--accent-color);
+  border-radius: 4px;
+}
+.cm-line-flash-removing {
+  background: transparent;
+  border-radius: 4px;
+  transition: background 1.6s ease-out;
 }

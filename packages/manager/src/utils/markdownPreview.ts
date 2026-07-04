@@ -377,7 +377,7 @@ function renderCodeChunkHtml(code: string, lang: string): string {
     <div class="toolbar">
       <button class="icon-btn copy-btn" title="Copy" data-code="${safeCode}">
         <svg class="copy-icon" width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="7" y="7" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.5"></rect><rect x="4" y="4" width="9" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"></rect></svg>
-        <svg class="success-icon" width="18" height="18" viewBox="0 0 20 20" fill="none" style="display: none;"><path d="M4 10l3 3 9-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        <svg class="success-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
       </button>
     </div>
   </div>
