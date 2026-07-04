@@ -3,6 +3,7 @@
     <label v-if="label">{{ label || t('settings.imagePickerLabel') }}</label>
     <div style="display:flex; gap:.5rem; align-items:center;">
       <input
+        v-if="!isPickerOnly"
         class="modern-input"
         :value="modelValue"
         :placeholder="placeholder"
@@ -47,7 +48,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { Icons } from '../../../utils/icons'
 import FilePicker from '../../FilePicker.vue'
 const { t } = useI18n()
@@ -59,6 +60,8 @@ const props = defineProps<{
   chooseLabel?: string
   clearLabel?: string
 }>()
+
+const isPickerOnly = computed(() => !!(props.schema?.['x-picker-only']))
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]

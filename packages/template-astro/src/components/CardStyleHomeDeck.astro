@@ -21,6 +21,10 @@ const siteTitle = settings?.siteName || 'Chronicle';
 const authorName = profile?.name || settings?.authorName || (t('home.defaultAuthorName') as string);
 const authorBio = profile?.bio || '';
 const authorAvatar = profile?.avatar || '';
+const authorAvatarSourceRaw = profile?.avatarSource || '';
+const authorAvatarSource = authorAvatarSourceRaw && !authorAvatarSourceRaw.startsWith('/') && !authorAvatarSourceRaw.startsWith('http')
+  ? `/server/data/upload/${authorAvatarSourceRaw}`
+  : (authorAvatarSourceRaw || authorAvatar);
 const cardSubtitle = settings?.siteDescription || (t('home.cardSubtitle') as string);
 const cardAuthorLine = t('home.cardAuthorLine') as string;
 const isFriendsEnabled = featureFlags?.friendsPage !== false;
@@ -354,7 +358,7 @@ const yearLabel = new Date().getFullYear();
       <article class="author-card panel-card">
         <div class="author-card__top">
           {authorAvatar ? (
-            <img class="author-avatar" src={authorAvatar} alt={authorName} width="64" height="64" loading="eager" decoding="async" fetchpriority="high" />
+            <img class="author-avatar" src={authorAvatar} alt={authorName} width="64" height="64" loading="eager" decoding="async" fetchpriority="high" style="cursor:pointer" data-source={authorAvatarSource} onclick="window.__openFilePreview?.({ url: event.target.dataset.source || event.target.src, title: event.target.alt, type: 'image' })" />
           ) : (
             <div class="author-avatar" aria-hidden="true">{authorInitials}</div>
           )}

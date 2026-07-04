@@ -361,6 +361,7 @@ function spawnGenBuild(settings, options = {}) {
 // ── Background / Compression Helpers ──────────────────────
 
 const {
+  compressImage,
   compressBackground,
   parseBackgroundLikeValue,
   computeBackgroundCompression,
@@ -1589,8 +1590,43 @@ router.post('/clean/build-target', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════
-//  BACKGROUND COMPRESSION (admin token required)
+//  IMAGE COMPRESSION (admin token required)
 // ═══════════════════════════════════════════════════════════
+
+// Generic: POST /image-compress  { sourcePath, outputDir?, outputRel?, quality?, resizeWidth?, resizeHeight? }
+// Caller decides outputDir and outputRel. Backgrounds should use /background/compress instead.
+router.post('/image-compress', async (req, res) => {
+  if (!requireAdminToken(req, res)) return;
+  try {
+    const body = req.body || {};
+    const sourceRel = body.sourcePath || body.sourceRel || '';
+
+    if (!sourceRel) {
+      return res.status(400).json({ success: false, message: 'sourcePath is required' });
+    }
+
+    const result = await compressImage({
+      sourceRel,
+      uploadDir: UPLOAD_DIR,
+      outputDir: body.outputDir || undefined,
+      outputRel: body.outputRel || undefined,
+      quality: body.quality || 80,
+      resizeWidth: body.resizeWidth || undefined,
+      resizeHeight: body.resizeHeight || undefined,
+      mediaDomain: process.env.MEDIA_DOMAIN || '',
+    });
+
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+    res.json(result);
+  } catch (e) {
+    console.error('[ImageCompress] Error', e);
+    res.status(500).json({ success: false, message: e.message || 'Compression failed' });
+  }
+});
+
+// ── Background compression (existing, delegates to compressBackground) ──
 
 router.post('/background/compress', async (req, res) => {
   if (!requireAdminToken(req, res)) return;
@@ -2095,13 +2131,55 @@ router.get('/profile', (req, res) => {
   try { success(res, readProfile()); } catch (e) { fail(res, 'Failed to read profile'); }
 });
 
-router.post('/profile', (req, res) => {
+router.post('/profile', async (req, res) => {
   if (!requireAdminToken(req, res)) return;
   try {
     const body = req.body || {};
-    // Merge with existing rather than overwrite
     const existing = readProfile();
-    const merged = { ...existing, ...body };
+    let avatarUrl = body.avatar || existing.avatar || '';
+    let avatarSource = body.avatarSource || existing.avatarSource || '';
+
+    // If avatar changed to an upload/ file (not already compressed), compress it
+    if (body.avatar && body.avatar !== existing.avatar) {
+      const uploadPrefix = '/server/data/upload/';
+      const brandingPrefix = '/server/data/branding/';
+      const isUploadUrl = body.avatar.includes(uploadPrefix) || body.avatar.includes('/upload/');
+      const isAlreadyCompressed = body.avatar.includes(brandingPrefix) || body.avatar.includes('/branding/');
+
+      if (isUploadUrl && !isAlreadyCompressed) {
+        try {
+          // Extract relative path from the upload URL
+          const sourceRel = body.avatar.replace(/.*\/server\/data\/upload\//, '').replace(/.*\/upload\//, '');
+          const stem = sourceRel.split('/').pop()?.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9._-]+/g, '_') || 'avatar';
+          const hash = require('crypto').createHash('sha1').update('avatar:' + sourceRel).digest('hex').slice(0, 10);
+          const outputRel = `chr_avatar-${stem}-${hash}.webp`;
+
+          const result = await compressImage({
+            sourceRel,
+            uploadDir: UPLOAD_DIR,
+            outputDir: BRANDING_DIR,
+            outputRel,
+            quality: 80,
+            resizeWidth: 256,
+            resizeHeight: 256,
+            clearPrefix: 'chr_avatar',
+          });
+
+          if (result.success) {
+            avatarUrl = result.url;
+            avatarSource = sourceRel;
+            console.log('[Profile] Avatar compressed:', sourceRel, '→', outputRel);
+          }
+        } catch (e) {
+          console.warn('[Profile] Avatar compression failed, using original:', e.message);
+        }
+      } else if (isAlreadyCompressed) {
+        // Already compressed — keep avatarSource from body or existing
+        avatarSource = body.avatarSource || existing.avatarSource || '';
+      }
+    }
+
+    const merged = { ...existing, ...body, avatar: avatarUrl, avatarSource };
     fs.writeFileSync(PROFILE_FILE, JSON.stringify(merged, null, 2), 'utf-8');
     success(res, merged);
   } catch (e) { fail(res, 'Failed to save profile'); }

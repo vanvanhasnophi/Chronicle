@@ -1,6 +1,7 @@
 ---
 import { ClientRouter } from 'astro:transitions';
 import NavHeader from '../components/NavHeader.astro';
+import FilePreviewModal from '../components/FilePreviewModal.astro';
 import { API_BASE_URL } from '../core/site';
 import { isLocalMode } from '../data/localDataSource';
 import { getLocale } from '../utils/i18n';
@@ -162,20 +163,17 @@ try {
       }catch(e){}})()})();
     </script>
 
-    <!-- Inter font is always self-hosted. Noto Serif SC (Google Fonts) only when serif is selected.
-         Avoids wasting preconnect + preload bandwidth for the default sans-serif users. -->
-    <link rel="preload" href="/fonts/inter.css" as="style" onload="this.onload=null;this.rel='stylesheet'" data-astro-transition-persist="font-inter" />
+    <!-- Both Inter and Noto Serif SC use font-display:swap, so plain <link> is sufficient.
+         Preload as="style" would compete with critical CSS at Highest priority.
+         preconnect to Google Fonts only when serif is selected. -->
+    <link rel="stylesheet" href="/fonts/inter.css" data-astro-transition-persist="font-inter" />
     {frontendFont === 'serif' ? (
       <>
         <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin data-astro-transition-persist="font-pre-1" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin data-astro-transition-persist="font-pre-2" />
-        <link rel="preload" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@200..900&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'" crossorigin="anonymous" data-astro-transition-persist="font-noto" />
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@200..900&display=swap" crossorigin="anonymous" data-astro-transition-persist="font-noto" />
       </>
     ) : null}
-    <noscript>
-      <link rel="stylesheet" href="/fonts/inter.css" />
-      {frontendFont === 'serif' ? <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@200..900&display=swap" crossorigin="anonymous" /> : null}
-    </noscript>
 
     <ClientRouter />
 
@@ -315,6 +313,8 @@ try {
         </div>
       )}
     </div>
+
+    <FilePreviewModal />
 
     <script>
       import { applyTheme, writeBackgroundMetaVars, updateResolvedOverlays, parseBackgroundMeta } from '../utils/themeUtils';

@@ -228,24 +228,97 @@ body { font-family:var(--app-font-stack); color:var(--text-primary); background-
 
 ## 更新后的整体预估
 
-| Phase | 内容 | FCP 改善 | LCP 改善 | 工期 |
-|-------|------|----------|----------|------|
-| 0-3 | ✅ 已完成 | -800ms | -800ms | — |
-| 4 | ⚠️ 部分完成 | — | — | 剩余 3h |
-| **5** | **CSS 关键路径** | **-1s~2s** | **-1s~2s** | **2.5h** |
-| **6** | **字体自托管** | **-500ms~1s** | — | **1.5h** |
-| 7 | 缓存/压缩 | — | -200ms（重复访问） | **1h** |
+| Phase | 内容 | 状态 | FCP 改善 | LCP 改善 |
+|-------|------|:---:|----------|----------|
+| 0-3 | 低垂果实 / Vue 去重 / JS 按需 / CSS | ✅ | -800ms | -800ms |
+| 4 | 架构债 | ⚠️ | — | — |
+| 5 | CSS 关键路径 | ✅ | -1s~2s | -1s~2s |
+| 6 | 字体加载优化 | ✅ Phase 6.2 | -500ms~1s | — |
+| 7 | 缓存/压缩 | ⬜ | — | -200ms |
+| 8 | JS 三级懒加载 | ✅ | — | — |
 
-**Phase 5 + 6 预计总改善**：FCP 从 4.1s → 2.0-2.5s（改善约 40-50%），LCP 从 4.1s → 2.5-3.0s。
+**当前实测**（2026-07-03 文章页，Lighthouse 模拟移动端）：
 
-**核心洞察**：FCP = LCP = SpeedIndex = 4.1s，三者完全相等，意味着页面是一次性全量渲染的。打破这个瓶颈的关键是 **让浏览器提前绘制首屏内容**（Phase 5 内联 Critical CSS），而不是等全部 84KB CSS 下载解析完再一起画。
+| 指标 | 优化前 | 优化后 | 改善 |
+|------|--------|--------|------|
+| FCP | 4.1s (22分) | **1.4s** (97分) | **-66%** |
+| LCP | 4.1s (48分) | **1.5s** (100分) | **-63%** |
+| Speed Index | 4.1s (80分) | **1.8s** (100分) | **-56%** |
+
+**首页待优化**：Kaltsit.jpg 1.6MB（LCP 11s）、InterVariable.woff2 344KB、CSS render-blocking。
 
 ---
 
-## 建议执行顺序
+## Phase 8：JS 按需加载 ✅ 已完成
 
-**本轮**：Phase 5 → Phase 6 → Phase 7
+> **三级懒加载策略**：首屏零加载 → 闲时静默预加载 → 交互时立即使用。
+>
+> 核心原则：
+> - **首屏必需**（nav、layout）→ 直接加载
+> - **首屏可见但非立即交互**（CornerButton）→ `requestIdleCallback` 预加载
+> - **首屏不可见或无相关内容**（Mermaid、FilePreviewModal）→ IntersectionObserver 或 hover 预加载
+> - **任何懒加载模块**在用户主动触发时 → 立即 `import()` 抢占优先级
 
-- Phase 5（CSS critical）收益最大，是 FCP 突破 2s 的关键
-- Phase 6（字体自托管）消除外部依赖，减少波动
-- Phase 7（缓存）提升重复访问体验
+### 8.1 CornerButton — idle 预加载
+
+**组件**：[CornerButton.astro](packages/template-astro/src/components/CornerButton.astro)
+
+**策略**：按钮始终可见但用户不会在 1-2s 内点击 → `requestIdleCallback` 空闲时加载。
+
+| 文件 | 大小 | 说明 |
+|------|------|------|
+| CornerButton.astro `<script>` | 495B | bootstrap，注册 `requestIdleCallback` |
+| `cornerButtonCore.ts` | 4.3KB | 完整交互逻辑（展开/折叠/菜单/TOC 联动） |
+
+**降级**：不支持 `requestIdleCallback` 的浏览器 → `setTimeout(fn, 2000)`。
+
+### 8.2 FilePreviewModal — hover 预加载
+
+**组件**：[FilePreviewModal.astro](packages/template-astro/src/components/FilePreviewModal.astro)
+
+**策略**：文件卡片/图片点击频率最高 → `mouseover`/`touchstart` 预加载，比 idle 更早一步。
+
+| 文件 | 大小 | 说明 |
+|------|------|------|
+| FilePreviewModal.astro `<script>` | 1.2KB | bootstrap + click 委托（`.file-card`、`img.md-image`） |
+| `filePreviewCore.ts` | 4.3KB | 渲染逻辑（open/close/detectType/renderers）+ 图片缩放拖拽 |
+
+**全局 API**：`window.__openFilePreview({ url, title, type })` 供头像等处直接调用。
+
+### 8.3 Mermaid — IntersectionObserver + idle 预加载
+
+**策略**：IntersectionObserver 400px 余量 → 滚到附近才渲染，同时 `requestIdleCallback` 后台预下载。
+
+```
+1. 页面空闲 → requestIdleCallback → import('mermaid') 后台下载（~100KB）
+2. 用户滚动到 400px 附近 → IntersectionObserver 触发 → 模块已就绪 → 立即渲染
+3. 120px min-height 占位符 → CLS 防止布局偏移
+```
+
+| 文件 | 说明 |
+|------|------|
+| `article.ts` | `initMermaidCodeBlocks()` — IntersectionObserver + idle 预加载 + CLS 占位 |
+| `chronicleMarkdown.ts` | 构建时生成 mermaid 容器 HTML（含 toolbar、空 preview 区域） |
+
+### 8.4 KaTeX — 无需客户端 JS
+
+KaTeX 在 `chronicleMarkdown.ts` 中通过 `import katex` **服务端渲染**为静态 HTML。客户端仅加载 KaTeX 字体（`font-display:block`，仅在 `.katex` 元素存在时触发下载）。`mathTooltip.ts` 只读取预渲染的 DOM，不导入 katex。
+
+### 8.5 不适合懒加载的组件
+
+| 组件 | 原因 |
+|------|------|
+| **NavHeader** | 导航栏始终在首屏，用户可能在 500ms 内点击主题/语言/菜单 |
+| **Layout script** (16KB) | 背景图影响 LCP，theme 初始化影响第一帧渲染 |
+| **ClientRouter** (1.6KB) | Astro SPA 路由，所有页面必需 |
+
+### 8.6 成果汇总
+
+| 组件 | 改前 (首屏) | 改后 (首屏) | 加载策略 |
+|------|------------|------------|----------|
+| CornerButton | 4.3KB | **495B** | `requestIdleCallback` |
+| FilePreviewModal | 5.5KB | **1.2KB** | `mouseover` 预加载 + click 加急 |
+| Mermaid | 100KB (仅文章页) | **0KB** | IS + `requestIdleCallback` 预加载 |
+| KaTeX | 253KB (仅数学页) | **0KB** (SSR) | 服务端渲染 |
+
+**首页初始 JS 总量**：~24KB（Layout 16KB + NavHeader 4.8KB + ClientRouter 1.6KB + FilePreviewModal bootstrap 1.2KB + CornerButton bootstrap 495B + 其他 ~100B）

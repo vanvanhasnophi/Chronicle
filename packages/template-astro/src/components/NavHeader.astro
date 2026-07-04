@@ -917,41 +917,28 @@ const isActive = (path: string) => {
 <script>
   import { navigate } from "astro:transitions/client";
 
-  // Client-side scroll detection
   function initNavScroll() {
     const nav = document.getElementById("main-nav");
     const mainContent = document.querySelector(".main-content");
-
     if (!nav || !mainContent) return;
-
     const handleScroll = () => {
       const isScrolled = mainContent.scrollTop > 30;
       nav.classList.toggle("at-top", !isScrolled);
     };
-
     mainContent.addEventListener("scroll", handleScroll);
-
-    // Initial check
     handleScroll();
   }
 
-  // Mobile menu functionality
   function initMobileMenu() {
     const menuToggle = document.getElementById("menu-toggle");
     const navLinks = document.getElementById("nav-links");
     const navClose = document.getElementById("nav-close");
-    const navHeader = document.getElementById("main-nav");
-
     if (!menuToggle || !navLinks) return;
-
-    // Overlay backdrop for full-screen menu
     const overlay = document.createElement('div');
     overlay.className = 'mobile-menu-overlay';
     overlay.setAttribute('aria-hidden', 'true');
-
     function openMenu() {
       if (!navLinks || !menuToggle) return;
-      // Move to body to escape nav-header stacking context
       if (navLinks.parentNode !== document.body) {
         (navLinks as any)._originalParent = navLinks.parentNode;
         (navLinks as any)._originalNext = navLinks.nextSibling;
@@ -962,7 +949,6 @@ const isActive = (path: string) => {
       overlay.setAttribute('aria-hidden', 'false');
       document.body.style.overflow = 'hidden';
       menuToggle.classList.add('active');
-      // Force layout so browser registers initial states before animate
       navLinks.getBoundingClientRect();
       overlay.getBoundingClientRect();
       requestAnimationFrame(() => {
@@ -970,7 +956,6 @@ const isActive = (path: string) => {
         overlay.style.opacity = '';
       });
     }
-
     function closeMenu() {
       if (!navLinks || !menuToggle) return;
       navLinks.classList.remove("mobile-open");
@@ -978,7 +963,6 @@ const isActive = (path: string) => {
       overlay.setAttribute('aria-hidden', 'true');
       overlay.classList.add('fade-out');
       document.body.style.overflow = '';
-      // Move back to original parent after transition
       setTimeout(() => {
         if (!navLinks) return;
         if (navLinks.classList.contains("mobile-open")) return;
@@ -988,51 +972,31 @@ const isActive = (path: string) => {
         if (el._originalParent) {
           const parent = el._originalParent;
           const next = el._originalNext;
-          if (next && next.parentNode === parent) {
-            parent.insertBefore(navLinks, next);
-          } else {
-            parent.appendChild(navLinks);
-          }
+          if (next && next.parentNode === parent) parent.insertBefore(navLinks, next);
+          else parent.appendChild(navLinks);
         }
       }, 350);
     }
-
     menuToggle.addEventListener("click", () => {
       const isOpen = navLinks.classList.contains("mobile-open");
       isOpen ? closeMenu() : openMenu();
     });
-
-    if (navClose) {
-      navClose.addEventListener("click", closeMenu);
-    }
-
-    // Close when clicking overlay
+    if (navClose) navClose.addEventListener("click", closeMenu);
     overlay.addEventListener("click", closeMenu);
-
-    // Close when clicking nav links
     navLinks!.addEventListener("click", (e) => {
-      const target = e.target;
-      // @ts-ignore
-      const link = target && target.closest && target.closest('.nav-link');
+      const link = (e.target as HTMLElement)?.closest?.('.nav-link');
       if (link) closeMenu();
     });
   }
 
   function initDesktopNavExpansion() {
     const nav = document.getElementById("main-nav");
-
     if (!nav || window.matchMedia("(max-width: 768px)").matches) return;
-
     let collapseTimer: number | undefined;
     const collapseDelay = 1000;
-
     const clearCollapseTimer = () => {
-      if (collapseTimer !== undefined) {
-        window.clearTimeout(collapseTimer);
-        collapseTimer = undefined;
-      }
+      if (collapseTimer !== undefined) { window.clearTimeout(collapseTimer); collapseTimer = undefined; }
     };
-
     const scheduleCollapseTimer = () => {
       clearCollapseTimer();
       collapseTimer = window.setTimeout(() => {
@@ -1040,257 +1004,118 @@ const isActive = (path: string) => {
         nav.classList.remove("nav-expanded");
       }, collapseDelay);
     };
-
-    const expandNav = () => {
-      clearCollapseTimer();
-      nav.classList.remove("nav-collapsed");
-      nav.classList.add("nav-expanded");
-    };
-
-    const collapseNav = () => {
-      scheduleCollapseTimer();
-    };
-
+    const expandNav = () => { clearCollapseTimer(); nav.classList.remove("nav-collapsed"); nav.classList.add("nav-expanded"); };
+    const collapseNav = () => { scheduleCollapseTimer(); };
     nav.addEventListener("mouseenter", expandNav);
     nav.addEventListener("focusin", expandNav);
     nav.addEventListener("mouseleave", collapseNav);
     nav.addEventListener("focusout", collapseNav);
-
     nav.classList.add("nav-expanded");
     scheduleCollapseTimer();
   }
 
-  // Settings menu functionality
   function initSettingsMenu() {
     const settingBtn = document.getElementById("nav-setting-btn");
     const settingsMenu = document.getElementById("settings-menu");
-
     if (!settingBtn || !settingsMenu) return;
-
-    // Move to body to avoid backdrop-filter stacking context issues
-    if (settingsMenu.parentNode !== document.body) {
-      document.body.appendChild(settingsMenu);
-    }
-
-    // Get current theme and locale
+    if (settingsMenu.parentNode !== document.body) document.body.appendChild(settingsMenu);
     function getCurrentTheme() {
-      try {
-        const settings = JSON.parse(
-          localStorage.getItem("chronicle.settings") || "{}",
-        );
-        return settings.frontendTheme || "follow";
-      } catch (e) {
-        return "follow";
-      }
+      try { return JSON.parse(localStorage.getItem("chronicle.settings") || "{}").frontendTheme || "follow"; }
+      catch { return "follow"; }
     }
-
-    function getCurrentLocale() {
-      return localStorage.getItem("locale") || "follow";
-    }
-
-    function getBrowserLocale() {
-      const nav = navigator.language || "en";
-      return nav.startsWith("zh") ? "zh-CN" : "en";
-    }
-
+    function getCurrentLocale() { return localStorage.getItem("locale") || "follow"; }
+    function getBrowserLocale() { return (navigator.language || "en").startsWith("zh") ? "zh-CN" : "en"; }
     function getCurrentRouteLocale() {
-      const segments = window.location.pathname.split("/").filter(Boolean);
-      if (segments[0] === "en") return "en";
-      if (segments[0] === "zh") return "zh-CN";
+      const segs = window.location.pathname.split("/").filter(Boolean);
+      if (segs[0] === "en") return "en";
+      if (segs[0] === "zh") return "zh-CN";
       return null;
     }
-
     function getBasePath() {
-      const segments = window.location.pathname.split("/").filter(Boolean);
-      if (segments[0] === "en" || segments[0] === "zh") {
-        const remainder = `/${segments.slice(1).join("/")}`;
+      const segs = window.location.pathname.split("/").filter(Boolean);
+      if (segs[0] === "en" || segs[0] === "zh") {
+        const remainder = "/" + segs.slice(1).join("/");
         return remainder === "/" ? "/" : remainder;
       }
       return window.location.pathname || "/";
     }
-
     function buildLocalizedClientPath(nextLocale: string | null) {
       const routeLocale = nextLocale === "zh-CN" ? "zh" : "en";
       const basePath = getBasePath();
-      if (basePath === "/") return `/${routeLocale}`;
-      return `/${routeLocale}${basePath.startsWith("/") ? basePath : `/${basePath}`}`;
+      if (basePath === "/") return "/" + routeLocale;
+      return "/" + routeLocale + (basePath.startsWith("/") ? basePath : "/" + basePath);
     }
-
     function saveLocalePreference(nextLocale: string | null) {
       localStorage.setItem("locale", nextLocale || "follow");
-      const cookieValue = nextLocale || "follow";
-      document.cookie = `locale=${cookieValue}; path=/; max-age=31536000`;
+      document.cookie = "locale=" + (nextLocale || "follow") + "; path=/; max-age=31536000";
     }
-
-    /*
-    function maybePromptLocaleMismatch() {
-      const routeLocale = getCurrentRouteLocale();
-      const browserLocale = getBrowserLocale();
-      if (!routeLocale || routeLocale === browserLocale) return false;
-
-      const promptKey = `chronicle.locale.prompted.${routeLocale}.${browserLocale}`;
-      if (sessionStorage.getItem(promptKey)) return false;
-      sessionStorage.setItem(promptKey, "1");
-
-      const message = browserLocale === "zh-CN"
-        ? "当前页面语言与系统语言不一致，是否切换到中文版本？"
-        : "The current page language does not match your system language. Switch to the English version?";
-
-      const shouldSwitch = window.confirm(message);
-      if (shouldSwitch) {
-        saveLocalePreference(browserLocale);
-        navigate(buildLocalizedClientPath(browserLocale), { history: "replace" });
-        return true;
-      }
-
-      return false;
-    }
-      */
-
-    // Update checkmarks
     function updateMenuState() {
+      if (!settingsMenu) return;
       const currentTheme = getCurrentTheme();
       const storedLocale = getCurrentLocale();
       const routeLocale = getCurrentRouteLocale();
-      
-      if (!settingsMenu) return;
-
-      // Update theme checkmarks
       settingsMenu.querySelectorAll("[data-theme]").forEach((btn) => {
-        const theme = btn.getAttribute("data-theme");
-        btn.classList.toggle("active", theme === currentTheme);
+        btn.classList.toggle("active", btn.getAttribute("data-theme") === currentTheme);
       });
-
-      // Update locale checkmarks
       settingsMenu.querySelectorAll("[data-locale]").forEach((btn) => {
         const locale = btn.getAttribute("data-locale");
-        
-        // 语言选中状态逻辑：
-        // 1. 如果localStorage中的语言字段是"follow system"，就选择"跟随系统"
-        // 2. 否则按照当前路由来选择
         let shouldBeActive = false;
-        
-        if (storedLocale === "follow") {
-          // 跟随系统模式：只有"follow"按钮应该被选中
-          shouldBeActive = locale === "follow";
-        } else {
-          // 固定语言模式：根据当前路由和存储的语言设置同步
-          if (routeLocale) {
-            // 有路由语言：选中对应的语言按钮
-            shouldBeActive = locale === routeLocale;
-          } else {
-            // 无路由语言：选中存储的语言设置
-            shouldBeActive = locale === storedLocale;
-          }
-        }
-        
+        if (storedLocale === "follow") shouldBeActive = locale === "follow";
+        else if (routeLocale) shouldBeActive = locale === routeLocale;
+        else shouldBeActive = locale === storedLocale;
         btn.classList.toggle("active", shouldBeActive);
       });
     }
-
-    // Position menu below button
     function positionSettingsMenu() {
       if (!settingBtn || !settingsMenu) return;
       const rect = settingBtn.getBoundingClientRect();
-
-      // Show menu (invisible) to measure it
       settingsMenu.classList.add('is-open');
       settingsMenu.style.visibility = "hidden";
-
       const menuWidth = settingsMenu.offsetWidth;
       const top = rect.bottom + 8;
       let left = rect.right - menuWidth;
-
-      // Keep within viewport
       if (left < 12) left = 12;
-
-      settingsMenu.style.top = `${top}px`;
-      settingsMenu.style.left = `${left}px`;
+      settingsMenu.style.top = top + "px";
+      settingsMenu.style.left = left + "px";
       settingsMenu.style.visibility = "visible";
     }
-
-    // Toggle menu
     settingBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      const isVisible = settingsMenu.classList.contains('is-open');
-      if (isVisible) {
-        settingsMenu.classList.remove('is-open');
-      } else {
-        updateMenuState();
-        // if (maybePromptLocaleMismatch()) return;
-        positionSettingsMenu();
-      }
+      if (settingsMenu.classList.contains('is-open')) { settingsMenu.classList.remove('is-open'); }
+      else { updateMenuState(); positionSettingsMenu(); }
     });
-
-    // Close menu when clicking outside
     document.addEventListener("click", (e) => {
-      if (!settingsMenu.contains(e.target as Node) && e.target !== settingBtn) {
-        settingsMenu.classList.remove('is-open');
-      }
+      if (!settingsMenu.contains(e.target as Node) && e.target !== settingBtn) settingsMenu.classList.remove('is-open');
     });
-
-    // Theme selection
     settingsMenu.querySelectorAll("[data-theme]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const theme = btn.getAttribute("data-theme");
-
-        // Save to localStorage
         try {
-          const settings = JSON.parse(
-            localStorage.getItem("chronicle.settings") || "{}",
-          );
-          settings.frontendTheme = theme;
-          localStorage.setItem("chronicle.settings", JSON.stringify(settings));
+          const s = JSON.parse(localStorage.getItem("chronicle.settings") || "{}");
+          s.frontendTheme = theme;
+          localStorage.setItem("chronicle.settings", JSON.stringify(s));
         } catch (e) {}
-
-        // Apply theme
-        if (theme === "follow" || theme === "system") {
-          document.documentElement.removeAttribute("data-theme");
-        } else if (theme === "light") {
-          document.documentElement.setAttribute("data-theme", "light");
-        } else if (theme === "dark") {
-          document.documentElement.setAttribute("data-theme", "dark");
-        }
-
+        if (theme === "follow" || theme === "system") document.documentElement.removeAttribute("data-theme");
+        else if (theme === "light") document.documentElement.setAttribute("data-theme", "light");
+        else if (theme === "dark") document.documentElement.setAttribute("data-theme", "dark");
         updateMenuState();
         settingsMenu.classList.remove('is-open');
       });
     });
-
-    // Locale selection
     settingsMenu.querySelectorAll("[data-locale]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const locale = btn.getAttribute("data-locale");
-        const browserLocale = getBrowserLocale();
-        const nextLocale = locale === "follow" ? browserLocale : locale;
-
+        const nextLocale = locale === "follow" ? getBrowserLocale() : locale;
         saveLocalePreference(locale || "follow");
-
-        // Dispatch custom event to notify other components
-        const event = new CustomEvent('localeChanged', { detail: { locale } });
-        window.dispatchEvent(event);
-
-        // Keep background layer persisted across locale switch.
-        navigate(buildLocalizedClientPath(nextLocale) + window.location.search, {
-          history: "replace",
-        });
+        window.dispatchEvent(new CustomEvent('localeChanged', { detail: { locale } }));
+        navigate(buildLocalizedClientPath(nextLocale) + window.location.search, { history: "replace" });
       });
     });
-
-    // About link - close menu on click
     const aboutLink = settingsMenu.querySelector(".popup-item-link");
-    if (aboutLink) {
-      aboutLink.addEventListener("click", () => {
-        settingsMenu.classList.remove('is-open');
-      });
-    }
-
-    // Initial state
+    if (aboutLink) aboutLink.addEventListener("click", () => settingsMenu.classList.remove('is-open'));
     updateMenuState();
   }
 
-  // Register setup function on Astro page load
-  // (Fires on initial load, and after every View Transition)
   document.addEventListener("astro:page-load", () => {
     initNavScroll();
     initDesktopNavExpansion();

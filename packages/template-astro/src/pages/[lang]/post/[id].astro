@@ -378,6 +378,15 @@ const metaDescription = buildMetaDescription(post, locale);
     <CollectionNav postId={post?.id || id} collections={embeddedCollections} postTitles={embeddedPostTitles} postTypes={embeddedPostTypes} />
   )}
 
+  <!-- CSS-only padding for CollectionNav sidebar — prevents CLS (was set by JS after first paint) -->
+  {post?.collection && (
+    <style>
+      @media (min-width: 1200px) {
+        .post-detail-container { padding-left: 280px; }
+      }
+    </style>
+  )}
+
   <style is:global>
     /* Hide desktop CollectionNav on mobile (768px breakpoint, matches html.is-mobile) */
     html.is-mobile .cn-panel[data-cn-variant="sidebar"] {

@@ -281,123 +281,41 @@ function initMermaidCodeBlocks() {
     });
 
     if (!lastRenderedSvg && downloadBtn) (downloadBtn as HTMLButtonElement).disabled = true;
-    applyMode('preview');
+
+    // Reserve space synchronously to prevent CLS when the async SVG render
+    // replaces this placeholder later (IntersectionObserver callback is async,
+    // so the initial paint would see an empty 0-height container without this).
+    if (container && !lastRenderedSvg) {
+      container.innerHTML = '<div class="mermaid-placeholder" aria-label="Mermaid diagram placeholder" style="min-height:120px;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);font-size:0.85rem;opacity:0.5;">Diagram</div>';
+    }
+
+    // Lazy-render mermaid only when the block nears the viewport.
+    // The dynamic import('mermaid') pulls ~100KB of JS — deferring it
+    // keeps it off the critical path for pages where mermaid is below the fold.
+    let rendered = false;
+    const startLazyRender = () => {
+      if (rendered) return;
+      rendered = true;
+      observer.disconnect();
+      renderMermaidSvg();
+    };
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) startLazyRender();
+      },
+      { rootMargin: '400px' }
+    );
+    observer.observe(block);
+
+    // Preview-only initially (hides code editor), but render lazily via observer.
+    // User also triggers render by clicking the preview/split button.
+    mode = 'preview';
+    setActiveButton();
+    if (editorWrapper) editorWrapper.style.display = 'none';
+    if (editorFooter) editorFooter.style.display = 'none';
+    if (preview) preview.style.display = '';
   });
-}
-
-// ── Image viewer ──────────────────────────────────────────
-function setupImageViewer() {
-  const globalState = window as any;
-
-  if (!globalState.__CHRONICLE_IMAGE_CLICK_HANDLER_BOUND__) {
-    globalState.__CHRONICLE_IMAGE_CLICK_HANDLER_BOUND__ = true;
-    const imageClickHandler = (event: Event) => {
-      const target = event.target as HTMLElement | null;
-      const img = target?.closest ? target.closest('img.md-image') as HTMLImageElement | null : null;
-      if (!img) return;
-      const hook = globalState.__CHRONICLE_OPEN_IMAGE_VIEWER__;
-      if (typeof hook === 'function') {
-        event.preventDefault();
-        event.stopPropagation();
-        hook({ src: img.src, alt: img.alt || '', element: img });
-      }
-    };
-    scope!.on('click', imageClickHandler, { capture: true });
-  }
-
-  if (!globalState.__CHRONICLE_OPEN_IMAGE_VIEWER__) {
-    globalState.__CHRONICLE_OPEN_IMAGE_VIEWER__ = function (info: { src: string; alt: string; element: HTMLImageElement }) {
-      const existing = document.querySelector('.image-preview-overlay');
-      if (existing) existing.remove();
-
-      const overlay = document.createElement('div');
-      overlay.className = 'image-preview-overlay';
-
-      const actions = document.createElement('div');
-      actions.className = 'preview-header-actions';
-      actions.style.cssText = 'position:fixed;top:30px;right:30px;z-index:20002';
-
-      const downloadBtn = document.createElement('a');
-      downloadBtn.className = 'preview-action-btn';
-      downloadBtn.href = info.src;
-      downloadBtn.download = '';
-      downloadBtn.target = '_blank';
-      downloadBtn.title = 'Download';
-      downloadBtn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
-
-      const closeBtn = document.createElement('button');
-      closeBtn.className = 'preview-action-btn';
-      closeBtn.title = 'Close';
-      closeBtn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
-
-      actions.appendChild(downloadBtn);
-      actions.appendChild(closeBtn);
-      overlay.appendChild(actions);
-
-      const container = document.createElement('div');
-      container.className = 'image-preview-container';
-
-      const img = document.createElement('img');
-      img.src = info.src;
-      img.alt = info.alt;
-      img.draggable = false;
-      img.className = 'image-preview-content';
-
-      let scale = 1, x = 0, y = 0, dragging = false, startX = 0, startY = 0;
-
-      img.addEventListener('dragstart', e => e.preventDefault());
-
-      function apply() {
-        img.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
-      }
-
-      overlay.addEventListener('wheel', e => {
-        e.preventDefault();
-        scale = Math.min(Math.max(0.5, scale * (e.deltaY > 0 ? 0.9 : 1.1)), 5);
-        apply();
-      });
-
-      overlay.addEventListener('mousedown', e => {
-        if (e.target === img || e.target === container) {
-          dragging = true;
-          startX = e.clientX - x;
-          startY = e.clientY - y;
-          img.classList.add('is-dragging');
-        }
-      });
-
-      window.addEventListener('mousemove', e => {
-        if (!dragging) return;
-        x = e.clientX - startX;
-        y = e.clientY - startY;
-        apply();
-      });
-
-      window.addEventListener('mouseup', () => {
-        dragging = false;
-        img.classList.remove('is-dragging');
-      });
-
-      function close() {
-        overlay.remove();
-        document.removeEventListener('keydown', onEsc);
-      }
-
-      function onEsc(e: KeyboardEvent) {
-        if (e.key === 'Escape') close();
-      }
-      scope!.on('keydown', onEsc);
-
-      closeBtn.addEventListener('click', close);
-      overlay.addEventListener('click', e => {
-        if (e.target === overlay) close();
-      });
-
-      container.appendChild(img);
-      overlay.appendChild(container);
-      scope!.toBody(overlay);
-    };
-  }
 }
 
 // ── Init ──────────────────────────────────────────────────
@@ -412,6 +330,19 @@ function initPostPageFeatures() {
   });
 
   initMermaidCodeBlocks();
+
+  // Idle-preload mermaid: start downloading after first paint so it's ready
+  // when the user scrolls to a mermaid block (IntersectionObserver).
+  const _preloadMermaid = () => {
+    if (document.querySelector('.code-chunk-container.mermaid')) {
+      import('mermaid').catch(() => {});
+    }
+  };
+  if (typeof requestIdleCallback !== 'undefined') {
+    requestIdleCallback(_preloadMermaid);
+  } else {
+    setTimeout(_preloadMermaid, 2000);
+  }
 
   // Reset copy buttons
   const copyButtons = document.querySelectorAll('.copy-btn');
@@ -432,7 +363,6 @@ function initPostPageFeatures() {
     (button as HTMLElement).addEventListener('click', handler);
   });
 
-  setupImageViewer();
 }
 
 // ── Bootstrap ─────────────────────────────────────────────

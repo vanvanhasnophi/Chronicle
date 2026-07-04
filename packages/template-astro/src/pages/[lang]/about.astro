@@ -88,6 +88,9 @@ const metaDescription = profile?.bio
                     alt={profile.name || ''}
                     loading="lazy"
                     decoding="async"
+                    style="cursor:pointer"
+                    data-source={(profile.avatarSource && !profile.avatarSource.startsWith('/') && !profile.avatarSource.startsWith('http')) ? `/server/data/upload/${profile.avatarSource}` : (profile.avatarSource || profile.avatar)}
+                    onclick="window.__openFilePreview?.({ url: event.target.dataset.source || event.target.src, title: event.target.alt, type: 'image' })"
                   />
                 ) : null}
                 <div class="about-profile-body">

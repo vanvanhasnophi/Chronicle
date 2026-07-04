@@ -58,3 +58,6 @@ CLAUDE.md
 # Blue code
 *.backup
 *.legacy
+lh-home.json
+.gitignore
+lh-report.json

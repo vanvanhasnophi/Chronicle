@@ -8,6 +8,7 @@ import { getApiUrl } from '../core/site';
 export interface SiteProfile {
   name: string;
   avatar: string;
+  avatarSource?: string;
   bio: string;
   location: string;
   links: Array<{ label: string; url: string }>;

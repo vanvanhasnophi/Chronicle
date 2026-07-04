@@ -86,12 +86,18 @@
     "avatar": {
       "type": "string",
       "x-widget": "image-picker",
+      "x-picker-only": true,
       "x-group": "profile",
       "x-order": 2,
       "title": {
         "en": "Avatar",
         "zh-CN": "头像"
       }
+    },
+    "avatarSource": {
+      "type": "string",
+      "x-widget": "hidden",
+      "default": ""
     },
     "bio": {
       "type": "string",
