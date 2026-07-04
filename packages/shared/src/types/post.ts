@@ -41,6 +41,12 @@ export interface PostMeta {
   toc: TocEntry[]
   /** True if a compiled HTML version exists on disk */
   hasHtml?: boolean
+  /** Content type: 'article' (default) or 'slides' */
+  type?: PostType
+  /** Slide layout mode, only meaningful when type='slides' */
+  layout?: SlideLayout
+  /** Slideshow configuration, only meaningful when type='slides' */
+  slideshow?: SlideshowConfig
 }
 
 /** Full post including markdown body and compiled HTML */
@@ -52,6 +58,20 @@ export interface Post extends PostMeta {
 }
 
 export type PostStatus = 'published' | 'draft' | 'modifying'
+
+export type PostType = 'article' | 'slides'
+
+export type SlideLayout = 'slideshow' | 'cover' | 'section'
+
+export interface SlideshowConfig {
+  /** Marp theme name. Built-in: 'default' | 'gaia' | 'uncover' | 'chronicle'.
+   *  Also accepts a custom CSS file path or URL. Default: 'chronicle' */
+  theme?: string
+  /** Slide aspect ratio. Default: '16:9'. Cover layout may use '21:9' or '2:1' */
+  ratio?: '16:9' | '4:3' | '21:9' | '2:1'
+  /** Global footer text shown on every slide */
+  footer?: string
+}
 
 /** Input for creating or updating a post via API */
 export interface SavePostInput {
@@ -65,6 +85,9 @@ export interface SavePostInput {
   collectionPath?: string
   author?: string
   date?: string
+  type?: PostType
+  layout?: SlideLayout
+  slideshow?: SlideshowConfig
 }
 
 /** Normalized post shape sent to public consumers (no draft content, no internals) */
@@ -82,6 +105,9 @@ export interface PublicPost {
   author: string
   toc: TocEntry[]
   hasHtml: boolean
+  type?: PostType
+  layout?: SlideLayout
+  slideshow?: SlideshowConfig
 }
 
 /** Paginated post list response */

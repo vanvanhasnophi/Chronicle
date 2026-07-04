@@ -13,12 +13,14 @@ const featureFlags = resolveFeatureFlags((settings as any)?.featureFlags);
 // ── Local data: embed collections + posts for client-side use ──
 let embeddedCollections: any[] = [];
 let embeddedPostTitles: Record<string, string> = {};
+let embeddedPostTypes: Record<string, string> = {};
 try {
   const collectionsData = getCollections();
   embeddedCollections = (collectionsData as any)?.collections || [];
   const posts = getPublishedPosts();
   for (const p of posts) {
     embeddedPostTitles[String(p.id)] = String(p.title || '').trim();
+    embeddedPostTypes[String(p.id)] = String(p.type || 'article').trim();
   }
 } catch (e) {
   console.error('[collection] Failed to load local data:', e);
@@ -128,7 +130,7 @@ try {
 
   <!-- Embedded data for local/static mode -->
   <script id="chronicle-embedded-data" type="application/json">
-    {JSON.stringify({ collections: embeddedCollections, postTitles: embeddedPostTitles })}
+    {JSON.stringify({ collections: embeddedCollections, postTitles: embeddedPostTitles, postTypes: embeddedPostTypes })}
   </script>
 
   <script>
@@ -142,6 +144,7 @@ try {
       let initialized = false;
       let collections = [];
       let postTitleById = new Map();
+      let postTypeById = new Map();
 
       // Pre-populate from embedded data
       if (hasEmbedded) {
@@ -149,6 +152,11 @@ try {
         if (embeddedData.postTitles) {
           Object.entries(embeddedData.postTitles).forEach(([id, title]) => {
             postTitleById.set(id, (title as string) || id);
+          });
+        }
+        if (embeddedData.postTypes) {
+          Object.entries(embeddedData.postTypes).forEach(([id, type]) => {
+            postTypeById.set(id, (type as string) || 'article');
           });
         }
       }
@@ -162,6 +170,14 @@ try {
         return postTitleById.get(id) || id;
       }
 
+      function resolvePostType(postId) {
+        return postTypeById.get(String(postId || '')) || 'article';
+      }
+
+      const ICON_ARTICLE = '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/></svg>';
+      const ICON_SLIDES = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M 2 12 L 2 22 L 14 22 L 14 12 Z"></path><path d="M 6 10 L 6 8 L 18 8 L 18 18 L 16 18"></path><path d="M 10 6 L 10 4 L 22 4 L 22 14 L 20 14"></path></svg>';
+      function iconFor(pid) { return resolvePostType(pid) === 'slides' ? ICON_SLIDES : ICON_ARTICLE; }
+
       function safeDecodeHash(hash) {
         try {
           if (!hash) return '';
@@ -172,7 +188,26 @@ try {
         }
       }
 
-      function initCollectionPage() {
+          // ── Page lifecycle scope ──
+    let scope
+    function createScope() {
+      const listeners = [], bodyNodes = [];
+      return {
+        on(ev, fn, opts) { document.addEventListener(ev, fn, opts); listeners.push({ t: document, ev, fn, opts }); },
+        onEl(el, ev, fn, opts) { el.addEventListener(ev, fn, opts); listeners.push({ t: el, ev, fn, opts }); },
+        onWindow(ev, fn, opts) { window.addEventListener(ev, fn, opts); listeners.push({ t: window, ev, fn, opts }); },
+        destroy() {
+          listeners.forEach(l => l.t.removeEventListener(l.ev, l.fn, l.opts));
+          listeners.length = 0;
+          bodyNodes.forEach(el => el.remove());
+          bodyNodes.length = 0;
+        }
+      };
+    }
+    
+function initCollectionPage() {
+      if (scope) scope.destroy()
+      scope = createScope()
         const listLayerEl = document.getElementById('collection-list-layer');
         const detailLayerEl = document.getElementById('collection-detail-layer');
         const gridEl = document.getElementById('collections-grid');
@@ -242,7 +277,7 @@ try {
               card.dataset.postId = node.id;
               const icon = document.createElement('span');
               icon.className = 'mini-icon';
-              icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/></svg>';
+              icon.innerHTML = iconFor(node.id);
               const title = document.createElement('span');
               title.className = 'mini-title';
               title.textContent = resolvePostTitle(node.id);
@@ -428,20 +463,23 @@ try {
           });
         }
 
-        if (!initialized) {
-          initialized = true;
-          window.addEventListener('hashchange', handleHash);
-        }
+        scope.onWindow('hashchange', handleHash);
 
         load();
       }
 
-      document.addEventListener('astro:page-load', initCollectionPage);
+      document.addEventListener('astro:page-load', () => {
+        if (scope) scope.destroy()
+        initCollectionPage()
+      });
       if (document.readyState === 'complete' || document.readyState === 'interactive') {
         initCollectionPage();
       } else {
         document.addEventListener('DOMContentLoaded', initCollectionPage, { once: true });
       }
     })();
-  </script>
+    document.addEventListener('astro:before-swap', () => {
+    if (scope) { scope.destroy(); scope = null }
+  })
+</script>
 </Layout>

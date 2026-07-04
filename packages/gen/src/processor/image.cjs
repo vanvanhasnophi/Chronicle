@@ -184,7 +184,115 @@ async function computeBackgroundCompression(meta, rawBackgroundValue, uploadDir)
   return Math.min(30, factor);
 }
 
-// ── Main Compression Function ─────────────────────────────
+// ── Generic Image Compression ──────────────────────────────
+
+/**
+ * Compress any image to WebP.
+ *
+ * Caller is responsible for deciding outputDir and outputRel.
+ * Defaults: outputDir = same directory as source, outputRel = compress_<ts>_<name>.webp.
+ *
+ * @param {Object} options
+ * @param {string} options.sourceRel - relative path within uploadDir
+ * @param {string} options.uploadDir - Absolute path to upload directory
+ * @param {string} [options.outputDir] - Absolute path to output dir (default: same as source)
+ * @param {string} options.outputRel - Output filename (required — caller decides naming)
+ * @param {number} [options.quality=80] - WebP quality 1-100
+ * @param {number} [options.resizeWidth] - optional max width in px
+ * @param {number} [options.resizeHeight] - optional max height in px
+ * @param {string} [options.mediaDomain] - optional MEDIA_DOMAIN for URL generation
+ * @param {string} [options.urlBase] - URL path prefix (default: derived from outputDir, e.g. '/server/data/branding/')
+ * @param {string} [options.clearPrefix] - if set, deletes all {clearPrefix}-*.webp in outputDir before writing
+ * @returns {Promise<Object>} { success, url, path, sourcePath, sourceName }
+ */
+async function compressImage(options) {
+  const {
+    sourceRel,
+    uploadDir,
+    outputDir,
+    outputRel,
+    quality = 80,
+    resizeWidth,
+    resizeHeight,
+    mediaDomain = '',
+    urlBase,
+    clearPrefix,
+  } = options;
+
+  if (!sourceRel || typeof sourceRel !== 'string') {
+    return { success: false, message: 'Missing sourceRel' };
+  }
+  if (!outputRel || typeof outputRel !== 'string') {
+    return { success: false, message: 'Missing outputRel — caller must specify the output filename' };
+  }
+
+  const absUploadDir = path.resolve(uploadDir);
+  const absSource = path.resolve(absUploadDir, sourceRel);
+  if (!absSource.startsWith(absUploadDir) || !fs.existsSync(absSource)) {
+    return { success: false, message: 'Source file not found: ' + sourceRel };
+  }
+
+  const resolvedOutputDir = outputDir ? path.resolve(outputDir) : path.dirname(absSource);
+  const absTarget = path.resolve(resolvedOutputDir, outputRel);
+  if (!absTarget.startsWith(path.resolve(resolvedOutputDir))) {
+    throw new Error('Invalid output path: ' + absTarget);
+  }
+
+  // Clean old files with same prefix before writing
+  if (clearPrefix && fs.existsSync(path.resolve(resolvedOutputDir))) {
+    const entries = fs.readdirSync(path.resolve(resolvedOutputDir), { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      if (!entry.name.startsWith(clearPrefix + '-') || !entry.name.endsWith('.webp')) continue;
+      try { fs.unlinkSync(path.join(resolvedOutputDir, entry.name)); } catch (e) {}
+    }
+  }
+
+  fs.mkdirSync(path.dirname(absTarget), { recursive: true, mode: 0o775 });
+
+  const sharp = require('sharp');
+  let transformer = sharp(absSource, { failOnError: false }).webp({ quality: Math.round(quality), effort: 4 });
+
+  if (resizeWidth || resizeHeight) {
+    transformer = transformer.resize({
+      width: resizeWidth || undefined,
+      height: resizeHeight || undefined,
+      fit: 'inside',
+      withoutEnlargement: true,
+    });
+  }
+
+  try {
+    await transformer.toFile(absTarget);
+  } catch (e) {
+    return { success: false, message: 'sharp write failed: ' + (e.message || 'unknown') };
+  }
+
+  // URL generation: explicit urlBase, or derive from outputDir path segments
+  const origin = mediaDomain ? mediaDomain.replace(/\/$/, '') : '';
+  let urlPrefix = urlBase;
+  if (!urlPrefix && resolvedOutputDir) {
+    // Derive URL prefix from outputDir relative to data/ root
+    const dataIdx = resolvedOutputDir.indexOf('/data/');
+    if (dataIdx >= 0) {
+      urlPrefix = '/server' + resolvedOutputDir.slice(dataIdx).replace(/\/$/, '') + '/';
+    } else {
+      urlPrefix = '/server/data/branding/';
+    }
+  }
+  if (!urlPrefix) urlPrefix = '/server/data/branding/';
+  const url = origin ? `${origin}${urlPrefix}${outputRel}` : `${urlPrefix}${outputRel}`;
+
+  return {
+    success: true,
+    url,
+    path: outputRel,
+    sourcePath: sourceRel,
+    sourceName: path.basename(sourceRel),
+  };
+}
+
+// ── Background Compression (delegates to compressImage) ────
 
 /**
  * Compress a background image.
@@ -199,94 +307,57 @@ async function computeBackgroundCompression(meta, rawBackgroundValue, uploadDir)
  * @returns {Promise<Object>} Result object with { success, skipped?, scope, compression, meta, background, message? }
  */
 async function compressBackground(options) {
-  const {
-    scope,
-    meta: rawMeta,
-    background: rawBackground,
-    uploadDir,
-    brandingDir,
-    mediaDomain,
-  } = options;
+  const { scope, meta: rawMeta, background: rawBackground, uploadDir, brandingDir, mediaDomain } = options;
 
   if (!rawMeta || typeof rawMeta !== 'object') {
-    return {
-      success: true,
-      skipped: true,
-      message: 'Missing meta',
-      meta: null,
-      background: rawBackground || null,
-    };
+    return { success: true, skipped: true, message: 'Missing meta', meta: null, background: rawBackground || null };
   }
 
   const compression = await computeBackgroundCompression(rawMeta, rawBackground, uploadDir);
   const sourcePath = normalizeBackgroundImagePath(rawBackground);
   if (!sourcePath) {
-    return {
-      success: true,
-      skipped: true,
-      message: 'Missing background source',
-      meta: rawMeta,
-      background: rawBackground || null,
-    };
+    return { success: true, skipped: true, message: 'Missing background source', meta: rawMeta, background: rawBackground || null };
   }
 
   const sharp = require('sharp');
-  const absSourcePath = path.resolve(uploadDir, sourcePath);
-  if (!absSourcePath.startsWith(uploadDir) || !fs.existsSync(absSourcePath)) {
-    return {
-      success: true,
-      skipped: true,
-      message: 'Background source not found',
-      meta: rawMeta,
-      background: rawBackground || null,
-    };
-  }
-
-  const relPath = getBackgroundOutputRel(scope, sourcePath);
-  const absTargetPath = path.resolve(brandingDir, relPath);
-  if (!absTargetPath.startsWith(brandingDir)) {
-    throw new Error('Invalid background target path');
-  }
-
-  clearBackgroundOutputs(scope, brandingDir);
-  fs.mkdirSync(path.dirname(absTargetPath), { recursive: true, mode: 0o775 });
-
-  const sourceMeta = await sharp(absSourcePath).metadata();
-  const sourceWidth = Number(sourceMeta.width || 0);
-  const sourceHeight = Number(sourceMeta.height || 0);
+  const sourceMeta = await sharp(path.resolve(uploadDir, sourcePath)).metadata();
   const quality = Math.max(35, Math.min(92, Math.round(92 - (compression - 1) * 5)));
-  const resizeWidth = sourceWidth > 0 ? Math.max(128, Math.round(sourceWidth / Math.max(1, compression))) : undefined;
+  const resizeWidth = sourceMeta.width > 0 ? Math.max(128, Math.round(sourceMeta.width / Math.max(1, compression))) : undefined;
 
-  let transformer = sharp(absSourcePath, { failOnError: false }).webp({ quality, effort: 4 });
-  if (resizeWidth && resizeWidth > 0 && sourceWidth > resizeWidth) {
-    transformer = transformer.resize({ width: resizeWidth, withoutEnlargement: true });
+  // Background-specific output: chr_f_bg or chr_b_bg prefix, hash from scope+sourcePath
+  const outputRel = getBackgroundOutputRel(scope, sourcePath);
+  // URL: resolveBackgroundUrlByRel handles manager-background vs branding path correctly
+  const generatedUrl = resolveBackgroundUrlByRel(outputRel, mediaDomain || '');
+
+  const scopePrefix = scope === 'frontend' ? 'chr_f_bg-' : 'chr_b_bg-';
+  clearBackgroundOutputs(scope, brandingDir);
+
+  const result = await compressImage({
+    sourceRel: sourcePath,
+    uploadDir,
+    outputDir: brandingDir,
+    outputRel,
+    quality,
+    resizeWidth,
+    clearPrefix: scopePrefix.replace(/-$/, ''),
+  });
+
+  if (!result.success) {
+    return { success: true, skipped: true, message: result.message, meta: rawMeta, background: rawBackground || null };
   }
 
-  await transformer.toFile(absTargetPath);
-
-  const nextMeta = {
-    ...rawMeta,
-    compressionFactor: compression,
-    compression,
-    bgCompression: compression,
-  };
-
-  const generatedPath = relPath;
-  const generatedName = path.basename(relPath);
-  const generatedUrl = resolveBackgroundUrlByRel(relPath, mediaDomain);
+  const nextMeta = { ...rawMeta, compressionFactor: compression, compression, bgCompression: compression };
 
   return {
-    success: true,
-    scope,
-    compression,
+    success: true, scope, compression,
     meta: nextMeta,
     background: {
       url: generatedUrl,
-      path: generatedPath,
+      path: outputRel,
       sourcePath,
       sourceName: path.basename(sourcePath),
-      generatedPath,
-      generatedName,
+      generatedPath: outputRel,
+      generatedName: path.basename(outputRel),
     },
   };
 }
@@ -294,7 +365,10 @@ async function compressBackground(options) {
 // ── Exports ───────────────────────────────────────────────
 
 module.exports = {
-  // Main
+  // Generic
+  compressImage,
+
+  // Specialized
   compressBackground,
 
   // Helpers (exported for testing and reuse)

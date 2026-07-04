@@ -38,12 +38,17 @@
   --code-bg: rgba(255, 0, 0, 0.12);
   --code-text: #ff8585;
 
+  --status-warning: var(--featured);
+  --status-warning-bg: var(--featured-bg);
   --status-error: #d9534f;
+  --status-error-bg: color-mix(in srgb, var(--status-error) 15%, transparent);
   --status-success: #5cb85c;
+  --status-success-bg: color-mix(in srgb, var(--status-success) 15%, transparent);
   --status-progress: #06b6d4;
+  --status-progress-bg: color-mix(in srgb, var(--status-progress) 15%, transparent);
 
   /* Background hierarchy */
-  --app-bg-primary: #141414;
+  --app-bg-primary: #121212;
   --app-bg-secondary: #1e1e1e;
   --component-bg: #222222;
   --component-bg-alt: #2a2a2a;
@@ -156,6 +161,7 @@
   --code-directive: #c586c0;
   --code-preprocessor: #c586c0;
   --code-color: #ce9178;
+  --code-subst: #ce9178;
   --code-section: #569cd6;
   --code-date: #b5cea8;
   --code-quote: #6a9955;
@@ -164,37 +170,8 @@
   --code-link: #569cd6;
 }
 
-/* Light theme overrides for syntax highlighting */
-[data-theme="light"] {
-  --code-keyword: #0000ff;
-  --code-string: #a31515;
-  --code-comment: #008000;
-  --code-katexcommand: #8a6f2f;
-  --code-number: #098658;
-  --code-boolean: #0000ff;
-  --code-operator: #333333;
-  --code-tag: #800000;
-  --code-attribute: #795e26;
-  --code-property: #001080;
-  --code-selector: #800000;
-  --code-type: #267f99;
-  --code-variable: #001080;
-  --code-parameter: #001080;
-  --code-cmdlet: #0000ff;
-  --code-directive: #0451a5;
-  --code-preprocessor: #0451a5;
-  --code-color: #a31515;
-  --code-section: #0000ff;
-  --code-date: #098658;
-  --code-quote: #008000;
-  --code-header: #0000ff;
-  --code-inline: #a31515;
-  --code-link: #0000ff;
-}
-
-
 /* Explicit light theme tokens */
-:root[data-theme="light"] {
+:root[data-theme="light"]:not(.focus) {
   color-scheme: light;
   --app-text-wght: 430;
 
@@ -209,7 +186,7 @@
   --app-bg-secondary: #f0f0f0;
   --component-bg: #ffffff;
   --component-bg-alt: #f7f7f7;
-  --component-bg-blur: rgba(230, 230, 230, 0.7);
+  --component-bg-blur: rgba(230, 230, 230, 0.8);
   --component-bg-blur-alt: rgba(232, 232, 232, 0.5);
   --component-bg-accent: color-mix(in srgb, var(--accent-color) 30%, #fffb);
   --component-bg-accent-blur: color-mix(in srgb, var(--accent-color) 35%, #fffb);
@@ -262,11 +239,38 @@
   --shadow-elev-2: 0 4px 12px rgba(0, 0, 0, 0.16);
   --shadow-elev-3: 0 10px 30px rgba(0, 0, 0, 0.25);
   --toc-divider-color: rgba(28, 28, 28, 0.08);
+
+  /* Light syntax highlighting */
+  --code-keyword: #0000ff;
+  --code-string: #a31515;
+  --code-comment: #008000;
+  --code-katexcommand: #8a6f2f;
+  --code-number: #098658;
+  --code-boolean: #0000ff;
+  --code-operator: #333333;
+  --code-tag: #800000;
+  --code-attribute: #795e26;
+  --code-property: #0366d6;
+  --code-selector: #800000;
+  --code-type: #267f99;
+  --code-variable: #0366d6;
+  --code-parameter: #0366d6;
+  --code-cmdlet: #0000ff;
+  --code-directive: #0451a5;
+  --code-preprocessor: #0451a5;
+  --code-color: #a31515;
+  --code-subst: #cf222e;
+  --code-section: #0000ff;
+  --code-date: #098658;
+  --code-quote: #008000;
+  --code-header: #0000ff;
+  --code-inline: #a31515;
+  --code-link: #0000ff;
 }
 
 /* Follow-system light mode when no explicit dark override is set */
 @media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) {
+  :root:not([data-theme="dark"]):not(.focus) {
     color-scheme: light;
     --app-text-wght: 430;
     --code-bg: rgba(255, 0, 0, 0.12);
@@ -275,7 +279,7 @@
     --app-bg-secondary: #f0f0f0;
     --component-bg: #ffffff;
     --component-bg-alt: #f7f7f7;
-    --component-bg-blur: rgba(230, 230, 230, 0.7);
+    --component-bg-blur: rgba(230, 230, 230, 0.8);
     --component-bg-blur-alt: rgba(232, 232, 232, 0.5);
     --component-bg-accent: color-mix(in srgb, var(--accent-color) 30%, #fffb);
     --component-bg-accent-blur: color-mix(in srgb, var(--accent-color) 35%, #fffb);
@@ -398,37 +402,8 @@ h2,
 h3,
 h4,
 h5,
-h6,
-.ant-typography h1,
-.ant-typography h2,
-.ant-typography h3,
-.ant-typography h4,
-.ant-typography h5,
-.ant-typography h6,
-.ant-typography.ant-typography-title,
-.ant-card-head-title,
-.ant-modal-title,
-.ant-drawer-title,
-.ant-page-header-heading-title,
-.ant-result-title,
-.ant-statistic-title,
-.ant-descriptions-header .ant-descriptions-title,
-.ant-collapse-header,
-.ant-tabs-tab,
-.ant-menu-submenu-title,
-.ant-steps-item-title,
-.ant-table-thead>tr>th,
-.ant-form-item-label>label,
-.ant-list-item-meta-title,
-.ant-alert-message,
-.ant-notification-notice-message,
-.ant-message .ant-message-notice-content,
-.ant-popconfirm-message-title,
-.ant-select-selection-search-input,
-.ant-input-group-addon {
-  /* 变量字体优先 */
+h6 {
   font-variation-settings: 'wght' var(--app-heading-wght, 570);
-  /* 传统字体回退 */
   font-weight: 600;
 }
 
@@ -749,6 +724,10 @@ body.backend::after {
   opacity: 1;
 }
 
+html.bg-no-img #chronicle-bg-layer .bg-image {
+  display: none;
+}
+
 #chronicle-bg-layer .bg-overlay {
   position: absolute;
   inset: 0;
@@ -756,6 +735,10 @@ body.backend::after {
   z-index: 3;
   /* 最上层：遮罩层 + 模糊 */
   transition: background 0.3s ease, backdrop-filter 0.3s ease, -webkit-backdrop-filter 0.3s ease;
+}
+
+html.focus #chronicle-bg-layer .bg-overlay {
+  background: #000 !important;
 }
 
 
@@ -787,4 +770,19 @@ html {
 select option {
   background: var(--component-bg-primary);
   color: var(--component-text-primary);
+}
+
+@media (max-width: 768px) {
+
+  .icon-label-btn .label {
+    display: none;
+  }
+
+  .icon-label-btn {
+    padding: 0.6rem;
+  }
+
+  .responsive-title {
+    padding-left: 40px;
+  }
 }

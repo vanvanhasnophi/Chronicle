@@ -200,37 +200,37 @@
     }
 
     .markdown-toc .toc-list li .toc-text {
+      --padding-h-base: 10px;
       display: block;
       width: 100%;
-      padding: 4px 6px;
-      padding-right: 10px;
+      padding: 4px var(--padding-h-base);
       box-sizing: border-box;
       border-radius: 6px;
       transition: background 0.12s, color 0.12s;
     }
 
-    .markdown-toc .toc-list .toc-level-1 {
-      padding-left: 0;
+    .markdown-toc .toc-list .toc-level-1 span {
+      padding-left: var(--padding-h-base);
     }
 
-    .markdown-toc .toc-list .toc-level-2 {
-      padding-left: 8px;
+    .markdown-toc .toc-list .toc-level-2 span {
+      padding-left: calc(8px + var(--padding-h-base));
     }
 
-    .markdown-toc .toc-list .toc-level-3 {
-      padding-left: 16px;
+    .markdown-toc .toc-list .toc-level-3 span {
+      padding-left: calc(16px + var(--padding-h-base));
     }
 
-    .markdown-toc .toc-list .toc-level-4 {
-      padding-left: 24px;
+    .markdown-toc .toc-list .toc-level-4 span {
+      padding-left: calc(24px + var(--padding-h-base));
     }
 
-    .markdown-toc .toc-list .toc-level-5 {
-      padding-left: 32px;
+    .markdown-toc .toc-list .toc-level-5 span {
+      padding-left: calc(32px + var(--padding-h-base));
     }
 
-    .markdown-toc .toc-list .toc-level-6 {
-      padding-left: 40px;
+    .markdown-toc .toc-list .toc-level-6 span {
+      padding-left: calc(40px + var(--padding-h-base));
     }
 
     .markdown-toc .toc-list li:hover .toc-text {

@@ -156,8 +156,7 @@ function ensureBackgroundImagePrepared(url: string): Promise<{ ok: boolean; prep
       return { ok, preparedUrl: ok ? normalizedUrl : '' };
     })().then((result) => {
       if (result && result.ok) {
-        console.info('[bg] image-loaded', normalizedUrl);
-      } else {
+              } else {
         backgroundPreparedCache.delete(normalizedUrl);
       }
       return result;
@@ -320,8 +319,7 @@ export async function stageBackgroundLayer(
           if (renderId !== bgRenderVersion) return;
 
           if (prepared.ok && prepared.preparedUrl) {
-            console.info('[bg] image-applied', prepared.preparedUrl);
-            if (imgEl) imgEl.style.backgroundImage = `url(${prepared.preparedUrl})`;
+                        if (imgEl) imgEl.style.backgroundImage = `url(${prepared.preparedUrl})`;
             currentBackgroundUrl = normalizedUrl;
           } else {
             if (imgEl) imgEl.style.backgroundImage = 'none';
@@ -342,8 +340,7 @@ export async function stageBackgroundLayer(
 
               if (imgEl) imgEl.addEventListener('transitionend', onTransitionEnd as any);
               layer.classList.add('is-ready');
-              console.info('[bg] fade-start', renderId, 'is-ready class added');
-
+              
               // 延迟清理旧的 blob URLs，确保新的图片已经完全显示
               setTimeout(() => {
                 if (renderId !== bgRenderVersion) return;
@@ -364,16 +361,7 @@ export async function stageBackgroundLayer(
               }, 1000); // 延迟 1 秒清理
 
               // 调试：检查背景层状态
-              /*
-              console.info('[bg] Layer state:', {
-                hasIsReady: layer.classList.contains('is-ready'),
-                imgBackground: imgEl?.style.backgroundImage,
-                imgOpacity: imgEl?.style.opacity,
-                computedOpacity: imgEl ? getComputedStyle(imgEl).opacity : 'no imgEl',
-                preparedUrl: prepared?.preparedUrl,
-                keepUrl: (prepared && prepared.preparedUrl) ? prepared.preparedUrl : 'none'
-              });
-              */
+              /*              */
             }, 30);
           });
         } catch (e) {
@@ -443,10 +431,12 @@ export function forceBackgroundReload() {
 
     // 强制重载背景层
     bgRenderVersion++;
-    console.log('[BackgroundLayer] Manual theme change, forcing reload', {
-      old: oldTheme,
-      new: newTheme
-    });
+    if (import.meta.env.DEV) {
+      console.log('[BackgroundLayer] Manual theme change, forcing reload', {
+        old: oldTheme,
+        new: newTheme
+      });
+    }
 
     return true;
   } catch (e) {
