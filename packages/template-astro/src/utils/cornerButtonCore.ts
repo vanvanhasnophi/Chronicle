@@ -2,11 +2,23 @@
  * CornerButton interaction core — idle-loaded via requestIdleCallback.
  * Extracted from CornerButton.astro for lazy-loading.
  */
-export function initCornerButton() {
-  type E = { u: (() => void) | null; d(): void };
-  const M = new Map<HTMLElement, E>();
+type E = { u: (() => void) | null; d(): void };
+const M = new Map<HTMLElement, E>();
+let _listenersBound = false;
 
-  function init() {
+export function initCornerButton() {
+  if (_listenersBound) return;
+  _listenersBound = true;
+
+  document.addEventListener('astro:page-load', init);
+  document.addEventListener('astro:before-swap', () => {
+    M.forEach(v => { if (v.u) v.u(); v.d(); });
+    M.clear();
+    import('../utils/tocController').then(({ destroyController }) => destroyController());
+  });
+}
+
+function init() {
     document.querySelectorAll('[data-cb-root]').forEach(r => {
       if (!(r instanceof HTMLElement) || M.has(r)) return;
       const b = r.querySelector('.cb__btn') as HTMLElement | null;
@@ -107,10 +119,5 @@ export function initCornerButton() {
     M.set(r, { u: null, d() { ct(); if (r.parentElement) r.parentElement.removeChild(r); } });
   }
 
-  document.addEventListener('astro:page-load', init);
-  document.addEventListener('astro:before-swap', () => {
-    M.forEach(v => { if (v.u) v.u(); v.d(); });
-    M.clear();
-    import('../utils/tocController').then(({ destroyController }) => destroyController());
-  });
-}
+
+export { init };

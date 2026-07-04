@@ -75,30 +75,25 @@ const isMenu = template === 'menu';
 
 <script>
   // Bootstrap: idle-load CornerButton logic after first paint.
-  // The button is visible but non-interactive until init — acceptable
-  // since users don't click it within the first ~2s.
-  let _cbReady = false;
-  let _cbInit: Function | null = null;
+  let _cbMod: typeof import('../utils/cornerButtonCore') | null = null;
 
   async function _cbEnsure() {
-    if (_cbReady) return;
-    _cbReady = true;
-    const mod = await import('../utils/cornerButtonCore');
-    _cbInit = mod.initCornerButton;
-    _cbInit();
+    if (_cbMod) return _cbMod;
+    _cbMod = await import('../utils/cornerButtonCore');
+    _cbMod.initCornerButton(); // sets up listeners (once)
+    _cbMod.init();             // initial scan
+    return _cbMod;
   }
 
-  // Idle preload — fires after first paint, low priority
   if (typeof requestIdleCallback !== 'undefined') {
     requestIdleCallback(() => _cbEnsure());
   } else {
     setTimeout(() => _cbEnsure(), 2000);
   }
 
-  // On-demand: astro:page-load may fire before idle callback
-  document.addEventListener('astro:page-load', () => {
-    if (_cbReady) _cbInit?.();
-    else _cbEnsure();
+  document.addEventListener('astro:page-load', async () => {
+    const mod = await _cbEnsure();
+    mod.init(); // re-scan DOM on every page load
   });
 </script>
 

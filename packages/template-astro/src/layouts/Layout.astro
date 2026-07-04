@@ -163,10 +163,10 @@ try {
       }catch(e){}})()})();
     </script>
 
-    <!-- Both Inter and Noto Serif SC use font-display:swap, so plain <link> is sufficient.
-         Preload as="style" would compete with critical CSS at Highest priority.
-         preconnect to Google Fonts only when serif is selected. -->
-    <link rel="stylesheet" href="/fonts/inter.css" data-astro-transition-persist="font-inter" />
+    <!-- font-display:swap ensures text is visible immediately with fallback.
+         media="print" onload removes this from the render-blocking critical path. -->
+    <link rel="stylesheet" href="/fonts/inter.css" media="print" onload="this.media='all'" data-astro-transition-persist="font-inter" />
+    <noscript><link rel="stylesheet" href="/fonts/inter.css" /></noscript>
     {frontendFont === 'serif' ? (
       <>
         <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin data-astro-transition-persist="font-pre-1" />
