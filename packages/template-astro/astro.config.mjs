@@ -27,6 +27,7 @@ export default defineConfig({
   //   }
   // },
   vite: {
+    build: { cssMinify: 'esbuild' },
     define: {
       __VERSION__: JSON.stringify(pkg.version),
       __YEAR__: new Date().getFullYear(),

@@ -24,7 +24,6 @@ html.is-mobile .app-title{
 .nav-header {
   background: var(--component-bg-blur);
   backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--border-color-blur);
   position: fixed;
   top: 0;
@@ -40,7 +39,7 @@ html.is-mobile .app-title{
   background: transparent;
   border-bottom-color: transparent;
   backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+  
 }
 
 .nav-content {
@@ -390,7 +389,6 @@ html.is-mobile .main-content {
   /* reduce opacity to make blur more visible */
   background: var(--component-bg);
   backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
   /* Use fixed so the menu overlays page content — allows backdrop-filter to blur underlying page */
   position: fixed;
   color: var(--component-text-secondary);
