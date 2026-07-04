@@ -136,7 +136,7 @@ const {
 </script>
 
 <style>
-  .toc-float { font-size:0.8em; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); background-clip: padding-box; margin-right: 10px; }
+  .toc-float { font-size:0.8em; backdrop-filter: blur(10px); background-clip: padding-box; margin-right: 10px; }
   .toc-float { right: calc(10px + 2vw); position: fixed; top: calc(30px + 10vh); z-index: 1199; overflow-x: hidden; transition: transform 0.25s ease, width 0.25s ease, max-height 0.25s ease, background-color 0.25s ease, opacity 0.25s ease; box-sizing: border-box; border-radius: 8px; max-height: calc(70vh - 80px); height: auto; will-change: width; contain: layout style; }
   .toc-float-item { margin-left: 10px; }
   .toc-float-item:hover { color: var(--text-primary) !important; }
@@ -160,7 +160,7 @@ const {
   .toc-float li:active .toc-text, .toc-float li:focus .toc-text { background: var(--component-bg-highlight); color: var(--component-text-primary-highlight); }
   .toc-float.collapsed { overflow-y: auto; width: 38px; padding: 4px 8px; border:none; background-color: transparent; border-radius: 10px; scrollbar-width: none; }
   .toc-float.collapsed::-webkit-scrollbar { width: 0; height: 0; }
-  .toc-float:not(.collapsed) { overflow-y: auto; width: 220px; background-color: var(--component-bg-blur); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); border: 1px solid var(--border-color); }
+  .toc-float:not(.collapsed) { overflow-y: auto; width: 220px; background-color: var(--component-bg-blur); backdrop-filter: blur(10px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); border: 1px solid var(--border-color); }
   .toc-float ul { padding: 4px; list-style: none; margin: 0; transition: padding 0.3s ease; }
   .toc-float.collapsed ul { padding: 0; }
   .toc-float li { display: flex; align-items: center; transition: justify-content 0.3s ease; min-height: 20px; position: relative; }
