@@ -3,12 +3,14 @@
 > **原始基线**（2026 早期）：Lighthouse 模拟移动端（moto g power, 4x CPU slowdown）  
 > FCP 4.9s (11分) · LCP 4.9s (29分) · TTI 15.9s (6分) · TBT 1800ms · 总 JS 3.3 MB
 
-> **当前基线**（2026-07-03 重测）：  
-> **FCP 4.1s (22分) · LCP 4.1s (48分) · Speed Index 4.1s (80分)**
+> **当前基线**（2026-07-04 重测，Lighthouse 模拟移动端）：  
+> **FCP 1.3s (98分) · LCP 1.4s (100分) · Speed Index 1.3s (100分) · Performance 96 分**
 >
-> 改进：FCP -800ms, LCP -800ms。但 FCP 22 分仍为 **红色**，LCP 48 分仍为 **橙色**。"4.1 秒白屏"等待依然过长。
+> **首页**：FCP 3.2s (42分) · LCP 3.3s (69分) · Performance 86 分（Kaltsit.jpg 已从 1.6MB 压缩至 9KB）
 >
-> **指标解释**：FCP=LCP=SpeedIndex 全等于 4.1s，说明页面在 4.1 秒前完全空白，然后一次性渲染全部内容。这是典型的 **render-blocking CSS 过多 + 外部字体阻塞** 模式。
+> 改进：文章页 FCP -2.8s (-68%)，LCP -2.7s (-66%)，首页 LCP -7.7s (-70%)。所有指标进入绿色或浅绿色。
+>
+> **指标解释**：FCP=LCP=SpeedIndex 全等于 4.1s → 现在三者大幅分化，FCP 1.3s 远低于 LCP 1.4s，说明 Critical CSS 内联成功让浏览器提前绘制首屏内容。
 
 ---
 
@@ -153,34 +155,21 @@ body { font-family:var(--app-font-stack); color:var(--text-primary); background-
 
 ---
 
-## Phase 6：字体加载优化
+## Phase 6：字体加载优化 ✅ 已完成
 
-### 6.1 自托管 Noto Serif SC
+### 6.1 自托管 Noto Serif SC — ❌ 取消
 
-**问题**：当前通过 Google Fonts 加载 `Noto Serif SC`：
-```html
-<link rel="preload" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@200..900&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
-```
-即使有 `preconnect`，仍需 DNS + TCP + TLS + 请求（4 个 RTT）。本地开发时也要等 Google 服务器响应。
+**原因**：Noto Serif SC 在 Android/部分 Windows 上预装率很高，Google Fonts CDN 有跨站缓存效应。且自托管需下载大量子集文件（~101 个），得不偿失。
 
-**做法**：
-- 下载 `Noto Serif SC` 可变字体 woff2 到 `public/fonts/`
-- 创建 `noto-serif-sc.css` 定义 `@font-face`（与 inter.css 模式一致）
-- 替换 Google Fonts link 为本地路径
-- `font-display: swap` 确保文字立即可见（系统字体回退）
+### 6.2 字体加载策略 ✅ 完成
 
-**字体文件**：
-- `NotoSerifSC[wght].woff2` — 可变字体，约 12MB（全字重 200-900）
-- 子集化（只保留简体中文常用字 + 拉丁字符）可降到 ~3-5MB
-- 或只下载 400 + 700 两个字重（不用可变字体），约 2MB
+**Inter**：`preload as="style"` → `<link media="print" onload="this.media='all'">`。`preload` 有 Highest 优先级会与关键 CSS 争抢带宽。`font-display:swap` 已确保文字立即可见，font CSS 不需要阻塞渲染。
 
-**工期**：1h（完整版）/ 3h（含子集化）
+**Noto Serif SC**：保留 Google Fonts CDN + `preconnect`。
 
-### 6.2 字体加载策略审查
+### 6.3 字体去阻塞
 
-**当前状态**：
-- Inter：✅ 自托管，`font-display: swap`，variable woff2
-- Noto Serif SC：❌ Google Fonts 外部加载，`preload` + `onload` 模式
+Inter CSS（`inter.css`）从渲染阻塞链路中移除，使用 `media="print" onload` 模式。节省 ~150ms render-blocking 时间。`<noscript>` 回退保留。
 
 **preload + onload 模式的问题**：
 - `preload` 的 `as="style"` 在 Chrome 中有 Highest 优先级，会与关键 CSS 争抢带宽
@@ -233,19 +222,22 @@ body { font-family:var(--app-font-stack); color:var(--text-primary); background-
 | 0-3 | 低垂果实 / Vue 去重 / JS 按需 / CSS | ✅ | -800ms | -800ms |
 | 4 | 架构债 | ⚠️ | — | — |
 | 5 | CSS 关键路径 | ✅ | -1s~2s | -1s~2s |
-| 6 | 字体加载优化 | ✅ Phase 6.2 | -500ms~1s | — |
-| 7 | 缓存/压缩 | ⬜ | — | -200ms |
+| 6 | 字体加载优化 | ✅ | — | — |
+| 7 | 缓存/压缩 | ⬜ | — | — |
 | 8 | JS 三级懒加载 | ✅ | — | — |
+| 9 | CSS 去阻塞 / CLS 修复 / Avatar 压缩 | ✅ | — | -7.7s (首页) |
 
-**当前实测**（2026-07-03 文章页，Lighthouse 模拟移动端）：
+**当前实测**（2026-07-04，Lighthouse 模拟移动端）：
 
-| 指标 | 优化前 | 优化后 | 改善 |
-|------|--------|--------|------|
-| FCP | 4.1s (22分) | **1.4s** (97分) | **-66%** |
-| LCP | 4.1s (48分) | **1.5s** (100分) | **-63%** |
-| Speed Index | 4.1s (80分) | **1.8s** (100分) | **-56%** |
+| 指标 | 优化前 | 优化后 (文章页) | 优化后 (首页) |
+|------|--------|:---:|:---:|
+| FCP | 4.1s (22分) | **1.3s** (98分) | 3.2s (42分) |
+| LCP | 4.1s (48分) | **1.4s** (100分) | 3.3s (69分) |
+| Speed Index | 4.1s (80分) | **1.3s** (100分) | 3.2s (91分) |
+| 总重量 | — | 1,001 KiB | **422 KiB** |
+| Performance | — | **96 分** | **86 分** |
 
-**首页待优化**：Kaltsit.jpg 1.6MB（LCP 11s）、InterVariable.woff2 344KB、CSS render-blocking。
+**首页剩余瓶颈**：InterVariable.woff2 344KB、CSS render-blocking（~2,030ms wasted）。
 
 ---
 
@@ -322,3 +314,66 @@ KaTeX 在 `chronicleMarkdown.ts` 中通过 `import katex` **服务端渲染**为
 | KaTeX | 253KB (仅数学页) | **0KB** (SSR) | 服务端渲染 |
 
 **首页初始 JS 总量**：~24KB（Layout 16KB + NavHeader 4.8KB + ClientRouter 1.6KB + FilePreviewModal bootstrap 1.2KB + CornerButton bootstrap 495B + 其他 ~100B）
+
+---
+
+## Phase 9：运行时修复与基础设施 ✅ 已完成
+
+### 9.1 CornerButton 硬路由修复
+
+**问题**：`requestIdleCallback` 懒加载后，硬路由（整页刷新）时 CornerButton 不挂载。
+
+**根因**：`initCornerButton()` 内部通过 `astro:page-load` 事件触发 `init()`。但首次硬路由时 `import()` 在 `astro:page-load` 回调中异步执行，`initCornerButton` 注册的事件监听器还没来得及添加，`astro:page-load` 就已经触发过了。
+
+**修复**：分离 `initCornerButton()`（注册事件，仅调用一次）和 `init()`（扫描 DOM，每次页面加载调用）。bootstrap 在 `astro:page-load` 中 `import` 完成后直接调用 `init()`。
+
+### 9.2 Avatar 图片压缩系统
+
+**背景**：首页头像 `Kaltsit.jpg` 原始大小 1.6MB，阻塞 LCP 达 11 秒。
+
+**做法**：仿照 Background 压缩模式，实现通用的 `compressImage()`：
+- `gen/processor/image.cjs`：新增 `compressImage({ sourceRel, uploadDir, outputDir, outputRel, quality, resizeWidth, resizeHeight, clearPrefix })`
+- `compressBackground()` 重构为调 `compressImage`，保持向后兼容
+- `POST /image-compress` 通用端点（host）
+- `POST /profile` 保存时检测 `/upload/` 前缀自动压缩 avatar
+- Lite `convert`：`site/avatar.*` → 原图拷贝到 `data/upload/pic/` + 压缩到 `data/branding/chr_avatar-*.webp`
+
+**成果**：
+
+| 指标 | 改前 | 改后 |
+|------|------|------|
+| 首页总重量 | 2,013 KiB | **422 KiB** |
+| 首页 LCP | 11.0s (0分) | **3.3s** (69分) |
+| Kaltsit.jpg | 1.6MB | **9KB** (chr_avatar-*.webp) |
+
+### 9.3 Lite Convert 完善
+
+**问题**：`npm run build:lite` 未执行 `convert` 步骤，且旧数据残留。
+
+**修复**：
+- `build.sh lite` 增加 `chronicle-gen convert` 步骤
+- Convert 前先备份，然后清空 `branding/`、`about.md`、`collections.json`、`friends.json`、`profile.json`
+- `settings.json` 重置为 defaults + backend keys
+- `compressImage` 路径解析修复（`path.resolve` 统一转绝对路径）
+- 对齐 CMS 的 `posts/index.json` 字段：`font`、`author`、`aiGenerated`、`marp:true`→`type:'slides'`
+
+### 9.4 CollectionNav CLS 修复
+
+**问题**：移动端 CollectionNav SSR 时无 `collapsed` class，首帧展开，JS 加载后才折叠，导致布局偏移。
+
+**修复**：SSR 模板默认加 `collapsed` class。移动端（<1199px）CSS 让元素默认隐藏，JS 按需展开。
+
+### 9.5 CSS 渲染阻塞优化
+
+| 文件 | 方案 | 节省 |
+|------|------|------|
+| `inter.css` | `media="print" onload` 从渲染阻塞链移除 | ~150ms |
+| CornerButton `<style>` | 回退为 Astro 打包（2KB，`media="print" onload` 在硬路由时不可靠） | — |
+| `chronicle-markdown.css` | 保持异步（文章页尝试同步导入后 CLS 无改善，回退） | — |
+
+### 9.6 文档与配置
+
+- `robots.txt` 路由：`src/pages/robots.txt.ts`，SSG 输出到 `dist/robots.txt`
+- `SiteProfile` 类型新增 `avatarSource` 可选字段
+- `ImagePickerField` 支持 `schema['x-picker-only']` 隐藏输入框
+- `profile.schema.json`：`avatar` 加 `x-picker-only: true`，新增 `avatarSource` hidden 字段
