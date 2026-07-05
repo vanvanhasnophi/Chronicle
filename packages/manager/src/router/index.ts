@@ -42,6 +42,7 @@ const FileManager = () => import(/* webpackChunkName: "file-manager" */ '../page
 const Dashboard = () => import(/* webpackChunkName: "dashboard" */ '../pages/Dashboard.vue')
 // Traffic page hidden — self-hosted analytics not meaningful for static Astro sites
 // const Traffic = () => import(/* webpackChunkName: "traffic" */ '../pages/Traffic.vue')
+const CommentManager = () => import(/* webpackChunkName: "comment-manager" */ '../pages/CommentManager.vue')
 const Settings = () => import(/* webpackChunkName: "settings" */ '../pages/Settings.vue')
 const TextEditorLazy = () => import(/* webpackChunkName: "text-editor" */ '../pages/TextEditor.vue')
 const EditorPrintPreview = () => import(/* webpackChunkName: "editor-print-preview" */ '../pages/EditorPrintPreview.vue')
@@ -101,6 +102,7 @@ const routes = [
       { path: 'collections', name: 'SettingsCollections', component: SchemaSettingsPage, props: { schemaId: 'chronicle:collections' }, meta: { requiresAuth: true, title: 'settings.collections' } },
       { path: 'friends',     name: 'SettingsFriends',     component: SchemaSettingsPage, props: { schemaId: 'chronicle:friends' },     meta: { requiresAuth: true, title: 'settings.friends' } },
       { path: 'profile',     name: 'SettingsProfile',     component: SchemaSettingsPage, props: { schemaId: 'chronicle:profile' },     meta: { requiresAuth: true, title: 'settings.profile' } },
+      { path: 'comments',   name: 'SettingsComments',   component: SchemaSettingsPage, props: { schemaId: 'chronicle:comments-config' }, meta: { requiresAuth: true, title: 'settings.comments' } },
       { path: 'security',    name: 'SettingsSecurity',    component: SystemSecurity,    meta: { requiresAuth: true, title: 'settings.security' } },
       // Backward-compat redirects (old paths → new direct routes)
       { path: 'homepage',   redirect: '/settings/template-homepage' },
@@ -134,6 +136,12 @@ const routes = [
     name: 'PostManager',
     component: PostManager,
     meta: { layout: 'manager', requiresAuth: true, title: 'post.manageTitle' }
+  },
+  {
+    path: '/manage/comments',
+    name: 'CommentManager',
+    component: CommentManager,
+    meta: { layout: 'manager', requiresAuth: true, title: 'nav.comments' }
   },
   {
     path: '/playground',

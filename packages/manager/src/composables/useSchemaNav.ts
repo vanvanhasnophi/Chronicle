@@ -39,6 +39,7 @@ const SCHEMA_ROUTE_PREFIX: Record<string, string> = {
   'chronicle:friends': '/settings/friends',
   'chronicle:profile': '/settings/profile',
   'chronicle:security': '/settings/security',
+  'chronicle:comments-config': '/settings/comments',
 }
 
 function buildNavTree(schemas: Record<string, any>): NavGroup[] {

@@ -924,6 +924,13 @@ const { navTree } = useSchemaNav()
 // ── Schema-driven group open/close state ──
 const schemaGroupOpen = ref<Record<string, boolean>>({})
 
+// Content group (Posts / Comments) — free toggle, auto-expand only
+const contentGroupExpanded = ref(true)
+watch(() => route.path, (p) => {
+  // Auto-expand to reveal active child, but never auto-collapse
+  if (p.startsWith('/manage')) contentGroupExpanded.value = true
+})
+
 // Auto-expand group when current route matches one of its items
 watch(() => route.path, (p) => {
   for (const g of navTree.value) {
@@ -1036,8 +1043,27 @@ async function rebuildFrontend() {
           <span class="nav-label"><i class="nav-icon" v-html="ShellIcons.columns"></i>{{ $t('nav.dashboard') }}</span></RouterLink>
         <RouterLink to="/files" class="sidebar-items nav-link backend-nav-link" @click="isMenuOpen = false">
           <span class="nav-label"><i class="nav-icon" v-html="ShellIcons.folder"></i>{{ $t('nav.files') }}</span></RouterLink>
-        <RouterLink to="/manage" class="sidebar-items nav-link backend-nav-link" @click="isMenuOpen = false">
-          <span class="nav-label"><i class="nav-icon" v-html="ShellIcons.edit"></i>{{ $t('nav.posts') }}</span></RouterLink>
+        <!-- Content group (Posts + Comments) -->
+        <div class="backend-tree-group" :class="{ expanded: contentGroupExpanded }">
+          <button type="button" class="sidebar-items nav-link backend-nav-link backend-tree-toggle"
+            @click="contentGroupExpanded = !contentGroupExpanded">
+            <span class="nav-label">
+              <i class="nav-icon" v-html="ShellIcons.edit"></i>
+              {{ $t('nav.content') }}
+            </span>
+            <span class="backend-tree-caret" :class="{ open: contentGroupExpanded }" v-html="ShellIcons.chevron"></span>
+          </button>
+          <div class="backend-tree-children-wrap" :class="{ 'nc-expanded': contentGroupExpanded }">
+            <div class="backend-tree-children">
+              <RouterLink to="/manage" class="sidebar-items nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">
+                <span class="nav-label">{{ $t('nav.posts') }}</span>
+              </RouterLink>
+              <RouterLink to="/manage/comments" class="sidebar-items nav-link backend-nav-link backend-tree-child" @click="isMenuOpen = false">
+                <span class="nav-label">{{ $t('nav.comments') }}</span>
+              </RouterLink>
+            </div>
+          </div>
+        </div>
 
         <!-- Schema-driven groups -->
         <div

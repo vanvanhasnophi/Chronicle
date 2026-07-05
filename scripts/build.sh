@@ -243,15 +243,22 @@ server {
         try_files $uri $uri/ /admin/index.html;
     }
 
-    # SPA fallback
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    # 静态资源缓存
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff2?)$ {
+    # ── Hashed static assets (Astro build) — immutable cache ──
+    location /astro/ {
         expires 1y;
         add_header Cache-Control "public, immutable";
+    }
+
+    # ── Fonts — immutable cache ──
+    location /fonts/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # ── HTML pages — never cached ──
+    location / {
+        try_files $uri $uri/ /index.html;
+        add_header Cache-Control "no-cache";
     }
 }
 NGINX

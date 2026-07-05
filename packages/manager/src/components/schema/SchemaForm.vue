@@ -23,6 +23,7 @@
           <SchemaField v-for="field in group.fields" :key="field.key" :field-key="field.key"
             :field-schema="field.schema" :model-value="getValue(field.key)" :disabled="isDisabled(field)"
             :disabled-text="disabledText(field)" :field-meta="fieldMetaMap?.[field.key]"
+            :form-data="data"
             @update:model-value="(v: any) => setValue(field.key, v)"
             @update:meta="(v: any) => onFieldMeta(field.key, v)" />
         </div>
@@ -127,6 +128,8 @@ function buildGroups(fieldKeys: string[], propsMap: Record<string, any>, xGroups
 
   for (const key of fieldKeys) {
     const schema = propsMap[key]
+    // Skip fields whose x-visible-when condition is not met
+    if (!isFieldVisible(schema)) continue
     const groupKey = schema['x-group'] || '_default'
     if (!groupMap.has(groupKey)) {
       let label = groupKey === '_default' ? '' : groupKey
@@ -146,6 +149,41 @@ function buildGroups(fieldKeys: string[], propsMap: Record<string, any>, xGroups
 
 const visibleTabs = computed(() => tabs.value)
 
+// ── Conditional visibility / disabled ──────────────────────
+
+/**
+ * Evaluate an x-visible-when or x-disabled-when condition.
+ *
+ * Condition shape:
+ *   { field: "comment.backend", equals: "chronicle" }
+ *   { field: "comment.backend", notEquals: "" }
+ *   { field: "comment.backend", equals: "chronicle", notEquals: "" }  // AND
+ *
+ * Resolves dot-separated paths against props.data.
+ * Returns true if the condition is satisfied (or if no condition is defined).
+ */
+function evaluateCondition(cond: Record<string, any> | undefined, data: Record<string, any>): boolean {
+  if (!cond) return true
+  const { field, equals, notEquals } = cond
+  if (!field) return true
+
+  // Resolve nested path like "comment.backend"
+  const parts = String(field).split('.')
+  let value: any = data
+  for (const p of parts) {
+    if (value == null || typeof value !== 'object') return true // can't resolve, assume visible
+    value = value[p]
+  }
+
+  if (equals !== undefined && value !== equals) return false
+  if (notEquals !== undefined && value === notEquals) return false
+  return true
+}
+
+function isFieldVisible(schema: Record<string, any>): boolean {
+  return evaluateCondition(schema['x-visible-when'], props.data)
+}
+
 // ── Data access ──
 function getValue(key: string): any {
   const schema = props.schema.properties?.[key]
@@ -163,7 +201,11 @@ function onFieldMeta(key: string, val: any) {
 }
 
 function isDisabled(field: FieldDef): boolean {
-  return field.schema['x-disabled'] || false
+  if (field.schema['x-disabled']) return true
+  // Check x-disabled-when: if condition is met, disable the field
+  const cond = field.schema['x-disabled-when']
+  if (cond && evaluateCondition(cond, props.data)) return true
+  return false
 }
 
 function disabledText(field: FieldDef): string {

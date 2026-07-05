@@ -175,6 +175,10 @@ router.use(authLifecycle);
 const aboutRoutes = require('./about');
 router.use(aboutRoutes);
 
+// ── Comment Admin Routes ──────────────────────────────────
+const commentsRoutes = require('./comments');
+router.use('/comments', commentsRoutes);
+
 // ═══════════════════════════════════════════════════════════
 //  HELPER FUNCTIONS (extracted from index.js)
 // ═══════════════════════════════════════════════════════════

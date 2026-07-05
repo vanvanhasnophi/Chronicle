@@ -75,4 +75,3 @@ traffic: true
 gaMeasurementId: ""
 
 # ICP备案号（留空则不显示）
-icpNumber: ""

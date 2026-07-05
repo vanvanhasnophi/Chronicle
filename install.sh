@@ -328,6 +328,18 @@ server {
     add_header Cache-Control "public, max-age=3600";
   }
 
+  # ── Hashed static assets (Astro build) — immutable cache ──
+  location /astro/ {
+    expires 1y;
+    add_header Cache-Control "public, immutable";
+  }
+
+  # ── Fonts — immutable cache ──
+  location /fonts/ {
+    expires 1y;
+    add_header Cache-Control "public, immutable";
+  }
+
   location /server/data/upload/ {
     alias $repo_root/data/upload/;
     expires 365d;
@@ -380,6 +392,18 @@ server {
     add_header Cache-Control "public, max-age=3600";
   }
 
+  # ── Hashed static assets (Astro build) — immutable cache ──
+  location /astro/ {
+    expires 1y;
+    add_header Cache-Control "public, immutable";
+  }
+
+  # ── Fonts — immutable cache ──
+  location /fonts/ {
+    expires 1y;
+    add_header Cache-Control "public, immutable";
+  }
+
   location /server/data/upload/ {
     alias $repo_root/data/upload/;
     expires 365d;
@@ -425,6 +449,18 @@ server {
     add_header Cache-Control "public, max-age=3600";
   }
 
+  # ── Hashed static assets (Astro build) — immutable cache ──
+  location /astro/ {
+    expires 1y;
+    add_header Cache-Control "public, immutable";
+  }
+
+  # ── Fonts — immutable cache ──
+  location /fonts/ {
+    expires 1y;
+    add_header Cache-Control "public, immutable";
+  }
+
   location /server/data/upload/ {
     alias $repo_root/data/upload/;
     expires 365d;
@@ -466,6 +502,18 @@ server {
   location / {
     try_files \$uri \$uri/ /index.html;
     add_header Cache-Control "public, max-age=3600";
+  }
+
+  # ── Hashed static assets (Astro build) — immutable cache ──
+  location /astro/ {
+    expires 1y;
+    add_header Cache-Control "public, immutable";
+  }
+
+  # ── Fonts — immutable cache ──
+  location /fonts/ {
+    expires 1y;
+    add_header Cache-Control "public, immutable";
   }
 
   location /server/data/upload/ {

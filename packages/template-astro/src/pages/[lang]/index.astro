@@ -38,7 +38,7 @@ const featureFlags = resolveFeatureFlags(settings?.featureFlags || {});
   {
     homepageMode === "cover" && (
       <div class="home-container home-container--cover">
-        <HomeCoverDeck locale={locale} themePostPath={themePostPath} mode="cover" />
+        <HomeCoverDeck siteName={settings?.siteName} siteDescription={settings?.siteDescription || ''} locale={locale} themePostPath={themePostPath} mode="cover" />
       </div>
     )
   }
@@ -47,7 +47,7 @@ const featureFlags = resolveFeatureFlags(settings?.featureFlags || {});
     homepageMode === "split" && (
       <div class="home-container home-container--split">
         <div class="split-hero-stage" id="split-hero-stage">
-          <HomeCoverDeck locale={locale} themePostPath={themePostPath} mode="split" />
+          <HomeCoverDeck siteName={settings?.siteName} siteDescription={settings?.siteDescription || ''} locale={locale} themePostPath={themePostPath} mode="split" />
         </div>
         <div class="split-cards-stage">
           <CardStyleHomeDeck locale={locale} featureFlags={featureFlags} />
@@ -140,125 +140,6 @@ const featureFlags = resolveFeatureFlags(settings?.featureFlags || {});
     max-width: 1280px;
   }
 
-  .home-container::before {
-    content: "";
-    position: fixed;
-    top: -20%;
-    right: -10%;
-    width: calc(600px + 20vw);
-    height: calc(600px + 20vh);
-    background: radial-gradient(
-      circle,
-      rgba(173, 255, 47, 0.4) 0%,
-      rgba(173, 255, 47, 0.2) 30%,
-      transparent 70%
-    );
-    border-radius: 50%;
-    pointer-events: none;
-    filter: var(--perf-glow-filter, blur(40px));
-    opacity: var(--perf-glow-opacity, 1);
-    z-index: 1;
-    transform: translateX(0);
-    will-change: transform, opacity;
-    animation-name: var(--perf-glow-anim-name, move-lr-1, glow-flicker);
-    animation-duration: 16s, 16s;
-    animation-timing-function: ease-in-out, ease-in-out;
-    animation-iteration-count: infinite, infinite;
-    animation-direction: alternate, normal;
-  }
-
-  .home-container::after {
-    content: "";
-    position: fixed;
-    bottom: 5%;
-    left: -15%;
-    width: calc(500px + 20vw);
-    height: calc(500px + 20vh);
-    background: radial-gradient(
-      circle,
-      rgba(127, 255, 0, 0.35) 0%,
-      rgba(127, 255, 0, 0.15) 35%,
-      transparent 75%
-    );
-    border-radius: 50%;
-    pointer-events: none;
-    filter: var(--perf-glow-filter, blur(50px));
-    opacity: var(--perf-glow-opacity, 1);
-    z-index: 1;
-    transform: translateX(0);
-    will-change: transform, opacity;
-    animation-name: var(--perf-glow-anim-name, move-lr-2, glow-flicker);
-    animation-duration: 20s, 16s;
-    animation-timing-function: ease-in-out, ease-in-out;
-    animation-iteration-count: infinite, infinite;
-    animation-direction: alternate-reverse, normal;
-  }
-
-  /* glow-flicker is gated by --glow-anim — only runs in full mode.
-     When --glow-anim is "none", the static filter/opacity from CSS vars apply. */
-  @keyframes glow-flicker {
-    0% {
-      opacity: 0.55;
-      filter: blur(60px);
-    }
-    20% {
-      opacity: 0.72;
-      filter: blur(55px);
-    }
-    40% {
-      opacity: 0.48;
-      filter: blur(62px);
-    }
-    60% {
-      opacity: 0.8;
-      filter: blur(50px);
-    }
-    80% {
-      opacity: 0.5;
-      filter: blur(65px);
-    }
-    100% {
-      opacity: 0.6;
-      filter: blur(60px);
-    }
-  }
-
-
-  @keyframes move-lr-1 {
-    0% {
-      transform: translateX(0);
-    }
-    25% {
-      transform: translateX(-8%);
-    }
-    50% {
-      transform: translateX(0);
-    }
-    75% {
-      transform: translateX(8%);
-    }
-    100% {
-      transform: translateX(0);
-    }
-  }
-
-  @keyframes move-lr-2 {
-    0% {
-      transform: translateX(0);
-    }
-    25% {
-      transform: translateX(10%);
-    }
-    50% {
-      transform: translateX(0);
-    }
-    75% {
-      transform: translateX(-10%);
-    }
-    100% {
-      transform: translateX(0);
-    }
-  }
 </style>
 
 <script type="module">

@@ -3,12 +3,7 @@
     <section class="post-manager-container">
       <!-- Toolbar -->
       <div class="chronicle-fb-toolbar">
-        <!-- Status filter select — always visible, replaces sidebar -->
-        <select v-model="currentFilter" class="filter-select">
-          <option v-for="tab in statusTabs" :key="tab.id" :value="tab.id">
-            {{ $t(tab.label) }}
-          </option>
-        </select>
+        <FilterDropdown v-model="activeFilters" :groups="filterGroups" :label="$t('nav.posts')" />
         <div class="chronicle-fb-toolbar-right">
           <!-- Search -->
           <div class="search-box">
@@ -161,6 +156,7 @@ import useToast from '../composables/useToast'
 import { getNotificationCenter } from '../composables/useNotificationCenter'
 import { settingsStore } from '../composables/settingsApi'
 import { Icons } from '../utils/icons'
+import FilterDropdown from '../components/FilterDropdown.vue'
 
 const nc = getNotificationCenter()
 
@@ -228,14 +224,27 @@ const selectedCount = computed(() => selectedIds.value.size)
 
 // ── Sidebar state ────────────────────────────────────────────────────
 
-const statusTabs = [
-  { id: 'all', label: 'blog.allPosts' },
-  { id: 'published', label: 'status.published' },
-  { id: 'draft', label: 'status.draft' },
-  { id: 'modifying', label: 'status.modifying' },
-]
+const filterGroups = computed(() => [
+  {
+    key: 'status',
+    label: t('filter.status'),
+    options: [
+      { value: 'published', label: t('status.published') },
+      { value: 'draft', label: t('status.draft') },
+      { value: 'modifying', label: t('status.modifying') },
+    ],
+  },
+  {
+    key: 'type',
+    label: t('filter.type'),
+    options: [
+      { value: 'article', label: t('filter.article') },
+      { value: 'slides', label: t('filter.slides') },
+    ],
+  },
+])
 
-const currentFilter = ref('all')
+const activeFilters = ref<Record<string, string[]>>({ status: [], type: [] })
 
 // ── Search & Sort ────────────────────────────────────────────────────
 
@@ -253,8 +262,14 @@ const filteredPosts = computed(() => {
   let result = [...posts.value]
 
   // Status filter
-  if (currentFilter.value !== 'all') {
-    result = result.filter(p => getStatus(p.status) === currentFilter.value)
+  const statusFilters = activeFilters.value.status || []
+  if (statusFilters.length > 0) {
+    result = result.filter(p => statusFilters.includes(getStatus(p.status)))
+  }
+  // Type filter
+  const typeFilters = activeFilters.value.type || []
+  if (typeFilters.length > 0) {
+    result = result.filter(p => typeFilters.includes(p.type || 'article'))
   }
 
   // Search filter

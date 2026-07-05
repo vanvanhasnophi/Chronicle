@@ -98,10 +98,12 @@ const props = withDefaults(defineProps<{
   mode?: 'input' | 'panel'
   name?: string
   placeholder?: string
+  clearOnFocus?: boolean
 }>(), {
   mode: 'input',
   name: '',
   placeholder: '',
+  clearOnFocus: false
 })
 
 const emit = defineEmits<{ (e: 'update:modelValue', value: PickerModelValue): void }>()
@@ -251,6 +253,7 @@ function clearSelection() {
 }
 
 async function onInputFocus() {
+  if (props.clearOnFocus) clearSelection()
   await openPicker()
   await nextTick()
   if (inputEl.value) inputEl.value.select()
