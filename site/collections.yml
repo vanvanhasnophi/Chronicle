@@ -16,10 +16,10 @@
    - type: post
      id: hello-world
    - type: group
-     title: 小合集标题
+     title: PPT
      children:
      - type: post
-       id: hello-world-2
+       id: slides
 
 # 实际结构：
 #   合集名 (slug: collection-slug, cover: collection-cover.jpg, description: 合集简介)

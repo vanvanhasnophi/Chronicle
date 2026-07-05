@@ -162,6 +162,7 @@ const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 const COLLECTION_FILE = path.join(DATA_DIR, 'collection.json');
 const FRIENDS_FILE = path.join(DATA_DIR, 'friends.json');
 const PROFILE_FILE = path.join(DATA_DIR, 'profile.json');
+const COMMENTS_DIR = path.join(DATA_DIR, 'comments');
 
 // Markdown rendering centralized in src/utils/chronicleMarkdown.ts
 // Uses markdown-it with custom rules for katex, code chunks, file cards, images.
@@ -194,6 +195,14 @@ export interface LocalPost extends PostMeta {
     compiledHtml: string;
 }
 
+export interface CommentConfig {
+  backend: '' | 'chronicle' | 'github' | 'twikoo';
+  apiBase?: string;
+  githubRepo?: string;
+  githubIssueNumber?: string;
+  twikooEnvId?: string;
+}
+
 export interface LocalSettings {
     siteName?: string;
     siteDescription?: string;
@@ -211,6 +220,7 @@ export interface LocalSettings {
     cardVisibility?: { author?: boolean; taxonomy?: boolean; activity?: boolean };
     frontendBackgroundCompression?: number;
     gaMeasurementId?: string;
+    comment?: CommentConfig;
 }
 
 // ── Post Access ──────────────────────────────────────────
@@ -481,6 +491,7 @@ export function getPublicSettings(): LocalSettings {
         frontendBackgroundCompression: raw.frontendBackgroundCompression,
         gaMeasurementId: raw.gaMeasurementId,
         icpNumber: raw.icpNumber || '',
+        comment: raw.comment || {},
     };
 }
 
@@ -564,6 +575,68 @@ export function getPostCollections(postId: string): CollectionRef[] {
     }
 
     return result;
+}
+
+// ── Comments ──────────────────────────────────────────────
+
+export interface ChronicleComment {
+  id: string;
+  author: string;
+  email?: string;
+  website?: string;
+  content: string;
+  date: string;
+  /** Flat parent reference — null for top-level, commentId for replies (Staticman format). */
+  parent?: string | null;
+  /** Root comment ID of this thread. Set at creation, never changes. */
+  rootId?: string;
+  /** Only on approved comments — hide from public display. Default false. */
+  hidden?: boolean;
+}
+
+/** Read comments for a post from data/comments/{postId}.json */
+export function getComments(postId: string): ChronicleComment[] {
+  const file = path.join(COMMENTS_DIR, `${postId}.json`);
+  if (!fs.existsSync(file)) return [];
+  try {
+    const raw = fs.readFileSync(file, 'utf-8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Build a nested tree from a flat parent-reference comment list (Staticman format).
+ * Top-level comments have parent === null or undefined.
+ * Each returned comment has its children in a `replies` array.
+ */
+export interface CommentTreeNode extends ChronicleComment {
+  replies: CommentTreeNode[];
+}
+
+export function buildCommentTree(flat: ChronicleComment[]): CommentTreeNode[] {
+  const byParent = new Map<string, CommentTreeNode[]>();
+
+  for (const c of flat) {
+    const parentKey = c.parent || '__root__';
+    if (!byParent.has(parentKey)) byParent.set(parentKey, []);
+    byParent.get(parentKey)!.push({ ...c, replies: [] });
+  }
+
+  function attachChildren(parent: CommentTreeNode): CommentTreeNode {
+    const children = byParent.get(parent.id) || [];
+    parent.replies = children.map(attachChildren);
+    // Sort children by date ascending (oldest reply first)
+    parent.replies.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    return parent;
+  }
+
+  const roots = (byParent.get('__root__') || []).map(attachChildren);
+  // Sort roots by date descending (newest top-level comment first)
+  roots.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  return roots;
 }
 
 // ── Debug ────────────────────────────────────────────────

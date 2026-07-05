@@ -321,6 +321,7 @@ const SETTINGS_DEFAULTS = {
   frontendBackgroundCompression: 12.96,
   gaMeasurementId: '',
   icpNumber: '',
+  comment: { backend: '' },
 };
 
 const YAML_TO_JSON_KEY = {
@@ -345,6 +346,7 @@ const BACKEND_KEYS = new Set([
   'scheduledBuildInterval',
   'frontendUrl',  // configured in CMS, not from site.yml
   'name',          // author name from CMS
+  'comment',       // comment backend config (CMS settings, not from site.yml)
 ]);
 
 function convertSettings(siteDir, dataDir) {
@@ -1253,7 +1255,12 @@ export async function convertSite(siteDir, dataDir) {
   rebuildIndex(postsDir, results);
 
   // ── Settings ──────────────────────────────────────
-  const settingsConverted = convertSettings(siteDir, dataDir);
+  let settingsConverted = false;
+  let profileConverted = false;
+  let friendsConverted = false;
+  let collectionsConverted = false;
+
+  settingsConverted = convertSettings(siteDir, dataDir);
   // Apply asset map to settings (for favicon)
   if (settingsConverted && Object.keys(assetMap).length) {
     const settingsPath = join(dataDir, 'settings.json');
@@ -1265,7 +1272,7 @@ export async function convertSite(siteDir, dataDir) {
   // ── Background (compress + inject into settings) ────
   // Prefer site/branding/ (new convention), fall back to site/background/ (legacy)
   let backgroundResult = null;
-  let bgSourceDir = 'background'; // default to legacy
+  let bgSourceDir = null;
   const siteBrandingDir = join(siteDir, 'branding');
   const siteBgDir = join(siteDir, 'background');
   if (existsSync(siteBrandingDir)) {
@@ -1277,7 +1284,7 @@ export async function convertSite(siteDir, dataDir) {
     backgroundResult = await processBackground(siteDir, bgSourceDir, dataDir, assetMap);
   }
 
-  // If background was processed, merge into settings.json
+  // In pure lite mode, merge background into settings
   if (backgroundResult && settingsConverted) {
     const settingsPath = join(dataDir, 'settings.json');
     const settings = JSON.parse(readFileSync(settingsPath, 'utf-8'));
@@ -1289,71 +1296,68 @@ export async function convertSite(siteDir, dataDir) {
   }
 
   // ── About page (site/about.md → data/about.md) ───
-  const aboutSrc = join(siteDir, 'about.md');
-  if (existsSync(aboutSrc)) {
-    const aboutRaw = readFileSync(aboutSrc, 'utf-8');
-    // Parse frontmatter: extract showProfileCard → settings, keep lastModified
-    let aboutContent = aboutRaw;
-    const aboutLines = aboutRaw.split('\n');
-    const frontmatter = {};
-    if (aboutLines[0]?.trim() === '---') {
-      let i = 1;
-      while (i < aboutLines.length && aboutLines[i].trim() !== '---') {
-        const m = aboutLines[i].match(/^(\w+):\s*(.+)/);
-        if (m) {
-          const key = m[1].trim();
-          let val = m[2].trim().replace(/^["']|["']$/g, '');
-          if (val === 'true') val = true;
-          else if (val === 'false') val = false;
-          frontmatter[key] = val;
+    const aboutSrc = join(siteDir, 'about.md');
+    if (existsSync(aboutSrc)) {
+      const aboutRaw = readFileSync(aboutSrc, 'utf-8');
+      let aboutContent = aboutRaw;
+      const aboutLines = aboutRaw.split('\n');
+      const frontmatter = {};
+      if (aboutLines[0]?.trim() === '---') {
+        let i = 1;
+        while (i < aboutLines.length && aboutLines[i].trim() !== '---') {
+          const m = aboutLines[i].match(/^(\w+):\s*(.+)/);
+          if (m) {
+            const key = m[1].trim();
+            let val = m[2].trim().replace(/^["']|["']$/g, '');
+            if (val === 'true') val = true;
+            else if (val === 'false') val = false;
+            frontmatter[key] = val;
+          }
+          i++;
         }
-        i++;
+        aboutContent = aboutLines.slice(i + 1).join('\n');
       }
-      aboutContent = aboutLines.slice(i + 1).join('\n');
+      if ('showProfileCard' in frontmatter) {
+        const settings = JSON.parse(readFileSync(join(dataDir, 'settings.json'), 'utf-8'));
+        if (!settings.about) settings.about = {};
+        settings.about.showProfileCard = frontmatter.showProfileCard;
+        writeFileSync(join(dataDir, 'settings.json'), JSON.stringify(settings, null, 2), 'utf-8');
+        delete frontmatter.showProfileCard;
+        frontmatter.lastModified = frontmatter.lastModified || new Date().toISOString().slice(0, 10);
+        const newFm = Object.entries(frontmatter).map(([k, v]) => `${k}: ${v}`).join('\n');
+        aboutContent = `---\n${newFm}\n---\n\n${aboutContent}`;
+        writeFileSync(join(dataDir, 'about.md'), aboutContent, 'utf-8');
+      } else {
+        cpSync(aboutSrc, join(dataDir, 'about.md'), { force: true });
+      }
+      console.log('[convert] About: site/about.md → data/about.md');
     }
-    // Move showProfileCard from frontmatter to settings
-    if ('showProfileCard' in frontmatter) {
-      const settings = JSON.parse(readFileSync(join(dataDir, 'settings.json'), 'utf-8'));
-      if (!settings.about) settings.about = {};
-      settings.about.showProfileCard = frontmatter.showProfileCard;
-      writeFileSync(join(dataDir, 'settings.json'), JSON.stringify(settings, null, 2), 'utf-8');
-      delete frontmatter.showProfileCard;
-      // Rebuild about.md without the consumed key
-      frontmatter.lastModified = frontmatter.lastModified || new Date().toISOString().slice(0, 10);
-      const newFm = Object.entries(frontmatter).map(([k, v]) => `${k}: ${v}`).join('\n');
-      aboutContent = `---\n${newFm}\n---\n\n${aboutContent}`;
-      writeFileSync(join(dataDir, 'about.md'), aboutContent, 'utf-8');
-    } else {
-      // No showProfileCard to extract — just copy
-      cpSync(aboutSrc, join(dataDir, 'about.md'), { force: true });
+
+    // ── Profile ──────────────────────────────────────
+    profileConverted = convertProfile(siteDir, dataDir, assetMap);
+
+    // ── Friends ───────────────────────────────────────
+    friendsConverted = convertFriends(siteDir, dataDir, assetMap);
+
+    // ── Collections ───────────────────────────────────
+    const slugToId = {};
+    for (const { slug, uuid } of results) slugToId[slug] = uuid;
+    collectionsConverted = convertCollections(siteDir, dataDir, assetMap, slugToId);
+
+    if (collectionsConverted) {
+      annotatePostCollections(dataDir);
     }
-    console.log('[convert] About: site/about.md → data/about.md');
-  }
 
-  // ── Profile ──────────────────────────────────────
-  const profileConverted = convertProfile(siteDir, dataDir, assetMap);
-
+    // ── Homepage cover ──
+    const coverSrc = join(siteDir, 'homepage-cover.html');
+    if (existsSync(coverSrc)) {
+      cpSync(coverSrc, join(dataDir, 'homepage-cover.html'), { force: true });
+      console.log('[convert] Homepage cover: site/homepage-cover.html → data/homepage-cover.html');
+    }
   // ── Branding assets (avatar / favicon from site/ root) ──
   // Must run after profile.json and settings.json are written
   await processBrandingAsset(siteDir, 'avatar', 'profile', dataDir, assetMap);
   await processBrandingAsset(siteDir, 'favicon', 'settings', dataDir, assetMap);
-
-  // ── Friends ───────────────────────────────────────
-  const friendsConverted = convertFriends(siteDir, dataDir, assetMap);
-
-  // ── Collections ───────────────────────────────────
-  // Build slug→id map for resolving human-readable post references
-  const slugToId = {};
-  for (const { slug, uuid } of results) slugToId[slug] = uuid;
-  const collectionsConverted = convertCollections(siteDir, dataDir, assetMap, slugToId);
-
-  // Backfill collection/collectionPath into posts/index.json
-  if (collectionsConverted) {
-    annotatePostCollections(dataDir);
-  }
-
-  // Background + branding already processed above — only compressed
-  // WebP + avatar/favicon in data/branding/, no YAML or originals.
 
   return {
     success: true,

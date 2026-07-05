@@ -1,12 +1,12 @@
 ---
-title: 未命名文章2
-date: 2026-06-27T21:55:02.680Z
-updatedAt: 2026-07-02T18:33:51.631Z
-tags: ["featured","123"]
+title: Hello, Marp!
+date: 2026-06-01
+updatedAt: 2026-07-01
+tags: featured, marp, sample 
 author: 123
-aiGenerated: true
+aiGenerated: false
 marp: true
-theme: chronicle-dark
+theme: chronicle
 accent-color: #e92
 tinted-bg: true
 ---
