@@ -1,4 +1,17 @@
 {
+  "siteName": "Chronicle Lite",
+  "siteDescription": "",
+  "homepageMode": "split",
+  "singleColumnHomepage": false,
+  "cardVisibility": {
+    "author": true,
+    "taxonomy": true,
+    "activity": true
+  },
+  "frontendTheme": "follow",
+  "frontendAccent": "#2ea35f",
+  "frontendFont": "sans",
+  "frontendLocale": "follow",
   "collectionPage": true,
   "aboutPage": true,
   "friendsPage": true,
@@ -7,21 +20,18 @@
   "searchSuggestions": false,
   "relatedPosts": false,
   "traffic": true,
-  "frontendLocale": "follow",
-  "backendLocale": "en",
-  "frontendFont": "sans",
-  "backendFont": "sans",
-  "frontendTheme": "follow",
-  "frontendAccent": "#2ea367",
-  "backendTheme": "dark",
-  "frontendBackground": {
-    "url": "/server/data/branding/chr_f_bg-Kaltsit-95dfb467eb.webp",
-    "path": "chr_f_bg-Kaltsit-95dfb467eb.webp",
-    "sourcePath": "pic/Kaltsit.jpg",
-    "sourceName": "Kaltsit.jpg",
-    "generatedPath": "chr_f_bg-Kaltsit-95dfb467eb.webp",
-    "generatedName": "chr_f_bg-Kaltsit-95dfb467eb.webp"
+  "defaultPerformanceMode": "auto",
+  "frontendBackgroundCompression": 12.96,
+  "gaMeasurementId": "",
+  "icpNumber": "",
+  "comment": {
+    "backend": "chronicle",
+    "apiBase": "localhost:3000"
   },
+  "backendTheme": "dark",
+  "backendAccent": "#2ea336",
+  "backendFont": "sans",
+  "backendLocale": "zh-CN",
   "backendBackground": {
     "url": "/server/data/manager-background/chr_b_bg-Kaltsit-1ee7858b34.webp",
     "path": "chr_b_bg-Kaltsit-1ee7858b34.webp",
@@ -32,10 +42,6 @@
   },
   "backendBackgroundMeta": "{\"url\":\"http://localhost:5173/server/data/manager-background/chr_b_bg-Kaltsit-1ee7858b34.webp\",\"sourcePath\":\"pic/Kaltsit.jpg\",\"sourceName\":\"Kaltsit.jpg\",\"mode\":\"cover\",\"posX\":50,\"posY\":50,\"size\":100,\"blur\":25,\"overlayLightColor\":\"#ffffff\",\"overlayLightOpacity\":80,\"overlayDarkColor\":\"#000000\",\"overlayDarkOpacity\":80,\"overlayColor\":\"#000000\",\"overlayOpacity\":80,\"compressionFactor\":16.2,\"compression\":16.2,\"bgCompression\":16.2}",
   "backendBackgroundCompression": 16.2,
-  "frontendCodeDir": "/opt/Chronicle/packages/template-astro",
-  "frontendBuildTargetDir": "/var/www/blog.eightyfor.top",
-  "autoBuildOnPublish": true,
-  "buildGranularity": "full",
   "scheduledBuildEnabled": false,
   "scheduledBuildMode": "daily",
   "scheduledBuildMinute": 0,
@@ -43,20 +49,14 @@
   "scheduledBuildWeekday": 0,
   "scheduledBuildCron": "0 3 * * *",
   "scheduledBuildInterval": "daily",
-  "frontendUrl": "http://localhost:4321",
-  "siteName": "Chronicle 2.0",
-  "siteDescription": "An extraorninary leap of Chronicle",
-  "homepageMode": "split",
-  "frontendBackgroundMeta": "{\"url\":\"/server/data/upload/pic/Kaltsit.jpg\",\"sourcePath\":\"pic/Kaltsit.jpg\",\"sourceName\":\"Kaltsit.jpg\",\"mode\":\"cover\",\"posX\":50,\"posY\":50,\"size\":100,\"blur\":24,\"overlayLightColor\":\"#ffffff\",\"overlayLightOpacity\":78,\"overlayDarkColor\":\"#000000\",\"overlayDarkOpacity\":81,\"overlayColor\":\"#000000\",\"overlayOpacity\":81,\"compressionFactor\":15.552,\"compression\":15.552,\"bgCompression\":15.552}",
-  "frontendBackgroundCompression": 15.552,
-  "gaMeasurementId": "",
-  "defaultPerformanceMode": "auto",
-  "backendAccent": "#2ea336",
-  "singleColumnHomepage": false,
-  "cardVisibility": {
-    "author": true,
-    "taxonomy": true,
-    "activity": true
+  "frontendUrl": "https://example.com",
+  "frontendBackground": {
+    "url": "/server/data/branding/chr_f_bg-Kaltsit-f7b63f1b26.webp",
+    "path": "chr_f_bg-Kaltsit-f7b63f1b26.webp",
+    "sourcePath": "pic/Kaltsit-feb1185c.jpg",
+    "sourceName": "Kaltsit-feb1185c.jpg",
+    "generatedPath": "chr_f_bg-Kaltsit-f7b63f1b26.webp",
+    "generatedName": "chr_f_bg-Kaltsit-f7b63f1b26.webp"
   },
-  "icpNumber": "京ICP备2025153813号-1"
+  "frontendBackgroundMeta": "{\"url\":\"/server/data/branding/chr_f_bg-Kaltsit-f7b63f1b26.webp\",\"sourcePath\":\"pic/Kaltsit-feb1185c.jpg\",\"sourceName\":\"Kaltsit-feb1185c.jpg\",\"mode\":\"cover\",\"posX\":50,\"posY\":50,\"size\":100,\"blur\":20,\"overlayLightColor\":\"#ffffff\",\"overlayLightOpacity\":80,\"overlayDarkColor\":\"#000000\",\"overlayDarkOpacity\":85,\"compressionFactor\":12.96,\"compression\":12.96,\"bgCompression\":12.96}"
 }

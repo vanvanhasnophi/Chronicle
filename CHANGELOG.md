@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and uses [Semantic Versioning](https://semver.org/).
 
+## [3.0.0] - 2026-07-06
+
+> The final feature release. This repository will be archived as `chronicle-legacy`.
+> Development continues as **Chronicle Aurora 3.0** in a new repository.
+
+### Added
+
+- **Comment system** (`CommentSection`, `commentAdapter`, `commentService`): Full blog commenting with multi-backend support. Four backends out of the box — static JSON (read-only, zero runtime), Chronicle API (self-hosted, full read/write), GitHub Issues (read + link to issue), and Twikoo (third-party SDK). Form with live preview toggle, threaded replies via parent references, and reply indicator with hash anchor navigation. SSR renders approved comments from `data/comments/` for instant paint; client hydration via `IntersectionObserver` only activates when the section scrolls into view, fetching live data and binding the form.
+- **CMS comment management** (`CommentManager`): Per-post unified view showing both approved and pending comments side by side, plus a cross-post pending overview. Search by ID, content, or author shows the full comment thread via `rootId` tracking. Approve, hide, unhide, or delete with icon buttons. Parent comment ID tags replace visual indentation for replies — click to fill the search box.
+- **CMS comment settings schema** (`comments-config.schema.json`): Backend selection and parameter configuration rendered automatically by the schema-driven settings form. Fields appear and hide based on backend choice via the new `x-visible-when` and `x-disabled-when` schema extensions.
+- **Dynamic schema form** (`SchemaForm`, `NativeFieldset`): Fields can now conditionally show, hide, or disable based on the current form data using `x-visible-when` and `x-disabled-when` annotations. Works at both the top-level form and inside nested fieldsets.
+- **Post filter dropdown** (`FilterDropdown`): Replaces the plain `<select>` in the post manager with a trigger button that opens a checkbox popover, supporting multi-select filtering by status (published/draft/modifying) and type (article/slides).
+- **Mobile comment shortcut**: The bottom-left corner button capsule on post pages now includes a speech-bubble icon that jumps directly to the comment form (`#__chronicle-comment`).
+- **Avatar preview**: Profile and friend avatars now support click-to-zoom with a lightbox overlay.
+- **Custom homepage cover**: Homepage cover section can be replaced with a hand-authored `homepage-cover.html` file, giving full control over layout, typography, and branding.
+- **Marp slideshow support** (`Slideshow`): Posts with `type: slides` render as full-screen Marp presentations with fragment animations, speaker notes, and theme support — all server-rendered at build time.
+- **Print-ready editor preview**: The blog editor renders markdown to a self-contained HTML document (inline CSS, no external dependencies) and opens it in the system browser for clean, paginated printing.
+- **Redesigned editor**: Toolbar restructured into logical rows with view mode, theme toggle, and language select consolidated into a single control group. Inline rename in the post list via double-click. Local editing path streamlined for the upcoming Aurora architecture.
+
+### Changed
+
+- **Astro 7 upgrade**: Template engine upgraded to Astro 7, bringing the new content layer API and faster build times.
+- **Vue removed from template**: Blog frontend no longer ships any Vue runtime. Interactive components (TOC, corner buttons, comment hydration, Mermaid rendering) are vanilla TypeScript loaded on demand — cutting the template JS bundle by over 60%.
+- **Lifecycle management**: `CommentSection` and other dynamic components follow the `astro:page-load` / `astro:before-swap` pattern for proper mount/unmount across SPA navigations — no more leaked observers or event listeners.
+
+### Security
+
+- Comment `content` sanitized through DOMPurify at write time (shared whitelist: 43 tags, 30 attributes).
+- `sanitizeUrl()` blocks `javascript:`, `data:`, `vbscript:`, and `file:` URL schemes in the website field before persistence.
+- `escapeHtml()` applied to author, website, and comment ID during client-side rendering.
+- IP-based rate limiting on public comment submission: 2 per minute, 20 per day.
+
+### Internal
+
+- Comment data stored as flat JSON arrays in `data/comments/{postId}.json` and `data/comments-pending/{postId}.json`.
+- `buildCommentTree()` utility builds nested trees from flat parent references for SSR rendering.
+- `BACKEND_KEYS` in convert preserves comment configuration across lite rebuilds.
+
 ## [2.1.1] - 2026-06-27
 
 ### Fixed

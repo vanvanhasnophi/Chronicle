@@ -37,6 +37,7 @@ const DATA_API_MAP: Record<string, string> = {
   'chronicle:friends': '/api/friends',
   'chronicle:profile': '/api/profile',
   'chronicle:security': '/api/auth/security',
+  'chronicle:comments-config': '/api/settings',
 }
 
 // Endpoints that wrap the payload in a named key (e.g. /api/collections expects { collections: [...] })

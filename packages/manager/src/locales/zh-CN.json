@@ -8,6 +8,7 @@
     "search": "搜索",
     "friends": "朋友",
     "posts": "文章",
+    "comments": "评论管理",
     "dashboard": "仪表盘",
     "traffic": "流量统计",
     "content": "内容",
@@ -886,5 +887,35 @@
     "detailTime": "时间",
     "detailDuration": "耗时",
     "detailError": "错误"
+  },
+  "comment": {
+    "manageTitle": "评论管理",
+    "refresh": "刷新",
+    "loading": "正在加载评论...",
+    "noPending": "没有待审核的评论。",
+    "noCommentsForPost": "该文章暂无评论。",
+    "commentCount": "{count} 条评论",
+    "approve": "通过",
+    "delete": "删除",
+    "hide": "隐藏",
+    "unhide": "显示",
+    "hidden": "已隐藏",
+    "pending": "待审核",
+    "backToPosts": "返回文章列表",
+    "byPost": "按文章",
+    "pendingOverview": "待审核",
+    "selectPost": "选择文章...",
+    "selectPostHint": "在上方选择一篇文章来查看和管理其评论。",
+    "searchPlaceholder": "搜索 ID 或内容...",
+    "viewPost": "查看",
+    "confirmDelete": "永久删除这条评论？",
+    "deleteFailed": "删除失败",
+    "moderationFailed": "操作失败"
+  },
+  "filter": {
+    "status": "状态",
+    "type": "类型",
+    "article": "文章",
+    "slides": "幻灯片"
   }
 }

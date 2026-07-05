@@ -219,4 +219,46 @@ router.get('/collections', (req, res) => {
     }
 });
 
+// ── Public Comments ─────────────────────────────────────────
+
+const {
+  readComments,
+  addPendingComment,
+  checkRateLimit,
+} = require('../../services/commentService');
+
+// GET /api/public/comments?postId={id}
+router.get('/comments', (req, res) => {
+  try {
+    const { postId } = req.query;
+    if (!postId) return fail(res, 'postId is required', 400);
+    const comments = readComments(postId);
+    return success(res, comments);
+  } catch (e) {
+    return fail(res, 'Failed to read comments', 500);
+  }
+});
+
+// POST /api/public/comments?postId={id}
+router.post('/comments', (req, res) => {
+  try {
+    const { postId } = req.query;
+    if (!postId) return fail(res, 'postId is required', 400);
+
+    // Rate limiting by IP
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    try {
+      checkRateLimit(ip);
+    } catch (e) {
+      return fail(res, e.message, 429);
+    }
+
+    const { author, email, website, content, parent } = req.body || {};
+    const comment = addPendingComment(postId, { author, email, website, content, parent });
+    return success(res, comment, 'Comment submitted for review');
+  } catch (e) {
+    return fail(res, e.message || 'Failed to submit comment', 400);
+  }
+});
+
 module.exports = router;

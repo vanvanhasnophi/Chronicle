@@ -1,7 +1,7 @@
 ---
 title: Hello, Chronicle
 date: 2026-01-01
-tags: hello, chronicle, featured
+tags: hello, chronicle, sample
 summary: 欢迎使用 Chronicle Lite —— 一个目录驱动的轻量博客。
 status: published
 ---

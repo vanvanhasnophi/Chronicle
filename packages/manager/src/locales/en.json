@@ -8,6 +8,7 @@
     "search": "Search",
     "friends": "Friends",
     "posts": "Posts",
+    "comments": "Comments",
     "dashboard": "Dashboard",
     "traffic": "Traffic",
     "content": "Content",
@@ -887,5 +888,35 @@
     "detailTime": "Time",
     "detailDuration": "Duration",
     "detailError": "Error"
+  },
+  "comment": {
+    "manageTitle": "Comment Management",
+    "refresh": "Refresh",
+    "loading": "Loading comments...",
+    "noPending": "No pending comments. All clear!",
+    "noCommentsForPost": "No comments for this post.",
+    "commentCount": "{count} comment(s)",
+    "approve": "Approve",
+    "delete": "Delete",
+    "hide": "Hide",
+    "unhide": "Show",
+    "hidden": "Hidden",
+    "pending": "Pending",
+    "backToPosts": "Back to Posts",
+    "byPost": "By Post",
+    "pendingOverview": "Pending",
+    "selectPost": "Select a post...",
+    "selectPostHint": "Select a post above to view and manage its comments.",
+    "searchPlaceholder": "Search ID or content...",
+    "viewPost": "View",
+    "confirmDelete": "Delete this comment permanently?",
+    "deleteFailed": "Delete failed",
+    "moderationFailed": "Moderation failed"
+  },
+  "filter": {
+    "status": "Status",
+    "type": "Type",
+    "article": "Article",
+    "slides": "Slides"
   }
 }

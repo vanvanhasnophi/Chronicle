@@ -13,6 +13,7 @@
     :add-label="listAddLabel"
     :empty-text="listEmptyText"
     :meta="fieldMeta"
+    :form-data="formData"
     :source-path="modelValue?.sourcePath"
     :source-name="modelValue?.sourceName"
     @update:model-value="(v: any) => emit('update:modelValue', v)"
@@ -83,6 +84,8 @@ const props = defineProps<{
   emptyText?: string
   /** Pre-populated meta from *Meta field (for background-editor etc.) */
   fieldMeta?: any
+  /** Full form data for x-visible-when / x-disabled-when resolution */
+  formData?: Record<string, any>
 }>()
 
 const emit = defineEmits<{
