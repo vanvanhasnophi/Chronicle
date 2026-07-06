@@ -65,6 +65,7 @@ import { Icons } from '../utils/icons'
 import { useI18n } from 'vue-i18n'
 import StandaloneHeader from '../components/StandaloneHeader.vue'
 import { apiUrl, useServerUrl, resolveApiBaseUrl, getWebauthnBaseUrl } from '../composables/useServerUrl'
+import { getNotificationCenter } from '../composables/useNotificationCenter'
 
 const router = useRouter()
 const route = useRoute()
@@ -119,6 +120,19 @@ const completeLogin = (serverToken: string) => {
         expiry: Date.now() + 24 * 60 * 60 * 1000
     }
     localStorage.setItem('chronicle_auth', JSON.stringify(session))
+
+    // Deprecation notice — once per session
+    if (!sessionStorage.getItem('chr_deprecation_shown')) {
+      sessionStorage.setItem('chr_deprecation_shown', '1')
+      getNotificationCenter().dispatch({
+        kind: 'status',
+        level: 'warning',
+        title: t('login.deprecationTitle'),
+        message: t('login.deprecationMessage'),
+        autoDismiss: 0,
+        _key: 'deprecation',
+      })
+    }
 
     const target = resolveLoginTarget()
     // If target is a custom protocol URL (chronicle://), redirect browser to it

@@ -421,3 +421,80 @@
     height: 100%;
     stroke-width: 1;
 }
+
+/* ── Batch action bar (shared by PostManager & FileManager) ──────────── */
+
+.batch-bar {
+    position: absolute;
+    bottom: 12px;
+    left: 16px;
+    right: 16px;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.6rem 1rem;
+    border-radius: 10px;
+    background: var(--component-bg-blur-alt);
+    border: 1px solid var(--border-color-blur);
+    backdrop-filter: blur(6px);
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.25);
+    flex-wrap: wrap;
+}
+
+.batch-count {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--component-text-primary);
+}
+
+.batch-check-all {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.85rem;
+    color: var(--component-text-secondary);
+    cursor: pointer;
+}
+
+.batch-check-all input {
+    width: 14px;
+    height: 14px;
+    accent-color: var(--accent-color);
+}
+
+.batch-actions {
+    display: flex;
+    gap: 0.4rem;
+    flex: 1;
+}
+
+.batch-actions .chronicle-fb-btn {
+    font-size: 0.82rem;
+    padding: 0.35rem 0.65rem;
+}
+
+.batch-delete-btn {
+    color: var(--status-error) !important;
+    border-color: var(--status-error) !important;
+}
+
+.batch-clear-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0!important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--component-text-secondary);
+    flex-shrink: 0;
+}
+
+.batch-delete-btn:hover {
+    background: var(--status-error-bg)!important;
+}
+
+.batch-clear-btn :deep(svg) {
+    width: 18px;
+    height: 18px;
+}

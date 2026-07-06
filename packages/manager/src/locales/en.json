@@ -522,7 +522,9 @@
     "serverVerifying": "Verifying...",
     "serverOk": "Connected",
     "serverConnectFailed": "Cannot reach server: {msg}",
-    "currentServer": "Current: {url}"
+    "currentServer": "Current: {url}",
+    "deprecationTitle": "Version End-of-Life",
+    "deprecationMessage": "This version of Chronicle will stop receiving major updates. Please migrate to Chronicle Aurora for continued support and new features."
   },
   "security": {
     "title": "Security Settings",

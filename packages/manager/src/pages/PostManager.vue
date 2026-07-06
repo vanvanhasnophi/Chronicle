@@ -63,7 +63,7 @@
       </div>
 
       <!-- Batch action bar -->
-      <div v-if="selectedCount > 0" class="batch-bar">
+      <div v-if="selectMode" class="batch-bar">
         <span class="batch-count">{{ $t('post.selectedCount', { count: selectedCount }) }}</span>
         <label class="batch-check-all">
           <input type="checkbox" :checked="allSelected" @change="toggleSelectAll" />
@@ -176,10 +176,12 @@ const loading = ref(true)
 const republishing = ref(false)
 
 // ── Multi-select state ────────────────────────────────────────────────
+const selectMode = ref(false)
 const selectedIds = ref<Set<string>>(new Set())
 const lastClickedId = ref<string | null>(null)
 
 function toggleSelect(postId: string, event?: MouseEvent) {
+  selectMode.value = true
   const shift = event?.shiftKey
   if (shift && lastClickedId.value) {
     // Range select
@@ -201,6 +203,7 @@ function toggleSelect(postId: string, event?: MouseEvent) {
 }
 
 function toggleSelectAll() {
+  selectMode.value = true
   const visible = filteredPosts.value.map(p => p.id)
   if (visible.every(id => selectedIds.value.has(id))) {
     visible.forEach(id => selectedIds.value.delete(id))
@@ -211,6 +214,7 @@ function toggleSelectAll() {
 }
 
 function clearSelection() {
+  selectMode.value = false
   selectedIds.value = new Set()
   lastClickedId.value = null
 }
@@ -574,6 +578,7 @@ onUnmounted(() => {
 /* ── Container ─────────────────────────────────────────────────────── */
 
 .post-manager-container {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -711,71 +716,6 @@ onUnmounted(() => {
   min-height: 0;
 }
 
-/* ── Batch action bar ───────────────────────────────────────────────── */
-
-.batch-bar {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.6rem 1rem;
-  margin-bottom: 0.75rem;
-  border-radius: 10px;
-  background: var(--component-bg-blur-alt);
-  border: 1px solid var(--border-color-blur);
-  flex-wrap: wrap;
-}
-
-.batch-count {
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: var(--component-text-primary);
-}
-
-.batch-check-all {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.85rem;
-  color: var(--component-text-secondary);
-  cursor: pointer;
-}
-
-.batch-check-all input {
-  width: 14px;
-  height: 14px;
-  accent-color: var(--accent-color);
-}
-
-.batch-actions {
-  display: flex;
-  gap: 0.4rem;
-  flex: 1;
-}
-
-.batch-actions .chronicle-fb-btn {
-  font-size: 0.82rem;
-  padding: 0.35rem 0.65rem;
-}
-
-.batch-delete-btn {
-  color: var(--status-error) !important;
-  border-color: var(--status-error) !important;
-}
-
-.batch-clear-btn {
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--component-text-secondary);
-  flex-shrink: 0;
-}
-.batch-clear-btn svg {
-  width: 16px;
-  height: 16px;
-}
 
 /* ── Post rows (hybrid card-list) ──────────────────────────────────── */
 

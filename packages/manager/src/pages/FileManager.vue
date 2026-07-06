@@ -104,7 +104,7 @@
             </div>
 
             <!-- Batch action bar -->
-            <div v-if="selectedFileCount > 0" class="batch-bar">
+            <div v-if="selectMode" class="batch-bar">
                 <span class="batch-count">{{ $t('file.selectedCount', { count: selectedFileCount }) }}</span>
                 <label class="batch-check-all">
                     <input type="checkbox" :checked="allFilesSelected" @change="toggleSelectAllFiles" />
@@ -254,9 +254,11 @@ const loading = ref(false)
 const uploadInput = ref<HTMLInputElement | null>(null)
 
 // ── Multi-select state ────────────────────────────────────────────────
+const selectMode = ref(false)
 const selectedPaths = ref<Set<string>>(new Set())
 
 function toggleSelectFile(path: string, event?: MouseEvent) {
+  selectMode.value = true
   const shift = event?.shiftKey
   if (shift && lastClickedPath.value) {
     const visible = items.value.map(f => f.path)
@@ -278,6 +280,7 @@ function toggleSelectFile(path: string, event?: MouseEvent) {
 const lastClickedPath = ref<string | null>(null)
 
 function toggleSelectAllFiles() {
+  selectMode.value = true
   const visible = items.value.map(f => f.path)
   if (visible.every(p => selectedPaths.value.has(p))) {
     visible.forEach(p => selectedPaths.value.delete(p))
@@ -288,6 +291,7 @@ function toggleSelectAllFiles() {
 }
 
 function clearFileSelection() {
+  selectMode.value = false
   selectedPaths.value = new Set()
   lastClickedPath.value = null
 }
@@ -592,6 +596,7 @@ onUnmounted(() => {
 /* ── Container ─────────────────────────────────────────────────────── */
 
 .chronicle-fb-container {
+    position: relative;
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -681,71 +686,6 @@ onUnmounted(() => {
     min-height: 0;
 }
 
-/* ── Batch action bar ───────────────────────────────────────────────── */
-
-.batch-bar {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 0.6rem 1rem;
-    margin-bottom: 0.75rem;
-    border-radius: 10px;
-    background: var(--component-bg-blur-alt);
-    border: 1px solid var(--border-color-blur);
-    flex-wrap: wrap;
-}
-
-.batch-count {
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: var(--component-text-primary);
-}
-
-.batch-check-all {
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    font-size: 0.85rem;
-    color: var(--component-text-secondary);
-    cursor: pointer;
-}
-
-.batch-check-all input {
-    width: 14px;
-    height: 14px;
-    accent-color: var(--accent-color);
-}
-
-.batch-actions {
-    display: flex;
-    gap: 0.4rem;
-    flex: 1;
-}
-
-.batch-actions .chronicle-fb-btn {
-    font-size: 0.82rem;
-    padding: 0.35rem 0.65rem;
-}
-
-.batch-delete-btn {
-    color: var(--status-error) !important;
-    border-color: var(--status-error) !important;
-}
-
-.batch-clear-btn {
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--component-text-secondary);
-    flex-shrink: 0;
-}
-.batch-clear-btn svg {
-    width: 16px;
-    height: 16px;
-}
 
 /* ── Checkboxes ─────────────────────────────────────────────────────── */
 

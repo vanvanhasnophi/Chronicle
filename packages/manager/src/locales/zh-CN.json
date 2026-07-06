@@ -521,7 +521,9 @@
     "serverVerifying": "验证中...",
     "serverOk": "已连接",
     "serverConnectFailed": "无法连接到服务器",
-    "currentServer": "当前服务器：{url}"
+    "currentServer": "当前服务器：{url}",
+    "deprecationTitle": "版本即将停止维护",
+    "deprecationMessage": "当前版本将不再接收重大更新，请迁移至 Chronicle Aurora 以继续获得支持和体验新功能。"
   },
   "security": {
     "title": "安全设置",

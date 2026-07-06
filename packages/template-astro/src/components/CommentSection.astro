@@ -84,7 +84,7 @@ const isEmpty = commentTree.length === 0;
 
 <div
   class="comment-section"
-  id="comments"
+  id="__chronicle-comment"
   data-post-id={postId || ''}
   data-api-base={apiBase}
   data-comment-backend={backend}
@@ -95,7 +95,7 @@ const isEmpty = commentTree.length === 0;
 >
   <!-- Comment form (top) — hidden for static JSON, shown for dynamic backends -->
   {backend ? (
-  <div class="cs-form-wrap" id="__chronicle-comment">
+  <div class="cs-form-wrap">
     <h3 class="cs-form-title">{t('comment.leaveComment')}</h3>
     <div class="cs-reply-indicator" id="cs-reply-indicator" hidden>
       <span>{t('comment.replyingTo')} <strong id="cs-reply-to-name"></strong></span>
@@ -259,9 +259,11 @@ const isEmpty = commentTree.length === 0;
               </div>
               <div class="cs-content" set:html={comment.content} />
             </div>
+            {backend && (
             <button type="button" class="cs-reply-btn" data-reply-to={comment.id} data-reply-author={comment.author}>
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="10" x2="20" y2="10"/><polyline points="8 6 4 10 8 14"/><path d="M20 10v4a4 4 0 0 1-4 4H8"/></svg> {t('comment.reply')}
             </button>
+            )}
           </div>
 
           {comment.replies && comment.replies.length > 0 && (
@@ -291,9 +293,11 @@ const isEmpty = commentTree.length === 0;
                     </div>
                     <div class="cs-content" set:html={reply.content} />
                   </div>
+                  {backend && (
                   <button type="button" class="cs-reply-btn" data-reply-to={reply.id} data-reply-author={reply.author}>
                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="10" x2="20" y2="10"/><polyline points="8 6 4 10 8 14"/><path d="M20 10v4a4 4 0 0 1-4 4H8"/></svg> {t('comment.reply')}
                   </button>
+                  )}
                 </div>
               ))}
             </div>
