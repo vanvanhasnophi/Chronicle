@@ -1,3 +1,5 @@
+<p style="background-color: #ff666640;"><i>Deprecation Notice: 注意，此项目已经<strong>在2026年7月停止主要功能更新</strong>，并计划迁移到 <a href="https://github.com/vanvanhasnophi/chronicle-aurora/">chronicle-aurora</a> ，若无在VPS上独立部署带`host`的服务器实例的需求，请使用chronicle-aurora新仓库。</i></p>
+
 # Chronicle
 
 一个现代化的博客内容管理系统，支持 Markdown 编辑、多语言、主题定制，采用 **双模式（静态/API）架构**。
